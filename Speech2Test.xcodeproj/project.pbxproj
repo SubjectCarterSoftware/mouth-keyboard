@@ -35,6 +35,8 @@
 		A0000001000000000000001A /* AudioLevelMonitor.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0000002000000000000001D /* AudioLevelMonitor.swift */; };
 		A0000001000000000000001B /* AudioDeviceServiceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0000002000000000000001E /* AudioDeviceServiceTests.swift */; };
 		A0000001000000000000001C /* AudioDeviceService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0000002000000000000001F /* AudioDeviceService.swift */; };
+		A0000001000000000000001D /* RecordingPillView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000020000000000000020 /* RecordingPillView.swift */; };
+		A0000001000000000000001E /* RecordingPillPanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000020000000000000021 /* RecordingPillPanel.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -86,6 +88,8 @@
 		A0000002000000000000001D /* AudioLevelMonitor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudioLevelMonitor.swift; sourceTree = "<group>"; };
 		A0000002000000000000001E /* AudioDeviceServiceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudioDeviceServiceTests.swift; sourceTree = "<group>"; };
 		A0000002000000000000001F /* AudioDeviceService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudioDeviceService.swift; sourceTree = "<group>"; };
+		A00000020000000000000020 /* RecordingPillView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecordingPillView.swift; sourceTree = "<group>"; };
+		A00000020000000000000021 /* RecordingPillPanel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecordingPillPanel.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -162,6 +166,8 @@
 			isa = PBXGroup;
 			children = (
 				A0000002000000000000000C /* PermissionChecklistView.swift */,
+				A00000020000000000000021 /* RecordingPillPanel.swift */,
+				A00000020000000000000020 /* RecordingPillView.swift */,
 				A0000002000000000000000D /* RecoveryActions.swift */,
 				A00000020000000000000006 /* SetupWindowView.swift */,
 				A0000002000000000000000E /* StatusCardView.swift */,
@@ -385,6 +391,8 @@
 				A0000001000000000000000A /* PermissionChecklistView.swift in Sources */,
 				A00000010000000000000008 /* ReadinessSnapshot.swift in Sources */,
 				A00000010000000000000009 /* ReadinessStore.swift in Sources */,
+				A0000001000000000000001E /* RecordingPillPanel.swift in Sources */,
+				A0000001000000000000001D /* RecordingPillView.swift in Sources */,
 				A00000010000000000000014 /* RecordingState.swift in Sources */,
 				A0000001000000000000000B /* RecoveryActions.swift in Sources */,
 				A00000010000000000000005 /* ShellPreferences.swift in Sources */,
