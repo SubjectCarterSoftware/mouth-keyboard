@@ -33,6 +33,7 @@
 		A00000010000000000000018 /* AudioCaptureServiceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0000002000000000000001B /* AudioCaptureServiceTests.swift */; };
 		A00000010000000000000019 /* AudioCaptureService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0000002000000000000001C /* AudioCaptureService.swift */; };
 		A0000001000000000000001A /* AudioLevelMonitor.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0000002000000000000001D /* AudioLevelMonitor.swift */; };
+		A0000001000000000000001B /* AudioDeviceServiceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0000002000000000000001E /* AudioDeviceServiceTests.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -82,6 +83,7 @@
 		A0000002000000000000001B /* AudioCaptureServiceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudioCaptureServiceTests.swift; sourceTree = "<group>"; };
 		A0000002000000000000001C /* AudioCaptureService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudioCaptureService.swift; sourceTree = "<group>"; };
 		A0000002000000000000001D /* AudioLevelMonitor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudioLevelMonitor.swift; sourceTree = "<group>"; };
+		A0000002000000000000001E /* AudioDeviceServiceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudioDeviceServiceTests.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -197,6 +199,7 @@
 			children = (
 				A00000020000000000000015 /* ActivationStoreTests.swift */,
 				A0000002000000000000001B /* AudioCaptureServiceTests.swift */,
+				A0000002000000000000001E /* AudioDeviceServiceTests.swift */,
 				A00000020000000000000019 /* HotkeyServiceTests.swift */,
 				A0000002000000000000000F /* PermissionServiceTests.swift */,
 				A00000020000000000000010 /* ReadinessStateTests.swift */,
@@ -394,6 +397,7 @@
 			files = (
 				A00000010000000000000011 /* ActivationStoreTests.swift in Sources */,
 				A00000010000000000000018 /* AudioCaptureServiceTests.swift in Sources */,
+				A0000001000000000000001B /* AudioDeviceServiceTests.swift in Sources */,
 				A00000010000000000000015 /* HotkeyServiceTests.swift in Sources */,
 				A0000001000000000000000D /* PermissionServiceTests.swift in Sources */,
 				A0000001000000000000000E /* ReadinessStateTests.swift in Sources */,
