@@ -45,8 +45,8 @@ Plans:
 **Plans**: 3 plans
 
 Plans:
-- [ ] 02-01-PLAN.md — ShellPreferences extension, RecordingState/ActivationStore/HotkeyService with CGEventTap + double-tap detection, SetupWindowView Activation section.
-- [ ] 02-02-PLAN.md — AudioCaptureService (AVAudioEngine tap), AudioDeviceService (CoreAudio enumeration + selection), AudioLevelMonitor (RMS metering), mic picker UI.
+- [x] 02-01-PLAN.md — ShellPreferences extension, RecordingState/ActivationStore/HotkeyService with CGEventTap + double-tap detection, SetupWindowView Activation section.
+- [x] 02-02-PLAN.md — AudioCaptureService (AVAudioEngine tap), AudioDeviceService (CoreAudio enumeration + selection), AudioLevelMonitor (RMS metering), mic picker UI.
 - [ ] 02-03-PLAN.md — RecordingPillPanel floating overlay, AppDelegate wiring (state → audio + pill + icon + sound), human verification checkpoint.
 
 ### Phase 3: Recognition and Clipboard Loop
@@ -101,7 +101,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Foundation and Permissions | 2/2 | Complete | 2026-03-05 |
-| 2. Activation and Capture | 0/3 | Not started | - |
+| 2. Activation and Capture | 2/3 | In Progress |  |
 | 3. Recognition and Clipboard Loop | 0/3 | Not started | - |
 | 4. Recovery Controls | 0/2 | Not started | - |
 | 5. Long-Dictation Reliability | 0/3 | Not started | - |
