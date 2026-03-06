@@ -30,6 +30,7 @@
 		A00000010000000000000015 /* HotkeyServiceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000020000000000000019 /* HotkeyServiceTests.swift */; };
 		A00000010000000000000016 /* KeyboardShortcuts in Frameworks */ = {isa = PBXBuildFile; productRef = A00000130000000000000001 /* KeyboardShortcuts */; };
 		A00000010000000000000017 /* HotkeyService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0000002000000000000001A /* HotkeyService.swift */; };
+		A00000010000000000000018 /* AudioCaptureServiceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0000002000000000000001B /* AudioCaptureServiceTests.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -76,6 +77,7 @@
 		A00000020000000000000018 /* RecordingState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecordingState.swift; sourceTree = "<group>"; };
 		A00000020000000000000019 /* HotkeyServiceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HotkeyServiceTests.swift; sourceTree = "<group>"; };
 		A0000002000000000000001A /* HotkeyService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HotkeyService.swift; sourceTree = "<group>"; };
+		A0000002000000000000001B /* AudioCaptureServiceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudioCaptureServiceTests.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -189,6 +191,7 @@
 			isa = PBXGroup;
 			children = (
 				A00000020000000000000015 /* ActivationStoreTests.swift */,
+				A0000002000000000000001B /* AudioCaptureServiceTests.swift */,
 				A00000020000000000000019 /* HotkeyServiceTests.swift */,
 				A0000002000000000000000F /* PermissionServiceTests.swift */,
 				A00000020000000000000010 /* ReadinessStateTests.swift */,
@@ -374,6 +377,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				A00000010000000000000011 /* ActivationStoreTests.swift in Sources */,
+				A00000010000000000000018 /* AudioCaptureServiceTests.swift in Sources */,
 				A00000010000000000000015 /* HotkeyServiceTests.swift in Sources */,
 				A0000001000000000000000D /* PermissionServiceTests.swift in Sources */,
 				A0000001000000000000000E /* ReadinessStateTests.swift in Sources */,
