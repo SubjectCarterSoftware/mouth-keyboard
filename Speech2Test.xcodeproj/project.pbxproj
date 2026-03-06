@@ -27,6 +27,7 @@
 		A00000010000000000000012 /* ShellPreferencesPhase2Tests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000020000000000000016 /* ShellPreferencesPhase2Tests.swift */; };
 		A00000010000000000000013 /* ActivationStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000020000000000000017 /* ActivationStore.swift */; };
 		A00000010000000000000014 /* RecordingState.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000020000000000000018 /* RecordingState.swift */; };
+		A00000010000000000000015 /* HotkeyServiceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000020000000000000019 /* HotkeyServiceTests.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -71,6 +72,7 @@
 		A00000020000000000000016 /* ShellPreferencesPhase2Tests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShellPreferencesPhase2Tests.swift; sourceTree = "<group>"; };
 		A00000020000000000000017 /* ActivationStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ActivationStore.swift; sourceTree = "<group>"; };
 		A00000020000000000000018 /* RecordingState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecordingState.swift; sourceTree = "<group>"; };
+		A00000020000000000000019 /* HotkeyServiceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HotkeyServiceTests.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -183,6 +185,7 @@
 			isa = PBXGroup;
 			children = (
 				A00000020000000000000015 /* ActivationStoreTests.swift */,
+				A00000020000000000000019 /* HotkeyServiceTests.swift */,
 				A0000002000000000000000F /* PermissionServiceTests.swift */,
 				A00000020000000000000010 /* ReadinessStateTests.swift */,
 				A00000020000000000000016 /* ShellPreferencesPhase2Tests.swift */,
@@ -359,6 +362,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				A00000010000000000000011 /* ActivationStoreTests.swift in Sources */,
+				A00000010000000000000015 /* HotkeyServiceTests.swift in Sources */,
 				A0000001000000000000000D /* PermissionServiceTests.swift in Sources */,
 				A0000001000000000000000E /* ReadinessStateTests.swift in Sources */,
 				A00000010000000000000012 /* ShellPreferencesPhase2Tests.swift in Sources */,
