@@ -42,7 +42,13 @@ final class ActivationStore: ObservableObject {
     }
 
     func arm() {
-        guard readinessProvider.snapshot.state == .ready else {
+        // Require all permissions to be granted, but do NOT require setup to be
+        // "finalized" (hasCompletedInitialSetup). The finalize step is an
+        // onboarding UX gate, not a runtime safety requirement. Recording must
+        // work as soon as microphone and keyboard-monitoring permissions are
+        // authorized, even if the user dismissed the setup window early.
+        let snapshot = readinessProvider.snapshot
+        guard snapshot.permissions.allSatisfy(\.isAuthorized) else {
             return
         }
 
