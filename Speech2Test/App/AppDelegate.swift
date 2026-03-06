@@ -1,4 +1,5 @@
 import AppKit
+import Combine
 import SwiftUI
 
 @MainActor
@@ -7,8 +8,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     private let preferences = ShellPreferences.shared
     private let readinessStore = ReadinessStore.shared
     private let hotkeyService = HotkeyService.shared
+    private let activationStore = ActivationStore.shared
     private let audioCaptureService = AudioCaptureService.shared
+    private let levelMonitor = AudioLevelMonitor()
     private let forcePresentSetupOnLaunch = ProcessInfo.processInfo.arguments.contains("-open-setup-window")
+
+    private var pillPanel: RecordingPillPanel?
+    private var stateObservation: AnyCancellable?
+    private var statusItem: NSStatusItem?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         let isUITesting = ProcessInfo.processInfo.arguments.contains("-ui-testing")
@@ -20,6 +27,22 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         readinessStore.refresh()
         prepareAudioCaptureIfPossible()
 
+        // Create the pill panel once — shown/hidden reactively.
+        pillPanel = RecordingPillPanel(levelMonitor: levelMonitor)
+
+        // Observe ActivationStore state to drive pill, audio, and icon.
+        stateObservation = activationStore.$state
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] newState in
+                guard let self else { return }
+                switch newState {
+                case .recording:
+                    self.onRecordingStarted()
+                case .idle:
+                    self.onRecordingStopped()
+                }
+            }
+
         if preferences.shouldPresentSetupOnLaunch || forcePresentSetupOnLaunch {
             presentSetupWindow()
         }
@@ -27,12 +50,56 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
 
     func applicationWillTerminate(_ notification: Notification) {
         hotkeyService.stop()
+        stateObservation?.cancel()
     }
 
     func applicationDidBecomeActive(_ notification: Notification) {
         readinessStore.refresh()
         prepareAudioCaptureIfPossible()
     }
+
+    // MARK: - Activation loop
+
+    private func onRecordingStarted() {
+        do {
+            try audioCaptureService.start(levelMonitor: levelMonitor)
+        } catch {
+            NSLog("AudioCaptureService failed to start: \(error.localizedDescription)")
+            activationStore.stop()
+            return
+        }
+
+        pillPanel?.orderFrontRegardless()
+        updateMenuBarIcon(recording: true)
+    }
+
+    private func onRecordingStopped() {
+        audioCaptureService.stop()
+        levelMonitor.reset()
+        pillPanel?.orderOut(nil)
+        updateMenuBarIcon(recording: false)
+    }
+
+    // MARK: - Menu bar icon
+
+    private func updateMenuBarIcon(recording: Bool) {
+        // MenuBarExtra is managed by SwiftUI's scene. We reach its window by
+        // finding all NSWindow objects at the status bar window level and
+        // updating any NSImageView (the button's image view) at that level.
+        // This is deliberately lightweight — the icon update is best-effort UI.
+        let symbolName = recording ? "mic.fill" : "waveform"
+        let description = recording ? "Recording" : "Speech2Test"
+        let image = NSImage(systemSymbolName: symbolName, accessibilityDescription: description)
+
+        // Walk all windows; the MenuBarExtra window sits at .statusBar level.
+        for window in NSApp.windows where Int(window.level.rawValue) >= Int(NSWindow.Level.statusBar.rawValue) {
+            if let button = window.contentView?.subviews.compactMap({ $0 as? NSButton }).first {
+                button.image = image
+            }
+        }
+    }
+
+    // MARK: - Setup window
 
     func presentSetupWindow() {
         if let setupWindow {
@@ -83,6 +150,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
 
         setupWindow = nil
     }
+
+    // MARK: - Audio preparation
 
     private func prepareAudioCaptureIfPossible() {
         guard !ProcessInfo.processInfo.arguments.contains("-ui-testing") else {
