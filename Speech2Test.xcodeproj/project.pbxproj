@@ -25,6 +25,8 @@
 		A00000010000000000000010 /* PermissionRecoveryFlowTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000020000000000000012 /* PermissionRecoveryFlowTests.swift */; };
 		A00000010000000000000011 /* ActivationStoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000020000000000000015 /* ActivationStoreTests.swift */; };
 		A00000010000000000000012 /* ShellPreferencesPhase2Tests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000020000000000000016 /* ShellPreferencesPhase2Tests.swift */; };
+		A00000010000000000000013 /* ActivationStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000020000000000000017 /* ActivationStore.swift */; };
+		A00000010000000000000014 /* RecordingState.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000020000000000000018 /* RecordingState.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -67,6 +69,8 @@
 		A00000020000000000000014 /* Speech2TestUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = Speech2TestUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		A00000020000000000000015 /* ActivationStoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ActivationStoreTests.swift; sourceTree = "<group>"; };
 		A00000020000000000000016 /* ShellPreferencesPhase2Tests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShellPreferencesPhase2Tests.swift; sourceTree = "<group>"; };
+		A00000020000000000000017 /* ActivationStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ActivationStore.swift; sourceTree = "<group>"; };
+		A00000020000000000000018 /* RecordingState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecordingState.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -108,6 +112,7 @@
 			isa = PBXGroup;
 			children = (
 				A00000040000000000000004 /* App */,
+				A0000004000000000000000B /* Activation */,
 				A00000040000000000000005 /* Shell */,
 				A00000040000000000000006 /* Persistence */,
 				A00000040000000000000007 /* Permissions */,
@@ -192,6 +197,15 @@
 				A00000020000000000000012 /* PermissionRecoveryFlowTests.swift */,
 			);
 			path = Speech2TestUITests;
+			sourceTree = "<group>";
+		};
+		A0000004000000000000000B /* Activation */ = {
+			isa = PBXGroup;
+			children = (
+				A00000020000000000000017 /* ActivationStore.swift */,
+				A00000020000000000000018 /* RecordingState.swift */,
+			);
+			path = Activation;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -323,12 +337,14 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				A00000010000000000000013 /* ActivationStore.swift in Sources */,
 				A00000010000000000000002 /* AppDelegate.swift in Sources */,
 				A00000010000000000000006 /* KeyboardPermissionService.swift in Sources */,
 				A00000010000000000000007 /* MicrophonePermissionService.swift in Sources */,
 				A0000001000000000000000A /* PermissionChecklistView.swift in Sources */,
 				A00000010000000000000008 /* ReadinessSnapshot.swift in Sources */,
 				A00000010000000000000009 /* ReadinessStore.swift in Sources */,
+				A00000010000000000000014 /* RecordingState.swift in Sources */,
 				A0000001000000000000000B /* RecoveryActions.swift in Sources */,
 				A00000010000000000000005 /* ShellPreferences.swift in Sources */,
 				A00000010000000000000004 /* SetupWindowView.swift in Sources */,
