@@ -1,4 +1,5 @@
 import AppKit
+import ApplicationServices
 import Foundation
 import KeyboardShortcuts
 
@@ -75,16 +76,23 @@ final class HotkeyService {
             return
         }
 
-        guard CGPreflightListenEventAccess() else {
-            NSLog("HotkeyService could not start because keyboard monitoring permission is unavailable.")
+        // CGEventTap at the session level requires Accessibility permission
+        // (AXIsProcessTrusted), NOT Input Monitoring (CGPreflightListenEventAccess).
+        // Input Monitoring covers IOKit/HID device reads; session-level event taps
+        // require the app to be trusted for accessibility.
+        guard AXIsProcessTrusted() else {
+            NSLog("HotkeyService could not start: Accessibility permission is not granted. " +
+                  "Grant it in System Settings > Privacy & Security > Accessibility.")
             return
         }
 
         let retainedSelf = Unmanaged.passRetained(self)
         let eventMask = CGEventMask(1 << CGEventType.keyDown.rawValue)
 
+        // Use .cgSessionEventTap (user-session level) — NOT .cghidEventTap which
+        // requires root. The session tap is sufficient for hotkey interception.
         guard let tap = CGEvent.tapCreate(
-            tap: .cghidEventTap,
+            tap: .cgSessionEventTap,
             place: .headInsertEventTap,
             options: .defaultTap,
             eventsOfInterest: eventMask,
@@ -92,7 +100,8 @@ final class HotkeyService {
             userInfo: retainedSelf.toOpaque()
         ) else {
             retainedSelf.release()
-            NSLog("HotkeyService failed to create a CGEventTap.")
+            NSLog("HotkeyService failed to create a CGEventTap. " +
+                  "Ensure Accessibility permission is granted and the app is not sandboxed.")
             return
         }
 
