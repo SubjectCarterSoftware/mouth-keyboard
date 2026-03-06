@@ -2,26 +2,27 @@ import XCTest
 import KeyboardShortcuts
 @testable import Speech2Test
 
+@MainActor
 final class HotkeyServiceTests: XCTestCase {
     func testDoubleTapWithinWindowArmsOnce() {
-        var currentTime: CFAbsoluteTime = 100
+        let clock = TestClock(currentTime: 100)
         var armCount = 0
-        let service = makeService(tapMode: .double, currentTime: &currentTime) {
+        let service = makeService(tapMode: .double, clock: clock) {
             armCount += 1
         }
 
         XCTAssertTrue(service.handleKeyDown())
 
-        currentTime = 100.2
+        clock.currentTime = 100.2
         XCTAssertTrue(service.handleKeyDown())
         XCTAssertEqual(armCount, 1)
     }
 
     func testSingleTapInDoubleTapModeDoesNotArmWithinWindow() {
-        var currentTime: CFAbsoluteTime = 100
+        let clock = TestClock(currentTime: 100)
         let didArm = expectation(description: "arm callback")
         didArm.isInverted = true
-        let service = makeService(tapMode: .double, currentTime: &currentTime) {
+        let service = makeService(tapMode: .double, clock: clock) {
             didArm.fulfill()
         }
 
@@ -31,9 +32,9 @@ final class HotkeyServiceTests: XCTestCase {
     }
 
     func testSingleTapModeArmsImmediately() {
-        var currentTime: CFAbsoluteTime = 100
+        let clock = TestClock(currentTime: 100)
         var armCount = 0
-        let service = makeService(tapMode: .single, currentTime: &currentTime) {
+        let service = makeService(tapMode: .single, clock: clock) {
             armCount += 1
         }
 
@@ -43,15 +44,15 @@ final class HotkeyServiceTests: XCTestCase {
     }
 
     func testLateSecondTapStartsNewWindowWithoutArming() {
-        var currentTime: CFAbsoluteTime = 100
+        let clock = TestClock(currentTime: 100)
         var armCount = 0
-        let service = makeService(tapMode: .double, currentTime: &currentTime) {
+        let service = makeService(tapMode: .double, clock: clock) {
             armCount += 1
         }
 
         XCTAssertTrue(service.handleKeyDown())
 
-        currentTime = 100.4
+        clock.currentTime = 100.4
         XCTAssertTrue(service.handleKeyDown())
         XCTAssertEqual(armCount, 0)
     }
@@ -65,7 +66,7 @@ final class HotkeyServiceTests: XCTestCase {
 
     private func makeService(
         tapMode: TapMode,
-        currentTime: inout CFAbsoluteTime,
+        clock: TestClock,
         onArm: @escaping () -> Void
     ) -> HotkeyService {
         let suiteName = "HotkeyServiceTests.\(UUID().uuidString)"
@@ -78,7 +79,16 @@ final class HotkeyServiceTests: XCTestCase {
         return HotkeyService(
             preferences: preferences,
             onArm: onArm,
-            now: { currentTime }
+            now: { clock.currentTime }
         )
+    }
+}
+
+@MainActor
+private final class TestClock {
+    var currentTime: CFAbsoluteTime
+
+    init(currentTime: CFAbsoluteTime) {
+        self.currentTime = currentTime
     }
 }

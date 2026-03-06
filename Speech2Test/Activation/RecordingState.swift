@@ -1,4 +1,4 @@
-enum TapMode: String, CaseIterable {
+enum TapMode: String, CaseIterable, Hashable {
     case single
     case double
 }

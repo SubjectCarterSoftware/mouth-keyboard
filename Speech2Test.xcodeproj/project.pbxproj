@@ -28,6 +28,8 @@
 		A00000010000000000000013 /* ActivationStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000020000000000000017 /* ActivationStore.swift */; };
 		A00000010000000000000014 /* RecordingState.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000020000000000000018 /* RecordingState.swift */; };
 		A00000010000000000000015 /* HotkeyServiceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000020000000000000019 /* HotkeyServiceTests.swift */; };
+		A00000010000000000000016 /* KeyboardShortcuts in Frameworks */ = {isa = PBXBuildFile; productRef = A00000130000000000000001 /* KeyboardShortcuts */; };
+		A00000010000000000000017 /* HotkeyService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0000002000000000000001A /* HotkeyService.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -73,6 +75,7 @@
 		A00000020000000000000017 /* ActivationStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ActivationStore.swift; sourceTree = "<group>"; };
 		A00000020000000000000018 /* RecordingState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecordingState.swift; sourceTree = "<group>"; };
 		A00000020000000000000019 /* HotkeyServiceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HotkeyServiceTests.swift; sourceTree = "<group>"; };
+		A0000002000000000000001A /* HotkeyService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HotkeyService.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -80,6 +83,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				A00000010000000000000016 /* KeyboardShortcuts in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -206,6 +210,7 @@
 			isa = PBXGroup;
 			children = (
 				A00000020000000000000017 /* ActivationStore.swift */,
+				A0000002000000000000001A /* HotkeyService.swift */,
 				A00000020000000000000018 /* RecordingState.swift */,
 			);
 			path = Activation;
@@ -227,6 +232,9 @@
 			dependencies = (
 			);
 			name = Speech2Test;
+			packageProductDependencies = (
+				A00000130000000000000001 /* KeyboardShortcuts */,
+			);
 			productName = Speech2Test;
 			productReference = A00000020000000000000004 /* Speech2Test.app */;
 			productType = "com.apple.product-type.application";
@@ -300,6 +308,9 @@
 				Base,
 			);
 			mainGroup = A00000040000000000000001;
+			packageReferences = (
+				A00000140000000000000001 /* XCRemoteSwiftPackageReference "KeyboardShortcuts" */,
+			);
 			productRefGroup = A00000040000000000000003 /* Products */;
 			projectDirPath = "";
 			projectRoot = "";
@@ -342,6 +353,7 @@
 			files = (
 				A00000010000000000000013 /* ActivationStore.swift in Sources */,
 				A00000010000000000000002 /* AppDelegate.swift in Sources */,
+				A00000010000000000000017 /* HotkeyService.swift in Sources */,
 				A00000010000000000000006 /* KeyboardPermissionService.swift in Sources */,
 				A00000010000000000000007 /* MicrophonePermissionService.swift in Sources */,
 				A0000001000000000000000A /* PermissionChecklistView.swift in Sources */,
@@ -393,6 +405,25 @@
 		};
 /* End PBXTargetDependency section */
 
+/* Begin XCRemoteSwiftPackageReference section */
+		A00000140000000000000001 /* XCRemoteSwiftPackageReference "KeyboardShortcuts" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/sindresorhus/KeyboardShortcuts";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 1.0.0;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		A00000130000000000000001 /* KeyboardShortcuts */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = A00000140000000000000001 /* XCRemoteSwiftPackageReference "KeyboardShortcuts" */;
+			productName = KeyboardShortcuts;
+		};
+/* End XCSwiftPackageProductDependency section */
+
 /* Begin XCBuildConfiguration section */
 		A00000090000000000000001 /* Debug */ = {
 			isa = XCBuildConfiguration;
@@ -403,6 +434,7 @@
 				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
 				GCC_C_LANGUAGE_STANDARD = gnu17;
 				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				ONLY_ACTIVE_ARCH = YES;
 				SDKROOT = macosx;
 				SWIFT_VERSION = 5.0;
 			};
@@ -437,6 +469,7 @@
 				);
 				MACOSX_DEPLOYMENT_TARGET = 14.0;
 				MARKETING_VERSION = 0.1;
+				ONLY_ACTIVE_ARCH = YES;
 				PRODUCT_BUNDLE_IDENTIFIER = com.elicarter.Speech2Test;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = macosx;
@@ -481,6 +514,7 @@
 					"@loader_path/../Frameworks",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				ONLY_ACTIVE_ARCH = YES;
 				PRODUCT_BUNDLE_IDENTIFIER = com.elicarter.Speech2TestTests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = macosx;
@@ -526,6 +560,7 @@
 					"@loader_path/../Frameworks",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				ONLY_ACTIVE_ARCH = YES;
 				PRODUCT_BUNDLE_IDENTIFIER = com.elicarter.Speech2TestUITests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = macosx;
