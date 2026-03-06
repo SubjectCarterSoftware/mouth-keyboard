@@ -1,12 +1,8 @@
-import ApplicationServices
 import Foundation
 
-// CGEventTap at the session level (.cgSessionEventTap) requires Accessibility
-// permission (AXIsProcessTrusted), not Input Monitoring. Input Monitoring covers
-// IOKit/HID device reads via CGPreflightListenEventAccess — a different subsystem.
-//
-// To prompt the user, call AXIsProcessTrustedWithOptions with the prompt option.
-// There is no separate "grant" API; the OS presents the system dialog automatically.
+// KeyboardShortcuts uses the Carbon RegisterEventHotKey API which does NOT
+// require Accessibility permission. The keyboard permission service now always
+// reports authorized since no OS-level gate exists for this path.
 struct KeyboardPermissionService {
     struct Adapter {
         var isAuthorized: () -> Bool
@@ -46,19 +42,11 @@ private extension KeyboardPermissionService {
             )
         }
 
+        // Carbon hot keys (via KeyboardShortcuts) require no permission grant.
         return Self(
             adapter: Adapter(
-                isAuthorized: {
-                    // Check Accessibility trust — required for session-level CGEventTap.
-                    AXIsProcessTrusted()
-                },
-                requestAccess: {
-                    // Prompt the user for Accessibility permission.
-                    // AXIsProcessTrustedWithOptions shows the system dialog when
-                    // kAXTrustedCheckOptionPrompt is true.
-                    let options = [kAXTrustedCheckOptionPrompt.takeUnretainedValue(): true] as CFDictionary
-                    return AXIsProcessTrustedWithOptions(options)
-                }
+                isAuthorized: { true },
+                requestAccess: { true }
             )
         )
     }

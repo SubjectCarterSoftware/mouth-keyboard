@@ -1,5 +1,3 @@
-import AppKit
-import ApplicationServices
 import Foundation
 import KeyboardShortcuts
 
@@ -22,9 +20,7 @@ final class HotkeyService {
     private let preferences: ShellPreferences
     private var lastTapTime: CFAbsoluteTime?
     private var pendingTapWork: DispatchWorkItem?
-    private var eventTap: CFMachPort?
-    private var runLoopSource: CFRunLoopSource?
-    private var retainedSelfPointer: UnsafeMutableRawPointer?
+    private var isListening = false
 
     init(
         preferences: ShellPreferences,
@@ -76,48 +72,20 @@ final class HotkeyService {
         return true
     }
 
+    /// Register with KeyboardShortcuts using the Carbon hot key API.
+    /// No Accessibility permission required — unlike CGEventTap.
     func start() {
-        guard eventTap == nil else {
-            return
+        guard !isListening else { return }
+
+        KeyboardShortcuts.onKeyDown(for: .activate) { [weak self] in
+            MainActor.assumeIsolated {
+                NSLog("HotkeyService: shortcut fired via KeyboardShortcuts")
+                _ = self?.handleKeyDown()
+            }
         }
 
-        // CGEventTap at the session level requires Accessibility permission
-        // (AXIsProcessTrusted), NOT Input Monitoring (CGPreflightListenEventAccess).
-        let trusted = AXIsProcessTrusted()
-        NSLog("HotkeyService: AXIsProcessTrusted() = \(trusted)")
-        guard trusted else {
-            NSLog("HotkeyService: Accessibility not granted. Grant in System Settings > Privacy & Security > Accessibility. " +
-                  "If running from Xcode, you may need to re-grant after each rebuild.")
-            return
-        }
-
-        let retainedSelf = Unmanaged.passRetained(self)
-        let eventMask = CGEventMask(1 << CGEventType.keyDown.rawValue)
-
-        // Use .cgSessionEventTap (user-session level) — NOT .cghidEventTap which
-        // requires root. The session tap is sufficient for hotkey interception.
-        guard let tap = CGEvent.tapCreate(
-            tap: .cgSessionEventTap,
-            place: .headInsertEventTap,
-            options: .defaultTap,
-            eventsOfInterest: eventMask,
-            callback: Self.eventTapCallback,
-            userInfo: retainedSelf.toOpaque()
-        ) else {
-            retainedSelf.release()
-            NSLog("HotkeyService failed to create a CGEventTap. " +
-                  "Ensure Accessibility permission is granted and the app is not sandboxed.")
-            return
-        }
-
-        let source = CFMachPortCreateRunLoopSource(kCFAllocatorDefault, tap, 0)
-        eventTap = tap
-        runLoopSource = source
-        retainedSelfPointer = retainedSelf.toOpaque()
-
-        CFRunLoopAddSource(CFRunLoopGetMain(), source, .commonModes)
-        CGEvent.tapEnable(tap: tap, enable: true)
-        NSLog("HotkeyService: CGEventTap created and enabled successfully.")
+        isListening = true
+        NSLog("HotkeyService: listening via KeyboardShortcuts (Carbon hot key, no Accessibility required)")
     }
 
     func stop() {
@@ -125,90 +93,7 @@ final class HotkeyService {
         pendingTapWork = nil
         lastTapTime = nil
 
-        if let source = runLoopSource {
-            CFRunLoopRemoveSource(CFRunLoopGetMain(), source, .commonModes)
-            runLoopSource = nil
-        }
-
-        if let tap = eventTap {
-            CFMachPortInvalidate(tap)
-            eventTap = nil
-        }
-
-        if let retainedSelfPointer {
-            Unmanaged<HotkeyService>.fromOpaque(retainedSelfPointer).release()
-            self.retainedSelfPointer = nil
-        }
-    }
-
-    private func matchesConfiguredShortcut(event: CGEvent) -> Bool {
-        matchesConfiguredShortcutWithDebug(event: event).0
-    }
-
-    private func matchesConfiguredShortcutWithDebug(event: CGEvent) -> (Bool, String) {
-        guard let shortcut = KeyboardShortcuts.getShortcut(for: .activate) else {
-            return (false, "no shortcut configured for .activate")
-        }
-
-        guard let nsEvent = NSEvent(cgEvent: event) else {
-            return (false, "could not create NSEvent from CGEvent")
-        }
-
-        guard let eventShortcut = KeyboardShortcuts.Shortcut(event: nsEvent) else {
-            return (false, "could not create Shortcut from NSEvent (keyCode=\(nsEvent.keyCode), modifiers=\(nsEvent.modifierFlags.rawValue)). Expected: \(shortcut)")
-        }
-
-        if eventShortcut == shortcut {
-            return (true, "matched")
-        }
-
-        return (false, "shortcut mismatch: got \(eventShortcut), expected \(shortcut)")
-    }
-
-    private static let eventTapCallback: CGEventTapCallBack = { _, type, event, userInfo in
-        guard let userInfo else {
-            return Unmanaged.passUnretained(event)
-        }
-
-        let service = Unmanaged<HotkeyService>.fromOpaque(userInfo).takeUnretainedValue()
-
-        if type == .tapDisabledByTimeout {
-            MainActor.assumeIsolated {
-                if let tap = service.eventTap {
-                    CGEvent.tapEnable(tap: tap, enable: true)
-                }
-            }
-
-            return Unmanaged.passUnretained(event)
-        }
-
-        guard type == .keyDown else {
-            return Unmanaged.passUnretained(event)
-        }
-
-        let (shouldConsume, debugInfo) = MainActor.assumeIsolated {
-            service.matchesConfiguredShortcutWithDebug(event: event)
-        }
-
-        if !shouldConsume {
-            #if DEBUG
-            // Log only modifier+key combos (not plain typing) to avoid console spam
-            let flags = CGEventFlags(rawValue: event.flags.rawValue)
-            let hasModifiers = flags.contains(.maskCommand) || flags.contains(.maskControl) || flags.contains(.maskAlternate)
-            if hasModifiers {
-                NSLog("HotkeyService: key event did not match. \(debugInfo)")
-            }
-            #endif
-            return Unmanaged.passUnretained(event)
-        }
-
-        NSLog("HotkeyService: shortcut matched, dispatching handleKeyDown")
-        DispatchQueue.main.async {
-            MainActor.assumeIsolated {
-                _ = service.handleKeyDown()
-            }
-        }
-
-        return nil
+        KeyboardShortcuts.disable(.activate)
+        isListening = false
     }
 }
