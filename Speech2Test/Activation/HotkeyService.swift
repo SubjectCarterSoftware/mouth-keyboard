@@ -40,11 +40,13 @@ final class HotkeyService {
 
     func handleKeyDown() -> Bool {
         let tapMode = preferences.tapMode
+        NSLog("HotkeyService: handleKeyDown tapMode=\(tapMode)")
 
         if tapMode == .single {
             pendingTapWork?.cancel()
             pendingTapWork = nil
             lastTapTime = nil
+            NSLog("HotkeyService: single-tap → arm()")
             onArm()
             return true
         }
@@ -54,14 +56,17 @@ final class HotkeyService {
             pendingTapWork?.cancel()
             pendingTapWork = nil
             self.lastTapTime = nil
+            NSLog("HotkeyService: double-tap detected (interval: \(currentTime - lastTapTime)s) → arm()")
             onArm()
             return true
         }
 
+        NSLog("HotkeyService: first tap registered, waiting for second within \(doubleTapWindow)s")
         pendingTapWork?.cancel()
         self.lastTapTime = currentTime
 
         let discardWork = DispatchWorkItem { [weak self] in
+            NSLog("HotkeyService: double-tap window expired, discarding first tap")
             self?.lastTapTime = nil
             self?.pendingTapWork = nil
         }
@@ -137,15 +142,27 @@ final class HotkeyService {
     }
 
     private func matchesConfiguredShortcut(event: CGEvent) -> Bool {
-        guard
-            let shortcut = KeyboardShortcuts.getShortcut(for: .activate),
-            let event = NSEvent(cgEvent: event),
-            let eventShortcut = KeyboardShortcuts.Shortcut(event: event)
-        else {
-            return false
+        matchesConfiguredShortcutWithDebug(event: event).0
+    }
+
+    private func matchesConfiguredShortcutWithDebug(event: CGEvent) -> (Bool, String) {
+        guard let shortcut = KeyboardShortcuts.getShortcut(for: .activate) else {
+            return (false, "no shortcut configured for .activate")
         }
 
-        return eventShortcut == shortcut
+        guard let nsEvent = NSEvent(cgEvent: event) else {
+            return (false, "could not create NSEvent from CGEvent")
+        }
+
+        guard let eventShortcut = KeyboardShortcuts.Shortcut(event: nsEvent) else {
+            return (false, "could not create Shortcut from NSEvent (keyCode=\(nsEvent.keyCode), modifiers=\(nsEvent.modifierFlags.rawValue)). Expected: \(shortcut)")
+        }
+
+        if eventShortcut == shortcut {
+            return (true, "matched")
+        }
+
+        return (false, "shortcut mismatch: got \(eventShortcut), expected \(shortcut)")
     }
 
     private static let eventTapCallback: CGEventTapCallBack = { _, type, event, userInfo in
@@ -169,14 +186,23 @@ final class HotkeyService {
             return Unmanaged.passUnretained(event)
         }
 
-        let shouldConsume = MainActor.assumeIsolated {
-            service.matchesConfiguredShortcut(event: event)
+        let (shouldConsume, debugInfo) = MainActor.assumeIsolated {
+            service.matchesConfiguredShortcutWithDebug(event: event)
         }
 
-        guard shouldConsume else {
+        if !shouldConsume {
+            #if DEBUG
+            // Log only modifier+key combos (not plain typing) to avoid console spam
+            let flags = CGEventFlags(rawValue: event.flags.rawValue)
+            let hasModifiers = flags.contains(.maskCommand) || flags.contains(.maskControl) || flags.contains(.maskAlternate)
+            if hasModifiers {
+                NSLog("HotkeyService: key event did not match. \(debugInfo)")
+            }
+            #endif
             return Unmanaged.passUnretained(event)
         }
 
+        NSLog("HotkeyService: shortcut matched, dispatching handleKeyDown")
         DispatchQueue.main.async {
             MainActor.assumeIsolated {
                 _ = service.handleKeyDown()

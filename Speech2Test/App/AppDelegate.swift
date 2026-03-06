@@ -1,5 +1,4 @@
 import AppKit
-import AVFoundation
 import Combine
 import SwiftUI
 
@@ -26,7 +25,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
 
         hotkeyService.start()
         readinessStore.refresh()
-        prepareAudioCaptureIfPossible()
 
         // Create the pill panel once — shown/hidden reactively.
         pillPanel = RecordingPillPanel(levelMonitor: levelMonitor)
@@ -56,7 +54,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
 
     func applicationDidBecomeActive(_ notification: Notification) {
         readinessStore.refresh()
-        prepareAudioCaptureIfPossible()
         // Retry hotkey tap — user may have just granted Accessibility permission.
         hotkeyService.start()
     }
@@ -154,23 +151,4 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         setupWindow = nil
     }
 
-    // MARK: - Audio preparation
-
-    private func prepareAudioCaptureIfPossible() {
-        guard !ProcessInfo.processInfo.arguments.contains("-ui-testing") else {
-            return
-        }
-
-        // Double-check at the AVFoundation level — the readiness snapshot may be
-        // stale or based on a different permission subsystem.
-        guard AVCaptureDevice.authorizationStatus(for: .audio) == .authorized else {
-            return
-        }
-
-        do {
-            try audioCaptureService.prepare()
-        } catch {
-            NSLog("AudioCaptureService prepare failed: \(error.localizedDescription)")
-        }
-    }
 }
