@@ -7,6 +7,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     private let preferences = ShellPreferences.shared
     private let readinessStore = ReadinessStore.shared
     private let hotkeyService = HotkeyService.shared
+    private let audioCaptureService = AudioCaptureService.shared
     private let forcePresentSetupOnLaunch = ProcessInfo.processInfo.arguments.contains("-open-setup-window")
 
     func applicationDidFinishLaunching(_ notification: Notification) {
@@ -17,6 +18,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
 
         hotkeyService.start()
         readinessStore.refresh()
+        prepareAudioCaptureIfPossible()
 
         if preferences.shouldPresentSetupOnLaunch || forcePresentSetupOnLaunch {
             presentSetupWindow()
@@ -29,6 +31,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
 
     func applicationDidBecomeActive(_ notification: Notification) {
         readinessStore.refresh()
+        prepareAudioCaptureIfPossible()
     }
 
     func presentSetupWindow() {
@@ -40,7 +43,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         }
 
         let window = NSWindow(
-            contentRect: NSRect(x: 0, y: 0, width: 480, height: 470),
+            contentRect: NSRect(x: 0, y: 0, width: 480, height: 560),
             styleMask: [.titled, .closable, .miniaturizable],
             backing: .buffered,
             defer: false
@@ -79,5 +82,21 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         }
 
         setupWindow = nil
+    }
+
+    private func prepareAudioCaptureIfPossible() {
+        guard !ProcessInfo.processInfo.arguments.contains("-ui-testing") else {
+            return
+        }
+
+        guard readinessStore.snapshot.permissions.contains(where: { $0.kind == .microphone && $0.isAuthorized }) else {
+            return
+        }
+
+        do {
+            try audioCaptureService.prepare()
+        } catch {
+            NSLog("AudioCaptureService prepare failed: \(error.localizedDescription)")
+        }
     }
 }

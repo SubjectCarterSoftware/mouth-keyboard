@@ -5,6 +5,7 @@ import SwiftUI
 struct SetupWindowView: View {
     @ObservedObject var preferences: ShellPreferences
     @ObservedObject var readinessStore: ReadinessStore
+    @ObservedObject private var audioDeviceService = AudioDeviceService.shared
     let dismissWindow: () -> Void
 
     private var primaryActionTitle: String {
@@ -60,9 +61,23 @@ struct SetupWindowView: View {
                 }
                 .pickerStyle(.segmented)
 
+                Picker("Microphone", selection: $preferences.micDeviceUID) {
+                    Text("System Default").tag(Optional<String>.none)
+
+                    ForEach(audioDeviceService.availableDevices) { device in
+                        Text(device.name).tag(Optional(device.uid))
+                    }
+                }
+                .pickerStyle(.menu)
+
                 Toggle("Activation Sound", isOn: $preferences.activationSoundEnabled)
 
                 Text("Double tap mode silently ignores the first tap and only arms recording when the second tap lands within 350ms.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+
+                Text("System Default follows the macOS input setting and is used automatically again if a chosen microphone disconnects.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
@@ -98,9 +113,10 @@ struct SetupWindowView: View {
             }
         }
         .padding(24)
-        .frame(width: 480, height: 590)
+        .frame(width: 480, height: 640)
         .background(.regularMaterial)
         .onAppear {
+            audioDeviceService.refresh()
             readinessStore.refresh()
             NSApp.activate(ignoringOtherApps: true)
         }

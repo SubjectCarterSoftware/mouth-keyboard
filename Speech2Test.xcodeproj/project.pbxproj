@@ -34,6 +34,7 @@
 		A00000010000000000000019 /* AudioCaptureService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0000002000000000000001C /* AudioCaptureService.swift */; };
 		A0000001000000000000001A /* AudioLevelMonitor.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0000002000000000000001D /* AudioLevelMonitor.swift */; };
 		A0000001000000000000001B /* AudioDeviceServiceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0000002000000000000001E /* AudioDeviceServiceTests.swift */; };
+		A0000001000000000000001C /* AudioDeviceService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0000002000000000000001F /* AudioDeviceService.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -84,6 +85,7 @@
 		A0000002000000000000001C /* AudioCaptureService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudioCaptureService.swift; sourceTree = "<group>"; };
 		A0000002000000000000001D /* AudioLevelMonitor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudioLevelMonitor.swift; sourceTree = "<group>"; };
 		A0000002000000000000001E /* AudioDeviceServiceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudioDeviceServiceTests.swift; sourceTree = "<group>"; };
+		A0000002000000000000001F /* AudioDeviceService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudioDeviceService.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -231,6 +233,7 @@
 			isa = PBXGroup;
 			children = (
 				A0000002000000000000001C /* AudioCaptureService.swift */,
+				A0000002000000000000001F /* AudioDeviceService.swift */,
 				A0000002000000000000001D /* AudioLevelMonitor.swift */,
 			);
 			path = Audio;
@@ -374,6 +377,7 @@
 				A00000010000000000000013 /* ActivationStore.swift in Sources */,
 				A00000010000000000000002 /* AppDelegate.swift in Sources */,
 				A00000010000000000000019 /* AudioCaptureService.swift in Sources */,
+				A0000001000000000000001C /* AudioDeviceService.swift in Sources */,
 				A0000001000000000000001A /* AudioLevelMonitor.swift in Sources */,
 				A00000010000000000000017 /* HotkeyService.swift in Sources */,
 				A00000010000000000000006 /* KeyboardPermissionService.swift in Sources */,

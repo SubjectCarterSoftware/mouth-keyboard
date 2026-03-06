@@ -8,28 +8,59 @@ struct AudioCaptureServiceDebugState {
 }
 
 final class AudioCaptureService {
-    static let shared = AudioCaptureService()
+    @MainActor static let shared = AudioCaptureService()
 
     private let engine: AVAudioEngine
+    private let preferences: ShellPreferences
+    private let audioDeviceService: AudioDeviceService
     private let engineStarter: (AVAudioEngine) throws -> Void
     private var levelMonitor: AudioLevelMonitor?
     private var hasInstalledTap = false
+    private var observedDeviceUID: String?
 
+    @MainActor
     init(
         engine: AVAudioEngine = AVAudioEngine(),
+        preferences: ShellPreferences = .shared,
+        audioDeviceService: AudioDeviceService = .shared,
         engineStarter: ((AVAudioEngine) throws -> Void)? = nil
     ) {
         self.engine = engine
+        self.preferences = preferences
+        self.audioDeviceService = audioDeviceService
         self.engineStarter = engineStarter ?? { try $0.start() }
     }
 
+    @MainActor
     func prepare() throws {
         engine.prepare()
     }
 
+    @MainActor
     func start(levelMonitor: AudioLevelMonitor) throws {
         guard !hasInstalledTap else {
             return
+        }
+
+        self.levelMonitor = levelMonitor
+        levelMonitor.reset()
+        audioDeviceService.unregisterDisconnectListener()
+        observedDeviceUID = nil
+
+        audioDeviceService.refresh()
+        if let selectedUID = preferences.micDeviceUID {
+            let selectedDevice = audioDeviceService.device(forUID: selectedUID)
+            if selectedDevice == nil {
+                preferences.micDeviceUID = nil
+            }
+
+            try audioDeviceService.setInputDevice(selectedDevice, on: engine)
+            if let selectedDevice {
+                observedDeviceUID = selectedDevice.uid
+                audioDeviceService.registerDisconnectListener(for: selectedDevice.uid) { [weak self] in
+                    self?.handleSelectedDeviceDisconnect()
+                }
+            }
         }
 
         self.levelMonitor = levelMonitor
@@ -46,26 +77,55 @@ final class AudioCaptureService {
         } catch {
             inputNode.removeTap(onBus: 0)
             hasInstalledTap = false
+            observedDeviceUID = nil
+            audioDeviceService.unregisterDisconnectListener()
+            levelMonitor.reset()
             self.levelMonitor = nil
             throw error
         }
     }
 
+    @MainActor
     func stop() {
+        audioDeviceService.unregisterDisconnectListener()
+        observedDeviceUID = nil
+
         if hasInstalledTap {
             engine.inputNode.removeTap(onBus: 0)
             hasInstalledTap = false
         }
 
         engine.stop()
+        levelMonitor?.reset()
         levelMonitor = nil
     }
 
+    @MainActor
     var debugState: AudioCaptureServiceDebugState {
         AudioCaptureServiceDebugState(
             hasInstalledTap: hasInstalledTap,
             outputConnectionPointCount: engine.outputConnectionPoints(for: engine.inputNode, outputBus: 0).count,
             isRunning: engine.isRunning
         )
+    }
+
+    @MainActor
+    private func handleSelectedDeviceDisconnect() {
+        let currentMonitor = levelMonitor
+
+        preferences.micDeviceUID = nil
+        observedDeviceUID = nil
+
+        guard let currentMonitor else {
+            return
+        }
+
+        stop()
+
+        do {
+            try start(levelMonitor: currentMonitor)
+        } catch {
+            NSLog("AudioCaptureService failed to fall back to the system default input device: \(error.localizedDescription)")
+        }
     }
 }
