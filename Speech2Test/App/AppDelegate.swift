@@ -1,4 +1,5 @@
 import AppKit
+import AVFoundation
 import Combine
 import SwiftUI
 
@@ -56,6 +57,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     func applicationDidBecomeActive(_ notification: Notification) {
         readinessStore.refresh()
         prepareAudioCaptureIfPossible()
+        // Retry hotkey tap — user may have just granted Accessibility permission.
+        hotkeyService.start()
     }
 
     // MARK: - Activation loop
@@ -158,7 +161,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             return
         }
 
-        guard readinessStore.snapshot.permissions.contains(where: { $0.kind == .microphone && $0.isAuthorized }) else {
+        // Double-check at the AVFoundation level — the readiness snapshot may be
+        // stale or based on a different permission subsystem.
+        guard AVCaptureDevice.authorizationStatus(for: .audio) == .authorized else {
             return
         }
 

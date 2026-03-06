@@ -78,11 +78,11 @@ final class HotkeyService {
 
         // CGEventTap at the session level requires Accessibility permission
         // (AXIsProcessTrusted), NOT Input Monitoring (CGPreflightListenEventAccess).
-        // Input Monitoring covers IOKit/HID device reads; session-level event taps
-        // require the app to be trusted for accessibility.
-        guard AXIsProcessTrusted() else {
-            NSLog("HotkeyService could not start: Accessibility permission is not granted. " +
-                  "Grant it in System Settings > Privacy & Security > Accessibility.")
+        let trusted = AXIsProcessTrusted()
+        NSLog("HotkeyService: AXIsProcessTrusted() = \(trusted)")
+        guard trusted else {
+            NSLog("HotkeyService: Accessibility not granted. Grant in System Settings > Privacy & Security > Accessibility. " +
+                  "If running from Xcode, you may need to re-grant after each rebuild.")
             return
         }
 
@@ -112,6 +112,7 @@ final class HotkeyService {
 
         CFRunLoopAddSource(CFRunLoopGetMain(), source, .commonModes)
         CGEvent.tapEnable(tap: tap, enable: true)
+        NSLog("HotkeyService: CGEventTap created and enabled successfully.")
     }
 
     func stop() {

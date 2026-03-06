@@ -33,6 +33,14 @@ final class AudioCaptureService {
 
     @MainActor
     func prepare() throws {
+        // AVAudioEngine.prepare() throws an ObjC NSException (not a Swift error)
+        // if inputNode is nil — which happens when mic permission isn't truly
+        // authorized at the AVFoundation level. Guard against this since Swift's
+        // do/catch cannot intercept NSExceptions.
+        guard AVCaptureDevice.authorizationStatus(for: .audio) == .authorized else {
+            NSLog("AudioCaptureService.prepare() skipped: microphone not yet authorized at AVFoundation level.")
+            return
+        }
         engine.prepare()
     }
 
