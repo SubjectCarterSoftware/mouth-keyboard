@@ -60,9 +60,9 @@ Plans:
 **Plans**: 3 plans
 
 Plans:
-- [ ] 03-01: Integrate the local speech engine and baseline punctuation-enabled transcription flow.
-- [ ] 03-02: Implement finish-on-spacebar and deterministic clipboard write behavior.
-- [ ] 03-03: Add visible idle/recording/processing states and failure reporting for the core loop.
+- [ ] 03-01-PLAN.md — Type contracts, standalone services (WhisperService, AudioBufferAccumulator, ClipboardService, SpacebarInterceptor), RecordingState expansion, ShellPreferences Phase 3 keys, Wave 0 test scaffolds.
+- [ ] 03-02-PLAN.md — Wire finish flow (spacebar/hotkey -> transcription -> clipboard -> auto-paste), buffer accumulation in AudioCaptureService, silence timeout in AudioLevelMonitor, full AppDelegate state machine.
+- [ ] 03-03-PLAN.md — Multi-state pill UI (processing pulse, success checkmark, failure message), indicator visibility toggle, human verification checkpoint.
 
 ### Phase 4: Recovery Controls
 **Goal**: Make cancel, restart, and microphone failure handling safe so the user can recover from mistakes without corrupting output.
