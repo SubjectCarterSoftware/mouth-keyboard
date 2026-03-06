@@ -13,7 +13,7 @@ Speech2Test reaches its first useful release by proving one thing in order: a na
 Decimal phases appear between their surrounding integers in numeric order.
 
 - [x] **Phase 1: Foundation and Permissions** - Establish the background utility shell, readiness state, and permission flows.
-- [ ] **Phase 2: Activation and Capture** - Deliver configurable hotkey activation, microphone capture, and immediate recording start.
+- [x] **Phase 2: Activation and Capture** - Deliver configurable hotkey activation, microphone capture, and immediate recording start.
 - [ ] **Phase 3: Recognition and Clipboard Loop** - Turn recordings into final clipboard text with clear user-visible states.
 - [ ] **Phase 4: Recovery Controls** - Make cancel, restart, and input failure handling trustworthy.
 - [ ] **Phase 5: Long-Dictation Reliability** - Add segmentation, queued transcription, and best-effort recovery for longer sessions.
@@ -47,7 +47,7 @@ Plans:
 Plans:
 - [x] 02-01-PLAN.md — ShellPreferences extension, RecordingState/ActivationStore/HotkeyService with CGEventTap + double-tap detection, SetupWindowView Activation section.
 - [x] 02-02-PLAN.md — AudioCaptureService (AVAudioEngine tap), AudioDeviceService (CoreAudio enumeration + selection), AudioLevelMonitor (RMS metering), mic picker UI.
-- [ ] 02-03-PLAN.md — RecordingPillPanel floating overlay, AppDelegate wiring (state → audio + pill + icon + sound), human verification checkpoint.
+- [x] 02-03-PLAN.md — RecordingPillPanel floating overlay, AppDelegate wiring (state → audio + pill + icon + sound), human verification checkpoint.
 
 ### Phase 3: Recognition and Clipboard Loop
 **Goal**: Produce local transcription with punctuation, finish via spacebar, write the result to the clipboard, and show trustworthy recording/processing feedback.
@@ -101,7 +101,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Foundation and Permissions | 2/2 | Complete | 2026-03-05 |
-| 2. Activation and Capture | 2/3 | In Progress |  |
+| 2. Activation and Capture | 3/3 | Complete | 2026-03-06 |
 | 3. Recognition and Clipboard Loop | 0/3 | Not started | - |
 | 4. Recovery Controls | 0/2 | Not started | - |
 | 5. Long-Dictation Reliability | 0/3 | Not started | - |
