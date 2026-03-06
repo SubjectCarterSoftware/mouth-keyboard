@@ -3,6 +3,7 @@ import XCTest
 @testable import Speech2Test
 
 final class AudioCaptureServiceTests: XCTestCase {
+    @MainActor
     func testStartInstallsTapWithoutOutputConnection() throws {
         let service = AudioCaptureService(engineStarter: { _ in })
         let levelMonitor = AudioLevelMonitor()
@@ -13,6 +14,7 @@ final class AudioCaptureServiceTests: XCTestCase {
         XCTAssertEqual(service.debugState.outputConnectionPointCount, 0)
     }
 
+    @MainActor
     func testStopRemovesTapAndSupportsRestart() throws {
         let service = AudioCaptureService(engineStarter: { _ in })
 

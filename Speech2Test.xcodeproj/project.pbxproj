@@ -31,6 +31,8 @@
 		A00000010000000000000016 /* KeyboardShortcuts in Frameworks */ = {isa = PBXBuildFile; productRef = A00000130000000000000001 /* KeyboardShortcuts */; };
 		A00000010000000000000017 /* HotkeyService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0000002000000000000001A /* HotkeyService.swift */; };
 		A00000010000000000000018 /* AudioCaptureServiceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0000002000000000000001B /* AudioCaptureServiceTests.swift */; };
+		A00000010000000000000019 /* AudioCaptureService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0000002000000000000001C /* AudioCaptureService.swift */; };
+		A0000001000000000000001A /* AudioLevelMonitor.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0000002000000000000001D /* AudioLevelMonitor.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -78,6 +80,8 @@
 		A00000020000000000000019 /* HotkeyServiceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HotkeyServiceTests.swift; sourceTree = "<group>"; };
 		A0000002000000000000001A /* HotkeyService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HotkeyService.swift; sourceTree = "<group>"; };
 		A0000002000000000000001B /* AudioCaptureServiceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudioCaptureServiceTests.swift; sourceTree = "<group>"; };
+		A0000002000000000000001C /* AudioCaptureService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudioCaptureService.swift; sourceTree = "<group>"; };
+		A0000002000000000000001D /* AudioLevelMonitor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudioLevelMonitor.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -121,6 +125,7 @@
 			children = (
 				A00000040000000000000004 /* App */,
 				A0000004000000000000000B /* Activation */,
+				A0000004000000000000000C /* Audio */,
 				A00000040000000000000005 /* Shell */,
 				A00000040000000000000006 /* Persistence */,
 				A00000040000000000000007 /* Permissions */,
@@ -217,6 +222,15 @@
 				A00000020000000000000018 /* RecordingState.swift */,
 			);
 			path = Activation;
+			sourceTree = "<group>";
+		};
+		A0000004000000000000000C /* Audio */ = {
+			isa = PBXGroup;
+			children = (
+				A0000002000000000000001C /* AudioCaptureService.swift */,
+				A0000002000000000000001D /* AudioLevelMonitor.swift */,
+			);
+			path = Audio;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -356,6 +370,8 @@
 			files = (
 				A00000010000000000000013 /* ActivationStore.swift in Sources */,
 				A00000010000000000000002 /* AppDelegate.swift in Sources */,
+				A00000010000000000000019 /* AudioCaptureService.swift in Sources */,
+				A0000001000000000000001A /* AudioLevelMonitor.swift in Sources */,
 				A00000010000000000000017 /* HotkeyService.swift in Sources */,
 				A00000010000000000000006 /* KeyboardPermissionService.swift in Sources */,
 				A00000010000000000000007 /* MicrophonePermissionService.swift in Sources */,
