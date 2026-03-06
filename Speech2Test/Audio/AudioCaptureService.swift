@@ -50,6 +50,10 @@ final class AudioCaptureService {
             return
         }
 
+        // Prepare the engine before accessing inputNode — without this the
+        // audio graph is uninitialized and start() fails with -10877.
+        try prepare()
+
         self.levelMonitor = levelMonitor
         levelMonitor.reset()
         audioDeviceService.unregisterDisconnectListener()
