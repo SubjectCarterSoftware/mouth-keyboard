@@ -17,10 +17,15 @@ final class AudioLevelMonitor: ObservableObject {
 
         var rms: Float = 0.0
         vDSP_rmsqv(samples, 1, &rms, vDSP_Length(frameLength))
-        let clampedLevel = max(0, min(rms, 1))
+
+        // Convert to dB, then map to 0–1 range.
+        let minDB: Float = -80
+        let maxDB: Float = -10
+        let db = rms > 0 ? 20 * log10(rms) : minDB
+        let normalized = max(0, min(1, (db - minDB) / (maxDB - minDB)))
 
         Task { @MainActor in
-            self.level = clampedLevel
+            self.level = normalized
         }
     }
 

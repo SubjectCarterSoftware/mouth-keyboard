@@ -1,5 +1,6 @@
 import AppKit
 import Combine
+import KeyboardShortcuts
 import SwiftUI
 
 @MainActor
@@ -23,6 +24,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             NSApp.setActivationPolicy(.accessory)
         }
 
+        // Reset any cached shortcut so the code default (Ctrl+V) takes effect.
+        KeyboardShortcuts.reset(.activate)
+
         hotkeyService.start()
         readinessStore.refresh()
 
@@ -31,14 +35,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
 
         // Observe ActivationStore state to drive pill, audio, and icon.
         stateObservation = activationStore.$state
-            .receive(on: DispatchQueue.main)
+            .dropFirst()
+            .removeDuplicates()
             .sink { [weak self] newState in
-                guard let self else { return }
-                switch newState {
-                case .recording:
-                    self.onRecordingStarted()
-                case .idle:
-                    self.onRecordingStopped()
+                DispatchQueue.main.async {
+                    guard let self else { return }
+                    switch newState {
+                    case .recording:
+                        self.onRecordingStarted()
+                    case .idle:
+                        self.onRecordingStopped()
+                    }
                 }
             }
 

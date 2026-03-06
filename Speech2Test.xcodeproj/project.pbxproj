@@ -37,6 +37,7 @@
 		A0000001000000000000001C /* AudioDeviceService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0000002000000000000001F /* AudioDeviceService.swift */; };
 		A0000001000000000000001D /* RecordingPillView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000020000000000000020 /* RecordingPillView.swift */; };
 		A0000001000000000000001E /* RecordingPillPanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000020000000000000021 /* RecordingPillPanel.swift */; };
+		A0000001000000000000001F /* ObjCExceptionCatcher.m in Sources */ = {isa = PBXBuildFile; fileRef = A00000020000000000000023 /* ObjCExceptionCatcher.m */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -90,6 +91,9 @@
 		A0000002000000000000001F /* AudioDeviceService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudioDeviceService.swift; sourceTree = "<group>"; };
 		A00000020000000000000020 /* RecordingPillView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecordingPillView.swift; sourceTree = "<group>"; };
 		A00000020000000000000021 /* RecordingPillPanel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecordingPillPanel.swift; sourceTree = "<group>"; };
+		A00000020000000000000022 /* ObjCExceptionCatcher.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = ObjCExceptionCatcher.h; sourceTree = "<group>"; };
+		A00000020000000000000023 /* ObjCExceptionCatcher.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = ObjCExceptionCatcher.m; sourceTree = "<group>"; };
+		A00000020000000000000024 /* Speech2Test-Bridging-Header.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = "Speech2Test-Bridging-Header.h"; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -139,6 +143,7 @@
 				A00000040000000000000007 /* Permissions */,
 				A00000040000000000000008 /* Readiness */,
 				A00000020000000000000003 /* Info.plist */,
+				A00000020000000000000024 /* Speech2Test-Bridging-Header.h */,
 			);
 			path = Speech2Test;
 			sourceTree = "<group>";
@@ -241,6 +246,8 @@
 				A0000002000000000000001C /* AudioCaptureService.swift */,
 				A0000002000000000000001F /* AudioDeviceService.swift */,
 				A0000002000000000000001D /* AudioLevelMonitor.swift */,
+				A00000020000000000000022 /* ObjCExceptionCatcher.h */,
+				A00000020000000000000023 /* ObjCExceptionCatcher.m */,
 			);
 			path = Audio;
 			sourceTree = "<group>";
@@ -388,6 +395,7 @@
 				A00000010000000000000017 /* HotkeyService.swift in Sources */,
 				A00000010000000000000006 /* KeyboardPermissionService.swift in Sources */,
 				A00000010000000000000007 /* MicrophonePermissionService.swift in Sources */,
+				A0000001000000000000001F /* ObjCExceptionCatcher.m in Sources */,
 				A0000001000000000000000A /* PermissionChecklistView.swift in Sources */,
 				A00000010000000000000008 /* ReadinessSnapshot.swift in Sources */,
 				A00000010000000000000009 /* ReadinessStore.swift in Sources */,
@@ -480,6 +488,7 @@
 				ENABLE_TESTABILITY = YES;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = Speech2Test/Info.plist;
+				SWIFT_OBJC_BRIDGING_HEADER = "Speech2Test/Speech2Test-Bridging-Header.h";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/../Frameworks",
@@ -503,6 +512,7 @@
 				CURRENT_PROJECT_VERSION = 1;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = Speech2Test/Info.plist;
+				SWIFT_OBJC_BRIDGING_HEADER = "Speech2Test/Speech2Test-Bridging-Header.h";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/../Frameworks",

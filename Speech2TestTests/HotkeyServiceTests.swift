@@ -28,7 +28,7 @@ final class HotkeyServiceTests: XCTestCase {
 
         XCTAssertTrue(service.handleKeyDown())
 
-        wait(for: [didArm], timeout: 0.4)
+        wait(for: [didArm], timeout: 0.6)
     }
 
     func testSingleTapModeArmsImmediately() {
@@ -52,7 +52,7 @@ final class HotkeyServiceTests: XCTestCase {
 
         XCTAssertTrue(service.handleKeyDown())
 
-        clock.currentTime = 100.4
+        clock.currentTime = 100.6
         XCTAssertTrue(service.handleKeyDown())
         XCTAssertEqual(armCount, 0)
     }
@@ -60,8 +60,8 @@ final class HotkeyServiceTests: XCTestCase {
     func testDefaultActivationShortcutIsCommandShiftZ() {
         let shortcut = KeyboardShortcuts.getShortcut(for: .activate)
 
-        XCTAssertEqual(shortcut?.key, .z)
-        XCTAssertEqual(shortcut?.modifiers, [.command, .shift])
+        XCTAssertEqual(shortcut?.key, .v)
+        XCTAssertEqual(shortcut?.modifiers, [.control])
     }
 
     private func makeService(
@@ -69,17 +69,10 @@ final class HotkeyServiceTests: XCTestCase {
         clock: TestClock,
         onArm: @escaping () -> Void
     ) -> HotkeyService {
-        let suiteName = "HotkeyServiceTests.\(UUID().uuidString)"
-        let defaults = UserDefaults(suiteName: suiteName) ?? .standard
-        defaults.removePersistentDomain(forName: suiteName)
-
-        let preferences = ShellPreferences(userDefaults: defaults)
-        preferences.tapMode = tapMode
-
         return HotkeyService(
-            preferences: preferences,
             onArm: onArm,
-            now: { clock.currentTime }
+            now: { clock.currentTime },
+            tapModeOverride: tapMode
         )
     }
 }

@@ -1,5 +1,20 @@
 import AVFoundation
+import CoreAudio
 import Foundation
+
+enum AudioCaptureError: LocalizedError {
+    case noInputDevice
+    case engineException(NSError) 
+
+    var errorDescription: String? {
+        switch self {
+        case .noInputDevice:
+            return "No audio input device available."
+        case .engineException(let error):
+            return "Audio engine error: \(error.localizedDescription)"
+        }
+    }
+}
 
 struct AudioCaptureServiceDebugState {
     let hasInstalledTap: Bool
@@ -10,38 +25,85 @@ struct AudioCaptureServiceDebugState {
 final class AudioCaptureService {
     @MainActor static let shared = AudioCaptureService()
 
-    private let engine: AVAudioEngine
+    private var engine: AVAudioEngine?
+    private let engineFactory: () -> AVAudioEngine
     private let preferences: ShellPreferences
     private let audioDeviceService: AudioDeviceService
     private let engineStarter: (AVAudioEngine) throws -> Void
+    private let checkAuthorization: () -> Bool
     private var levelMonitor: AudioLevelMonitor?
     private var hasInstalledTap = false
     private var observedDeviceUID: String?
 
     @MainActor
     init(
-        engine: AVAudioEngine = AVAudioEngine(),
+        engineFactory: @escaping () -> AVAudioEngine = { AVAudioEngine() },
         preferences: ShellPreferences = .shared,
         audioDeviceService: AudioDeviceService = .shared,
-        engineStarter: ((AVAudioEngine) throws -> Void)? = nil
+        engineStarter: ((AVAudioEngine) throws -> Void)? = nil,
+        checkAuthorization: @escaping () -> Bool = { AVCaptureDevice.authorizationStatus(for: .audio) == .authorized }
     ) {
-        self.engine = engine
+        self.engineFactory = engineFactory
         self.preferences = preferences
         self.audioDeviceService = audioDeviceService
         self.engineStarter = engineStarter ?? { try $0.start() }
+        self.checkAuthorization = checkAuthorization
     }
 
     @MainActor
-    func prepare() throws {
-        // AVAudioEngine.prepare() throws an ObjC NSException (not a Swift error)
-        // if inputNode is nil — which happens when mic permission isn't truly
-        // authorized at the AVFoundation level. Guard against this since Swift's
-        // do/catch cannot intercept NSExceptions.
-        guard AVCaptureDevice.authorizationStatus(for: .audio) == .authorized else {
-            NSLog("AudioCaptureService.prepare() skipped: microphone not yet authorized at AVFoundation level.")
-            return
+    private func ensureEngine() throws -> AVAudioEngine {
+        if let engine {
+            return engine
         }
-        engine.prepare()
+
+        guard checkAuthorization() else {
+            throw AudioCaptureError.engineException(
+                NSError(domain: "AudioCaptureService", code: -2,
+                        userInfo: [NSLocalizedDescriptionKey: "Microphone not yet authorized."])
+            )
+        }
+
+        guard Self.hasDefaultInputDevice() else {
+            throw AudioCaptureError.noInputDevice
+        }
+
+        let newEngine = engineFactory()
+
+        // Access inputNode BEFORE prepare() — this forces the engine to
+        // create its input node. Calling prepare() first initializes the
+        // graph empty, after which inputNode access asserts.
+        var caughtError: NSError?
+        var ok = S2TCatchObjCException({
+            _ = newEngine.inputNode
+        }, &caughtError)
+        if !ok, let caughtError {
+            throw AudioCaptureError.engineException(caughtError)
+        }
+
+        ok = S2TCatchObjCException({
+            newEngine.prepare()
+        }, &caughtError)
+        if !ok, let caughtError {
+            throw AudioCaptureError.engineException(caughtError)
+        }
+
+        self.engine = newEngine
+        return newEngine
+    }
+
+    private static func hasDefaultInputDevice() -> Bool {
+        var deviceID: AudioDeviceID = kAudioObjectUnknown
+        var size = UInt32(MemoryLayout<AudioDeviceID>.size)
+        var address = AudioObjectPropertyAddress(
+            mSelector: kAudioHardwarePropertyDefaultInputDevice,
+            mScope: kAudioObjectPropertyScopeGlobal,
+            mElement: kAudioObjectPropertyElementMain
+        )
+        let status = AudioObjectGetPropertyData(
+            AudioObjectID(kAudioObjectSystemObject),
+            &address, 0, nil, &size, &deviceID
+        )
+        return status == noErr && deviceID != kAudioObjectUnknown
     }
 
     @MainActor
@@ -50,9 +112,7 @@ final class AudioCaptureService {
             return
         }
 
-        // Prepare the engine before accessing inputNode — without this the
-        // audio graph is uninitialized and start() fails with -10877.
-        try prepare()
+        let engine = try ensureEngine()
 
         self.levelMonitor = levelMonitor
         levelMonitor.reset()
@@ -75,11 +135,22 @@ final class AudioCaptureService {
             }
         }
 
-        self.levelMonitor = levelMonitor
+        var inputNode: AVAudioInputNode!
+        var caughtError: NSError?
+        let ok = S2TCatchObjCException({
+            inputNode = engine.inputNode
+        }, &caughtError)
+        if !ok || inputNode == nil {
+            self.engine = nil
+            throw AudioCaptureError.engineException(
+                caughtError ?? NSError(domain: "AudioCaptureService", code: -1,
+                                       userInfo: [NSLocalizedDescriptionKey: "inputNode is nil"])
+            )
+        }
 
-        let inputNode = engine.inputNode
-        let format = inputNode.outputFormat(forBus: 0)
-        inputNode.installTap(onBus: 0, bufferSize: 4_096, format: format) { [weak self] buffer, _ in
+        // Pass nil format — lets the engine use the input device's native format.
+        // Specifying a mismatched format causes silent -10877 errors.
+        inputNode.installTap(onBus: 0, bufferSize: 4_096, format: nil) { [weak self] buffer, _ in
             self?.levelMonitor?.process(buffer: buffer)
         }
         hasInstalledTap = true
@@ -102,19 +173,27 @@ final class AudioCaptureService {
         audioDeviceService.unregisterDisconnectListener()
         observedDeviceUID = nil
 
-        if hasInstalledTap {
+        if hasInstalledTap, let engine {
             engine.inputNode.removeTap(onBus: 0)
             hasInstalledTap = false
         }
 
-        engine.stop()
+        engine?.stop()
+        engine = nil
         levelMonitor?.reset()
         levelMonitor = nil
     }
 
     @MainActor
     var debugState: AudioCaptureServiceDebugState {
-        AudioCaptureServiceDebugState(
+        guard let engine else {
+            return AudioCaptureServiceDebugState(
+                hasInstalledTap: false,
+                outputConnectionPointCount: 0,
+                isRunning: false
+            )
+        }
+        return AudioCaptureServiceDebugState(
             hasInstalledTap: hasInstalledTap,
             outputConnectionPointCount: engine.outputConnectionPoints(for: engine.inputNode, outputBus: 0).count,
             isRunning: engine.isRunning

@@ -1,13 +1,16 @@
-import AudioToolbox
+import AppKit
 import Combine
 import Foundation
 
 // MARK: - ActivationSoundPlayer
 
 struct ActivationSoundPlayer {
-    // System sound 1057 is the keyboard click — no bundled audio file required.
     func play() {
-        AudioServicesPlaySystemSound(1057)
+        if let sound = NSSound(named: "Tink") {
+            sound.play()
+        } else {
+            NSSound.beep()
+        }
     }
 }
 
@@ -42,6 +45,12 @@ final class ActivationStore: ObservableObject {
     }
 
     func arm() {
+        // Toggle: if already recording, stop.
+        if state == .recording {
+            stop()
+            return
+        }
+
         // Require all permissions to be granted, but do NOT require setup to be
         // "finalized" (hasCompletedInitialSetup). The finalize step is an
         // onboarding UX gate, not a runtime safety requirement. Recording must

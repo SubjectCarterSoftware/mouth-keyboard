@@ -5,7 +5,7 @@ import XCTest
 final class AudioCaptureServiceTests: XCTestCase {
     @MainActor
     func testStartInstallsTapWithoutOutputConnection() throws {
-        let service = AudioCaptureService(engineStarter: { _ in })
+        let service = AudioCaptureService(engineStarter: { _ in }, checkAuthorization: { true })
         let levelMonitor = AudioLevelMonitor()
 
         try service.start(levelMonitor: levelMonitor)
@@ -16,7 +16,7 @@ final class AudioCaptureServiceTests: XCTestCase {
 
     @MainActor
     func testStopRemovesTapAndSupportsRestart() throws {
-        let service = AudioCaptureService(engineStarter: { _ in })
+        let service = AudioCaptureService(engineStarter: { _ in }, checkAuthorization: { true })
 
         try service.start(levelMonitor: AudioLevelMonitor())
         XCTAssertTrue(service.debugState.hasInstalledTap)

@@ -2,13 +2,12 @@ import Foundation
 import KeyboardShortcuts
 
 extension KeyboardShortcuts.Name {
-    static let activate = Self("activate", default: .init(.z, modifiers: [.command, .shift]))
+    static let activate = Self("activate", default: .init(.v, modifiers: [.control]))
 }
 
 @MainActor
 final class HotkeyService {
     static let shared = HotkeyService(
-        preferences: .shared,
         onArm: { ActivationStore.shared.arm() }
     )
 
@@ -17,25 +16,36 @@ final class HotkeyService {
     var now: () -> CFAbsoluteTime
     var onArm: () -> Void
 
-    private let preferences: ShellPreferences
+    private let tapModeOverride: TapMode?
     private var lastTapTime: CFAbsoluteTime?
     private var pendingTapWork: DispatchWorkItem?
     private var isListening = false
 
     init(
-        preferences: ShellPreferences,
-        doubleTapWindow: CFAbsoluteTime = 0.350,
+        doubleTapWindow: CFAbsoluteTime = 0.500,
         onArm: @escaping () -> Void,
-        now: @escaping () -> CFAbsoluteTime = CFAbsoluteTimeGetCurrent
+        now: @escaping () -> CFAbsoluteTime = CFAbsoluteTimeGetCurrent,
+        tapModeOverride: TapMode? = nil
     ) {
-        self.preferences = preferences
         self.doubleTapWindow = doubleTapWindow
         self.onArm = onArm
         self.now = now
+        self.tapModeOverride = tapModeOverride
+    }
+
+    private var effectiveTapMode: TapMode {
+        if let tapModeOverride { return tapModeOverride }
+        // Auto-detect: single key (no modifiers) → double-tap to avoid accidental triggers.
+        // Multi-key combo (has modifiers) → single-tap since the combo itself prevents accidents.
+        if let shortcut = KeyboardShortcuts.getShortcut(for: .activate),
+           !shortcut.modifiers.isEmpty {
+            return .single
+        }
+        return .double
     }
 
     func handleKeyDown() -> Bool {
-        let tapMode = preferences.tapMode
+        let tapMode = effectiveTapMode
         NSLog("HotkeyService: handleKeyDown tapMode=\(tapMode)")
 
         if tapMode == .single {
