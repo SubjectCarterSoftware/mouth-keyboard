@@ -5,7 +5,7 @@ enum AudioBufferAccumulatorError: Error {
     case conversionFailed
 }
 
-final class AudioBufferAccumulator {
+class AudioBufferAccumulator {
     private var buffers: [AVAudioPCMBuffer] = []
     private var inputFormat: AVAudioFormat?
     private let lock = NSLock()

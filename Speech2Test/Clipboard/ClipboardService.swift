@@ -1,7 +1,7 @@
 import AppKit
 import Carbon.HIToolbox
 
-final class ClipboardService {
+class ClipboardService {
     private let pasteboard: NSPasteboard
 
     init(pasteboard: NSPasteboard = .general) {

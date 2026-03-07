@@ -6,11 +6,24 @@ import Combine
 final class AudioLevelMonitor: ObservableObject {
     @Published private(set) var level: Float = 0.0
 
+    // MARK: - Silence detection
+
+    var onSilenceWarning: (() -> Void)?
+    var onSilenceTimeout: (() -> Void)?
+
+    private let silenceThreshold: Float = 0.01
+    private var silenceStartTime: Date?
+    private var hasFiredWarning = false
+    private var hasFiredTimeout = false
+
+    // MARK: - Buffer processing
+
     nonisolated func process(buffer: AVAudioPCMBuffer) {
         let frameLength = Int(buffer.frameLength)
         guard frameLength > 0, let samples = buffer.floatChannelData?[0] else {
             Task { @MainActor in
                 self.level = 0.0
+                self.updateSilenceTracking(normalized: 0.0)
             }
             return
         }
@@ -26,10 +39,37 @@ final class AudioLevelMonitor: ObservableObject {
 
         Task { @MainActor in
             self.level = normalized
+            self.updateSilenceTracking(normalized: normalized)
+        }
+    }
+
+    private func updateSilenceTracking(normalized: Float) {
+        if normalized < silenceThreshold {
+            // Silent
+            if silenceStartTime == nil {
+                silenceStartTime = Date()
+            }
+            let elapsed = Date().timeIntervalSince(silenceStartTime!)
+            if elapsed >= 45 && !hasFiredWarning {
+                hasFiredWarning = true
+                onSilenceWarning?()
+            }
+            if elapsed >= 60 && !hasFiredTimeout {
+                hasFiredTimeout = true
+                onSilenceTimeout?()
+            }
+        } else {
+            // Sound detected — reset silence tracking
+            silenceStartTime = nil
+            hasFiredWarning = false
+            hasFiredTimeout = false
         }
     }
 
     func reset() {
         level = 0.0
+        silenceStartTime = nil
+        hasFiredWarning = false
+        hasFiredTimeout = false
     }
 }

@@ -32,6 +32,7 @@ final class AudioCaptureService {
     private let engineStarter: (AVAudioEngine) throws -> Void
     private let checkAuthorization: () -> Bool
     private var levelMonitor: AudioLevelMonitor?
+    private var bufferAccumulator: AudioBufferAccumulator?
     private var hasInstalledTap = false
     private var observedDeviceUID: String?
 
@@ -107,7 +108,7 @@ final class AudioCaptureService {
     }
 
     @MainActor
-    func start(levelMonitor: AudioLevelMonitor) throws {
+    func start(levelMonitor: AudioLevelMonitor, bufferAccumulator: AudioBufferAccumulator? = nil) throws {
         guard !hasInstalledTap else {
             return
         }
@@ -115,6 +116,7 @@ final class AudioCaptureService {
         let engine = try ensureEngine()
 
         self.levelMonitor = levelMonitor
+        self.bufferAccumulator = bufferAccumulator
         levelMonitor.reset()
         audioDeviceService.unregisterDisconnectListener()
         observedDeviceUID = nil
@@ -152,6 +154,7 @@ final class AudioCaptureService {
         // Specifying a mismatched format causes silent -10877 errors.
         inputNode.installTap(onBus: 0, bufferSize: 4_096, format: nil) { [weak self] buffer, _ in
             self?.levelMonitor?.process(buffer: buffer)
+            self?.bufferAccumulator?.append(buffer)
         }
         hasInstalledTap = true
 
@@ -182,6 +185,8 @@ final class AudioCaptureService {
         engine = nil
         levelMonitor?.reset()
         levelMonitor = nil
+        bufferAccumulator?.reset()
+        bufferAccumulator = nil
     }
 
     @MainActor
@@ -203,6 +208,7 @@ final class AudioCaptureService {
     @MainActor
     private func handleSelectedDeviceDisconnect() {
         let currentMonitor = levelMonitor
+        let currentAccumulator = bufferAccumulator
 
         preferences.micDeviceUID = nil
         observedDeviceUID = nil
@@ -214,7 +220,7 @@ final class AudioCaptureService {
         stop()
 
         do {
-            try start(levelMonitor: currentMonitor)
+            try start(levelMonitor: currentMonitor, bufferAccumulator: currentAccumulator)
         } catch {
             NSLog("AudioCaptureService failed to fall back to the system default input device: \(error.localizedDescription)")
         }

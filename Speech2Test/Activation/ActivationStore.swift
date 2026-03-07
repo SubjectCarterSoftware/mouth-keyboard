@@ -27,27 +27,50 @@ extension ReadinessStore: ReadinessProviding {}
 
 @MainActor
 final class ActivationStore: ObservableObject {
-    static let shared = ActivationStore(preferences: .shared, readinessStore: .shared)
+    static let shared = ActivationStore(
+        preferences: .shared,
+        readinessStore: .shared
+    )
 
     @Published private(set) var state: RecordingState = .idle
 
     private let preferences: ShellPreferences
     private let readinessProvider: any ReadinessProviding
+    private let whisperService: any WhisperTranscribing
+    private let clipboardService: ClipboardService
+    let bufferAccumulator: AudioBufferAccumulator
     var soundPlayer: ActivationSoundPlayer = .init()
 
     convenience init(preferences: ShellPreferences, readinessStore: ReadinessStore) {
-        self.init(preferences: preferences, readinessProvider: readinessStore)
+        self.init(
+            preferences: preferences,
+            readinessProvider: readinessStore,
+            whisperService: WhisperService(),
+            clipboardService: ClipboardService(),
+            bufferAccumulator: AudioBufferAccumulator()
+        )
     }
 
-    init(preferences: ShellPreferences, readinessProvider: any ReadinessProviding) {
+    init(
+        preferences: ShellPreferences,
+        readinessProvider: any ReadinessProviding,
+        whisperService: any WhisperTranscribing = WhisperService(),
+        clipboardService: ClipboardService = ClipboardService(),
+        bufferAccumulator: AudioBufferAccumulator = AudioBufferAccumulator()
+    ) {
         self.preferences = preferences
         self.readinessProvider = readinessProvider
+        self.whisperService = whisperService
+        self.clipboardService = clipboardService
+        self.bufferAccumulator = bufferAccumulator
     }
 
+    // MARK: - Public API
+
     func arm() {
-        // Toggle: if already recording, stop.
+        // Toggle: if already recording, finish (trigger transcription flow).
         if state == .recording {
-            stop()
+            finish()
             return
         }
 
@@ -68,7 +91,66 @@ final class ActivationStore: ObservableObject {
         state = .recording
     }
 
+    /// Hard stop — transitions directly to idle without transcribing. Used for cancel (Phase 4).
     func stop() {
         state = .idle
+    }
+
+    /// Finish recording: stops capture and runs the transcription -> clipboard -> dismiss flow.
+    func finish() {
+        guard state == .recording else { return }
+        state = .processing
+
+        Task {
+            await transcribeAndDispatch()
+        }
+    }
+
+    /// Called by AudioLevelMonitor's onSilenceTimeout callback.
+    /// Attempts transcription of whatever audio was captured during the session.
+    func handleSilenceTimeout() {
+        // Per plan decision: still attempt transcription on whatever audio was captured.
+        finish()
+    }
+
+    // MARK: - Private transcription flow
+
+    private func transcribeAndDispatch() async {
+        do {
+            let samples = try bufferAccumulator.convertToWhisperFormat()
+            let text = try await whisperService.transcribe(samples: samples)
+
+            // Success path
+            state = .success(text: text)
+            clipboardService.writeToClipboard(text)
+            if preferences.autoPasteEnabled {
+                clipboardService.autoPaste()
+            }
+
+            // Auto-dismiss to idle after 1.5s
+            Task {
+                try? await Task.sleep(nanoseconds: 1_500_000_000)
+                if case .success = self.state {
+                    self.state = .idle
+                }
+            }
+
+        } catch TranscriptionError.noSpeechDetected {
+            state = .failure(reason: .noSpeechDetected)
+            scheduleDismissToIdle()
+
+        } catch {
+            state = .failure(reason: .modelError(error.localizedDescription))
+            scheduleDismissToIdle()
+        }
+    }
+
+    private func scheduleDismissToIdle() {
+        Task {
+            try? await Task.sleep(nanoseconds: 2_000_000_000)
+            if case .failure = self.state {
+                self.state = .idle
+            }
+        }
     }
 }
