@@ -12,7 +12,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     private let activationStore = ActivationStore.shared
     private let audioCaptureService = AudioCaptureService.shared
     private let levelMonitor = AudioLevelMonitor()
-    private let spacebarInterceptor = SpacebarInterceptor()
     private let forcePresentSetupOnLaunch = ProcessInfo.processInfo.arguments.contains("-open-setup-window")
 
     private var pillPanel: RecordingPillPanel?
@@ -43,12 +42,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
                 NSLog("WhisperService: model 'ggml-small.en.bin' not found in app bundle — transcription unavailable")
             }
         }
-
-        // Configure spacebar interceptor to trigger finish on the activation store.
-        spacebarInterceptor.onSpacebarPressed = { [weak self] in
-            self?.activationStore.finish()
-        }
-        spacebarInterceptor.start()
 
         // Create the pill panel once — shown/hidden reactively via RecordingPillPanel's own state observer.
         pillPanel = RecordingPillPanel(levelMonitor: levelMonitor, activationStore: activationStore, preferences: preferences)
@@ -81,7 +74,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
 
     func applicationWillTerminate(_ notification: Notification) {
         hotkeyService.stop()
-        spacebarInterceptor.stop()
         stateObservation?.cancel()
     }
 
@@ -114,7 +106,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             self?.activationStore.handleSilenceTimeout()
         }
 
-        spacebarInterceptor.isActive = true
         // Pill panel visibility is managed by RecordingPillPanel's own state observer.
         updateMenuBarIcon(state: .recording)
     }
@@ -125,7 +116,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         levelMonitor.onSilenceWarning = nil
         levelMonitor.onSilenceTimeout = nil
 
-        spacebarInterceptor.isActive = false
         // Pill panel stays visible during processing (RecordingPillPanel handles this).
         updateMenuBarIcon(state: .processing)
     }
