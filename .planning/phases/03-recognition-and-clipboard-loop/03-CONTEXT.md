@@ -6,7 +6,7 @@
 <domain>
 ## Phase Boundary
 
-Produce local transcription from captured audio using whisper.cpp, finish recording via spacebar or hotkey, write the result to the clipboard with optional auto-paste, and show trustworthy recording/processing/success/failure feedback through the existing pill indicator. Cancel, restart, long-dictation segmentation, and multi-engine support are separate later phases.
+Produce local transcription from captured audio using whisper.cpp, finish recording via the activation hotkey, write the result to the clipboard, and show trustworthy recording/processing/success/failure feedback through the existing pill indicator. Cancel, restart, long-dictation segmentation, and multi-engine support are separate later phases.
 
 </domain>
 
@@ -19,18 +19,14 @@ Produce local transcription from captured audio using whisper.cpp, finish record
 - Transcription mode: **batch after finish** — all audio processed after the user ends recording, not real-time streaming.
 - English-only is sufficient for v1.
 
-### Spacebar Finish Flow
-- Spacebar ends the active recording and triggers transcription.
-- Hotkey also ends recording (both spacebar and hotkey serve as finish keys).
-- Spacebar intercepted via the **same CGEventTap** used by HotkeyService, only active when `RecordingState == .recording`.
-- Spacebar is **consumed** (swallowed) — not passed through to the active application.
+### Finish Flow
+- The activation hotkey is a start/finish toggle.
+- A second hotkey press during recording ends the active recording and triggers transcription.
 - Audio capture **stops immediately** on finish — no trailing buffer.
 - Always attempt transcription regardless of recording duration (no minimum length gate).
 
-### Clipboard and Auto-Paste
+### Clipboard Output
 - On successful transcription, write text to the system clipboard via `NSPasteboard`.
-- **Auto-paste enabled by default** — after clipboard write, simulate Cmd+V with a ~50-100ms delay.
-- Auto-paste is toggleable in settings (user can disable).
 - On failure, clipboard is **left unchanged** (preserves user's previous clipboard content).
 
 ### Silence Timeout
@@ -58,7 +54,7 @@ Produce local transcription from captured audio using whisper.cpp, finish record
 - RecordingState enum expansion (adding processing, success, failure cases) and transition timing.
 - How the ~45s silence warning manifests visually (color shift, subtle countdown, etc.).
 - Whisper model storage location and initialization strategy.
-- Auto-paste implementation details (CGEvent posting vs accessibility API).
+- Exact clipboard confirmation wording after a successful transcription.
 
 </decisions>
 
@@ -67,7 +63,7 @@ Produce local transcription from captured audio using whisper.cpp, finish record
 
 - The pill should stay minimal and unobtrusive — pulsing is preferred over spinners or text-heavy processing states.
 - Silence timeout is a safety net for forgotten recordings — user wants it to still try transcribing whatever was captured rather than discarding.
-- Auto-paste is the expected default workflow: dictate, spacebar, text appears where you were typing.
+- Clipboard-only output is the intended compatibility boundary for v1.
 
 </specifics>
 
@@ -79,9 +75,9 @@ Produce local transcription from captured audio using whisper.cpp, finish record
 - `AudioLevelMonitor` (`Speech2Test/Audio/AudioLevelMonitor.swift`): Already processes audio buffers for RMS levels. Can be extended or paralleled to detect silence for the 60s timeout.
 - `RecordingPillPanel` / `RecordingPillView` (`Speech2Test/Shell/`): Existing pill UI. Needs new visual states for processing, success, and failure.
 - `ActivationStore` (`Speech2Test/Activation/ActivationStore.swift`): Manages `RecordingState` transitions. Needs expansion for processing/success/failure states.
-- `HotkeyService` (`Speech2Test/Activation/HotkeyService.swift`): CGEventTap-based hotkey system. Spacebar interception during recording should integrate here.
-- `ShellPreferences` (`Speech2Test/Persistence/ShellPreferences.swift`): UserDefaults-backed store. Add keys for auto-paste toggle and indicator visibility.
-- `AppDelegate` (`Speech2Test/App/AppDelegate.swift`): Wires state changes to pill/audio/icon. Needs to orchestrate the new finish → process → clipboard → auto-paste → dismiss flow.
+- `HotkeyService` (`Speech2Test/Activation/HotkeyService.swift`): Carbon hot key system. A second hotkey press during recording should trigger finish cleanly.
+- `ShellPreferences` (`Speech2Test/Persistence/ShellPreferences.swift`): UserDefaults-backed store. Add the indicator visibility key here.
+- `AppDelegate` (`Speech2Test/App/AppDelegate.swift`): Wires state changes to pill/audio/icon. Needs to orchestrate the new finish → process → clipboard → dismiss flow.
 
 ### Established Patterns
 - `@MainActor` on all stores and app-level objects.

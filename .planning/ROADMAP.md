@@ -14,7 +14,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 
 - [x] **Phase 1: Foundation and Permissions** - Establish the background utility shell, readiness state, and permission flows.
 - [x] **Phase 2: Activation and Capture** - Deliver configurable hotkey activation, microphone capture, and immediate recording start.
-- [ ] **Phase 3: Recognition and Clipboard Loop** - Turn recordings into final clipboard text with clear user-visible states.
+- [x] **Phase 3: Recognition and Clipboard Loop** - Turn recordings into final clipboard text with clear user-visible states.
 - [ ] **Phase 4: Recovery Controls** - Make cancel, restart, and input failure handling trustworthy.
 - [ ] **Phase 5: Long-Dictation Reliability** - Add segmentation, queued transcription, and best-effort recovery for longer sessions.
 
@@ -37,7 +37,7 @@ Plans:
 ### Phase 2: Activation and Capture
 **Goal**: Let the user configure activation behavior and start recording immediately from any app with the chosen microphone and uninterrupted system audio.
 **Depends on**: Phase 1
-**Requirements**: [ACTV-01, ACTV-02, ACTV-03, ACTV-04, AUDI-01, AUDI-02, AUDI-03, CONF-03]
+**Requirements**: [ACTV-01, ACTV-02, ACTV-04, AUDI-01, AUDI-02, AUDI-03, CONF-03]
 **Success Criteria** (what must be TRUE):
   1. The user can configure a system-wide activation hotkey that starts recording on a single press.
   2. Recording begins quickly enough that the user can speak immediately after activation.
@@ -52,7 +52,7 @@ Plans:
 ### Phase 3: Recognition and Clipboard Loop
 **Goal**: Produce local transcription with punctuation, finish via the activation hotkey, write the result to the clipboard, and show trustworthy recording/processing feedback.
 **Depends on**: Phase 2
-**Requirements**: [SESS-01, TRNS-01, TRNS-02, TRNS-06, CLIP-01, FEED-01, FEED-03]
+**Requirements**: [ACTV-03, SESS-01, TRNS-01, TRNS-02, TRNS-06, CLIP-01, FEED-01, FEED-03]
 **Success Criteria** (what must be TRUE):
   1. Pressing the activation hotkey again ends the active session and produces clipboard text when transcription succeeds.
   2. Idle, recording, and processing states are obvious, and indicator visibility can be configured.
@@ -102,6 +102,6 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5
 |-------|----------------|--------|-----------|
 | 1. Foundation and Permissions | 2/2 | Complete | 2026-03-05 |
 | 2. Activation and Capture | 3/3 | Complete | 2026-03-06 |
-| 3. Recognition and Clipboard Loop | 3/3 | In Progress |  |
+| 3. Recognition and Clipboard Loop | 3/3 | Complete | 2026-03-07 |
 | 4. Recovery Controls | 0/2 | Not started | - |
 | 5. Long-Dictation Reliability | 0/3 | Not started | - |

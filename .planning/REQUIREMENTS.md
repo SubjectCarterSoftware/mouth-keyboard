@@ -3,18 +3,20 @@
 **Defined:** 2026-03-05
 **Core Value:** From a single hotkey, the user can dictate and get reliable text into the clipboard fast enough that it feels close to typing speed.
 
+> Scope update on 2026-03-07: v1 is single-tap hotkey start/finish with clipboard-only output. Double-tap activation, spacebar finish, and auto-paste are not active v1 scope.
+
 ## v1 Requirements
 
 ### Activation
 
 - [x] **ACTV-01**: User can configure a system-wide activation hotkey.
-- [x] **ACTV-02**: User can start recording with a single tap of the activation hotkey when single-tap mode is enabled.
-- [x] **ACTV-03**: User can start recording with a double tap of the activation hotkey when double-tap mode is enabled.
+- [x] **ACTV-02**: User can start recording with a single press of the activation hotkey.
+- [x] **ACTV-03**: User can use the same activation hotkey as the start/finish toggle for a recording session.
 - [x] **ACTV-04**: User can begin speaking immediately after activation without a second confirmation step.
 
 ### Session Controls
 
-- [x] **SESS-01**: User can finish the active recording with the spacebar while remaining in the current application.
+- [x] **SESS-01**: User can finish the active recording with the activation hotkey while remaining in the current application.
 - [ ] **SESS-02**: User can cancel the active recording with Escape and leave the clipboard unchanged.
 - [ ] **SESS-03**: User can restart the current recording from a clean point without leaving recording state.
 - [ ] **SESS-04**: User receives a clear visual confirmation when a session is canceled or restarted.
@@ -50,7 +52,7 @@
 
 - [ ] **CONF-01**: User is prompted for microphone permission before first recording and receives recovery guidance if access is denied.
 - [ ] **CONF-02**: User is prompted for accessibility permission before global keyboard monitoring is used and receives recovery guidance if access is denied.
-- [x] **CONF-03**: User can choose whether activation uses single-tap or double-tap mode.
+- [x] **CONF-03**: User can configure activation settings from the setup window without a separate preferences surface.
 
 ## v2 Requirements
 
@@ -85,7 +87,7 @@
 |-------------|-------|--------|
 | ACTV-01 | Phase 2 | Complete |
 | ACTV-02 | Phase 2 | Complete |
-| ACTV-03 | Phase 2 | Complete |
+| ACTV-03 | Phase 3 | Complete |
 | ACTV-04 | Phase 2 | Complete |
 | SESS-01 | Phase 3 | Complete |
 | SESS-02 | Phase 4 | Pending |

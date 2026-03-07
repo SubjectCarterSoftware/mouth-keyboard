@@ -6,7 +6,7 @@
 <domain>
 ## Phase Boundary
 
-Let the user configure a system-wide activation hotkey and tap mode, arm recording immediately when the hotkey fires, capture audio from the chosen microphone, and show a live recording indicator — all without interrupting system audio playback. Session finish controls (spacebar), cancel/restart, transcription, and clipboard output are separate later phases.
+Let the user configure a system-wide activation hotkey, arm recording immediately when the hotkey fires, capture audio from the chosen microphone, and show a live recording indicator — all without interrupting system audio playback. Session finish controls, cancel/restart, transcription, and clipboard output are separate later phases.
 
 </domain>
 
@@ -19,15 +19,14 @@ Let the user configure a system-wide activation hotkey and tap mode, arm recordi
 - The hotkey field is always editable, not locked to the initial setup flow. User can re-record a new combo at any time.
 - Default hotkey: **Cmd+Shift+Z**, pre-filled. User can change it but is not required to.
 
-### Tap Mode
-- Default tap mode on first launch: **double-tap**.
-- Single-tap vs double-tap toggle lives in the setup/settings window alongside the hotkey field.
-- In double-tap mode, a stray single tap is silently ignored — no feedback, no action.
-- The inter-tap detection window is a fixed sensible default (not user-configurable in v1).
+### Activation Trigger
+- Recording starts on a **single hotkey press**.
+- There is no separate tap-mode setting in v1.
+- Avoid extra activation complexity unless accidental triggers become a real problem in usage.
 
 ### Microphone Selection
 - Device picker: user can choose a specific input device from a list of available mics.
-- Picker lives in the setup/settings window (alongside hotkey and tap mode).
+- Picker lives in the setup/settings window alongside the hotkey field.
 - Default selection: "System Default" option at the top of the picker — follows whatever the OS default input is.
 - If the selected mic disconnects during use, fall back to the system default silently (no error, no interruption).
 
@@ -66,7 +65,7 @@ Let the user configure a system-wide activation hotkey and tap mode, arm recordi
 ## Existing Code Insights
 
 ### Reusable Assets
-- `ShellPreferences` (`Speech2Test/Persistence/ShellPreferences.swift`): UserDefaults-backed store using `com.elicarter.Speech2Test.shell` suite. Add keys for hotkey binding, tap mode, mic selection, and activation sound toggle here.
+- `ShellPreferences` (`Speech2Test/Persistence/ShellPreferences.swift`): UserDefaults-backed store using `com.elicarter.Speech2Test.shell` suite. Add keys for mic selection and activation sound toggle here.
 - `ReadinessStore` (`Speech2Test/Readiness/ReadinessStore.swift`): `@MainActor ObservableObject` shared singleton. A new `ActivationStore` or `RecordingStore` following the same pattern should manage activation and recording state.
 - `ReadinessSnapshot` / `ReadinessState` (`Speech2Test/Readiness/ReadinessSnapshot.swift`): Established state enum pattern — a similar `RecordingState` enum (idle / armed / recording) should follow this convention.
 - `AppDelegate` (`Speech2Test/App/AppDelegate.swift`): Manages NSWindow lifecycle via `NSHostingController`. The floating recording indicator panel should be created and managed here using the same approach.
