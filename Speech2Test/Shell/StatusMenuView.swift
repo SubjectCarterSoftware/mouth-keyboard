@@ -43,6 +43,9 @@ struct StatusMenuView: View {
             Button(readinessStore.snapshot.primaryActionTitle, action: openSetup)
                 .accessibilityIdentifier("statusMenu.primaryAction")
 
+            Toggle("Show recording indicator", isOn: $preferences.indicatorVisible)
+            Toggle("Auto-paste after transcription", isOn: $preferences.autoPasteEnabled)
+
             Toggle("Show shell hints in menu", isOn: $preferences.showsMenuHints)
 
             if preferences.showsMenuHints {

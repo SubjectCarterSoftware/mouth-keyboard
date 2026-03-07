@@ -30,8 +30,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         hotkeyService.start()
         readinessStore.refresh()
 
-        // Create the pill panel once — shown/hidden reactively.
-        pillPanel = RecordingPillPanel(levelMonitor: levelMonitor)
+        // Create the pill panel once — shown/hidden reactively via state observation.
+        pillPanel = RecordingPillPanel(levelMonitor: levelMonitor, activationStore: activationStore, preferences: preferences)
 
         // Observe ActivationStore state to drive pill, audio, and icon.
         stateObservation = activationStore.$state
@@ -78,14 +78,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             return
         }
 
-        pillPanel?.orderFrontRegardless()
+        // Pill panel visibility is managed by RecordingPillPanel via its own state observer.
         updateMenuBarIcon(recording: true)
     }
 
     private func onRecordingStopped() {
         audioCaptureService.stop()
         levelMonitor.reset()
-        pillPanel?.orderOut(nil)
+        // Pill panel visibility is managed by RecordingPillPanel via its own state observer.
         updateMenuBarIcon(recording: false)
     }
 

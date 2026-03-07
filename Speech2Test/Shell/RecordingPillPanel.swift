@@ -1,14 +1,43 @@
 import AppKit
+import Combine
 import SwiftUI
 
 @MainActor
 final class RecordingPillPanel: NSPanel {
-    private let panelSize = NSSize(width: 160, height: 44)
-    private var screenObserver: NSObjectProtocol?
+    private static let defaultSize = NSSize(width: 160, height: 44)
+    private static let failureSize = NSSize(width: 220, height: 44)
 
-    init(levelMonitor: AudioLevelMonitor) {
+    private var currentSize: NSSize = RecordingPillPanel.defaultSize
+    private var screenObserver: NSObjectProtocol?
+    private var stateObserver: AnyCancellable?
+    private var prefObserver: AnyCancellable?
+
+    private let hostingView: NSHostingView<RecordingPillViewWrapper>
+    private let containerView: NSVisualEffectView
+
+    init(levelMonitor: AudioLevelMonitor, activationStore: ActivationStore, preferences: ShellPreferences) {
+        let initialSize = RecordingPillPanel.defaultSize
+
+        let wrapper = RecordingPillViewWrapper(
+            levelMonitor: levelMonitor,
+            activationStore: activationStore
+        )
+        hostingView = NSHostingView(rootView: wrapper)
+        hostingView.frame = NSRect(origin: .zero, size: initialSize)
+        hostingView.autoresizingMask = [.width, .height]
+
+        containerView = NSVisualEffectView(frame: NSRect(origin: .zero, size: initialSize))
+        containerView.material = .hudWindow
+        containerView.blendingMode = .withinWindow
+        containerView.state = .active
+        containerView.appearance = NSAppearance(named: .darkAqua)
+        containerView.wantsLayer = true
+        containerView.layer?.cornerRadius = initialSize.height / 2
+        containerView.layer?.masksToBounds = true
+        containerView.addSubview(hostingView)
+
         super.init(
-            contentRect: NSRect(origin: .zero, size: panelSize),
+            contentRect: NSRect(origin: .zero, size: initialSize),
             styleMask: [.nonactivatingPanel, .hudWindow, .utilityWindow],
             backing: .buffered,
             defer: false
@@ -25,24 +54,10 @@ final class RecordingPillPanel: NSPanel {
         titlebarAppearsTransparent = true
         hidesOnDeactivate = false
         ignoresMouseEvents = true
-
-        let containerView = NSVisualEffectView(frame: NSRect(origin: .zero, size: panelSize))
-        containerView.material = .hudWindow
-        containerView.blendingMode = .withinWindow
-        containerView.state = .active
-        containerView.appearance = NSAppearance(named: .darkAqua)
-        containerView.wantsLayer = true
-        containerView.layer?.cornerRadius = panelSize.height / 2
-        containerView.layer?.masksToBounds = true
-
-        let hostingView = NSHostingView(rootView: RecordingPillView(levelMonitor: levelMonitor))
-        hostingView.frame = containerView.bounds
-        hostingView.autoresizingMask = [.width, .height]
-        containerView.addSubview(hostingView)
-
         contentView = containerView
 
         updatePosition()
+
         screenObserver = NotificationCenter.default.addObserver(
             forName: NSApplication.didChangeScreenParametersNotification,
             object: nil,
@@ -50,6 +65,21 @@ final class RecordingPillPanel: NSPanel {
         ) { [weak self] _ in
             self?.updatePosition()
         }
+
+        // Observe state changes to resize panel and manage visibility.
+        stateObserver = activationStore.$state
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] newState in
+                self?.updateForState(newState, preferences: preferences)
+            }
+
+        // Observe indicator visibility preference.
+        prefObserver = preferences.$indicatorVisible
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] _ in
+                guard let self else { return }
+                self.updateForState(activationStore.state, preferences: preferences)
+            }
     }
 
     deinit {
@@ -58,25 +88,66 @@ final class RecordingPillPanel: NSPanel {
         }
     }
 
-    override var canBecomeKey: Bool {
-        false
-    }
+    override var canBecomeKey: Bool { false }
+    override var canBecomeMain: Bool { false }
 
-    override var canBecomeMain: Bool {
-        false
-    }
+    // MARK: - State-driven updates
 
-    func updatePosition() {
-        guard let screen = NSScreen.main else {
-            return
+    func updateForState(_ state: RecordingState, preferences: ShellPreferences) {
+        let targetSize = panelSize(for: state)
+        let shouldShow: Bool
+
+        switch state {
+        case .idle:
+            shouldShow = false
+        case .recording, .processing, .success, .failure:
+            shouldShow = preferences.indicatorVisible
         }
 
+        if shouldShow {
+            if currentSize != targetSize {
+                currentSize = targetSize
+                containerView.layer?.cornerRadius = targetSize.height / 2
+                updatePosition()
+            }
+            orderFrontRegardless()
+        } else {
+            orderOut(nil)
+        }
+    }
+
+    private func panelSize(for state: RecordingState) -> NSSize {
+        switch state {
+        case .failure:
+            return RecordingPillPanel.failureSize
+        default:
+            return RecordingPillPanel.defaultSize
+        }
+    }
+
+    // MARK: - Positioning
+
+    func updatePosition() {
+        guard let screen = NSScreen.main else { return }
         let visibleFrame = screen.visibleFrame
         let origin = NSPoint(
-            x: visibleFrame.midX - (panelSize.width / 2),
+            x: visibleFrame.midX - (currentSize.width / 2),
             y: visibleFrame.minY + 40
         )
+        setFrame(NSRect(origin: origin, size: currentSize), display: true)
+    }
+}
 
-        setFrame(NSRect(origin: origin, size: panelSize), display: false)
+// MARK: - Wrapper view for reactive state observation
+
+private struct RecordingPillViewWrapper: View {
+    @ObservedObject var levelMonitor: AudioLevelMonitor
+    @ObservedObject var activationStore: ActivationStore
+
+    var body: some View {
+        RecordingPillView(
+            levelMonitor: levelMonitor,
+            recordingState: activationStore.state
+        )
     }
 }
