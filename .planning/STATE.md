@@ -2,16 +2,16 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-status: planning
-stopped_at: Completed 03-02-PLAN.md
-last_updated: "2026-03-07T00:41:18.814Z"
-last_activity: 2026-03-06 — Phase 2 fully verified and approved
+status: executing
+stopped_at: Completed 03-03-PLAN.md
+last_updated: "2026-03-07T17:50:59Z"
+last_activity: 2026-03-07 — Plan 03-03 completed after approved reduced-scope human verification
 progress:
   total_phases: 5
   completed_phases: 2
-  total_plans: 8
-  completed_plans: 7
-  percent: 38
+  total_plans: 13
+  completed_plans: 8
+  percent: 62
 ---
 
 # Project State
@@ -21,16 +21,16 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-05)
 
 **Core value:** From a single hotkey, the user can dictate and get reliable text into the clipboard fast enough that it feels close to typing speed.
-**Current focus:** Phase 3: Recognition and Clipboard Loop
+**Current focus:** Phase 3 verification handoff after Plan 03-03 completion
 
 ## Current Position
 
 Phase: 2 of 5 (Activation and Capture) — COMPLETE
-Phase: 3 of 5 (Recognition and Clipboard Loop) — NOT STARTED
-Status: Ready to plan Phase 3
-Last activity: 2026-03-06 — Phase 2 fully verified and approved
+Phase: 3 of 5 (Recognition and Clipboard Loop) — PLANS EXECUTED, VERIFICATION PENDING
+Status: Awaiting orchestrator verification for Phase 3; do not transition phase here
+Last activity: 2026-03-07 — 03-03 approved for reduced scope and documented as complete
 
-Progress: [████░░░░░░] 38% (Phases 1-2 complete)
+Progress: [██████░░░░] 62% (8 of 13 plans summarized; Phases 1-2 complete, Phase 3 awaiting verification)
 
 ## Performance Metrics
 
@@ -68,6 +68,8 @@ Recent decisions affecting current work:
 - [Phase 03-recognition-and-clipboard-loop]: WhisperService.shared singleton added so AppDelegate and ActivationStore.shared share one model instance
 - [Phase 03-recognition-and-clipboard-loop]: ClipboardService and AudioBufferAccumulator made non-final to allow test subclassing in ActivationStoreTests
 - [Phase 03-recognition-and-clipboard-loop]: removeDuplicates() removed from state pipeline — terminal states are always distinct and need observation
+- [Phase 03-recognition-and-clipboard-loop]: Phase 3 approved scope is single-tap hotkey start/finish with clipboard-only output; auto-paste and double-tap are not part of the shipped behavior
+- [Phase 03-recognition-and-clipboard-loop]: 03-03 completed at the plan level only; phase verification/transition remains orchestrator work
 
 ### Pending Todos
 
@@ -75,10 +77,10 @@ None yet.
 
 ### Blockers/Concerns
 
-- Phase 3 planning should validate the exact Apple Speech API fit against the intended deployment target before locking the engine abstraction.
+- `ggml-small.en.bin` still has to be present in the app bundle resources after rebuilds until the project bundles it directly.
 
 ## Session Continuity
 
-Last session: 2026-03-07T00:41:18.812Z
-Stopped at: Completed 03-02-PLAN.md
+Last session: 2026-03-07T17:50:59Z
+Stopped at: Completed 03-03-PLAN.md
 Resume file: None

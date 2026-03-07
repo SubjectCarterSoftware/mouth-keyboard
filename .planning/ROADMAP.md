@@ -26,7 +26,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 **Requirements**: [FEED-02, CONF-01, CONF-02]
 **Success Criteria** (what must be TRUE):
   1. The app runs as a background/menu bar utility while another application remains frontmost.
-  2. First-run flow clearly reports microphone and accessibility permission states and recovery steps.
+  2. First-run flow clearly reports microphone readiness and recovery steps before recording starts.
   3. The app can tell the user whether it is ready or blocked before any recording attempt.
 **Plans**: 2 plans
 
@@ -39,30 +39,30 @@ Plans:
 **Depends on**: Phase 1
 **Requirements**: [ACTV-01, ACTV-02, ACTV-03, ACTV-04, AUDI-01, AUDI-02, AUDI-03, CONF-03]
 **Success Criteria** (what must be TRUE):
-  1. The user can configure a system-wide activation hotkey and choose single-tap or double-tap mode.
+  1. The user can configure a system-wide activation hotkey that starts recording on a single press.
   2. Recording begins quickly enough that the user can speak immediately after activation.
   3. The app captures from the selected microphone while other system audio playback continues normally.
 **Plans**: 3 plans
 
 Plans:
-- [x] 02-01-PLAN.md — ShellPreferences extension, RecordingState/ActivationStore/HotkeyService with CGEventTap + double-tap detection, SetupWindowView Activation section.
+- [x] 02-01-PLAN.md — ShellPreferences extension, RecordingState/ActivationStore/HotkeyService with single-tap hotkey activation, SetupWindowView Activation section.
 - [x] 02-02-PLAN.md — AudioCaptureService (AVAudioEngine tap), AudioDeviceService (CoreAudio enumeration + selection), AudioLevelMonitor (RMS metering), mic picker UI.
 - [x] 02-03-PLAN.md — RecordingPillPanel floating overlay, AppDelegate wiring (state → audio + pill + icon + sound), human verification checkpoint.
 
 ### Phase 3: Recognition and Clipboard Loop
-**Goal**: Produce local transcription with punctuation, finish via spacebar, write the result to the clipboard, and show trustworthy recording/processing feedback.
+**Goal**: Produce local transcription with punctuation, finish via the activation hotkey, write the result to the clipboard, and show trustworthy recording/processing feedback.
 **Depends on**: Phase 2
 **Requirements**: [SESS-01, TRNS-01, TRNS-02, TRNS-06, CLIP-01, FEED-01, FEED-03]
 **Success Criteria** (what must be TRUE):
-  1. Pressing spacebar ends the active session and produces clipboard text when transcription succeeds.
+  1. Pressing the activation hotkey again ends the active session and produces clipboard text when transcription succeeds.
   2. Idle, recording, and processing states are obvious, and indicator visibility can be configured.
   3. Empty or failed recognition attempts surface as explicit failure states instead of false success.
-**Plans**: 3 plans
+**Plans**: 3/3 plans executed
 
 Plans:
-- [ ] 03-01-PLAN.md — Type contracts, standalone services (WhisperService, AudioBufferAccumulator, ClipboardService, SpacebarInterceptor), RecordingState expansion, ShellPreferences Phase 3 keys, Wave 0 test scaffolds.
-- [ ] 03-02-PLAN.md — Wire finish flow (spacebar/hotkey -> transcription -> clipboard -> auto-paste), buffer accumulation in AudioCaptureService, silence timeout in AudioLevelMonitor, full AppDelegate state machine.
-- [ ] 03-03-PLAN.md — Multi-state pill UI (processing pulse, success checkmark, failure message), indicator visibility toggle, human verification checkpoint.
+- [x] 03-01-PLAN.md — Type contracts, standalone services (WhisperService, AudioBufferAccumulator, ClipboardService), RecordingState expansion, ShellPreferences Phase 3 keys, Wave 0 test scaffolds.
+- [x] 03-02-PLAN.md — Wire finish flow (hotkey -> transcription -> clipboard), buffer accumulation in AudioCaptureService, silence timeout in AudioLevelMonitor, full AppDelegate state machine.
+- [x] 03-03-PLAN.md — Multi-state pill UI (processing pulse, success checkmark, failure message), indicator visibility toggle, human verification checkpoint.
 
 ### Phase 4: Recovery Controls
 **Goal**: Make cancel, restart, and microphone failure handling safe so the user can recover from mistakes without corrupting output.
@@ -102,6 +102,6 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5
 |-------|----------------|--------|-----------|
 | 1. Foundation and Permissions | 2/2 | Complete | 2026-03-05 |
 | 2. Activation and Capture | 3/3 | Complete | 2026-03-06 |
-| 3. Recognition and Clipboard Loop | 1/3 | In Progress|  |
+| 3. Recognition and Clipboard Loop | 3/3 | In Progress |  |
 | 4. Recovery Controls | 0/2 | Not started | - |
 | 5. Long-Dictation Reliability | 0/3 | Not started | - |
