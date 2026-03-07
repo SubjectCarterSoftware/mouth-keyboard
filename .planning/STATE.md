@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: planning
-stopped_at: Completed 03-01-PLAN.md
-last_updated: "2026-03-07T00:32:30.779Z"
+stopped_at: Completed 03-02-PLAN.md
+last_updated: "2026-03-07T00:41:18.814Z"
 last_activity: 2026-03-06 — Phase 2 fully verified and approved
 progress:
   total_phases: 5
   completed_phases: 2
   total_plans: 8
-  completed_plans: 6
+  completed_plans: 7
   percent: 38
 ---
 
@@ -46,6 +46,7 @@ Progress: [████░░░░░░] 38% (Phases 1-2 complete)
 | 01-foundation-and-permissions | 2 | — | — |
 | 02-activation-and-capture | 3 | ~2h | ~40m |
 | Phase 03-recognition-and-clipboard-loop P03-01 | 55 | 1 tasks | 16 files |
+| Phase 03-recognition-and-clipboard-loop P02 | ~6 minutes | 2 tasks | 8 files |
 
 ## Accumulated Context
 
@@ -64,6 +65,9 @@ Recent decisions affecting current work:
 - [Phase 03-recognition-and-clipboard-loop]: whisper.spm added with branch:master requirement to avoid unsafe build flag errors
 - [Phase 03-recognition-and-clipboard-loop]: WhisperService is an actor to serialize all whisper C API calls
 - [Phase 03-recognition-and-clipboard-loop]: AudioBufferAccumulator uses NSLock for thread safety on the audio tap thread
+- [Phase 03-recognition-and-clipboard-loop]: WhisperService.shared singleton added so AppDelegate and ActivationStore.shared share one model instance
+- [Phase 03-recognition-and-clipboard-loop]: ClipboardService and AudioBufferAccumulator made non-final to allow test subclassing in ActivationStoreTests
+- [Phase 03-recognition-and-clipboard-loop]: removeDuplicates() removed from state pipeline — terminal states are always distinct and need observation
 
 ### Pending Todos
 
@@ -75,6 +79,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-07T00:32:30.777Z
-Stopped at: Completed 03-01-PLAN.md
+Last session: 2026-03-07T00:41:18.812Z
+Stopped at: Completed 03-02-PLAN.md
 Resume file: None
