@@ -5,6 +5,11 @@ enum RecordingState: Equatable {
     case success(text: String)
     case failure(reason: FailureReason)
 
+    enum RecoveryFeedback: Equatable {
+        case canceled
+        case restarted
+    }
+
     enum FailureReason: Equatable {
         case noSpeechDetected
         case modelError(String)

@@ -89,6 +89,93 @@ final class ActivationStoreTests: XCTestCase {
         }
     }
 
+    func testCancelDuringRecordingReturnsToIdleWithoutClipboardWrite() {
+        let mockClipboard = ActivationStoreMockClipboard()
+        let store = makeStore(
+            permissionsAuthorized: true,
+            clipboard: mockClipboard
+        )
+        store.arm()
+
+        store.cancelCurrentSession()
+
+        XCTAssertEqual(store.state, .idle)
+        XCTAssertEqual(store.recoveryFeedback, .canceled)
+        XCTAssertNil(mockClipboard.lastWrittenText)
+    }
+
+    func testCancelDuringProcessingSuppressesLateSuccessPublication() async throws {
+        let mockClipboard = ActivationStoreMockClipboard()
+        let store = makeStore(
+            permissionsAuthorized: true,
+            transcriber: DelayedWhisperTranscriber(delayNanoseconds: 300_000_000, result: .success("late result")),
+            clipboard: mockClipboard
+        )
+        store.arm()
+        store.finish()
+        XCTAssertEqual(store.state, .processing)
+
+        store.cancelCurrentSession()
+        try await Task.sleep(nanoseconds: 500_000_000)
+
+        XCTAssertEqual(store.state, .idle)
+        XCTAssertEqual(store.recoveryFeedback, .canceled)
+        XCTAssertNil(mockClipboard.lastWrittenText)
+    }
+
+    func testRestartKeepsRecordingResetsBufferAndClearsFeedback() async throws {
+        let buffer = TrackingBufferAccumulator()
+        let resetTracker = ResetHookTracker()
+        let store = makeStore(
+            permissionsAuthorized: true,
+            bufferAccumulator: buffer,
+            resetSessionMonitoring: { resetTracker.callCount += 1 }
+        )
+        store.arm()
+        XCTAssertEqual(buffer.resetCount, 1)
+
+        store.restartCurrentSession()
+
+        XCTAssertEqual(store.state, .recording)
+        XCTAssertEqual(store.recoveryFeedback, .restarted)
+        XCTAssertEqual(buffer.resetCount, 2)
+        XCTAssertEqual(resetTracker.callCount, 1)
+
+        try await Task.sleep(nanoseconds: 1_700_000_000)
+
+        XCTAssertNil(store.recoveryFeedback)
+        XCTAssertEqual(store.state, .recording)
+    }
+
+    func testRestartLeavesClipboardUntouched() {
+        let mockClipboard = ActivationStoreMockClipboard()
+        let store = makeStore(
+            permissionsAuthorized: true,
+            clipboard: mockClipboard
+        )
+        store.arm()
+
+        store.restartCurrentSession()
+
+        XCTAssertNil(mockClipboard.lastWrittenText)
+    }
+
+    func testEmptyOrWhitespaceOnlyTranscriptionDoesNotReachClipboard() async throws {
+        let mockClipboard = ActivationStoreMockClipboard()
+        let store = makeStore(
+            permissionsAuthorized: true,
+            transcriber: ActivationStoreMockTranscriber(result: .success("   \n  ")),
+            clipboard: mockClipboard
+        )
+        store.arm()
+        store.finish()
+
+        try await Task.sleep(nanoseconds: 200_000_000)
+
+        XCTAssertEqual(store.state, .failure(reason: .noSpeechDetected))
+        XCTAssertNil(mockClipboard.lastWrittenText)
+    }
+
     func test_finish_fails_no_speech() async throws {
         let mockTranscriber = ActivationStoreMockTranscriber(result: .failure(TranscriptionError.noSpeechDetected))
         let mockClipboard = ActivationStoreMockClipboard()
@@ -161,7 +248,9 @@ final class ActivationStoreTests: XCTestCase {
     private func makeStore(
         permissionsAuthorized: Bool,
         transcriber: (any WhisperTranscribing)? = nil,
-        clipboard: ClipboardService? = nil
+        clipboard: ClipboardService? = nil,
+        bufferAccumulator: AudioBufferAccumulator? = nil,
+        resetSessionMonitoring: (@MainActor () -> Void)? = nil
     ) -> ActivationStore {
         let suiteName = "ActivationStoreTests.\(UUID().uuidString)"
         let defaults = UserDefaults(suiteName: suiteName) ?? .standard
@@ -172,7 +261,8 @@ final class ActivationStoreTests: XCTestCase {
             readinessProvider: StubReadinessProvider(permissionsAuthorized: permissionsAuthorized),
             whisperService: transcriber ?? ActivationStoreMockTranscriber(result: .success("")),
             clipboardService: clipboard ?? ActivationStoreMockClipboard(),
-            bufferAccumulator: StubBufferAccumulator()
+            bufferAccumulator: bufferAccumulator ?? StubBufferAccumulator(),
+            resetSessionMonitoring: resetSessionMonitoring ?? {}
         )
     }
 }
@@ -225,14 +315,21 @@ final class ActivationStoreMockTranscriber: WhisperTranscribing, @unchecked Send
 
 final class DelayedWhisperTranscriber: WhisperTranscribing, @unchecked Sendable {
     private let delayNanoseconds: UInt64
+    private let result: ActivationStoreMockTranscriber.MockResult
 
-    init(delayNanoseconds: UInt64) {
+    init(delayNanoseconds: UInt64, result: ActivationStoreMockTranscriber.MockResult = .success("delayed")) {
         self.delayNanoseconds = delayNanoseconds
+        self.result = result
     }
 
     func transcribe(samples: [Float]) async throws -> String {
         try await Task.sleep(nanoseconds: delayNanoseconds)
-        return "delayed"
+        switch result {
+        case .success(let text):
+            return text
+        case .failure(let error):
+            throw error
+        }
     }
 }
 
@@ -258,4 +355,17 @@ class StubBufferAccumulator: AudioBufferAccumulator {
     override func convertToWhisperFormat() throws -> [Float] {
         return [0.0, 0.0, 0.0] // non-empty, won't throw emptyBuffers
     }
+}
+
+final class TrackingBufferAccumulator: StubBufferAccumulator {
+    private(set) var resetCount = 0
+
+    override func reset() {
+        resetCount += 1
+        super.reset()
+    }
+}
+
+final class ResetHookTracker {
+    var callCount = 0
 }
