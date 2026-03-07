@@ -139,6 +139,14 @@ final class ShellPreferences: ObservableObject {
             userDefaults.set(true, forKey: Keys.hasCompletedInitialSetup)
         }
 
+        if arguments.contains("-hide-recording-indicator") {
+            userDefaults.set(false, forKey: Keys.indicatorVisible)
+        }
+
+        if arguments.contains("-hide-menu-hints") {
+            userDefaults.set(false, forKey: Keys.showsMenuHints)
+        }
+
         if arguments.contains("-mark-microphone-requested") {
             userDefaults.set(true, forKey: Keys.hasRequestedMicrophonePermission)
         }

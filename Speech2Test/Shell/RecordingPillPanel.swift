@@ -5,6 +5,7 @@ import SwiftUI
 @MainActor
 final class RecordingPillPanel: NSPanel {
     private static let defaultSize = NSSize(width: 160, height: 44)
+    private static let recoverySize = NSSize(width: 180, height: 44)
     private static let failureSize = NSSize(width: 220, height: 44)
 
     private var currentSize: NSSize = RecordingPillPanel.defaultSize
@@ -66,11 +67,15 @@ final class RecordingPillPanel: NSPanel {
             self?.updatePosition()
         }
 
-        // Observe state changes to resize panel and manage visibility.
-        stateObserver = activationStore.$state
+        // Observe both lifecycle and recovery feedback so confirmation can stay
+        // visible after the store has already returned to idle.
+        stateObserver = Publishers.CombineLatest(
+            activationStore.$state,
+            activationStore.$recoveryFeedback
+        )
             .receive(on: DispatchQueue.main)
-            .sink { [weak self] newState in
-                self?.updateForState(newState, preferences: preferences)
+            .sink { [weak self] state, feedback in
+                self?.updatePresentation(state: state, feedback: feedback, preferences: preferences)
             }
 
         // Observe indicator visibility preference.
@@ -78,7 +83,11 @@ final class RecordingPillPanel: NSPanel {
             .receive(on: DispatchQueue.main)
             .sink { [weak self] _ in
                 guard let self else { return }
-                self.updateForState(activationStore.state, preferences: preferences)
+                self.updatePresentation(
+                    state: activationStore.state,
+                    feedback: activationStore.recoveryFeedback,
+                    preferences: preferences
+                )
             }
     }
 
@@ -93,16 +102,13 @@ final class RecordingPillPanel: NSPanel {
 
     // MARK: - State-driven updates
 
-    func updateForState(_ state: RecordingState, preferences: ShellPreferences) {
-        let targetSize = panelSize(for: state)
-        let shouldShow: Bool
-
-        switch state {
-        case .idle:
-            shouldShow = false
-        case .recording, .processing, .success, .failure:
-            shouldShow = preferences.indicatorVisible
-        }
+    func updatePresentation(
+        state: RecordingState,
+        feedback: RecordingState.RecoveryFeedback?,
+        preferences: ShellPreferences
+    ) {
+        let targetSize = panelSize(for: state, feedback: feedback)
+        let shouldShow = preferences.indicatorVisible && (feedback != nil || state != .idle)
 
         if shouldShow {
             if currentSize != targetSize {
@@ -116,7 +122,11 @@ final class RecordingPillPanel: NSPanel {
         }
     }
 
-    private func panelSize(for state: RecordingState) -> NSSize {
+    private func panelSize(for state: RecordingState, feedback: RecordingState.RecoveryFeedback?) -> NSSize {
+        if feedback != nil {
+            return RecordingPillPanel.recoverySize
+        }
+
         switch state {
         case .failure:
             return RecordingPillPanel.failureSize
@@ -147,7 +157,8 @@ private struct RecordingPillViewWrapper: View {
     var body: some View {
         RecordingPillView(
             levelMonitor: levelMonitor,
-            recordingState: activationStore.state
+            recordingState: activationStore.state,
+            recoveryFeedback: activationStore.recoveryFeedback
         )
     }
 }

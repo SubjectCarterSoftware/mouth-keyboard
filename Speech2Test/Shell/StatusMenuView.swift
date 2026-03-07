@@ -1,8 +1,12 @@
 import SwiftUI
 
 struct StatusMenuView: View {
+    let recordingState: RecordingState
+    let recoveryFeedback: RecordingState.RecoveryFeedback?
     @ObservedObject var preferences: ShellPreferences
     @ObservedObject var readinessStore: ReadinessStore
+    let cancelSession: () -> Void
+    let restartSession: () -> Void
     let openSetup: () -> Void
     let quitApp: () -> Void
 
@@ -10,10 +14,42 @@ struct StatusMenuView: View {
         readinessStore.snapshot.permissions.filter { !$0.isAuthorized }
     }
 
+    private var canCancelSession: Bool {
+        recordingState == .recording || recordingState == .processing
+    }
+
+    private var canRestartSession: Bool {
+        recordingState == .recording
+    }
+
+    private var recoveryStatusText: String? {
+        if let recoveryFeedback {
+            switch recoveryFeedback {
+            case .canceled:
+                return preferences.indicatorVisible
+                    ? "Last session canceled."
+                    : "Last session canceled. The menu is carrying confirmation because the indicator is hidden."
+            case .restarted:
+                return preferences.indicatorVisible
+                    ? "Recording restarted from a clean buffer."
+                    : "Recording restarted from a clean buffer. The menu is carrying confirmation because the indicator is hidden."
+            }
+        }
+
+        switch recordingState {
+        case .recording:
+            return "Recording is active. Use Restart to clear the current buffer or Cancel to discard it."
+        case .processing:
+            return "Processing is active. Cancel stops the session and preserves the existing clipboard."
+        case .idle, .success, .failure:
+            return nil
+        }
+    }
+
     private var menuHintText: String {
         switch readinessStore.snapshot.state {
         case .ready:
-            return "Speech2Test is ready to stay quiet in the menu bar until Phase 2 adds activation and capture."
+            return "Speech2Test is ready to stay quiet in the menu bar until you trigger a session."
         case .needsSetup:
             return "Finish the checklist once and the app will settle into the quieter menu bar shell on future launches."
         case .blocked:
@@ -40,12 +76,32 @@ struct StatusMenuView: View {
                 )
             }
 
+            if canCancelSession {
+                Button("Cancel Session", action: cancelSession)
+                    .accessibilityIdentifier("statusMenu.cancelSession")
+            }
+
+            if canRestartSession {
+                Button("Restart Recording", action: restartSession)
+                    .accessibilityIdentifier("statusMenu.restartSession")
+            }
+
+            if let recoveryStatusText {
+                Text(recoveryStatusText)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .accessibilityIdentifier("statusMenu.recoveryMessage")
+            }
+
             Button(readinessStore.snapshot.primaryActionTitle, action: openSetup)
                 .accessibilityIdentifier("statusMenu.primaryAction")
 
             Toggle("Show recording indicator", isOn: $preferences.indicatorVisible)
+                .accessibilityIdentifier("statusMenu.indicatorVisible")
 
             Toggle("Show shell hints in menu", isOn: $preferences.showsMenuHints)
+                .accessibilityIdentifier("statusMenu.showsMenuHints")
 
             if preferences.showsMenuHints {
                 Text(menuHintText)

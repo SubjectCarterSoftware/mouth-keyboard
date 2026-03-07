@@ -34,4 +34,19 @@ final class MenuBarShellSmokeTests: XCTestCase {
 
         XCTAssertFalse(app.staticTexts["setupWindow.title"].waitForExistence(timeout: 2))
     }
+
+    func testCompletedSetupStillLaunchesWhenIndicatorHidden() {
+        let app = XCUIApplication()
+        app.launchArguments = [
+            "-ui-testing",
+            "-complete-shell-setup",
+            "-hide-recording-indicator",
+            "-mock-microphone-status", "authorized",
+            "-mock-keyboard-status", "authorized",
+        ]
+
+        app.launch()
+
+        XCTAssertFalse(app.staticTexts["setupWindow.title"].waitForExistence(timeout: 2))
+    }
 }

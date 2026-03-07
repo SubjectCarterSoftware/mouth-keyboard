@@ -3,20 +3,30 @@ import SwiftUI
 struct RecordingPillView: View {
     @ObservedObject var levelMonitor: AudioLevelMonitor
     let recordingState: RecordingState
+    let recoveryFeedback: RecordingState.RecoveryFeedback?
     var silenceWarningActive: Bool = false
 
     private let barScales: [CGFloat]
 
     @State private var pulseOpacity: Double = 0.3
 
-    init(levelMonitor: AudioLevelMonitor, recordingState: RecordingState, silenceWarningActive: Bool = false) {
+    init(
+        levelMonitor: AudioLevelMonitor,
+        recordingState: RecordingState,
+        recoveryFeedback: RecordingState.RecoveryFeedback? = nil,
+        silenceWarningActive: Bool = false
+    ) {
         self.levelMonitor = levelMonitor
         self.recordingState = recordingState
+        self.recoveryFeedback = recoveryFeedback
         self.silenceWarningActive = silenceWarningActive
         barScales = (0..<5).map { _ in CGFloat.random(in: 0.55...1.0) }
     }
 
     var body: some View {
+        if let recoveryFeedback {
+            recoveryContent(feedback: recoveryFeedback)
+        } else {
         switch recordingState {
         case .recording:
             recordingContent
@@ -28,6 +38,7 @@ struct RecordingPillView: View {
             failureContent(reason: reason)
         case .idle:
             EmptyView()
+        }
         }
     }
 
@@ -106,6 +117,35 @@ struct RecordingPillView: View {
         .preferredColorScheme(.dark)
     }
 
+    private func recoveryContent(feedback: RecordingState.RecoveryFeedback) -> some View {
+        let symbolName: String
+        let label: String
+        let tint: Color
+
+        switch feedback {
+        case .canceled:
+            symbolName = "xmark.circle.fill"
+            label = "Canceled"
+            tint = .orange
+        case .restarted:
+            symbolName = "arrow.clockwise.circle.fill"
+            label = "Restarted"
+            tint = .blue
+        }
+
+        return HStack(spacing: 8) {
+            Image(systemName: symbolName)
+                .font(.system(size: 16, weight: .semibold))
+                .foregroundStyle(tint)
+
+            Text(label)
+                .font(.system(size: 13, weight: .semibold))
+                .foregroundStyle(.white)
+        }
+        .frame(width: 180, height: 44)
+        .preferredColorScheme(.dark)
+    }
+
     // MARK: - Failure state
 
     private func failureContent(reason: RecordingState.FailureReason) -> some View {
@@ -156,6 +196,14 @@ struct RecordingPillView: View {
 
 #Preview("Failure - Silence Timeout") {
     RecordingPillView(levelMonitor: AudioLevelMonitor(), recordingState: .failure(reason: .silenceTimeout))
+}
+
+#Preview("Recovery - Restarted") {
+    RecordingPillView(
+        levelMonitor: AudioLevelMonitor(),
+        recordingState: .idle,
+        recoveryFeedback: .restarted
+    )
 }
 
 #Preview("Recording - Silence Warning") {

@@ -5,12 +5,15 @@ import SwiftUI
 @MainActor
 struct Speech2TestApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
+    @StateObject private var activationStore: ActivationStore
     @StateObject private var preferences: ShellPreferences
     @StateObject private var readinessStore: ReadinessStore
 
     init() {
+        let activationStore = ActivationStore.shared
         let preferences = ShellPreferences.shared
         let readinessStore = ReadinessStore.shared
+        _activationStore = StateObject(wrappedValue: activationStore)
         _preferences = StateObject(wrappedValue: preferences)
         _readinessStore = StateObject(wrappedValue: readinessStore)
     }
@@ -18,8 +21,16 @@ struct Speech2TestApp: App {
     var body: some Scene {
         MenuBarExtra("Speech2Test", systemImage: "waveform") {
             StatusMenuView(
+                recordingState: activationStore.state,
+                recoveryFeedback: activationStore.recoveryFeedback,
                 preferences: preferences,
                 readinessStore: readinessStore,
+                cancelSession: {
+                    activationStore.cancelCurrentSession()
+                },
+                restartSession: {
+                    activationStore.restartCurrentSession()
+                },
                 openSetup: {
                     appDelegate.presentSetupWindow()
                 },
