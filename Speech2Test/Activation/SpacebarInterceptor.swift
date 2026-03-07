@@ -3,24 +3,38 @@ import Foundation
 
 // MARK: - Protocol
 
-protocol SpacebarHandling: AnyObject {
-    var isActive: Bool { get set }
-    var onSpacebarPressed: (() -> Void)? { get set }
-    func start()
+protocol SessionKeyHandling: AnyObject {
+    var finishKeyActive: Bool { get set }
+    var cancelKeyActive: Bool { get set }
+    var onFinishKeyPressed: (() -> Void)? { get set }
+    var onCancelKeyPressed: (() -> Void)? { get set }
+    @discardableResult
+    func start() -> Bool
     func stop()
+}
+
+typealias SpacebarHandling = SessionKeyHandling
+
+enum SessionKey: Int64 {
+    case finish = 49
+    case cancel = 53
 }
 
 // MARK: - Implementation
 
-final class SpacebarInterceptor: SpacebarHandling {
-    var isActive: Bool = false
-    var onSpacebarPressed: (() -> Void)?
+class SessionKeyInterceptor: SessionKeyHandling {
+    var finishKeyActive: Bool = false
+    var cancelKeyActive: Bool = false
+    var onFinishKeyPressed: (() -> Void)?
+    var onCancelKeyPressed: (() -> Void)?
+    private(set) var isRunning = false
 
     private var eventTap: CFMachPort?
     private var runLoopSource: CFRunLoopSource?
 
-    func start() {
-        guard eventTap == nil else { return }
+    @discardableResult
+    func start() -> Bool {
+        guard eventTap == nil else { return true }
 
         let eventMask = CGEventMask(1 << CGEventType.keyDown.rawValue)
         let tap = CGEvent.tapCreate(
@@ -32,13 +46,18 @@ final class SpacebarInterceptor: SpacebarHandling {
             userInfo: Unmanaged.passUnretained(self).toOpaque()
         )
 
-        guard let tap else { return }
+        guard let tap else {
+            isRunning = false
+            return false
+        }
 
         eventTap = tap
         let source = CFMachPortCreateRunLoopSource(kCFAllocatorDefault, tap, 0)
         runLoopSource = source
         CFRunLoopAddSource(CFRunLoopGetCurrent(), source, .commonModes)
         CGEvent.tapEnable(tap: tap, enable: true)
+        isRunning = true
+        return true
     }
 
     func stop() {
@@ -50,9 +69,35 @@ final class SpacebarInterceptor: SpacebarHandling {
             }
             eventTap = nil
         }
-        isActive = false
+        finishKeyActive = false
+        cancelKeyActive = false
+        isRunning = false
+    }
+
+    @discardableResult
+    func handle(keyCode: Int64) -> Bool {
+        guard let key = SessionKey(rawValue: keyCode) else {
+            return false
+        }
+
+        switch key {
+        case .finish:
+            guard finishKeyActive else { return false }
+            DispatchQueue.main.async { [weak self] in
+                self?.onFinishKeyPressed?()
+            }
+            return true
+        case .cancel:
+            guard cancelKeyActive else { return false }
+            DispatchQueue.main.async { [weak self] in
+                self?.onCancelKeyPressed?()
+            }
+            return true
+        }
     }
 }
+
+final class SpacebarInterceptor: SessionKeyInterceptor {}
 
 // MARK: - C Callback
 
@@ -63,21 +108,12 @@ private func spacebarEventCallback(
     userInfo: UnsafeMutableRawPointer?
 ) -> Unmanaged<CGEvent>? {
     guard let userInfo else { return Unmanaged.passRetained(event) }
-    let interceptor = Unmanaged<SpacebarInterceptor>.fromOpaque(userInfo).takeUnretainedValue()
+    let interceptor = Unmanaged<SessionKeyInterceptor>.fromOpaque(userInfo).takeUnretainedValue()
 
-    guard interceptor.isActive else {
-        return Unmanaged.passRetained(event)
-    }
-
-    // kVK_Space = 49
     let keyCode = event.getIntegerValueField(.keyboardEventKeycode)
-    guard keyCode == 49 else {
+    guard interceptor.handle(keyCode: keyCode) else {
         return Unmanaged.passRetained(event)
     }
 
-    // Consume the event and notify on main queue
-    DispatchQueue.main.async {
-        interceptor.onSpacebarPressed?()
-    }
     return nil
 }

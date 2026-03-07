@@ -1,8 +1,6 @@
+import CoreGraphics
 import Foundation
 
-// KeyboardShortcuts uses the Carbon RegisterEventHotKey API which does NOT
-// require Accessibility permission. The keyboard permission service now always
-// reports authorized since no OS-level gate exists for this path.
 struct KeyboardPermissionService {
     struct Adapter {
         var isAuthorized: () -> Bool
@@ -42,11 +40,14 @@ private extension KeyboardPermissionService {
             )
         }
 
-        // Carbon hot keys (via KeyboardShortcuts) require no permission grant.
         return Self(
             adapter: Adapter(
-                isAuthorized: { true },
-                requestAccess: { true }
+                isAuthorized: {
+                    CGPreflightListenEventAccess()
+                },
+                requestAccess: {
+                    CGRequestListenEventAccess()
+                }
             )
         )
     }

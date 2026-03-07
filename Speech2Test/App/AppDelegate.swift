@@ -12,6 +12,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     private let activationStore = ActivationStore.shared
     private let audioCaptureService = AudioCaptureService.shared
     private let levelMonitor = AudioLevelMonitor()
+    private let sessionKeyInterceptor = SessionKeyInterceptor()
     private let forcePresentSetupOnLaunch = ProcessInfo.processInfo.arguments.contains("-open-setup-window")
 
     private var pillPanel: RecordingPillPanel?
@@ -29,6 +30,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
 
         hotkeyService.start()
         readinessStore.refresh()
+        sessionKeyInterceptor.onFinishKeyPressed = { [weak self] in
+            self?.activationStore.finish()
+        }
+        sessionKeyInterceptor.onCancelKeyPressed = { [weak self] in
+            self?.activationStore.cancelCurrentSession()
+        }
+        let interceptorStarted = sessionKeyInterceptor.start()
+        if !interceptorStarted {
+            readinessStore.refresh()
+        }
 
         // Load Whisper model from bundle (non-blocking — log error if missing).
         Task {
@@ -53,6 +64,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             .dropFirst()
             .sink { [weak self] newState in
                 guard let self else { return }
+                self.updateSessionKeyActivation(for: newState)
                 switch newState {
                 case .recording:
                     self.onRecordingStarted()
@@ -74,6 +86,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
 
     func applicationWillTerminate(_ notification: Notification) {
         hotkeyService.stop()
+        sessionKeyInterceptor.stop()
         stateObservation?.cancel()
     }
 
@@ -131,10 +144,25 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     }
 
     private func onReturnedToIdle() {
+        audioCaptureService.stop()
         levelMonitor.onSilenceWarning = nil
         levelMonitor.onSilenceTimeout = nil
         // Pill panel hides itself (RecordingPillPanel handles this).
         updateMenuBarIcon(state: .idle)
+    }
+
+    private func updateSessionKeyActivation(for state: RecordingState) {
+        switch state {
+        case .recording:
+            sessionKeyInterceptor.finishKeyActive = true
+            sessionKeyInterceptor.cancelKeyActive = true
+        case .processing:
+            sessionKeyInterceptor.finishKeyActive = false
+            sessionKeyInterceptor.cancelKeyActive = true
+        case .idle, .success, .failure:
+            sessionKeyInterceptor.finishKeyActive = false
+            sessionKeyInterceptor.cancelKeyActive = false
+        }
     }
 
     // MARK: - Menu bar icon

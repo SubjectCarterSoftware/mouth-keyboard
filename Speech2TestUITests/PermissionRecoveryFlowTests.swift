@@ -35,6 +35,23 @@ final class PermissionRecoveryFlowTests: XCTestCase {
 
         app.launch()
 
+        let action = app.buttons["permission.keyboardMonitoring.action"]
+        XCTAssertTrue(action.waitForExistence(timeout: 5))
+    }
+
+    func testBlockedKeyboardMonitoringStateShowsRecoveryAction() {
+        let app = XCUIApplication()
+        app.launchArguments = [
+            "-ui-testing",
+            "-reset-shell-preferences",
+            "-open-setup-window",
+            "-mock-microphone-status", "authorized",
+            "-mark-keyboard-requested",
+            "-mock-keyboard-status", "denied",
+        ]
+
+        app.launch()
+
         let row = app.descendants(matching: .group).matching(identifier: "permission.keyboardMonitoring.row").firstMatch
         XCTAssertTrue(row.waitForExistence(timeout: 5))
         XCTAssertTrue(app.buttons["permission.keyboardMonitoring.action"].exists)

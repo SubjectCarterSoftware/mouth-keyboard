@@ -34,7 +34,7 @@ enum PermissionKind: String, CaseIterable, Identifiable {
         case .microphone:
             return "Microphone Access"
         case .keyboardMonitoring:
-            return "Global Hotkey"
+            return "Keyboard Monitoring"
         }
     }
 
@@ -52,7 +52,7 @@ enum PermissionKind: String, CaseIterable, Identifiable {
         case .microphone:
             return URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Microphone")
         case .keyboardMonitoring:
-            return nil
+            return URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_ListenEvent")
         }
     }
 
@@ -65,11 +65,11 @@ enum PermissionKind: String, CaseIterable, Identifiable {
         case (.microphone, .denied):
             return "Microphone access is denied. Re-enable it in System Settings to move past the blocked state."
         case (.keyboardMonitoring, .authorized):
-            return "The global hotkey is registered through Carbon and does not require extra permission."
+            return "Keyboard monitoring is available, so background Escape can cancel an active session."
         case (.keyboardMonitoring, .notDetermined):
-            return "Global hotkeys do not require extra permission in the current implementation."
+            return "Allow keyboard monitoring so Speech2Test can catch background Escape while you stay in the current app."
         case (.keyboardMonitoring, .denied):
-            return "Global hotkeys do not require extra permission in the current implementation."
+            return "Keyboard monitoring is blocked. Re-enable Input Monitoring in System Settings so background Escape is not a silent no-op."
         }
     }
 }
@@ -156,7 +156,7 @@ struct ReadinessSnapshot: Equatable {
         return Self(
             state: .ready,
             title: "Shell Ready",
-            message: "Speech2Test can stay quiet in the menu bar until a later phase adds activation and recording.",
+            message: "Speech2Test can stay quiet in the menu bar until you trigger recording, with background Escape available for recovery.",
             primaryActionTitle: "Open Setup",
             permissions: permissions
         )

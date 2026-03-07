@@ -41,4 +41,15 @@ final class PermissionServiceTests: XCTestCase {
 
         XCTAssertEqual(requestCount, 1)
     }
+
+    func testKeyboardPermissionServiceReportsAuthorizedWhenPreflightSucceeds() {
+        let service = KeyboardPermissionService(
+            adapter: .init(
+                isAuthorized: { true },
+                requestAccess: { true }
+            )
+        )
+
+        XCTAssertEqual(service.currentStatus(hasPrompted: false), .authorized)
+    }
 }

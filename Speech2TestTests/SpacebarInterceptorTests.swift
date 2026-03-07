@@ -3,16 +3,19 @@ import XCTest
 
 // MARK: - Mock
 
-final class MockSpacebarHandler: SpacebarHandling {
-    var isActive: Bool = false
-    var onSpacebarPressed: (() -> Void)?
+final class MockSessionKeyHandler: SessionKeyHandling {
+    var finishKeyActive: Bool = false
+    var cancelKeyActive: Bool = false
+    var onFinishKeyPressed: (() -> Void)?
+    var onCancelKeyPressed: (() -> Void)?
 
-    func start() {
-        isActive = true
+    func start() -> Bool {
+        true
     }
 
     func stop() {
-        isActive = false
+        finishKeyActive = false
+        cancelKeyActive = false
     }
 }
 
@@ -20,54 +23,61 @@ final class MockSpacebarHandler: SpacebarHandling {
 
 final class SpacebarInterceptorTests: XCTestCase {
 
-    func testSpacebarInterceptorConformsToSpacebarHandling() {
-        let interceptor: any SpacebarHandling = SpacebarInterceptor()
+    func testSessionKeyInterceptorConformsToSessionKeyHandling() {
+        let interceptor: any SessionKeyHandling = SessionKeyInterceptor()
         XCTAssertNotNil(interceptor)
     }
 
-    func testIsActiveDefaultsFalse() {
-        let interceptor = SpacebarInterceptor()
-        XCTAssertFalse(interceptor.isActive)
+    func testKeysDefaultInactive() {
+        let interceptor = SessionKeyInterceptor()
+        XCTAssertFalse(interceptor.finishKeyActive)
+        XCTAssertFalse(interceptor.cancelKeyActive)
     }
 
-    func testMockFiresOnSpacebarPressedWhenActive() {
-        let mock = MockSpacebarHandler()
-        mock.isActive = true
-        var fired = false
-        mock.onSpacebarPressed = { fired = true }
+    @MainActor
+    func testHandleRoutesFinishKeyOnlyWhenActive() async {
+        let interceptor = SessionKeyInterceptor()
+        let expectation = expectation(description: "finish callback")
+        interceptor.onFinishKeyPressed = { expectation.fulfill() }
 
-        // Simulate: active handler receives spacebar
-        if mock.isActive {
-            mock.onSpacebarPressed?()
-        }
+        XCTAssertFalse(interceptor.handle(keyCode: SessionKey.finish.rawValue))
 
-        XCTAssertTrue(fired)
+        interceptor.finishKeyActive = true
+        XCTAssertTrue(interceptor.handle(keyCode: SessionKey.finish.rawValue))
+
+        await fulfillment(of: [expectation], timeout: 1.0)
     }
 
-    func testMockDoesNotFireWhenInactive() {
-        let mock = MockSpacebarHandler()
-        mock.isActive = false
-        var fired = false
-        mock.onSpacebarPressed = { fired = true }
+    @MainActor
+    func testHandleRoutesCancelKeyOnlyWhenActive() async {
+        let interceptor = SessionKeyInterceptor()
+        let expectation = expectation(description: "cancel callback")
+        interceptor.onCancelKeyPressed = { expectation.fulfill() }
 
-        // Simulate: inactive handler - should not fire
-        if mock.isActive {
-            mock.onSpacebarPressed?()
-        }
+        XCTAssertFalse(interceptor.handle(keyCode: SessionKey.cancel.rawValue))
 
-        XCTAssertFalse(fired)
+        interceptor.cancelKeyActive = true
+        XCTAssertTrue(interceptor.handle(keyCode: SessionKey.cancel.rawValue))
+
+        await fulfillment(of: [expectation], timeout: 1.0)
     }
 
-    func testStartSetsIsActiveTrue() {
-        let mock = MockSpacebarHandler()
-        mock.start()
-        XCTAssertTrue(mock.isActive)
+    func testUnknownKeyDoesNotMatch() {
+        let interceptor = SessionKeyInterceptor()
+        interceptor.finishKeyActive = true
+        interceptor.cancelKeyActive = true
+
+        XCTAssertFalse(interceptor.handle(keyCode: 123))
     }
 
-    func testStopSetsIsActiveFalse() {
-        let mock = MockSpacebarHandler()
-        mock.start()
+    func testStopClearsActiveKeys() {
+        let mock = MockSessionKeyHandler()
+        mock.finishKeyActive = true
+        mock.cancelKeyActive = true
+
         mock.stop()
-        XCTAssertFalse(mock.isActive)
+
+        XCTAssertFalse(mock.finishKeyActive)
+        XCTAssertFalse(mock.cancelKeyActive)
     }
 }
