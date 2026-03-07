@@ -2,14 +2,14 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-status: executing
-stopped_at: Completed 03-03-PLAN.md
-last_updated: "2026-03-07T17:50:59Z"
-last_activity: 2026-03-07 — Plan 03-03 completed after approved reduced-scope human verification
+status: planning
+stopped_at: Phase 4 context gathered
+last_updated: "2026-03-07T18:13:10.255Z"
+last_activity: 2026-03-07 — Phase 3 verified complete under reduced scope
 progress:
   total_phases: 5
-  completed_phases: 2
-  total_plans: 13
+  completed_phases: 3
+  total_plans: 8
   completed_plans: 8
   percent: 62
 ---
@@ -21,16 +21,16 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-05)
 
 **Core value:** From a single hotkey, the user can dictate and get reliable text into the clipboard fast enough that it feels close to typing speed.
-**Current focus:** Phase 3 verification handoff after Plan 03-03 completion
+**Current focus:** Phase 4: Recovery Controls
 
 ## Current Position
 
-Phase: 2 of 5 (Activation and Capture) — COMPLETE
-Phase: 3 of 5 (Recognition and Clipboard Loop) — PLANS EXECUTED, VERIFICATION PENDING
-Status: Awaiting orchestrator verification for Phase 3; do not transition phase here
-Last activity: 2026-03-07 — 03-03 approved for reduced scope and documented as complete
+Phase: 3 of 5 (Recognition and Clipboard Loop) — COMPLETE
+Phase: 4 of 5 (Recovery Controls) — NOT STARTED
+Status: Ready to plan Phase 4
+Last activity: 2026-03-07 — Phase 3 verified complete under reduced scope
 
-Progress: [██████░░░░] 62% (8 of 13 plans summarized; Phases 1-2 complete, Phase 3 awaiting verification)
+Progress: [██████░░░░] 62% (8 of 13 plans summarized; Phases 1-3 complete)
 
 ## Performance Metrics
 
@@ -69,7 +69,7 @@ Recent decisions affecting current work:
 - [Phase 03-recognition-and-clipboard-loop]: ClipboardService and AudioBufferAccumulator made non-final to allow test subclassing in ActivationStoreTests
 - [Phase 03-recognition-and-clipboard-loop]: removeDuplicates() removed from state pipeline — terminal states are always distinct and need observation
 - [Phase 03-recognition-and-clipboard-loop]: Phase 3 approved scope is single-tap hotkey start/finish with clipboard-only output; auto-paste and double-tap are not part of the shipped behavior
-- [Phase 03-recognition-and-clipboard-loop]: 03-03 completed at the plan level only; phase verification/transition remains orchestrator work
+- [Phase 03-recognition-and-clipboard-loop]: Phase 3 verified complete under reduced scope; next work starts in Phase 4 recovery controls
 
 ### Pending Todos
 
@@ -77,10 +77,12 @@ None yet.
 
 ### Blockers/Concerns
 
-- `ggml-small.en.bin` still has to be present in the app bundle resources after rebuilds until the project bundles it directly.
+- No current blockers for the approved Phase 3 scope.
+- Non-blocking risk: the 45-second silence warning is not yet wired into the pill UI.
+- Non-blocking risk: clipboard write failure is not surfaced explicitly.
 
 ## Session Continuity
 
-Last session: 2026-03-07T17:50:59Z
-Stopped at: Completed 03-03-PLAN.md
-Resume file: None
+Last session: 2026-03-07T18:13:10.253Z
+Stopped at: Phase 4 context gathered
+Resume file: .planning/phases/04-recovery-controls/04-CONTEXT.md
