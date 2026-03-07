@@ -29,7 +29,10 @@ extension ReadinessStore: ReadinessProviding {}
 final class ActivationStore: ObservableObject {
     static let shared = ActivationStore(
         preferences: .shared,
-        readinessStore: .shared
+        readinessProvider: ReadinessStore.shared,
+        whisperService: WhisperService.shared,
+        clipboardService: ClipboardService(),
+        bufferAccumulator: AudioBufferAccumulator()
     )
 
     @Published private(set) var state: RecordingState = .idle

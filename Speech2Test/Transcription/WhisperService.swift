@@ -32,6 +32,8 @@ protocol WhisperTranscribing: Sendable {
 // MARK: - Actor
 
 actor WhisperService: WhisperTranscribing {
+    static let shared = WhisperService()
+
     private var context: OpaquePointer?
 
     deinit {
