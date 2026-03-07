@@ -77,6 +77,12 @@ final class ActivationStore: ObservableObject {
             return
         }
 
+        // Ignore activation while transcription or terminal feedback is still
+        // on-screen. The hotkey is a start/finish toggle, not a restart.
+        guard state == .idle else {
+            return
+        }
+
         // Require all permissions to be granted, but do NOT require setup to be
         // "finalized" (hasCompletedInitialSetup). The finalize step is an
         // onboarding UX gate, not a runtime safety requirement. Recording must
@@ -106,6 +112,9 @@ final class ActivationStore: ObservableObject {
         state = .processing
 
         Task {
+            // Let state observers stop audio capture before we snapshot and
+            // convert the accumulated buffers for Whisper.
+            await Task.yield()
             await transcribeAndDispatch()
         }
     }
@@ -121,15 +130,17 @@ final class ActivationStore: ObservableObject {
 
     private func transcribeAndDispatch() async {
         do {
+            if let whisperService = whisperService as? WhisperService,
+               let modelPath = Bundle.main.path(forResource: "ggml-small.en", ofType: "bin") {
+                try await whisperService.ensureModelLoaded(at: modelPath)
+            }
+
             let samples = try bufferAccumulator.convertToWhisperFormat()
             let text = try await whisperService.transcribe(samples: samples)
 
             // Success path
             state = .success(text: text)
             clipboardService.writeToClipboard(text)
-            if preferences.autoPasteEnabled {
-                clipboardService.autoPaste()
-            }
 
             // Auto-dismiss to idle after 1.5s
             Task {

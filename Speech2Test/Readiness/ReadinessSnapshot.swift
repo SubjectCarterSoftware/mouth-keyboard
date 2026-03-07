@@ -34,8 +34,7 @@ enum PermissionKind: String, CaseIterable, Identifiable {
         case .microphone:
             return "Microphone Access"
         case .keyboardMonitoring:
-            // CGEventTap requires Accessibility, not Input Monitoring.
-            return "Accessibility"
+            return "Global Hotkey"
         }
     }
 
@@ -53,9 +52,7 @@ enum PermissionKind: String, CaseIterable, Identifiable {
         case .microphone:
             return URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Microphone")
         case .keyboardMonitoring:
-            // Accessibility permission is required for CGEventTap at session level.
-            // The old Privacy_ListenEvent pane was Input Monitoring — the wrong pane.
-            return URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility")
+            return nil
         }
     }
 
@@ -68,11 +65,11 @@ enum PermissionKind: String, CaseIterable, Identifiable {
         case (.microphone, .denied):
             return "Microphone access is denied. Re-enable it in System Settings to move past the blocked state."
         case (.keyboardMonitoring, .authorized):
-            return "Accessibility is granted. Speech2Test can intercept the hotkey via a system event tap."
+            return "The global hotkey is registered through Carbon and does not require extra permission."
         case (.keyboardMonitoring, .notDetermined):
-            return "Grant Accessibility access so Speech2Test can detect your hotkey via a session-level event tap."
+            return "Global hotkeys do not require extra permission in the current implementation."
         case (.keyboardMonitoring, .denied):
-            return "Accessibility is blocked. Open System Settings > Privacy & Security > Accessibility and enable Speech2Test."
+            return "Global hotkeys do not require extra permission in the current implementation."
         }
     }
 }

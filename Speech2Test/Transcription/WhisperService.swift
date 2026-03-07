@@ -54,6 +54,11 @@ actor WhisperService: WhisperTranscribing {
         context = ctx
     }
 
+    func ensureModelLoaded(at path: String) throws {
+        guard context == nil else { return }
+        try loadModel(at: path)
+    }
+
     func transcribe(samples: [Float]) async throws -> String {
         guard let ctx = context else {
             throw TranscriptionError.noModel

@@ -34,7 +34,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         Task {
             if let modelPath = Bundle.main.path(forResource: "ggml-small.en", ofType: "bin") {
                 do {
-                    try await WhisperService.shared.loadModel(at: modelPath)
+                    try await WhisperService.shared.ensureModelLoaded(at: modelPath)
+                    NSLog("WhisperService: model loaded from \(modelPath)")
                 } catch {
                     NSLog("WhisperService: failed to load model at \(modelPath): \(error.localizedDescription)")
                 }
@@ -48,22 +49,21 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
 
         // Observe ActivationStore state to drive audio capture, spacebar, and menu bar icon.
         stateObservation = activationStore.$state
+            .receive(on: DispatchQueue.main)
             .dropFirst()
             .sink { [weak self] newState in
-                DispatchQueue.main.async {
-                    guard let self else { return }
-                    switch newState {
-                    case .recording:
-                        self.onRecordingStarted()
-                    case .processing:
-                        self.onProcessingStarted()
-                    case .success:
-                        self.onTranscriptionSucceeded()
-                    case .failure:
-                        self.onTranscriptionFailed()
-                    case .idle:
-                        self.onReturnedToIdle()
-                    }
+                guard let self else { return }
+                switch newState {
+                case .recording:
+                    self.onRecordingStarted()
+                case .processing:
+                    self.onProcessingStarted()
+                case .success:
+                    self.onTranscriptionSucceeded()
+                case .failure:
+                    self.onTranscriptionFailed()
+                case .idle:
+                    self.onReturnedToIdle()
                 }
             }
 
@@ -79,7 +79,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
 
     func applicationDidBecomeActive(_ notification: Notification) {
         readinessStore.refresh()
-        // Retry hotkey tap — user may have just granted Accessibility permission.
+        // Retry hotkey registration in case settings changed while the app was inactive.
         hotkeyService.start()
     }
 

@@ -4,21 +4,9 @@ import XCTest
 @MainActor
 final class ShellPreferencesPhase3Tests: XCTestCase {
 
-    func testAutoPasteEnabledDefaultsToTrue() {
-        let (_, preferences) = makePreferences()
-        XCTAssertTrue(preferences.autoPasteEnabled)
-    }
-
     func testIndicatorVisibleDefaultsToTrue() {
         let (_, preferences) = makePreferences()
         XCTAssertTrue(preferences.indicatorVisible)
-    }
-
-    func testSettingAutoPastePersistsToDefaults() {
-        let (defaults, preferences) = makePreferences()
-        preferences.autoPasteEnabled = false
-        let reloaded = ShellPreferences(userDefaults: defaults)
-        XCTAssertFalse(reloaded.autoPasteEnabled)
     }
 
     func testSettingIndicatorVisiblePersistsToDefaults() {
@@ -26,13 +14,6 @@ final class ShellPreferencesPhase3Tests: XCTestCase {
         preferences.indicatorVisible = false
         let reloaded = ShellPreferences(userDefaults: defaults)
         XCTAssertFalse(reloaded.indicatorVisible)
-    }
-
-    func testResetRestoresAutoPasteEnabledToTrue() {
-        let (_, preferences) = makePreferences()
-        preferences.autoPasteEnabled = false
-        preferences.reset()
-        XCTAssertTrue(preferences.autoPasteEnabled)
     }
 
     func testResetRestoresIndicatorVisibleToTrue() {

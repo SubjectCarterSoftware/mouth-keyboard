@@ -121,38 +121,18 @@ final class ActivationStoreTests: XCTestCase {
         XCTAssertEqual(store.state, .processing)
     }
 
-    func test_auto_paste_enabled() async throws {
-        let mockTranscriber = ActivationStoreMockTranscriber(result: .success("paste me"))
-        let mockClipboard = ActivationStoreMockClipboard()
+    func test_arm_while_processing_is_ignored() async throws {
         let store = makeStore(
             permissionsAuthorized: true,
-            transcriber: mockTranscriber,
-            clipboard: mockClipboard,
-            autoPasteEnabled: true
+            transcriber: DelayedWhisperTranscriber(delayNanoseconds: 500_000_000)
         )
         store.arm()
         store.finish()
+        XCTAssertEqual(store.state, .processing)
 
-        try await Task.sleep(nanoseconds: 200_000_000)
-
-        XCTAssertTrue(mockClipboard.autoPasteCalled)
-    }
-
-    func test_auto_paste_disabled() async throws {
-        let mockTranscriber = ActivationStoreMockTranscriber(result: .success("no paste"))
-        let mockClipboard = ActivationStoreMockClipboard()
-        let store = makeStore(
-            permissionsAuthorized: true,
-            transcriber: mockTranscriber,
-            clipboard: mockClipboard,
-            autoPasteEnabled: false
-        )
         store.arm()
-        store.finish()
 
-        try await Task.sleep(nanoseconds: 200_000_000)
-
-        XCTAssertFalse(mockClipboard.autoPasteCalled)
+        XCTAssertEqual(store.state, .processing)
     }
 
     func test_failure_does_not_write_clipboard() async throws {
@@ -181,13 +161,11 @@ final class ActivationStoreTests: XCTestCase {
     private func makeStore(
         permissionsAuthorized: Bool,
         transcriber: (any WhisperTranscribing)? = nil,
-        clipboard: ClipboardService? = nil,
-        autoPasteEnabled: Bool = true
+        clipboard: ClipboardService? = nil
     ) -> ActivationStore {
         let suiteName = "ActivationStoreTests.\(UUID().uuidString)"
         let defaults = UserDefaults(suiteName: suiteName) ?? .standard
         defaults.removePersistentDomain(forName: suiteName)
-        defaults.set(autoPasteEnabled, forKey: ShellPreferences.Keys.autoPasteEnabled)
 
         return ActivationStore(
             preferences: ShellPreferences(userDefaults: defaults),
@@ -245,10 +223,22 @@ final class ActivationStoreMockTranscriber: WhisperTranscribing, @unchecked Send
     }
 }
 
+final class DelayedWhisperTranscriber: WhisperTranscribing, @unchecked Sendable {
+    private let delayNanoseconds: UInt64
+
+    init(delayNanoseconds: UInt64) {
+        self.delayNanoseconds = delayNanoseconds
+    }
+
+    func transcribe(samples: [Float]) async throws -> String {
+        try await Task.sleep(nanoseconds: delayNanoseconds)
+        return "delayed"
+    }
+}
+
 /// Mock clipboard service — subclasses ClipboardService (must be non-final) for test interception
 class ActivationStoreMockClipboard: ClipboardService {
     private(set) var lastWrittenText: String?
-    private(set) var autoPasteCalled: Bool = false
 
     init() {
         // Use a named pasteboard to avoid polluting the general pasteboard
@@ -260,10 +250,6 @@ class ActivationStoreMockClipboard: ClipboardService {
     override func writeToClipboard(_ text: String) -> Bool {
         lastWrittenText = text
         return true
-    }
-
-    override func autoPaste() {
-        autoPasteCalled = true
     }
 }
 

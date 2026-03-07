@@ -44,7 +44,6 @@ struct StatusMenuView: View {
                 .accessibilityIdentifier("statusMenu.primaryAction")
 
             Toggle("Show recording indicator", isOn: $preferences.indicatorVisible)
-            Toggle("Auto-paste after transcription", isOn: $preferences.autoPasteEnabled)
 
             Toggle("Show shell hints in menu", isOn: $preferences.showsMenuHints)
 

@@ -38,7 +38,8 @@ final class AudioCaptureServiceTests: XCTestCase {
     func testAudioLevelMonitorProcessesRMSLevel() async throws {
         let monitor = await MainActor.run { AudioLevelMonitor() }
 
-        monitor.process(buffer: makeBuffer(sampleValue: 0.5))
+        // -45 dB sits at the midpoint of the monitor's -80...-10 dB normalization window.
+        monitor.process(buffer: makeBuffer(sampleValue: 0.005623413))
         try await Task.sleep(nanoseconds: 100_000_000)
 
         let level = await MainActor.run { monitor.level }

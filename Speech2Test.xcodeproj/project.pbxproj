@@ -7,6 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		9352F5FA2F5BBF3C00A7E109 /* ggml-small.en.bin in Resources */ = {isa = PBXBuildFile; fileRef = 9352F5F92F5BBF3C00A7E109 /* ggml-small.en.bin */; };
 		A00000010000000000000001 /* Speech2TestApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000020000000000000001 /* Speech2TestApp.swift */; };
 		A00000010000000000000002 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000020000000000000002 /* AppDelegate.swift */; };
 		A00000010000000000000003 /* StatusMenuView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000020000000000000005 /* StatusMenuView.swift */; };
@@ -69,6 +70,7 @@
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
+		9352F5F92F5BBF3C00A7E109 /* ggml-small.en.bin */ = {isa = PBXFileReference; lastKnownFileType = archive.macbinary; path = "ggml-small.en.bin"; sourceTree = "<group>"; };
 		A00000020000000000000001 /* Speech2TestApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Speech2TestApp.swift; sourceTree = "<group>"; };
 		A00000020000000000000002 /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
 		A00000020000000000000003 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
@@ -157,6 +159,7 @@
 		A00000040000000000000002 /* Speech2Test */ = {
 			isa = PBXGroup;
 			children = (
+				9352F5F92F5BBF3C00A7E109 /* ggml-small.en.bin */,
 				A00000040000000000000004 /* App */,
 				A0000004000000000000000B /* Activation */,
 				A0000004000000000000000C /* Audio */,
@@ -395,7 +398,7 @@
 			mainGroup = A00000040000000000000001;
 			packageReferences = (
 				A00000140000000000000001 /* XCRemoteSwiftPackageReference "KeyboardShortcuts" */,
-				A00000140000000000000002 /* XCRemoteSwiftPackageReference "whisper.spm" */,
+				A00000140000000000000002 /* XCRemoteSwiftPackageReference "whisper" */,
 			);
 			productRefGroup = A00000040000000000000003 /* Products */;
 			projectDirPath = "";
@@ -413,6 +416,7 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				9352F5FA2F5BBF3C00A7E109 /* ggml-small.en.bin in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -548,7 +552,6 @@
 				ENABLE_TESTABILITY = YES;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = Speech2Test/Info.plist;
-				SWIFT_OBJC_BRIDGING_HEADER = "Speech2Test/Speech2Test-Bridging-Header.h";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/../Frameworks",
@@ -561,6 +564,7 @@
 				SDKROOT = macosx;
 				SUPPORTED_PLATFORMS = macosx;
 				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_OBJC_BRIDGING_HEADER = "Speech2Test/Speech2Test-Bridging-Header.h";
 				SWIFT_VERSION = 5.0;
 			};
 			name = Debug;
@@ -572,7 +576,6 @@
 				CURRENT_PROJECT_VERSION = 1;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = Speech2Test/Info.plist;
-				SWIFT_OBJC_BRIDGING_HEADER = "Speech2Test/Speech2Test-Bridging-Header.h";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/../Frameworks",
@@ -584,6 +587,7 @@
 				SDKROOT = macosx;
 				SUPPORTED_PLATFORMS = macosx;
 				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_OBJC_BRIDGING_HEADER = "Speech2Test/Speech2Test-Bridging-Header.h";
 				SWIFT_VERSION = 5.0;
 			};
 			name = Release;
@@ -728,7 +732,7 @@
 				minimumVersion = 1.0.0;
 			};
 		};
-		A00000140000000000000002 /* XCRemoteSwiftPackageReference "whisper.spm" */ = {
+		A00000140000000000000002 /* XCRemoteSwiftPackageReference "whisper" */ = {
 			isa = XCRemoteSwiftPackageReference;
 			repositoryURL = "https://github.com/ggerganov/whisper.spm";
 			requirement = {
@@ -746,7 +750,7 @@
 		};
 		A00000130000000000000002 /* whisper */ = {
 			isa = XCSwiftPackageProductDependency;
-			package = A00000140000000000000002 /* XCRemoteSwiftPackageReference "whisper.spm" */;
+			package = A00000140000000000000002 /* XCRemoteSwiftPackageReference "whisper" */;
 			productName = whisper;
 		};
 /* End XCSwiftPackageProductDependency section */

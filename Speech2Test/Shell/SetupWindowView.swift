@@ -16,6 +16,22 @@ struct SetupWindowView: View {
         return readinessStore.canFinishSetup ? "Finish Setup" : "Done Later"
     }
 
+    private var microphoneSelection: Binding<String?> {
+        Binding(
+            get: {
+                guard let selectedUID = preferences.micDeviceUID else {
+                    return nil
+                }
+
+                let isAvailable = audioDeviceService.availableDevices.contains { $0.uid == selectedUID }
+                return isAvailable ? selectedUID : nil
+            },
+            set: { newValue in
+                preferences.micDeviceUID = newValue
+            }
+        )
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 20) {
             VStack(alignment: .leading, spacing: 8) {
@@ -55,13 +71,7 @@ struct SetupWindowView: View {
 
                 KeyboardShortcuts.Recorder("Activation Hotkey:", name: .activate)
 
-                Picker("Tap Mode", selection: $preferences.tapMode) {
-                    Text("Single Tap").tag(TapMode.single)
-                    Text("Double Tap").tag(TapMode.double)
-                }
-                .pickerStyle(.segmented)
-
-                Picker("Microphone", selection: $preferences.micDeviceUID) {
+                Picker("Microphone", selection: microphoneSelection) {
                     Text("System Default").tag(Optional<String>.none)
 
                     ForEach(audioDeviceService.availableDevices) { device in
@@ -71,8 +81,9 @@ struct SetupWindowView: View {
                 .pickerStyle(.menu)
 
                 Toggle("Activation Sound", isOn: $preferences.activationSoundEnabled)
+                Toggle("Show recording indicator", isOn: $preferences.indicatorVisible)
 
-                Text("Double tap mode silently ignores the first tap and only arms recording when the second tap lands within 350ms.")
+                Text("Press the hotkey once to start recording, then press it again to finish and transcribe.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
@@ -117,6 +128,10 @@ struct SetupWindowView: View {
         .background(.regularMaterial)
         .onAppear {
             audioDeviceService.refresh()
+            if let selectedUID = preferences.micDeviceUID,
+               !audioDeviceService.availableDevices.contains(where: { $0.uid == selectedUID }) {
+                preferences.micDeviceUID = nil
+            }
             readinessStore.refresh()
             NSApp.activate(ignoringOtherApps: true)
         }

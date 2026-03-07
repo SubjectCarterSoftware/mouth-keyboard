@@ -9,10 +9,8 @@ final class ShellPreferences: ObservableObject {
         static let showsMenuHints = "showsMenuHints"
         static let hasRequestedMicrophonePermission = "hasRequestedMicrophonePermission"
         static let hasRequestedKeyboardPermission = "hasRequestedKeyboardPermission"
-        static let tapMode = "tapMode"
         static let activationSoundEnabled = "activationSoundEnabled"
         static let micDeviceUID = "micDeviceUID"
-        static let autoPasteEnabled = "autoPasteEnabled"
         static let indicatorVisible = "indicatorVisible"
     }
 
@@ -42,14 +40,6 @@ final class ShellPreferences: ObservableObject {
         }
     }
 
-    @Published var tapMode: TapMode {
-        didSet {
-            persistIfNeeded {
-                defaults.set(tapMode.rawValue, forKey: Keys.tapMode)
-            }
-        }
-    }
-
     @Published var activationSoundEnabled: Bool {
         didSet {
             persistIfNeeded {
@@ -62,14 +52,6 @@ final class ShellPreferences: ObservableObject {
         didSet {
             persistIfNeeded {
                 defaults.set(micDeviceUID ?? "", forKey: Keys.micDeviceUID)
-            }
-        }
-    }
-
-    @Published var autoPasteEnabled: Bool {
-        didSet {
-            persistIfNeeded {
-                defaults.set(autoPasteEnabled, forKey: Keys.autoPasteEnabled)
             }
         }
     }
@@ -94,7 +76,6 @@ final class ShellPreferences: ObservableObject {
         hasCompletedInitialSetup = userDefaults.bool(forKey: Keys.hasCompletedInitialSetup)
         hasRequestedMicrophonePermission = userDefaults.bool(forKey: Keys.hasRequestedMicrophonePermission)
         hasRequestedKeyboardPermission = userDefaults.bool(forKey: Keys.hasRequestedKeyboardPermission)
-        tapMode = TapMode(rawValue: userDefaults.string(forKey: Keys.tapMode) ?? "") ?? .double
         activationSoundEnabled = userDefaults.object(forKey: Keys.activationSoundEnabled) as? Bool ?? true
 
         let storedMicDeviceUID = userDefaults.string(forKey: Keys.micDeviceUID)
@@ -110,7 +91,6 @@ final class ShellPreferences: ObservableObject {
             showsMenuHints = userDefaults.bool(forKey: Keys.showsMenuHints)
         }
 
-        autoPasteEnabled = userDefaults.object(forKey: Keys.autoPasteEnabled) as? Bool ?? true
         indicatorVisible = userDefaults.object(forKey: Keys.indicatorVisible) as? Bool ?? true
     }
 
@@ -132,10 +112,8 @@ final class ShellPreferences: ObservableObject {
             showsMenuHints = true
             hasRequestedMicrophonePermission = false
             hasRequestedKeyboardPermission = false
-            tapMode = .double
             activationSoundEnabled = true
             micDeviceUID = nil
-            autoPasteEnabled = true
             indicatorVisible = true
         }
 
@@ -143,10 +121,8 @@ final class ShellPreferences: ObservableObject {
         defaults.removeObject(forKey: Keys.showsMenuHints)
         defaults.removeObject(forKey: Keys.hasRequestedMicrophonePermission)
         defaults.removeObject(forKey: Keys.hasRequestedKeyboardPermission)
-        defaults.removeObject(forKey: Keys.tapMode)
         defaults.removeObject(forKey: Keys.activationSoundEnabled)
         defaults.removeObject(forKey: Keys.micDeviceUID)
-        defaults.removeObject(forKey: Keys.autoPasteEnabled)
         defaults.removeObject(forKey: Keys.indicatorVisible)
     }
 
@@ -169,10 +145,6 @@ final class ShellPreferences: ObservableObject {
 
         if arguments.contains("-mark-keyboard-requested") {
             userDefaults.set(true, forKey: Keys.hasRequestedKeyboardPermission)
-        }
-
-        if arguments.contains("-set-tap-mode-single") {
-            userDefaults.set(TapMode.single.rawValue, forKey: Keys.tapMode)
         }
 
         return ShellPreferences(userDefaults: userDefaults)

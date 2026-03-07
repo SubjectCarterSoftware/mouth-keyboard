@@ -69,4 +69,14 @@ final class WhisperServiceTests: XCTestCase {
             // expected
         }
     }
+
+    func testWhisperServiceEnsureModelLoadedThrowsModelLoadFailedForInvalidPath() async throws {
+        let service = WhisperService()
+        do {
+            try await service.ensureModelLoaded(at: "/nonexistent/path/model.bin")
+            XCTFail("Expected modelLoadFailed to be thrown")
+        } catch TranscriptionError.modelLoadFailed {
+            // expected
+        }
+    }
 }
