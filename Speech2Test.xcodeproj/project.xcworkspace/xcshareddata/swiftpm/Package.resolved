@@ -1,5 +1,5 @@
 {
-  "originHash" : "69c39523ac0471922b625cc56b8722155cfd2afd660bdd4f5ff67335b5b87714",
+  "originHash" : "53c0fea816ba7b01afea62761eb4761e02ba461ebacfa22fc4adcc37f147fc80",
   "pins" : [
     {
       "identity" : "keyboardshortcuts",
@@ -8,6 +8,15 @@
       "state" : {
         "revision" : "ac12762853126cf2e7ad63a6a58e1c9f58c6a0ee",
         "version" : "1.17.0"
+      }
+    },
+    {
+      "identity" : "whisper.spm",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/ggerganov/whisper.spm",
+      "state" : {
+        "branch" : "master",
+        "revision" : "a2085436c2eb796af90956b62bd64731f5e5b823"
       }
     }
   ],

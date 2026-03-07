@@ -12,6 +12,8 @@ final class ShellPreferences: ObservableObject {
         static let tapMode = "tapMode"
         static let activationSoundEnabled = "activationSoundEnabled"
         static let micDeviceUID = "micDeviceUID"
+        static let autoPasteEnabled = "autoPasteEnabled"
+        static let indicatorVisible = "indicatorVisible"
     }
 
     static let shared = makeShared()
@@ -64,6 +66,22 @@ final class ShellPreferences: ObservableObject {
         }
     }
 
+    @Published var autoPasteEnabled: Bool {
+        didSet {
+            persistIfNeeded {
+                defaults.set(autoPasteEnabled, forKey: Keys.autoPasteEnabled)
+            }
+        }
+    }
+
+    @Published var indicatorVisible: Bool {
+        didSet {
+            persistIfNeeded {
+                defaults.set(indicatorVisible, forKey: Keys.indicatorVisible)
+            }
+        }
+    }
+
     var shouldPresentSetupOnLaunch: Bool {
         !hasCompletedInitialSetup
     }
@@ -91,6 +109,9 @@ final class ShellPreferences: ObservableObject {
         } else {
             showsMenuHints = userDefaults.bool(forKey: Keys.showsMenuHints)
         }
+
+        autoPasteEnabled = userDefaults.object(forKey: Keys.autoPasteEnabled) as? Bool ?? true
+        indicatorVisible = userDefaults.object(forKey: Keys.indicatorVisible) as? Bool ?? true
     }
 
     func completeInitialSetup() {
@@ -114,6 +135,8 @@ final class ShellPreferences: ObservableObject {
             tapMode = .double
             activationSoundEnabled = true
             micDeviceUID = nil
+            autoPasteEnabled = true
+            indicatorVisible = true
         }
 
         defaults.removeObject(forKey: Keys.hasCompletedInitialSetup)
@@ -123,6 +146,8 @@ final class ShellPreferences: ObservableObject {
         defaults.removeObject(forKey: Keys.tapMode)
         defaults.removeObject(forKey: Keys.activationSoundEnabled)
         defaults.removeObject(forKey: Keys.micDeviceUID)
+        defaults.removeObject(forKey: Keys.autoPasteEnabled)
+        defaults.removeObject(forKey: Keys.indicatorVisible)
     }
 
     private static func makeShared() -> ShellPreferences {

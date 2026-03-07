@@ -38,6 +38,17 @@
 		A0000001000000000000001D /* RecordingPillView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000020000000000000020 /* RecordingPillView.swift */; };
 		A0000001000000000000001E /* RecordingPillPanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000020000000000000021 /* RecordingPillPanel.swift */; };
 		A0000001000000000000001F /* ObjCExceptionCatcher.m in Sources */ = {isa = PBXBuildFile; fileRef = A00000020000000000000023 /* ObjCExceptionCatcher.m */; };
+		A00000010000000000000020 /* TranscriptionResult.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000020000000000000025 /* TranscriptionResult.swift */; };
+		A00000010000000000000021 /* WhisperService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000020000000000000026 /* WhisperService.swift */; };
+		A00000010000000000000022 /* AudioBufferAccumulator.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000020000000000000027 /* AudioBufferAccumulator.swift */; };
+		A00000010000000000000023 /* ClipboardService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000020000000000000028 /* ClipboardService.swift */; };
+		A00000010000000000000024 /* SpacebarInterceptor.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000020000000000000029 /* SpacebarInterceptor.swift */; };
+		A00000010000000000000025 /* WhisperServiceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0000002000000000000002A /* WhisperServiceTests.swift */; };
+		A00000010000000000000026 /* AudioBufferAccumulatorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0000002000000000000002B /* AudioBufferAccumulatorTests.swift */; };
+		A00000010000000000000027 /* ClipboardServiceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0000002000000000000002C /* ClipboardServiceTests.swift */; };
+		A00000010000000000000028 /* SpacebarInterceptorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0000002000000000000002D /* SpacebarInterceptorTests.swift */; };
+		A00000010000000000000029 /* ShellPreferencesPhase3Tests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0000002000000000000002E /* ShellPreferencesPhase3Tests.swift */; };
+		A0000001000000000000002A /* whisper in Frameworks */ = {isa = PBXBuildFile; productRef = A00000130000000000000002 /* whisper */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -94,6 +105,16 @@
 		A00000020000000000000022 /* ObjCExceptionCatcher.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = ObjCExceptionCatcher.h; sourceTree = "<group>"; };
 		A00000020000000000000023 /* ObjCExceptionCatcher.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = ObjCExceptionCatcher.m; sourceTree = "<group>"; };
 		A00000020000000000000024 /* Speech2Test-Bridging-Header.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = "Speech2Test-Bridging-Header.h"; sourceTree = "<group>"; };
+		A00000020000000000000025 /* TranscriptionResult.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TranscriptionResult.swift; sourceTree = "<group>"; };
+		A00000020000000000000026 /* WhisperService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WhisperService.swift; sourceTree = "<group>"; };
+		A00000020000000000000027 /* AudioBufferAccumulator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudioBufferAccumulator.swift; sourceTree = "<group>"; };
+		A00000020000000000000028 /* ClipboardService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClipboardService.swift; sourceTree = "<group>"; };
+		A00000020000000000000029 /* SpacebarInterceptor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpacebarInterceptor.swift; sourceTree = "<group>"; };
+		A0000002000000000000002A /* WhisperServiceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WhisperServiceTests.swift; sourceTree = "<group>"; };
+		A0000002000000000000002B /* AudioBufferAccumulatorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudioBufferAccumulatorTests.swift; sourceTree = "<group>"; };
+		A0000002000000000000002C /* ClipboardServiceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClipboardServiceTests.swift; sourceTree = "<group>"; };
+		A0000002000000000000002D /* SpacebarInterceptorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpacebarInterceptorTests.swift; sourceTree = "<group>"; };
+		A0000002000000000000002E /* ShellPreferencesPhase3Tests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShellPreferencesPhase3Tests.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -102,6 +123,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				A00000010000000000000016 /* KeyboardShortcuts in Frameworks */,
+				A0000001000000000000002A /* whisper in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -138,6 +160,8 @@
 				A00000040000000000000004 /* App */,
 				A0000004000000000000000B /* Activation */,
 				A0000004000000000000000C /* Audio */,
+				A0000004000000000000000D /* Transcription */,
+				A0000004000000000000000E /* Clipboard */,
 				A00000040000000000000005 /* Shell */,
 				A00000040000000000000006 /* Persistence */,
 				A00000040000000000000007 /* Permissions */,
@@ -212,11 +236,16 @@
 			children = (
 				A00000020000000000000015 /* ActivationStoreTests.swift */,
 				A0000002000000000000001B /* AudioCaptureServiceTests.swift */,
+				A0000002000000000000002B /* AudioBufferAccumulatorTests.swift */,
 				A0000002000000000000001E /* AudioDeviceServiceTests.swift */,
+				A0000002000000000000002C /* ClipboardServiceTests.swift */,
 				A00000020000000000000019 /* HotkeyServiceTests.swift */,
 				A0000002000000000000000F /* PermissionServiceTests.swift */,
 				A00000020000000000000010 /* ReadinessStateTests.swift */,
 				A00000020000000000000016 /* ShellPreferencesPhase2Tests.swift */,
+				A0000002000000000000002E /* ShellPreferencesPhase3Tests.swift */,
+				A0000002000000000000002D /* SpacebarInterceptorTests.swift */,
+				A0000002000000000000002A /* WhisperServiceTests.swift */,
 			);
 			path = Speech2TestTests;
 			sourceTree = "<group>";
@@ -236,6 +265,7 @@
 				A00000020000000000000017 /* ActivationStore.swift */,
 				A0000002000000000000001A /* HotkeyService.swift */,
 				A00000020000000000000018 /* RecordingState.swift */,
+				A00000020000000000000029 /* SpacebarInterceptor.swift */,
 			);
 			path = Activation;
 			sourceTree = "<group>";
@@ -246,10 +276,28 @@
 				A0000002000000000000001C /* AudioCaptureService.swift */,
 				A0000002000000000000001F /* AudioDeviceService.swift */,
 				A0000002000000000000001D /* AudioLevelMonitor.swift */,
+				A00000020000000000000027 /* AudioBufferAccumulator.swift */,
 				A00000020000000000000022 /* ObjCExceptionCatcher.h */,
 				A00000020000000000000023 /* ObjCExceptionCatcher.m */,
 			);
 			path = Audio;
+			sourceTree = "<group>";
+		};
+		A0000004000000000000000D /* Transcription */ = {
+			isa = PBXGroup;
+			children = (
+				A00000020000000000000025 /* TranscriptionResult.swift */,
+				A00000020000000000000026 /* WhisperService.swift */,
+			);
+			path = Transcription;
+			sourceTree = "<group>";
+		};
+		A0000004000000000000000E /* Clipboard */ = {
+			isa = PBXGroup;
+			children = (
+				A00000020000000000000028 /* ClipboardService.swift */,
+			);
+			path = Clipboard;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -270,6 +318,7 @@
 			name = Speech2Test;
 			packageProductDependencies = (
 				A00000130000000000000001 /* KeyboardShortcuts */,
+				A00000130000000000000002 /* whisper */,
 			);
 			productName = Speech2Test;
 			productReference = A00000020000000000000004 /* Speech2Test.app */;
@@ -346,6 +395,7 @@
 			mainGroup = A00000040000000000000001;
 			packageReferences = (
 				A00000140000000000000001 /* XCRemoteSwiftPackageReference "KeyboardShortcuts" */,
+				A00000140000000000000002 /* XCRemoteSwiftPackageReference "whisper.spm" */,
 			);
 			productRefGroup = A00000040000000000000003 /* Products */;
 			projectDirPath = "";
@@ -389,9 +439,11 @@
 			files = (
 				A00000010000000000000013 /* ActivationStore.swift in Sources */,
 				A00000010000000000000002 /* AppDelegate.swift in Sources */,
+				A00000010000000000000022 /* AudioBufferAccumulator.swift in Sources */,
 				A00000010000000000000019 /* AudioCaptureService.swift in Sources */,
 				A0000001000000000000001C /* AudioDeviceService.swift in Sources */,
 				A0000001000000000000001A /* AudioLevelMonitor.swift in Sources */,
+				A00000010000000000000023 /* ClipboardService.swift in Sources */,
 				A00000010000000000000017 /* HotkeyService.swift in Sources */,
 				A00000010000000000000006 /* KeyboardPermissionService.swift in Sources */,
 				A00000010000000000000007 /* MicrophonePermissionService.swift in Sources */,
@@ -405,9 +457,12 @@
 				A0000001000000000000000B /* RecoveryActions.swift in Sources */,
 				A00000010000000000000005 /* ShellPreferences.swift in Sources */,
 				A00000010000000000000004 /* SetupWindowView.swift in Sources */,
+				A00000010000000000000024 /* SpacebarInterceptor.swift in Sources */,
 				A00000010000000000000001 /* Speech2TestApp.swift in Sources */,
 				A0000001000000000000000C /* StatusCardView.swift in Sources */,
 				A00000010000000000000003 /* StatusMenuView.swift in Sources */,
+				A00000010000000000000020 /* TranscriptionResult.swift in Sources */,
+				A00000010000000000000021 /* WhisperService.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -416,12 +471,17 @@
 			buildActionMask = 2147483647;
 			files = (
 				A00000010000000000000011 /* ActivationStoreTests.swift in Sources */,
+				A00000010000000000000026 /* AudioBufferAccumulatorTests.swift in Sources */,
 				A00000010000000000000018 /* AudioCaptureServiceTests.swift in Sources */,
 				A0000001000000000000001B /* AudioDeviceServiceTests.swift in Sources */,
+				A00000010000000000000027 /* ClipboardServiceTests.swift in Sources */,
 				A00000010000000000000015 /* HotkeyServiceTests.swift in Sources */,
 				A0000001000000000000000D /* PermissionServiceTests.swift in Sources */,
 				A0000001000000000000000E /* ReadinessStateTests.swift in Sources */,
 				A00000010000000000000012 /* ShellPreferencesPhase2Tests.swift in Sources */,
+				A00000010000000000000029 /* ShellPreferencesPhase3Tests.swift in Sources */,
+				A00000010000000000000028 /* SpacebarInterceptorTests.swift in Sources */,
+				A00000010000000000000025 /* WhisperServiceTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -668,6 +728,14 @@
 				minimumVersion = 1.0.0;
 			};
 		};
+		A00000140000000000000002 /* XCRemoteSwiftPackageReference "whisper.spm" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/ggerganov/whisper.spm";
+			requirement = {
+				branch = master;
+				kind = branch;
+			};
+		};
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
@@ -675,6 +743,11 @@
 			isa = XCSwiftPackageProductDependency;
 			package = A00000140000000000000001 /* XCRemoteSwiftPackageReference "KeyboardShortcuts" */;
 			productName = KeyboardShortcuts;
+		};
+		A00000130000000000000002 /* whisper */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = A00000140000000000000002 /* XCRemoteSwiftPackageReference "whisper.spm" */;
+			productName = whisper;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};

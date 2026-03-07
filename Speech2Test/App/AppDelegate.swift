@@ -45,6 +45,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
                         self.onRecordingStarted()
                     case .idle:
                         self.onRecordingStopped()
+                    case .processing, .success, .failure:
+                        break
                     }
                 }
             }
