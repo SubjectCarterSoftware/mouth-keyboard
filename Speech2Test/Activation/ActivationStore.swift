@@ -91,6 +91,7 @@ final class ActivationStore: ObservableObject {
             soundPlayer.play()
         }
 
+        bufferAccumulator.reset()
         state = .recording
     }
 

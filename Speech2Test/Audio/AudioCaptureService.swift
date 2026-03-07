@@ -185,7 +185,6 @@ final class AudioCaptureService {
         engine = nil
         levelMonitor?.reset()
         levelMonitor = nil
-        bufferAccumulator?.reset()
         bufferAccumulator = nil
     }
 
