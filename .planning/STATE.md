@@ -2,16 +2,16 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-status: planning
-stopped_at: Completed 04-recovery-controls-01-PLAN.md
-last_updated: "2026-03-08T14:14:30.382Z"
-last_activity: 2026-03-08 — Phase 4 plan 01 completed after approved recovery-control verification
+status: verifying
+stopped_at: Completed 04-02 continuation closeout; Phase 4 verification next
+last_updated: "2026-03-08T19:07:49Z"
+last_activity: 2026-03-08 — Phase 4 plan 02 closed after approved microphone failure verification
 progress:
   total_phases: 5
   completed_phases: 3
   total_plans: 10
-  completed_plans: 9
-  percent: 90
+  completed_plans: 10
+  percent: 100
 ---
 
 # Project State
@@ -27,10 +27,10 @@ See: .planning/PROJECT.md (updated 2026-03-05)
 
 Phase: 3 of 5 (Recognition and Clipboard Loop) — COMPLETE
 Phase: 4 of 5 (Recovery Controls) — IN PROGRESS
-Status: Plan 04-01 complete; next up is 04-02
-Last activity: 2026-03-08 — Phase 4 plan 01 completed after approved recovery-control verification
+Status: Plan 04-02 complete; Phase 4 verification is next
+Last activity: 2026-03-08 — Phase 4 plan 02 closed after approved microphone failure verification
 
-Progress: [█████████░] 90% (9 of 10 plans summarized; Phases 1-3 complete, Phase 4 in progress)
+Progress: [██████████] 100% (10 of 10 plans summarized; Phases 1-3 complete, Phase 4 awaiting verification)
 
 ## Performance Metrics
 
@@ -48,6 +48,7 @@ Progress: [█████████░] 90% (9 of 10 plans summarized; Phases
 | Phase 03-recognition-and-clipboard-loop P03-01 | 55 | 1 tasks | 16 files |
 | Phase 03-recognition-and-clipboard-loop P02 | ~6 minutes | 2 tasks | 8 files |
 | Phase 04-recovery-controls P01 | 6min | 4 tasks | 15 files |
+| Phase 04-recovery-controls P02 | ~5h across 2 sessions | 4 tasks | 11 files |
 
 ## Accumulated Context
 
@@ -74,6 +75,8 @@ Recent decisions affecting current work:
 - [Phase 04-recovery-controls]: Recovery feedback is modeled alongside RecordingState so restart stays in recording while still showing transient confirmation.
 - [Phase 04-recovery-controls]: Literal Escape cancel uses the session-key event-tap path and surfaces keyboard-monitoring readiness instead of silently assuming the hotkey permission model is sufficient.
 - [Phase 04-recovery-controls]: Phase 4 recovery actions stay menu-driven, with the pill limited to visual confirmation to avoid new focus or input risk.
+- [Phase 04-recovery-controls]: Selected microphone preference is preserved across microphone failures so recovery stays explicit instead of silently switching devices.
+- [Phase 04-recovery-controls]: Capture failures flow through ActivationStore and only current-session non-empty success paths may write to the clipboard.
 
 ### Pending Todos
 
@@ -81,13 +84,13 @@ None yet.
 
 ### Blockers/Concerns
 
-- No current blockers for Phase 4 plan 01.
+- No current blockers for Phase 4 plan 02 closeout.
 - Non-blocking risk: the 45-second silence warning is not yet wired into the pill UI.
 - Non-blocking risk: clipboard write failure is not surfaced explicitly.
-- Manual verification still carries the live background `Escape` and pill-timing coverage that UI automation cannot fully prove.
+- Phase 4 still needs phase-level verification/closeout even though both implementation plans are now summarized.
 
 ## Session Continuity
 
-Last session: 2026-03-08T14:14:30.381Z
-Stopped at: Completed 04-recovery-controls-01-PLAN.md
+Last session: 2026-03-08T19:07:49Z
+Stopped at: Completed 04-02 continuation closeout; Phase 4 verification next
 Resume file: None

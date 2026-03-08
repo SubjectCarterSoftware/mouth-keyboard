@@ -26,7 +26,7 @@
 - [x] **AUDI-01**: User can record speech from the system microphone through a continuous audio stream.
 - [x] **AUDI-02**: User can choose which microphone input device is used for dictation.
 - [x] **AUDI-03**: User can keep system audio playback uninterrupted while dictating.
-- [ ] **AUDI-04**: User receives a clear error when the selected microphone is unavailable or access is denied.
+- [x] **AUDI-04**: User receives a clear error when the selected microphone is unavailable or access is denied.
 
 ### Transcription
 
@@ -96,7 +96,7 @@
 | AUDI-01 | Phase 2 | Complete |
 | AUDI-02 | Phase 2 | Complete |
 | AUDI-03 | Phase 2 | Complete |
-| AUDI-04 | Phase 4 | Pending |
+| AUDI-04 | Phase 4 | Complete |
 | TRNS-01 | Phase 3 | Complete |
 | TRNS-02 | Phase 3 | Complete |
 | TRNS-03 | Phase 5 | Pending |
@@ -119,4 +119,4 @@
 
 ---
 *Requirements defined: 2026-03-05*
-*Last updated: 2026-03-05 after roadmap creation*
+*Last updated: 2026-03-08 after 04-02 closeout*

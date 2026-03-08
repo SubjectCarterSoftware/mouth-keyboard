@@ -72,11 +72,11 @@ Plans:
   1. Escape cancels a session and leaves the clipboard unchanged.
   2. Restart discards current captured audio and keeps the user in recording state with clear confirmation.
   3. Microphone availability failures are reported clearly and never masquerade as successful output.
-**Plans**: 1/2 plans executed
+**Plans**: 2/2 plans executed
 
 Plans:
 - [x] 04-01: Implement cancel and restart state transitions with buffer invalidation and confirmation UI.
-- [ ] 04-02: Harden input-failure handling and protect clipboard integrity under cancellation and empty results.
+- [x] 04-02: Harden input-failure handling and protect clipboard integrity under cancellation and empty results.
 
 ### Phase 5: Long-Dictation Reliability
 **Goal**: Support longer dictation sessions by segmenting capture, queueing transcription work, and combining best-available results in order.
@@ -103,5 +103,5 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5
 | 1. Foundation and Permissions | 2/2 | Complete | 2026-03-05 |
 | 2. Activation and Capture | 3/3 | Complete | 2026-03-06 |
 | 3. Recognition and Clipboard Loop | 3/3 | Complete | 2026-03-07 |
-| 4. Recovery Controls | 1/2 | In Progress | - |
+| 4. Recovery Controls | 2/2 | In Progress | - |
 | 5. Long-Dictation Reliability | 0/3 | Not started | - |
