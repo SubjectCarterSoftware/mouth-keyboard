@@ -15,7 +15,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [x] **Phase 1: Foundation and Permissions** - Establish the background utility shell, readiness state, and permission flows.
 - [x] **Phase 2: Activation and Capture** - Deliver configurable hotkey activation, microphone capture, and immediate recording start.
 - [x] **Phase 3: Recognition and Clipboard Loop** - Turn recordings into final clipboard text with clear user-visible states.
-- [ ] **Phase 4: Recovery Controls** - Make cancel, restart, and input failure handling trustworthy.
+- [x] **Phase 4: Recovery Controls** - Make cancel, restart, and input failure handling trustworthy. (completed 2026-03-08)
 - [ ] **Phase 5: Long-Dictation Reliability** - Add segmentation, queued transcription, and best-effort recovery for longer sessions.
 
 ## Phase Details
@@ -103,5 +103,5 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5
 | 1. Foundation and Permissions | 2/2 | Complete | 2026-03-05 |
 | 2. Activation and Capture | 3/3 | Complete | 2026-03-06 |
 | 3. Recognition and Clipboard Loop | 3/3 | Complete | 2026-03-07 |
-| 4. Recovery Controls | 2/2 | In Progress | - |
+| 4. Recovery Controls | 2/2 | Complete    | 2026-03-08 |
 | 5. Long-Dictation Reliability | 0/3 | Not started | - |

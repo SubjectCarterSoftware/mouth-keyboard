@@ -2,13 +2,13 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-status: verifying
-stopped_at: Completed 04-02 continuation closeout; Phase 4 verification next
-last_updated: "2026-03-08T19:07:49Z"
-last_activity: 2026-03-08 — Phase 4 plan 02 closed after approved microphone failure verification
+status: planning
+stopped_at: Phase 4 complete, ready for Phase 5 planning
+last_updated: "2026-03-08T19:19:59Z"
+last_activity: 2026-03-08 — Phase 4 completed and verified
 progress:
   total_phases: 5
-  completed_phases: 3
+  completed_phases: 4
   total_plans: 10
   completed_plans: 10
   percent: 100
@@ -21,16 +21,16 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-05)
 
 **Core value:** From a single hotkey, the user can dictate and get reliable text into the clipboard fast enough that it feels close to typing speed.
-**Current focus:** Phase 4: Recovery Controls
+**Current focus:** Phase 5: Long-Dictation Reliability
 
 ## Current Position
 
-Phase: 3 of 5 (Recognition and Clipboard Loop) — COMPLETE
-Phase: 4 of 5 (Recovery Controls) — IN PROGRESS
-Status: Plan 04-02 complete; Phase 4 verification is next
-Last activity: 2026-03-08 — Phase 4 plan 02 closed after approved microphone failure verification
+Phase: 4 of 5 (Recovery Controls) — COMPLETE
+Phase: 5 of 5 (Long-Dictation Reliability) — NOT STARTED
+Status: Ready to plan Phase 5
+Last activity: 2026-03-08 — Phase 4 completed and verified
 
-Progress: [██████████] 100% (10 of 10 plans summarized; Phases 1-3 complete, Phase 4 awaiting verification)
+Progress: [██████████] 100% (10 of 10 currently planned plans summarized; Phases 1-4 complete, Phase 5 not started)
 
 ## Performance Metrics
 
@@ -84,13 +84,13 @@ None yet.
 
 ### Blockers/Concerns
 
-- No current blockers for Phase 4 plan 02 closeout.
+- No current blockers; Phase 4 is complete and ready to hand off to Phase 5 planning.
 - Non-blocking risk: the 45-second silence warning is not yet wired into the pill UI.
 - Non-blocking risk: clipboard write failure is not surfaced explicitly.
-- Phase 4 still needs phase-level verification/closeout even though both implementation plans are now summarized.
+- Phase 5 planning should preserve the recovery and clipboard guarantees from Phases 3-4 while introducing segmentation and queued transcription.
 
 ## Session Continuity
 
-Last session: 2026-03-08T19:07:49Z
-Stopped at: Completed 04-02 continuation closeout; Phase 4 verification next
+Last session: 2026-03-08T19:19:59Z
+Stopped at: Phase 4 complete, ready for Phase 5 planning
 Resume file: None
