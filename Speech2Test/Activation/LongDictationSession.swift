@@ -34,6 +34,11 @@ struct QueuedSegment: Equatable, Sendable {
     var transcriptionState: QueuedSegmentTranscriptionState = .pending
 }
 
+enum LongDictationBoundaryEvent: Equatable, Sendable {
+    case thresholdReached
+    case segmentBoundary(reason: SegmentSealReason)
+}
+
 struct LongSessionStatus: Equatable, Sendable {
     enum Phase: Equatable, Sendable {
         case inactive

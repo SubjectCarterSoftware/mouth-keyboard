@@ -37,6 +37,7 @@ final class ActivationStore: ObservableObject {
 
     @Published private(set) var state: RecordingState = .idle
     @Published private(set) var recoveryFeedback: RecordingState.RecoveryFeedback?
+    @Published private(set) var longSessionStatus: LongSessionStatus = .inactive
 
     private let preferences: ShellPreferences
     private let readinessProvider: any ReadinessProviding
@@ -44,11 +45,13 @@ final class ActivationStore: ObservableObject {
     private let clipboardService: ClipboardService
     private let resetSessionMonitoring: @MainActor () -> Void
     let bufferAccumulator: AudioBufferAccumulator
+    private(set) var queuedSegments: [QueuedSegment] = []
     var soundPlayer: ActivationSoundPlayer = .init()
     private var activeSessionID = UUID()
     private var transcriptionTask: Task<Void, Never>?
     private var dismissTask: Task<Void, Never>?
     private var feedbackClearTask: Task<Void, Never>?
+    private var nextQueuedSegmentIndex = 0
 
     convenience init(preferences: ShellPreferences, readinessStore: ReadinessStore) {
         self.init(
@@ -110,6 +113,7 @@ final class ActivationStore: ObservableObject {
         recoveryFeedback = nil
         activeSessionID = UUID()
         bufferAccumulator.reset()
+        resetLongSessionState()
         state = .recording
     }
 
@@ -123,6 +127,7 @@ final class ActivationStore: ObservableObject {
 
         invalidateActiveSession()
         bufferAccumulator.reset()
+        resetLongSessionState()
         publishRecoveryFeedback(.canceled)
         state = .idle
     }
@@ -132,6 +137,7 @@ final class ActivationStore: ObservableObject {
 
         invalidateActiveSession()
         bufferAccumulator.reset()
+        resetLongSessionState()
         resetSessionMonitoring()
         publishRecoveryFeedback(.restarted)
         state = .recording
@@ -142,6 +148,9 @@ final class ActivationStore: ObservableObject {
         guard state == .recording else { return }
         invalidateScheduledWork()
         recoveryFeedback = nil
+        if longSessionStatus.phase != .inactive {
+            refreshLongSessionStatus(phase: .finalizing)
+        }
         state = .processing
         let sessionID = UUID()
         activeSessionID = sessionID
@@ -165,11 +174,34 @@ final class ActivationStore: ObservableObject {
     func handleCaptureFailure(_ error: AudioCaptureError) {
         invalidateActiveSession()
         bufferAccumulator.reset()
+        resetLongSessionState()
         recoveryFeedback = nil
 
         let failureSessionID = activeSessionID
         state = .failure(reason: failureReason(for: error))
         scheduleDismissToIdle(afterNanoseconds: 2_000_000_000, sessionID: failureSessionID)
+    }
+
+    func handleLongDictationBoundary(_ event: LongDictationBoundaryEvent) {
+        guard state == .recording else { return }
+
+        switch event {
+        case .thresholdReached:
+            activateLongDictationIfNeeded()
+        case .segmentBoundary(let reason):
+            guard longSessionStatus.phase != .inactive else { return }
+
+            do {
+                let sealedSegment = try bufferAccumulator.sealSegment(index: nextQueuedSegmentIndex, reason: reason)
+                queuedSegments.append(sealedSegment)
+                nextQueuedSegmentIndex += 1
+                refreshLongSessionStatus(phase: .recordingSegmented)
+            } catch AudioBufferAccumulatorError.emptyBuffers {
+                return
+            } catch {
+                NSLog("ActivationStore: failed to seal long dictation segment: \(error.localizedDescription)")
+            }
+        }
     }
 
     // MARK: - Private transcription flow
@@ -228,6 +260,35 @@ final class ActivationStore: ObservableObject {
         dismissTask = nil
         feedbackClearTask?.cancel()
         feedbackClearTask = nil
+    }
+
+    private func activateLongDictationIfNeeded() {
+        guard longSessionStatus.phase == .inactive else { return }
+        refreshLongSessionStatus(phase: .recordingSegmented)
+    }
+
+    private func resetLongSessionState() {
+        queuedSegments.removeAll()
+        nextQueuedSegmentIndex = 0
+        longSessionStatus = .inactive
+    }
+
+    private func refreshLongSessionStatus(phase: LongSessionStatus.Phase) {
+        longSessionStatus = LongSessionStatus(
+            phase: phase,
+            nextSegmentIndex: nextQueuedSegmentIndex,
+            queuedSegmentCount: queuedSegments.count,
+            completedSegmentCount: queuedSegments.reduce(into: 0) { count, segment in
+                if case .completed = segment.transcriptionState {
+                    count += 1
+                }
+            },
+            failedSegmentCount: queuedSegments.reduce(into: 0) { count, segment in
+                if case .failed = segment.transcriptionState {
+                    count += 1
+                }
+            }
+        )
     }
 
     private func publishRecoveryFeedback(_ feedback: RecordingState.RecoveryFeedback) {

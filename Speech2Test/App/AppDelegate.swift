@@ -105,6 +105,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     // MARK: - State machine handlers
 
     private func onRecordingStarted() {
+        levelMonitor.reset()
         do {
             try audioCaptureService.start(
                 levelMonitor: levelMonitor,
@@ -128,6 +129,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         levelMonitor.onSilenceTimeout = { [weak self] in
             self?.activationStore.handleSilenceTimeout()
         }
+        levelMonitor.onSegmentBoundary = { [weak self] event in
+            self?.activationStore.handleLongDictationBoundary(event)
+        }
 
         // Pill panel visibility is managed by RecordingPillPanel's own state observer.
         updateMenuBarIcon(state: .recording)
@@ -138,6 +142,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         audioCaptureService.stop()
         levelMonitor.onSilenceWarning = nil
         levelMonitor.onSilenceTimeout = nil
+        levelMonitor.onSegmentBoundary = nil
 
         // Pill panel stays visible during processing (RecordingPillPanel handles this).
         updateMenuBarIcon(state: .processing)
@@ -157,6 +162,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         audioCaptureService.stop()
         levelMonitor.onSilenceWarning = nil
         levelMonitor.onSilenceTimeout = nil
+        levelMonitor.onSegmentBoundary = nil
         // Pill panel hides itself (RecordingPillPanel handles this).
         updateMenuBarIcon(state: .idle)
     }

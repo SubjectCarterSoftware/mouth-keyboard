@@ -51,6 +51,7 @@
 		A00000010000000000000029 /* ShellPreferencesPhase3Tests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0000002000000000000002E /* ShellPreferencesPhase3Tests.swift */; };
 		A0000001000000000000002A /* whisper in Frameworks */ = {isa = PBXBuildFile; productRef = A00000130000000000000002 /* whisper */; };
 		A0000001000000000000002B /* LongDictationSession.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0000002000000000000002F /* LongDictationSession.swift */; };
+		A0000001000000000000002C /* LongDictationBoundaryTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000020000000000000030 /* LongDictationBoundaryTests.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -119,6 +120,7 @@
 		A0000002000000000000002D /* SpacebarInterceptorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpacebarInterceptorTests.swift; sourceTree = "<group>"; };
 		A0000002000000000000002E /* ShellPreferencesPhase3Tests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShellPreferencesPhase3Tests.swift; sourceTree = "<group>"; };
 		A0000002000000000000002F /* LongDictationSession.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LongDictationSession.swift; sourceTree = "<group>"; };
+		A00000020000000000000030 /* LongDictationBoundaryTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LongDictationBoundaryTests.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -245,6 +247,7 @@
 				A0000002000000000000001E /* AudioDeviceServiceTests.swift */,
 				A0000002000000000000002C /* ClipboardServiceTests.swift */,
 				A00000020000000000000019 /* HotkeyServiceTests.swift */,
+				A00000020000000000000030 /* LongDictationBoundaryTests.swift */,
 				A0000002000000000000000F /* PermissionServiceTests.swift */,
 				A00000020000000000000010 /* ReadinessStateTests.swift */,
 				A00000020000000000000016 /* ShellPreferencesPhase2Tests.swift */,
@@ -484,6 +487,7 @@
 				A0000001000000000000001B /* AudioDeviceServiceTests.swift in Sources */,
 				A00000010000000000000027 /* ClipboardServiceTests.swift in Sources */,
 				A00000010000000000000015 /* HotkeyServiceTests.swift in Sources */,
+				A0000001000000000000002C /* LongDictationBoundaryTests.swift in Sources */,
 				A0000001000000000000000D /* PermissionServiceTests.swift in Sources */,
 				A0000001000000000000000E /* ReadinessStateTests.swift in Sources */,
 				A00000010000000000000012 /* ShellPreferencesPhase2Tests.swift in Sources */,

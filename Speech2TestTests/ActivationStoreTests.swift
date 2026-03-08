@@ -91,17 +91,23 @@ final class ActivationStoreTests: XCTestCase {
 
     func testCancelDuringRecordingReturnsToIdleWithoutClipboardWrite() {
         let mockClipboard = ActivationStoreMockClipboard()
+        let buffer = SealingBufferAccumulator()
         let store = makeStore(
             permissionsAuthorized: true,
-            clipboard: mockClipboard
+            clipboard: mockClipboard,
+            bufferAccumulator: buffer
         )
         store.arm()
+        store.handleLongDictationBoundary(.thresholdReached)
+        store.handleLongDictationBoundary(.segmentBoundary(reason: .pause))
 
         store.cancelCurrentSession()
 
         XCTAssertEqual(store.state, .idle)
         XCTAssertEqual(store.recoveryFeedback, .canceled)
         XCTAssertNil(mockClipboard.lastWrittenText)
+        XCTAssertTrue(store.queuedSegments.isEmpty)
+        XCTAssertEqual(store.longSessionStatus, .inactive)
     }
 
     func testCancelDuringProcessingSuppressesLateSuccessPublication() async throws {
@@ -124,7 +130,7 @@ final class ActivationStoreTests: XCTestCase {
     }
 
     func testRestartKeepsRecordingResetsBufferAndClearsFeedback() async throws {
-        let buffer = TrackingBufferAccumulator()
+        let buffer = SealingBufferAccumulator()
         let resetTracker = ResetHookTracker()
         let store = makeStore(
             permissionsAuthorized: true,
@@ -133,6 +139,9 @@ final class ActivationStoreTests: XCTestCase {
         )
         store.arm()
         XCTAssertEqual(buffer.resetCount, 1)
+        store.handleLongDictationBoundary(.thresholdReached)
+        store.handleLongDictationBoundary(.segmentBoundary(reason: .pause))
+        XCTAssertEqual(store.queuedSegments.count, 1)
 
         store.restartCurrentSession()
 
@@ -140,6 +149,8 @@ final class ActivationStoreTests: XCTestCase {
         XCTAssertEqual(store.recoveryFeedback, .restarted)
         XCTAssertEqual(buffer.resetCount, 2)
         XCTAssertEqual(resetTracker.callCount, 1)
+        XCTAssertTrue(store.queuedSegments.isEmpty)
+        XCTAssertEqual(store.longSessionStatus, .inactive)
 
         try await Task.sleep(nanoseconds: 1_700_000_000)
 
@@ -158,6 +169,75 @@ final class ActivationStoreTests: XCTestCase {
         store.restartCurrentSession()
 
         XCTAssertNil(mockClipboard.lastWrittenText)
+    }
+
+    func testSessionsUnderThresholdDoNotSealSegments() {
+        let buffer = SealingBufferAccumulator()
+        let store = makeStore(
+            permissionsAuthorized: true,
+            bufferAccumulator: buffer
+        )
+        store.arm()
+
+        store.handleLongDictationBoundary(.segmentBoundary(reason: .pause))
+
+        XCTAssertEqual(store.state, .recording)
+        XCTAssertTrue(store.queuedSegments.isEmpty)
+        XCTAssertTrue(buffer.sealCalls.isEmpty)
+        XCTAssertEqual(store.longSessionStatus, .inactive)
+    }
+
+    func testLongSessionsSealSegmentOnPauseAfterThresholdActivation() {
+        let buffer = SealingBufferAccumulator()
+        let store = makeStore(
+            permissionsAuthorized: true,
+            bufferAccumulator: buffer
+        )
+        store.arm()
+
+        store.handleLongDictationBoundary(.thresholdReached)
+        store.handleLongDictationBoundary(.segmentBoundary(reason: .pause))
+
+        XCTAssertEqual(store.state, .recording)
+        XCTAssertEqual(buffer.sealCalls.map(\.index), [0])
+        XCTAssertEqual(buffer.sealCalls.map(\.reason), [.pause])
+        XCTAssertEqual(store.queuedSegments.map(\.index), [0])
+        XCTAssertEqual(store.queuedSegments.map(\.sealReason), [.pause])
+        XCTAssertEqual(store.longSessionStatus.phase, .recordingSegmented)
+        XCTAssertEqual(store.longSessionStatus.nextSegmentIndex, 1)
+        XCTAssertEqual(store.longSessionStatus.queuedSegmentCount, 1)
+    }
+
+    func testLongSessionsSealSegmentOnSoftCapAfterThresholdActivation() {
+        let buffer = SealingBufferAccumulator()
+        let store = makeStore(
+            permissionsAuthorized: true,
+            bufferAccumulator: buffer
+        )
+        store.arm()
+
+        store.handleLongDictationBoundary(.thresholdReached)
+        store.handleLongDictationBoundary(.segmentBoundary(reason: .softCap))
+
+        XCTAssertEqual(store.state, .recording)
+        XCTAssertEqual(buffer.sealCalls.map(\.index), [0])
+        XCTAssertEqual(buffer.sealCalls.map(\.reason), [.softCap])
+        XCTAssertEqual(store.queuedSegments.map(\.sealReason), [.softCap])
+        XCTAssertEqual(store.longSessionStatus.phase, .recordingSegmented)
+    }
+
+    func testSegmentSealingKeepsStoreInRecordingState() {
+        let buffer = SealingBufferAccumulator()
+        let store = makeStore(
+            permissionsAuthorized: true,
+            bufferAccumulator: buffer
+        )
+        store.arm()
+
+        store.handleLongDictationBoundary(.thresholdReached)
+        store.handleLongDictationBoundary(.segmentBoundary(reason: .pause))
+
+        XCTAssertEqual(store.state, .recording)
     }
 
     func testEmptyOrWhitespaceOnlyTranscriptionDoesNotReachClipboard() async throws {
@@ -373,7 +453,7 @@ class ActivationStoreMockClipboard: ClipboardService {
     init() {
         // Use a named pasteboard to avoid polluting the general pasteboard
         let pb = NSPasteboard(name: NSPasteboard.Name("ActivationStoreMockClipboard.\(UUID().uuidString)"))
-        super.init(pasteboard: pb ?? .general)
+        super.init(pasteboard: pb)
     }
 
     @discardableResult
@@ -390,12 +470,29 @@ class StubBufferAccumulator: AudioBufferAccumulator {
     }
 }
 
-final class TrackingBufferAccumulator: StubBufferAccumulator {
+class TrackingBufferAccumulator: StubBufferAccumulator {
     private(set) var resetCount = 0
 
     override func reset() {
         resetCount += 1
         super.reset()
+    }
+}
+
+final class SealingBufferAccumulator: TrackingBufferAccumulator {
+    private(set) var sealCalls: [(index: Int, reason: SegmentSealReason)] = []
+
+    override func sealSegment(index: Int, reason: SegmentSealReason) throws -> QueuedSegment {
+        sealCalls.append((index, reason))
+        return QueuedSegment(
+            index: index,
+            sealReason: reason,
+            audio: SealedAudioSegment(
+                samples: [Float(index + 1)],
+                sourceFrameCount: 1,
+                sourceSampleRate: SealedAudioSegment.whisperSampleRate
+            )
+        )
     }
 }
 
