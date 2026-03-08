@@ -226,6 +226,126 @@ final class ActivationStoreTests: XCTestCase {
         XCTAssertEqual(store.longSessionStatus.phase, .recordingSegmented)
     }
 
+    func testLongSessionWritesClipboardOnceAtFinalization() async throws {
+        let mockClipboard = ActivationStoreMockClipboard()
+        let store = makeStore(
+            permissionsAuthorized: true,
+            transcriber: SampleMappingWhisperTranscriber(
+                responses: [
+                    1.0: .init(delayNanoseconds: 250_000_000, result: .success("first")),
+                    2.0: .init(delayNanoseconds: 50_000_000, result: .success("second"))
+                ]
+            ),
+            clipboard: mockClipboard,
+            bufferAccumulator: SealingBufferAccumulator()
+        )
+        store.arm()
+        store.handleLongDictationBoundary(.thresholdReached)
+        store.handleLongDictationBoundary(.segmentBoundary(reason: .pause))
+
+        store.finish()
+        try await Task.sleep(nanoseconds: 500_000_000)
+
+        XCTAssertEqual(mockClipboard.writeCount, 1)
+        XCTAssertEqual(mockClipboard.lastWrittenText, "first second")
+        XCTAssertEqual(store.longSessionStatus, .inactive)
+        XCTAssertNil(store.resultNotice)
+        if case .success(let text) = store.state {
+            XCTAssertEqual(text, "first second")
+        } else {
+            XCTFail("Expected .success state, got \(store.state)")
+        }
+    }
+
+    func testLongSessionPartialFailureStillSucceedsWithWarningCount() async throws {
+        let mockClipboard = ActivationStoreMockClipboard()
+        let store = makeStore(
+            permissionsAuthorized: true,
+            transcriber: SampleMappingWhisperTranscriber(
+                responses: [
+                    1.0: .init(delayNanoseconds: 0, result: .success("hello")),
+                    2.0: .init(delayNanoseconds: 0, result: .failure(TranscriptionError.inferenceFailed))
+                ]
+            ),
+            clipboard: mockClipboard,
+            bufferAccumulator: SealingBufferAccumulator()
+        )
+        store.arm()
+        store.handleLongDictationBoundary(.thresholdReached)
+        store.handleLongDictationBoundary(.segmentBoundary(reason: .pause))
+
+        store.finish()
+        try await Task.sleep(nanoseconds: 250_000_000)
+
+        XCTAssertEqual(mockClipboard.writeCount, 1)
+        XCTAssertEqual(mockClipboard.lastWrittenText, "hello")
+        XCTAssertEqual(
+            store.resultNotice,
+            LongSessionResultNotice(failedSegmentCount: 1, successfulSegmentCount: 1)
+        )
+        if case .success(let text) = store.state {
+            XCTAssertEqual(text, "hello")
+        } else {
+            XCTFail("Expected .success state, got \(store.state)")
+        }
+    }
+
+    func testAllFailureLongSessionsDoNotWriteClipboard() async throws {
+        let mockClipboard = ActivationStoreMockClipboard()
+        let store = makeStore(
+            permissionsAuthorized: true,
+            transcriber: SampleMappingWhisperTranscriber(
+                responses: [
+                    1.0: .init(delayNanoseconds: 0, result: .failure(TranscriptionError.noSpeechDetected)),
+                    2.0: .init(delayNanoseconds: 0, result: .failure(TranscriptionError.inferenceFailed))
+                ]
+            ),
+            clipboard: mockClipboard,
+            bufferAccumulator: SealingBufferAccumulator()
+        )
+        store.arm()
+        store.handleLongDictationBoundary(.thresholdReached)
+        store.handleLongDictationBoundary(.segmentBoundary(reason: .pause))
+
+        store.finish()
+        try await Task.sleep(nanoseconds: 250_000_000)
+
+        XCTAssertEqual(mockClipboard.writeCount, 0)
+        XCTAssertNil(store.resultNotice)
+        if case .failure = store.state {
+            // pass
+        } else {
+            XCTFail("Expected .failure state, got \(store.state)")
+        }
+    }
+
+    func testStaleLongSessionCompletionsAfterCancelAreIgnored() async throws {
+        let mockClipboard = ActivationStoreMockClipboard()
+        let store = makeStore(
+            permissionsAuthorized: true,
+            transcriber: SampleMappingWhisperTranscriber(
+                responses: [
+                    1.0: .init(delayNanoseconds: 300_000_000, result: .success("late segment"))
+                ]
+            ),
+            clipboard: mockClipboard,
+            bufferAccumulator: SealingBufferAccumulator()
+        )
+        store.arm()
+        store.handleLongDictationBoundary(.thresholdReached)
+        store.handleLongDictationBoundary(.segmentBoundary(reason: .pause))
+
+        store.cancelCurrentSession()
+        try await Task.sleep(nanoseconds: 500_000_000)
+
+        XCTAssertEqual(store.state, .idle)
+        XCTAssertEqual(store.recoveryFeedback, .canceled)
+        XCTAssertEqual(mockClipboard.writeCount, 0)
+        XCTAssertNil(store.resultNotice)
+        XCTAssertTrue(store.queuedSegments.isEmpty)
+        XCTAssertEqual(store.longSessionStatus, .inactive)
+    }
+
     func testSegmentSealingKeepsStoreInRecordingState() {
         let buffer = SealingBufferAccumulator()
         let store = makeStore(
@@ -449,6 +569,7 @@ final class DelayedWhisperTranscriber: WhisperTranscribing, @unchecked Sendable 
 /// Mock clipboard service — subclasses ClipboardService (must be non-final) for test interception
 class ActivationStoreMockClipboard: ClipboardService {
     private(set) var lastWrittenText: String?
+    private(set) var writeCount = 0
 
     init() {
         // Use a named pasteboard to avoid polluting the general pasteboard
@@ -458,6 +579,7 @@ class ActivationStoreMockClipboard: ClipboardService {
 
     @discardableResult
     override func writeToClipboard(_ text: String) -> Bool {
+        writeCount += 1
         lastWrittenText = text
         return true
     }
@@ -493,6 +615,37 @@ final class SealingBufferAccumulator: TrackingBufferAccumulator {
                 sourceSampleRate: SealedAudioSegment.whisperSampleRate
             )
         )
+    }
+}
+
+final class SampleMappingWhisperTranscriber: WhisperTranscribing, @unchecked Sendable {
+    struct Response {
+        let delayNanoseconds: UInt64
+        let result: ActivationStoreMockTranscriber.MockResult
+    }
+
+    private let responses: [Float: Response]
+
+    init(responses: [Float: Response]) {
+        self.responses = responses
+    }
+
+    func transcribe(samples: [Float]) async throws -> String {
+        let sampleKey = samples.first ?? .zero
+        guard let response = responses[sampleKey] else {
+            throw TranscriptionError.inferenceFailed
+        }
+
+        if response.delayNanoseconds > 0 {
+            try await Task.sleep(nanoseconds: response.delayNanoseconds)
+        }
+
+        switch response.result {
+        case .success(let text):
+            return text
+        case .failure(let error):
+            throw error
+        }
     }
 }
 

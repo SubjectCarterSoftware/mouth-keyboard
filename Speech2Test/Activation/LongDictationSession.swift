@@ -60,3 +60,8 @@ struct LongSessionStatus: Equatable, Sendable {
         failedSegmentCount: 0
     )
 }
+
+struct LongSessionResultNotice: Equatable, Sendable {
+    let failedSegmentCount: Int
+    let successfulSegmentCount: Int
+}
