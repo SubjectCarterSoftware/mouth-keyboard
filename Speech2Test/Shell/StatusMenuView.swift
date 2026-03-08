@@ -3,6 +3,8 @@ import SwiftUI
 struct StatusMenuView: View {
     let recordingState: RecordingState
     let recoveryFeedback: RecordingState.RecoveryFeedback?
+    let longSessionStatus: LongSessionStatus
+    let resultNotice: LongSessionResultNotice?
     @ObservedObject var preferences: ShellPreferences
     @ObservedObject var readinessStore: ReadinessStore
     let recoveryActionPerformer: RecoveryActionPerformer = .live
@@ -47,6 +49,31 @@ struct StatusMenuView: View {
         case .idle, .success:
             return nil
         }
+    }
+
+    private var longSessionStatusText: String? {
+        let baseText: String
+
+        switch longSessionStatus.phase {
+        case .inactive:
+            return nil
+        case .recordingSegmented:
+            baseText = "Long dictation is active. Finish when you are ready and Speech2Test will assemble the queued segments into one clipboard result."
+        case .finalizing:
+            baseText = "Finalizing long dictation. Queued segments are still settling into one clipboard result."
+        }
+
+        return menuCarriedText(baseText)
+    }
+
+    private var longSessionWarningText: String? {
+        guard let resultNotice else {
+            return nil
+        }
+
+        let segmentLabel = resultNotice.failedSegmentCount == 1 ? "segment" : "segments"
+        let baseText = "The last long dictation omitted \(resultNotice.failedSegmentCount) failed \(segmentLabel) from the clipboard result."
+        return menuCarriedText(baseText)
     }
 
     private var showsMicrophoneSettingsAction: Bool {
@@ -132,6 +159,24 @@ struct StatusMenuView: View {
                     .accessibilityIdentifier("statusMenu.recoveryMessage")
             }
 
+            if let longSessionStatusText {
+                Text(longSessionStatusText)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .accessibilityLabel(longSessionStatusText)
+                    .accessibilityIdentifier("statusMenu.longSessionStatus")
+            }
+
+            if let longSessionWarningText {
+                Text(longSessionWarningText)
+                    .font(.caption)
+                    .foregroundStyle(.orange)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .accessibilityLabel(longSessionWarningText)
+                    .accessibilityIdentifier("statusMenu.longSessionWarning")
+            }
+
             if showsMicrophoneRecoveryAction {
                 Button("Open Microphone Recovery", action: openSetup)
                     .accessibilityIdentifier("statusMenu.openMicrophoneRecovery")
@@ -196,5 +241,13 @@ struct StatusMenuView: View {
         case .silenceTimeout:
             return "The session timed out after extended silence."
         }
+    }
+
+    private func menuCarriedText(_ text: String) -> String {
+        if preferences.indicatorVisible {
+            return text
+        }
+
+        return "\(text) The menu is carrying this status because the indicator is hidden."
     }
 }

@@ -5,6 +5,12 @@ import SwiftUI
 
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
+    private struct StatusMenuTestingOverride {
+        let recordingState: RecordingState
+        let longSessionStatus: LongSessionStatus
+        let resultNotice: LongSessionResultNotice?
+    }
+
     private var setupWindow: NSWindow?
     private var statusMenuTestWindow: NSWindow?
     private let preferences = ShellPreferences.shared
@@ -289,7 +295,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         }
 
         if arguments.contains("-ui-testing-open-status-window") {
-            presentStatusMenuTestWindow()
+            presentStatusMenuTestWindow(testingOverride: statusMenuTestingOverride(from: arguments))
         }
     }
 
@@ -317,12 +323,90 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         }
     }
 
-    private func presentStatusMenuTestWindow() {
+    private func statusMenuTestingOverride(from arguments: [String]) -> StatusMenuTestingOverride? {
+        if let longSessionState = longSessionStateOverride(from: arguments) {
+            return longSessionState
+        }
+
+        if let warningNotice = longSessionWarningOverride(from: arguments) {
+            return StatusMenuTestingOverride(
+                recordingState: .idle,
+                longSessionStatus: .inactive,
+                resultNotice: warningNotice
+            )
+        }
+
+        return nil
+    }
+
+    private func longSessionStateOverride(from arguments: [String]) -> StatusMenuTestingOverride? {
+        guard let index = arguments.firstIndex(of: "-ui-testing-long-session-status") else {
+            return nil
+        }
+
+        let valueIndex = arguments.index(after: index)
+        guard arguments.indices.contains(valueIndex) else {
+            return nil
+        }
+
+        switch arguments[valueIndex] {
+        case "recordingSegmented":
+            return StatusMenuTestingOverride(
+                recordingState: .recording,
+                longSessionStatus: LongSessionStatus(
+                    phase: .recordingSegmented,
+                    nextSegmentIndex: 3,
+                    queuedSegmentCount: 2,
+                    completedSegmentCount: 1,
+                    failedSegmentCount: 0
+                ),
+                resultNotice: nil
+            )
+        case "finalizing":
+            return StatusMenuTestingOverride(
+                recordingState: .processing,
+                longSessionStatus: LongSessionStatus(
+                    phase: .finalizing,
+                    nextSegmentIndex: 3,
+                    queuedSegmentCount: 2,
+                    completedSegmentCount: 1,
+                    failedSegmentCount: 0
+                ),
+                resultNotice: nil
+            )
+        default:
+            return nil
+        }
+    }
+
+    private func longSessionWarningOverride(from arguments: [String]) -> LongSessionResultNotice? {
+        guard let index = arguments.firstIndex(of: "-ui-testing-long-session-warning") else {
+            return nil
+        }
+
+        let valueIndex = arguments.index(after: index)
+        guard arguments.indices.contains(valueIndex),
+              let failedSegmentCount = Int(arguments[valueIndex]),
+              failedSegmentCount > 0 else {
+            return nil
+        }
+
+        return LongSessionResultNotice(
+            failedSegmentCount: failedSegmentCount,
+            successfulSegmentCount: max(1, failedSegmentCount + 1)
+        )
+    }
+
+    private func presentStatusMenuTestWindow(testingOverride: StatusMenuTestingOverride? = nil) {
         if let statusMenuTestWindow {
             statusMenuTestWindow.makeKeyAndOrderFront(nil)
             NSApp.activate(ignoringOtherApps: true)
             return
         }
+
+        let recordingState = testingOverride?.recordingState ?? activationStore.state
+        let longSessionStatus = testingOverride?.longSessionStatus ?? activationStore.longSessionStatus
+        let resultNotice = testingOverride?.resultNotice ?? activationStore.resultNotice
 
         let window = NSWindow(
             contentRect: NSRect(x: 0, y: 0, width: 360, height: 420),
@@ -337,8 +421,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         window.title = "Speech2Test Status"
         window.contentViewController = NSHostingController(
             rootView: StatusMenuView(
-                recordingState: activationStore.state,
+                recordingState: recordingState,
                 recoveryFeedback: activationStore.recoveryFeedback,
+                longSessionStatus: longSessionStatus,
+                resultNotice: resultNotice,
                 preferences: preferences,
                 readinessStore: readinessStore,
                 cancelSession: {

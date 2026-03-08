@@ -49,4 +49,39 @@ final class MenuBarShellSmokeTests: XCTestCase {
 
         XCTAssertFalse(app.staticTexts["setupWindow.title"].waitForExistence(timeout: 2))
     }
+
+    func testIndicatorHiddenModeStillExposesLongSessionStatusInMenu() {
+        let app = XCUIApplication()
+        app.launchArguments = [
+            "-ui-testing",
+            "-complete-shell-setup",
+            "-hide-recording-indicator",
+            "-ui-testing-open-status-window",
+            "-ui-testing-long-session-status", "finalizing",
+            "-mock-microphone-status", "authorized",
+            "-mock-keyboard-status", "authorized",
+        ]
+
+        app.launch()
+
+        let status = app.staticTexts["statusMenu.longSessionStatus"]
+        XCTAssertTrue(status.waitForExistence(timeout: 5))
+    }
+
+    func testPartialFailureWarningIdentifierAppearsWhenSessionResultIsIncomplete() {
+        let app = XCUIApplication()
+        app.launchArguments = [
+            "-ui-testing",
+            "-complete-shell-setup",
+            "-ui-testing-open-status-window",
+            "-ui-testing-long-session-warning", "2",
+            "-mock-microphone-status", "authorized",
+            "-mock-keyboard-status", "authorized",
+        ]
+
+        app.launch()
+
+        let warning = app.staticTexts["statusMenu.longSessionWarning"]
+        XCTAssertTrue(warning.waitForExistence(timeout: 5))
+    }
 }

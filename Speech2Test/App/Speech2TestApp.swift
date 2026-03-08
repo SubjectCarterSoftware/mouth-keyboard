@@ -23,6 +23,8 @@ struct Speech2TestApp: App {
             StatusMenuView(
                 recordingState: activationStore.state,
                 recoveryFeedback: activationStore.recoveryFeedback,
+                longSessionStatus: activationStore.longSessionStatus,
+                resultNotice: activationStore.resultNotice,
                 preferences: preferences,
                 readinessStore: readinessStore,
                 cancelSession: {
