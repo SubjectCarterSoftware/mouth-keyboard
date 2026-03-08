@@ -162,6 +162,16 @@ final class ActivationStore: ObservableObject {
         finish()
     }
 
+    func handleCaptureFailure(_ error: AudioCaptureError) {
+        invalidateActiveSession()
+        bufferAccumulator.reset()
+        recoveryFeedback = nil
+
+        let failureSessionID = activeSessionID
+        state = .failure(reason: failureReason(for: error))
+        scheduleDismissToIdle(afterNanoseconds: 2_000_000_000, sessionID: failureSessionID)
+    }
+
     // MARK: - Private transcription flow
 
     private func transcribeAndDispatch(sessionID: UUID) async {
@@ -248,5 +258,20 @@ final class ActivationStore: ObservableObject {
 
     private func isCurrentSession(_ sessionID: UUID) -> Bool {
         !Task.isCancelled && sessionID == activeSessionID
+    }
+
+    private func failureReason(for error: AudioCaptureError) -> RecordingState.FailureReason {
+        switch error {
+        case .microphonePermissionDenied:
+            return .microphonePermissionDenied
+        case .selectedInputUnavailable:
+            return .selectedMicrophoneUnavailable
+        case .noUsableInputDevice:
+            return .microphoneUnavailable
+        case .selectedInputDisconnected:
+            return .selectedMicrophoneDisconnected
+        case .engineException(let underlyingError):
+            return .modelError(underlyingError.localizedDescription)
+        }
     }
 }

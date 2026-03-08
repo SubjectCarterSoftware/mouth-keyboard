@@ -30,6 +30,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
 
         hotkeyService.start()
         readinessStore.refresh()
+        audioCaptureService.onCaptureFailure = { [weak self] error in
+            self?.activationStore.handleCaptureFailure(error)
+        }
         sessionKeyInterceptor.onFinishKeyPressed = { [weak self] in
             self?.activationStore.finish()
         }
@@ -105,8 +108,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
                 bufferAccumulator: activationStore.bufferAccumulator
             )
         } catch {
-            NSLog("AudioCaptureService failed to start: \(error.localizedDescription)")
-            activationStore.stop()
+            let captureError = if let captureError = error as? AudioCaptureError {
+                captureError
+            } else {
+                AudioCaptureError.engineException(error as NSError)
+            }
+            activationStore.handleCaptureFailure(captureError)
             return
         }
 

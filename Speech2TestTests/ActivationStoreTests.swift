@@ -176,6 +176,39 @@ final class ActivationStoreTests: XCTestCase {
         XCTAssertNil(mockClipboard.lastWrittenText)
     }
 
+    func testHandleCaptureFailureMapsPermissionDeniedAndAvoidsClipboardWrite() async throws {
+        let mockClipboard = ActivationStoreMockClipboard()
+        let store = makeStore(
+            permissionsAuthorized: true,
+            clipboard: mockClipboard
+        )
+        store.arm()
+
+        store.handleCaptureFailure(.microphonePermissionDenied)
+        try await Task.sleep(nanoseconds: 100_000_000)
+
+        XCTAssertEqual(store.state, .failure(reason: .microphonePermissionDenied))
+        XCTAssertNil(mockClipboard.lastWrittenText)
+    }
+
+    func testHandleCaptureFailureDuringProcessingSuppressesLateClipboardWrite() async throws {
+        let mockClipboard = ActivationStoreMockClipboard()
+        let store = makeStore(
+            permissionsAuthorized: true,
+            transcriber: DelayedWhisperTranscriber(delayNanoseconds: 300_000_000, result: .success("late result")),
+            clipboard: mockClipboard
+        )
+        store.arm()
+        store.finish()
+        XCTAssertEqual(store.state, .processing)
+
+        store.handleCaptureFailure(.selectedInputDisconnected)
+        try await Task.sleep(nanoseconds: 500_000_000)
+
+        XCTAssertEqual(store.state, .failure(reason: .selectedMicrophoneDisconnected))
+        XCTAssertNil(mockClipboard.lastWrittenText)
+    }
+
     func test_finish_fails_no_speech() async throws {
         let mockTranscriber = ActivationStoreMockTranscriber(result: .failure(TranscriptionError.noSpeechDetected))
         let mockClipboard = ActivationStoreMockClipboard()
