@@ -56,4 +56,42 @@ final class PermissionRecoveryFlowTests: XCTestCase {
         XCTAssertTrue(row.waitForExistence(timeout: 5))
         XCTAssertTrue(app.buttons["permission.keyboardMonitoring.action"].exists)
     }
+
+    func testMicrophonePermissionFailureShowsRecoveryMessageAndActions() {
+        let app = XCUIApplication()
+        app.launchArguments = [
+            "-ui-testing",
+            "-complete-shell-setup",
+            "-ui-testing-open-status-window",
+            "-ui-testing-capture-failure", "microphonePermissionDenied",
+            "-mock-microphone-status", "authorized",
+            "-mock-keyboard-status", "authorized",
+        ]
+
+        app.launch()
+
+        let recoveryMessage = app.staticTexts["statusMenu.recoveryMessage"]
+        XCTAssertTrue(recoveryMessage.waitForExistence(timeout: 5))
+        XCTAssertTrue(app.buttons["statusMenu.openMicrophoneSettings"].exists)
+        XCTAssertTrue(app.buttons["statusMenu.openMicrophoneRecovery"].exists)
+    }
+
+    func testSelectedMicrophoneDisconnectShowsRecoveryRouteWithoutSettingsButton() {
+        let app = XCUIApplication()
+        app.launchArguments = [
+            "-ui-testing",
+            "-complete-shell-setup",
+            "-ui-testing-open-status-window",
+            "-ui-testing-capture-failure", "selectedInputDisconnected",
+            "-mock-microphone-status", "authorized",
+            "-mock-keyboard-status", "authorized",
+        ]
+
+        app.launch()
+
+        let recoveryMessage = app.staticTexts["statusMenu.recoveryMessage"]
+        XCTAssertTrue(recoveryMessage.waitForExistence(timeout: 5))
+        XCTAssertTrue(app.buttons["statusMenu.openMicrophoneRecovery"].exists)
+        XCTAssertFalse(app.buttons["statusMenu.openMicrophoneSettings"].exists)
+    }
 }

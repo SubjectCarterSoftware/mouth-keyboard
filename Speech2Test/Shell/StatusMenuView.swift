@@ -5,6 +5,7 @@ struct StatusMenuView: View {
     let recoveryFeedback: RecordingState.RecoveryFeedback?
     @ObservedObject var preferences: ShellPreferences
     @ObservedObject var readinessStore: ReadinessStore
+    let recoveryActionPerformer: RecoveryActionPerformer = .live
     let cancelSession: () -> Void
     let restartSession: () -> Void
     let openSetup: () -> Void
@@ -41,8 +42,44 @@ struct StatusMenuView: View {
             return "Recording is active. Use Restart to clear the current buffer or Cancel to discard it."
         case .processing:
             return "Processing is active. Cancel stops the session and preserves the existing clipboard."
-        case .idle, .success, .failure:
+        case .failure(let reason):
+            return failureMessage(for: reason)
+        case .idle, .success:
             return nil
+        }
+    }
+
+    private var showsMicrophoneSettingsAction: Bool {
+        guard case .failure(let reason) = recordingState else {
+            return false
+        }
+
+        switch reason {
+        case .microphonePermissionDenied:
+            return true
+        case .noSpeechDetected,
+             .microphoneUnavailable,
+             .selectedMicrophoneUnavailable,
+             .selectedMicrophoneDisconnected,
+             .modelError,
+             .silenceTimeout:
+            return false
+        }
+    }
+
+    private var showsMicrophoneRecoveryAction: Bool {
+        guard case .failure(let reason) = recordingState else {
+            return false
+        }
+
+        switch reason {
+        case .microphonePermissionDenied,
+             .microphoneUnavailable,
+             .selectedMicrophoneUnavailable,
+             .selectedMicrophoneDisconnected:
+            return true
+        case .noSpeechDetected, .modelError, .silenceTimeout:
+            return false
         }
     }
 
@@ -91,7 +128,20 @@ struct StatusMenuView: View {
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
+                    .accessibilityLabel(recoveryStatusText)
                     .accessibilityIdentifier("statusMenu.recoveryMessage")
+            }
+
+            if showsMicrophoneRecoveryAction {
+                Button("Open Microphone Recovery", action: openSetup)
+                    .accessibilityIdentifier("statusMenu.openMicrophoneRecovery")
+            }
+
+            if showsMicrophoneSettingsAction {
+                Button("Open Microphone Settings") {
+                    recoveryActionPerformer.openMicrophoneSettings()
+                }
+                .accessibilityIdentifier("statusMenu.openMicrophoneSettings")
             }
 
             Button(readinessStore.snapshot.primaryActionTitle, action: openSetup)
@@ -126,6 +176,25 @@ struct StatusMenuView: View {
         .frame(width: 310)
         .onAppear {
             readinessStore.refresh()
+        }
+    }
+
+    private func failureMessage(for reason: RecordingState.FailureReason) -> String {
+        switch reason {
+        case .microphonePermissionDenied:
+            return "Microphone access is blocked. Open Settings to re-enable it, or open Setup to review recovery."
+        case .microphoneUnavailable:
+            return "No microphone is available. Connect one, then open Setup to review the input choice."
+        case .selectedMicrophoneUnavailable:
+            return "The selected microphone is unavailable. Reconnect it or open Setup to choose another one."
+        case .selectedMicrophoneDisconnected:
+            return "The selected microphone disconnected. Reconnect it or open Setup to choose another input."
+        case .noSpeechDetected:
+            return "No speech was detected. Try again when you are ready to speak."
+        case .modelError:
+            return "Transcription failed. Try the session again after recovery."
+        case .silenceTimeout:
+            return "The session timed out after extended silence."
         }
     }
 }

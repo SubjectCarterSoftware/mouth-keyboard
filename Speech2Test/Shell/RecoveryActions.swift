@@ -15,4 +15,8 @@ struct RecoveryActionPerformer {
 
         openURL(url)
     }
+
+    func openMicrophoneSettings() {
+        openSettings(for: .microphone)
+    }
 }

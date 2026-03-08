@@ -6,6 +6,7 @@ import SwiftUI
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     private var setupWindow: NSWindow?
+    private var statusMenuTestWindow: NSWindow?
     private let preferences = ShellPreferences.shared
     private let readinessStore = ReadinessStore.shared
     private let hotkeyService = HotkeyService.shared
@@ -85,6 +86,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         if preferences.shouldPresentSetupOnLaunch || forcePresentSetupOnLaunch {
             presentSetupWindow()
         }
+
+        applyUITestingOverrides()
     }
 
     func applicationWillTerminate(_ notification: Notification) {
@@ -253,11 +256,103 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     }
 
     func windowWillClose(_ notification: Notification) {
-        guard let closingWindow = notification.object as? NSWindow, closingWindow == setupWindow else {
+        guard let closingWindow = notification.object as? NSWindow else {
+            return
+        }
+
+        if closingWindow == statusMenuTestWindow {
+            statusMenuTestWindow = nil
+            return
+        }
+
+        guard closingWindow == setupWindow else {
             return
         }
 
         setupWindow = nil
+    }
+
+    private func applyUITestingOverrides() {
+        let arguments = ProcessInfo.processInfo.arguments
+        guard arguments.contains("-ui-testing") else {
+            return
+        }
+
+        if let failure = captureFailureOverride(from: arguments) {
+            activationStore.handleCaptureFailure(failure)
+        }
+
+        if arguments.contains("-ui-testing-open-status-window") {
+            presentStatusMenuTestWindow()
+        }
+    }
+
+    private func captureFailureOverride(from arguments: [String]) -> AudioCaptureError? {
+        guard let index = arguments.firstIndex(of: "-ui-testing-capture-failure") else {
+            return nil
+        }
+
+        let valueIndex = arguments.index(after: index)
+        guard arguments.indices.contains(valueIndex) else {
+            return nil
+        }
+
+        switch arguments[valueIndex] {
+        case "microphonePermissionDenied":
+            return .microphonePermissionDenied
+        case "noUsableInputDevice":
+            return .noUsableInputDevice
+        case "selectedInputUnavailable":
+            return .selectedInputUnavailable
+        case "selectedInputDisconnected":
+            return .selectedInputDisconnected
+        default:
+            return nil
+        }
+    }
+
+    private func presentStatusMenuTestWindow() {
+        if let statusMenuTestWindow {
+            statusMenuTestWindow.makeKeyAndOrderFront(nil)
+            NSApp.activate(ignoringOtherApps: true)
+            return
+        }
+
+        let window = NSWindow(
+            contentRect: NSRect(x: 0, y: 0, width: 360, height: 420),
+            styleMask: [.titled, .closable, .miniaturizable],
+            backing: .buffered,
+            defer: false
+        )
+        window.center()
+        window.delegate = self
+        window.identifier = NSUserInterfaceItemIdentifier("Speech2TestStatusMenuTestWindow")
+        window.isReleasedWhenClosed = false
+        window.title = "Speech2Test Status"
+        window.contentViewController = NSHostingController(
+            rootView: StatusMenuView(
+                recordingState: activationStore.state,
+                recoveryFeedback: activationStore.recoveryFeedback,
+                preferences: preferences,
+                readinessStore: readinessStore,
+                cancelSession: {
+                    self.activationStore.cancelCurrentSession()
+                },
+                restartSession: {
+                    self.activationStore.restartCurrentSession()
+                },
+                openSetup: { [weak self] in
+                    self?.presentSetupWindow()
+                },
+                quitApp: {
+                    NSApp.terminate(nil)
+                }
+            )
+        )
+
+        statusMenuTestWindow = window
+        window.makeKeyAndOrderFront(nil)
+        NSApp.activate(ignoringOtherApps: true)
     }
 
 }
