@@ -170,6 +170,14 @@ struct RecordingPillView: View {
         switch reason {
         case .noSpeechDetected:
             return "No speech detected"
+        case .microphonePermissionDenied:
+            return "Mic access denied"
+        case .microphoneUnavailable:
+            return "No microphone available"
+        case .selectedMicrophoneUnavailable:
+            return "Selected mic unavailable"
+        case .selectedMicrophoneDisconnected:
+            return "Selected mic disconnected"
         case .modelError:
             return "Model error"
         case .silenceTimeout:
@@ -196,6 +204,10 @@ struct RecordingPillView: View {
 
 #Preview("Failure - Silence Timeout") {
     RecordingPillView(levelMonitor: AudioLevelMonitor(), recordingState: .failure(reason: .silenceTimeout))
+}
+
+#Preview("Failure - Mic Denied") {
+    RecordingPillView(levelMonitor: AudioLevelMonitor(), recordingState: .failure(reason: .microphonePermissionDenied))
 }
 
 #Preview("Recovery - Restarted") {

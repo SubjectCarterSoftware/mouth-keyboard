@@ -88,7 +88,7 @@ struct SetupWindowView: View {
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
 
-                Text("System Default follows the macOS input setting and is used automatically again if a chosen microphone disconnects.")
+                Text("Speech2Test preserves your selected microphone choice so recovery can stay explicit if that device becomes unavailable.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
@@ -128,10 +128,6 @@ struct SetupWindowView: View {
         .background(.regularMaterial)
         .onAppear {
             audioDeviceService.refresh()
-            if let selectedUID = preferences.micDeviceUID,
-               !audioDeviceService.availableDevices.contains(where: { $0.uid == selectedUID }) {
-                preferences.micDeviceUID = nil
-            }
             readinessStore.refresh()
             NSApp.activate(ignoringOtherApps: true)
         }

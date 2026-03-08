@@ -12,6 +12,10 @@ enum RecordingState: Equatable {
 
     enum FailureReason: Equatable {
         case noSpeechDetected
+        case microphonePermissionDenied
+        case microphoneUnavailable
+        case selectedMicrophoneUnavailable
+        case selectedMicrophoneDisconnected
         case modelError(String)
         case silenceTimeout
     }

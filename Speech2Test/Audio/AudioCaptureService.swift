@@ -3,13 +3,22 @@ import CoreAudio
 import Foundation
 
 enum AudioCaptureError: LocalizedError {
-    case noInputDevice
+    case microphonePermissionDenied
+    case selectedInputUnavailable
+    case noUsableInputDevice
+    case selectedInputDisconnected
     case engineException(NSError) 
 
     var errorDescription: String? {
         switch self {
-        case .noInputDevice:
-            return "No audio input device available."
+        case .microphonePermissionDenied:
+            return "Microphone access is denied."
+        case .selectedInputUnavailable:
+            return "The selected microphone is unavailable."
+        case .noUsableInputDevice:
+            return "No audio input device is available."
+        case .selectedInputDisconnected:
+            return "The selected microphone disconnected."
         case .engineException(let error):
             return "Audio engine error: \(error.localizedDescription)"
         }
@@ -30,11 +39,13 @@ final class AudioCaptureService {
     private let preferences: ShellPreferences
     private let audioDeviceService: AudioDeviceService
     private let engineStarter: (AVAudioEngine) throws -> Void
-    private let checkAuthorization: () -> Bool
+    private let authorizationStatusProvider: () -> AVAuthorizationStatus
+    private let hasDefaultInputDeviceProvider: () -> Bool
     private var levelMonitor: AudioLevelMonitor?
     private var bufferAccumulator: AudioBufferAccumulator?
     private var hasInstalledTap = false
     private var observedDeviceUID: String?
+    var onCaptureFailure: (@MainActor (AudioCaptureError) -> Void)?
 
     @MainActor
     init(
@@ -42,13 +53,15 @@ final class AudioCaptureService {
         preferences: ShellPreferences = .shared,
         audioDeviceService: AudioDeviceService = .shared,
         engineStarter: ((AVAudioEngine) throws -> Void)? = nil,
-        checkAuthorization: @escaping () -> Bool = { AVCaptureDevice.authorizationStatus(for: .audio) == .authorized }
+        authorizationStatusProvider: @escaping () -> AVAuthorizationStatus = { AVCaptureDevice.authorizationStatus(for: .audio) },
+        hasDefaultInputDeviceProvider: @escaping () -> Bool = { AudioCaptureService.hasDefaultInputDevice() }
     ) {
         self.engineFactory = engineFactory
         self.preferences = preferences
         self.audioDeviceService = audioDeviceService
         self.engineStarter = engineStarter ?? { try $0.start() }
-        self.checkAuthorization = checkAuthorization
+        self.authorizationStatusProvider = authorizationStatusProvider
+        self.hasDefaultInputDeviceProvider = hasDefaultInputDeviceProvider
     }
 
     @MainActor
@@ -57,15 +70,12 @@ final class AudioCaptureService {
             return engine
         }
 
-        guard checkAuthorization() else {
-            throw AudioCaptureError.engineException(
-                NSError(domain: "AudioCaptureService", code: -2,
-                        userInfo: [NSLocalizedDescriptionKey: "Microphone not yet authorized."])
-            )
+        guard authorizationStatusProvider() == .authorized else {
+            throw AudioCaptureError.microphonePermissionDenied
         }
 
-        guard Self.hasDefaultInputDevice() else {
-            throw AudioCaptureError.noInputDevice
+        guard hasDefaultInputDeviceProvider() else {
+            throw AudioCaptureError.noUsableInputDevice
         }
 
         let newEngine = engineFactory()
@@ -113,6 +123,17 @@ final class AudioCaptureService {
             return
         }
 
+        audioDeviceService.refresh()
+        let selectedDevice: AudioInputDevice? = if let selectedUID = preferences.micDeviceUID {
+            audioDeviceService.device(forUID: selectedUID)
+        } else {
+            nil
+        }
+
+        if preferences.micDeviceUID != nil, selectedDevice == nil {
+            throw AudioCaptureError.selectedInputUnavailable
+        }
+
         let engine = try ensureEngine()
 
         self.levelMonitor = levelMonitor
@@ -121,13 +142,7 @@ final class AudioCaptureService {
         audioDeviceService.unregisterDisconnectListener()
         observedDeviceUID = nil
 
-        audioDeviceService.refresh()
-        if let selectedUID = preferences.micDeviceUID {
-            let selectedDevice = audioDeviceService.device(forUID: selectedUID)
-            if selectedDevice == nil {
-                preferences.micDeviceUID = nil
-            }
-
+        if preferences.micDeviceUID != nil {
             try audioDeviceService.setInputDevice(selectedDevice, on: engine)
             if let selectedDevice {
                 observedDeviceUID = selectedDevice.uid
@@ -206,22 +221,16 @@ final class AudioCaptureService {
 
     @MainActor
     private func handleSelectedDeviceDisconnect() {
-        let currentMonitor = levelMonitor
-        let currentAccumulator = bufferAccumulator
-
-        preferences.micDeviceUID = nil
-        observedDeviceUID = nil
-
-        guard let currentMonitor else {
+        guard observedDeviceUID != nil else {
             return
         }
 
         stop()
+        onCaptureFailure?(.selectedInputDisconnected)
+    }
 
-        do {
-            try start(levelMonitor: currentMonitor, bufferAccumulator: currentAccumulator)
-        } catch {
-            NSLog("AudioCaptureService failed to fall back to the system default input device: \(error.localizedDescription)")
-        }
+    @MainActor
+    func simulateSelectedDeviceDisconnectForTesting() {
+        handleSelectedDeviceDisconnect()
     }
 }

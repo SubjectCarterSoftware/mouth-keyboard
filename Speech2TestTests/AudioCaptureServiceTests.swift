@@ -4,8 +4,47 @@ import XCTest
 
 final class AudioCaptureServiceTests: XCTestCase {
     @MainActor
+    func testDeniedMicrophoneAuthorizationThrowsTypedError() {
+        let service = AudioCaptureService(
+            engineStarter: { _ in },
+            authorizationStatusProvider: { .denied },
+            hasDefaultInputDeviceProvider: { true }
+        )
+
+        XCTAssertThrowsError(try service.start(levelMonitor: AudioLevelMonitor())) { error in
+            guard case AudioCaptureError.microphonePermissionDenied = error else {
+                return XCTFail("Expected microphonePermissionDenied, got \(error)")
+            }
+        }
+    }
+
+    @MainActor
+    func testMissingSelectedDeviceThrowsUnavailableErrorAndPreservesStoredUID() {
+        let preferences = makePreferences()
+        preferences.micDeviceUID = "missing-device"
+        let audioDeviceService = AudioDeviceService(deviceEnumerator: { [] }, audioUnitSetter: { _, _ in noErr })
+        let service = AudioCaptureService(
+            preferences: preferences,
+            audioDeviceService: audioDeviceService,
+            engineStarter: { _ in },
+            authorizationStatusProvider: { .authorized },
+            hasDefaultInputDeviceProvider: { true }
+        )
+
+        XCTAssertThrowsError(try service.start(levelMonitor: AudioLevelMonitor())) { error in
+            guard case AudioCaptureError.selectedInputUnavailable = error else {
+                return XCTFail("Expected selectedInputUnavailable, got \(error)")
+            }
+        }
+        XCTAssertEqual(preferences.micDeviceUID, "missing-device")
+    }
+
+    @MainActor
     func testStartInstallsTapWithoutOutputConnection() throws {
-        let service = AudioCaptureService(engineStarter: { _ in }, checkAuthorization: { true })
+        let service = AudioCaptureService(
+            engineStarter: { _ in },
+            authorizationStatusProvider: { .authorized }
+        )
         let levelMonitor = AudioLevelMonitor()
 
         try service.start(levelMonitor: levelMonitor)
@@ -16,7 +55,10 @@ final class AudioCaptureServiceTests: XCTestCase {
 
     @MainActor
     func testStopRemovesTapAndSupportsRestart() throws {
-        let service = AudioCaptureService(engineStarter: { _ in }, checkAuthorization: { true })
+        let service = AudioCaptureService(
+            engineStarter: { _ in },
+            authorizationStatusProvider: { .authorized }
+        )
 
         try service.start(levelMonitor: AudioLevelMonitor())
         XCTAssertTrue(service.debugState.hasInstalledTap)
@@ -25,6 +67,66 @@ final class AudioCaptureServiceTests: XCTestCase {
         XCTAssertFalse(service.debugState.hasInstalledTap)
 
         try service.start(levelMonitor: AudioLevelMonitor())
+        XCTAssertTrue(service.debugState.hasInstalledTap)
+    }
+
+    @MainActor
+    func testSelectedDeviceDisconnectReportsTypedFailureInsteadOfFallback() throws {
+        let preferences = makePreferences()
+        preferences.micDeviceUID = "usb-mic"
+        let device = AudioInputDevice(id: 1, name: "USB Mic", uid: "usb-mic")
+        let audioDeviceService = AudioDeviceService(
+            deviceEnumerator: { [device] },
+            audioUnitSetter: { _, _ in noErr }
+        )
+        let service = AudioCaptureService(
+            preferences: preferences,
+            audioDeviceService: audioDeviceService,
+            engineStarter: { _ in },
+            authorizationStatusProvider: { .authorized },
+            hasDefaultInputDeviceProvider: { true }
+        )
+        let levelMonitor = AudioLevelMonitor()
+        var reportedError: AudioCaptureError?
+        service.onCaptureFailure = { error in
+            reportedError = error
+        }
+
+        try service.start(levelMonitor: levelMonitor)
+        XCTAssertTrue(service.debugState.hasInstalledTap)
+
+        service.simulateSelectedDeviceDisconnectForTesting()
+
+        XCTAssertFalse(service.debugState.hasInstalledTap)
+        XCTAssertEqual(preferences.micDeviceUID, "usb-mic")
+        guard case AudioCaptureError.selectedInputDisconnected? = reportedError else {
+            return XCTFail("Expected selectedInputDisconnected, got \(String(describing: reportedError))")
+        }
+    }
+
+    @MainActor
+    func testServiceCanRestartAfterFailureOnceRecoveryChangesSelection() throws {
+        let preferences = makePreferences()
+        preferences.micDeviceUID = "missing-device"
+        let audioDeviceService = AudioDeviceService(deviceEnumerator: { [] }, audioUnitSetter: { _, _ in noErr })
+        let service = AudioCaptureService(
+            preferences: preferences,
+            audioDeviceService: audioDeviceService,
+            engineStarter: { _ in },
+            authorizationStatusProvider: { .authorized },
+            hasDefaultInputDeviceProvider: { true }
+        )
+
+        XCTAssertThrowsError(try service.start(levelMonitor: AudioLevelMonitor())) { error in
+            guard case AudioCaptureError.selectedInputUnavailable = error else {
+                return XCTFail("Expected selectedInputUnavailable, got \(error)")
+            }
+        }
+
+        service.stop()
+        preferences.micDeviceUID = nil
+        try service.start(levelMonitor: AudioLevelMonitor())
+
         XCTAssertTrue(service.debugState.hasInstalledTap)
     }
 
@@ -57,5 +159,13 @@ final class AudioCaptureServiceTests: XCTestCase {
         }
 
         return buffer
+    }
+
+    @MainActor
+    private func makePreferences() -> ShellPreferences {
+        let suiteName = "AudioCaptureServiceTests.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suiteName) ?? .standard
+        defaults.removePersistentDomain(forName: suiteName)
+        return ShellPreferences(userDefaults: defaults)
     }
 }
