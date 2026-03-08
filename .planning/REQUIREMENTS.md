@@ -32,9 +32,9 @@
 
 - [x] **TRNS-01**: User receives local-first speech transcription for captured audio.
 - [x] **TRNS-02**: User receives punctuation in the transcribed text without manual cleanup for normal dictation.
-- [ ] **TRNS-03**: User can dictate longer than 30 seconds without losing earlier audio because the app segments and queues the recording automatically.
-- [ ] **TRNS-04**: User receives a combined transcript in the original spoken order when a session spans multiple segments.
-- [ ] **TRNS-05**: User still receives the best available combined transcript if one segment fails to transcribe.
+- [x] **TRNS-03**: User can dictate longer than 30 seconds without losing earlier audio because the app segments and queues the recording automatically.
+- [x] **TRNS-04**: User receives a combined transcript in the original spoken order when a session spans multiple segments.
+- [x] **TRNS-05**: User still receives the best available combined transcript if one segment fails to transcribe.
 - [x] **TRNS-06**: User receives a clear failure state instead of a silent or misleading success when transcription cannot produce usable text.
 
 ### Clipboard Output
@@ -99,9 +99,9 @@
 | AUDI-04 | Phase 4 | Complete |
 | TRNS-01 | Phase 3 | Complete |
 | TRNS-02 | Phase 3 | Complete |
-| TRNS-03 | Phase 5 | Pending |
-| TRNS-04 | Phase 5 | Pending |
-| TRNS-05 | Phase 5 | Pending |
+| TRNS-03 | Phase 5 | Complete |
+| TRNS-04 | Phase 5 | Complete |
+| TRNS-05 | Phase 5 | Complete |
 | TRNS-06 | Phase 3 | Complete |
 | CLIP-01 | Phase 3 | Complete |
 | CLIP-02 | Phase 4 | Complete |
@@ -119,4 +119,4 @@
 
 ---
 *Requirements defined: 2026-03-05*
-*Last updated: 2026-03-08 after 04-02 closeout*
+*Last updated: 2026-03-08 after 05-02 closeout*

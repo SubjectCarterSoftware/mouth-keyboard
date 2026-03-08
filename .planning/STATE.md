@@ -2,16 +2,16 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-status: planning
-stopped_at: Phase 5 context gathered
-last_updated: "2026-03-08T19:36:28.093Z"
-last_activity: 2026-03-08 — Phase 4 completed and verified
+status: executing
+stopped_at: Completed 05-02-PLAN.md
+last_updated: "2026-03-08T20:30:48.762Z"
+last_activity: 2026-03-08 — Phase 5 Plan 02 executed and summarized
 progress:
   total_phases: 5
   completed_phases: 4
-  total_plans: 10
-  completed_plans: 10
-  percent: 100
+  total_plans: 13
+  completed_plans: 12
+  percent: 92
 ---
 
 # Project State
@@ -26,18 +26,20 @@ See: .planning/PROJECT.md (updated 2026-03-05)
 ## Current Position
 
 Phase: 4 of 5 (Recovery Controls) — COMPLETE
-Phase: 5 of 5 (Long-Dictation Reliability) — NOT STARTED
-Status: Ready to plan Phase 5
-Last activity: 2026-03-08 — Phase 4 completed and verified
+Phase: 5 of 5 (Long-Dictation Reliability) — IN PROGRESS
+Current plan: 02 of 03 — COMPLETE
+Next plan: 03 of 03 — pending execution
+Status: Ready to execute Phase 5 Plan 03
+Last activity: 2026-03-08 — Phase 5 Plan 02 executed and summarized
 
-Progress: [██████████] 100% (10 of 10 currently planned plans summarized; Phases 1-4 complete, Phase 5 not started)
+Progress: [█████████░] 92% (12 of 13 currently planned plans summarized; Phases 1-4 complete, Phase 5 in progress)
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 6
-- Average duration: ~25 min (excluding multi-session 02-03)
-- Total execution time: ~2 hours
+- Total plans completed: 8
+- Average duration: ~24 min (excluding multi-session 02-03)
+- Total execution time: ~2h 26m
 
 **By Phase:**
 
@@ -49,6 +51,9 @@ Progress: [██████████] 100% (10 of 10 currently planned plan
 | Phase 03-recognition-and-clipboard-loop P02 | ~6 minutes | 2 tasks | 8 files |
 | Phase 04-recovery-controls P01 | 6min | 4 tasks | 15 files |
 | Phase 04-recovery-controls P02 | ~5h across 2 sessions | 4 tasks | 11 files |
+| Phase 05-long-dictation-reliability P01 | 10m | 2 tasks | 9 files |
+| Phase 05-long-dictation-reliability P02 | 16m | 2 tasks | 10 files |
+| Phase 05-long-dictation-reliability P02 | 16m | 2 tasks | 10 files |
 
 ## Accumulated Context
 
@@ -77,6 +82,12 @@ Recent decisions affecting current work:
 - [Phase 04-recovery-controls]: Phase 4 recovery actions stay menu-driven, with the pill limited to visual confirmation to avoid new focus or input risk.
 - [Phase 04-recovery-controls]: Selected microphone preference is preserved across microphone failures so recovery stays explicit instead of silently switching devices.
 - [Phase 04-recovery-controls]: Capture failures flow through ActivationStore and only current-session non-empty success paths may write to the clipboard.
+- [Phase 05-long-dictation-reliability]: Keep RecordingState coarse and publish long-session progress through LongSessionStatus.
+- [Phase 05-long-dictation-reliability]: Seal queued segment payloads from AudioBufferAccumulator snapshots so live recording can reset without invalidating earlier audio.
+- [Phase 05-long-dictation-reliability]: Use duration-based threshold, pause, and soft-cap tracking instead of wall-clock UI callbacks.
+- [Phase 05-long-dictation-reliability]: Long-session segments may transcribe as they seal, but only finish-time assembly may write to the clipboard.
+- [Phase 05-long-dictation-reliability]: Incomplete long-session results stay in companion menu notices so clipboard text remains clean best-effort prose.
+- [Phase 05-long-dictation-reliability]: Menu smoke tests use the existing status-window harness instead of automating the live MenuBarExtra.
 
 ### Pending Todos
 
@@ -84,13 +95,13 @@ None yet.
 
 ### Blockers/Concerns
 
-- No current blockers; Phase 4 is complete and ready to hand off to Phase 5 planning.
+- No current blockers; Phase 5 Plan 02 is complete and Plan 03 remains.
 - Non-blocking risk: the 45-second silence warning is not yet wired into the pill UI.
 - Non-blocking risk: clipboard write failure is not surfaced explicitly.
-- Phase 5 planning should preserve the recovery and clipboard guarantees from Phases 3-4 while introducing segmentation and queued transcription.
+- Remaining Phase 5 work should validate long-session latency/regression and close the phase without weakening the clipboard guarantees from Phases 3-4.
 
 ## Session Continuity
 
-Last session: 2026-03-08T19:36:28.091Z
-Stopped at: Phase 5 context gathered
-Resume file: .planning/phases/05-long-dictation-reliability/05-CONTEXT.md
+Last session: 2026-03-08T20:30:48.760Z
+Stopped at: Completed 05-02-PLAN.md
+Resume file: None
