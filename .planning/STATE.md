@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: planning
-stopped_at: Phase 4 context gathered
-last_updated: "2026-03-07T18:13:10.255Z"
-last_activity: 2026-03-07 — Phase 3 verified complete under reduced scope
+stopped_at: Completed 04-recovery-controls-01-PLAN.md
+last_updated: "2026-03-08T14:14:30.382Z"
+last_activity: 2026-03-08 — Phase 4 plan 01 completed after approved recovery-control verification
 progress:
   total_phases: 5
   completed_phases: 3
-  total_plans: 8
-  completed_plans: 8
-  percent: 62
+  total_plans: 10
+  completed_plans: 9
+  percent: 90
 ---
 
 # Project State
@@ -26,16 +26,16 @@ See: .planning/PROJECT.md (updated 2026-03-05)
 ## Current Position
 
 Phase: 3 of 5 (Recognition and Clipboard Loop) — COMPLETE
-Phase: 4 of 5 (Recovery Controls) — NOT STARTED
-Status: Ready to plan Phase 4
-Last activity: 2026-03-07 — Phase 3 verified complete under reduced scope
+Phase: 4 of 5 (Recovery Controls) — IN PROGRESS
+Status: Plan 04-01 complete; next up is 04-02
+Last activity: 2026-03-08 — Phase 4 plan 01 completed after approved recovery-control verification
 
-Progress: [██████░░░░] 62% (8 of 13 plans summarized; Phases 1-3 complete)
+Progress: [█████████░] 90% (9 of 10 plans summarized; Phases 1-3 complete, Phase 4 in progress)
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 5
+- Total plans completed: 6
 - Average duration: ~25 min (excluding multi-session 02-03)
 - Total execution time: ~2 hours
 
@@ -47,6 +47,7 @@ Progress: [██████░░░░] 62% (8 of 13 plans summarized; Phases
 | 02-activation-and-capture | 3 | ~2h | ~40m |
 | Phase 03-recognition-and-clipboard-loop P03-01 | 55 | 1 tasks | 16 files |
 | Phase 03-recognition-and-clipboard-loop P02 | ~6 minutes | 2 tasks | 8 files |
+| Phase 04-recovery-controls P01 | 6min | 4 tasks | 15 files |
 
 ## Accumulated Context
 
@@ -70,6 +71,9 @@ Recent decisions affecting current work:
 - [Phase 03-recognition-and-clipboard-loop]: removeDuplicates() removed from state pipeline — terminal states are always distinct and need observation
 - [Phase 03-recognition-and-clipboard-loop]: Phase 3 approved scope is single-tap hotkey start/finish with clipboard-only output; auto-paste and double-tap are not part of the shipped behavior
 - [Phase 03-recognition-and-clipboard-loop]: Phase 3 verified complete under reduced scope; next work starts in Phase 4 recovery controls
+- [Phase 04-recovery-controls]: Recovery feedback is modeled alongside RecordingState so restart stays in recording while still showing transient confirmation.
+- [Phase 04-recovery-controls]: Literal Escape cancel uses the session-key event-tap path and surfaces keyboard-monitoring readiness instead of silently assuming the hotkey permission model is sufficient.
+- [Phase 04-recovery-controls]: Phase 4 recovery actions stay menu-driven, with the pill limited to visual confirmation to avoid new focus or input risk.
 
 ### Pending Todos
 
@@ -77,12 +81,13 @@ None yet.
 
 ### Blockers/Concerns
 
-- No current blockers for the approved Phase 3 scope.
+- No current blockers for Phase 4 plan 01.
 - Non-blocking risk: the 45-second silence warning is not yet wired into the pill UI.
 - Non-blocking risk: clipboard write failure is not surfaced explicitly.
+- Manual verification still carries the live background `Escape` and pill-timing coverage that UI automation cannot fully prove.
 
 ## Session Continuity
 
-Last session: 2026-03-07T18:13:10.253Z
-Stopped at: Phase 4 context gathered
-Resume file: .planning/phases/04-recovery-controls/04-CONTEXT.md
+Last session: 2026-03-08T14:14:30.381Z
+Stopped at: Completed 04-recovery-controls-01-PLAN.md
+Resume file: None

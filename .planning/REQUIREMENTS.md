@@ -17,9 +17,9 @@
 ### Session Controls
 
 - [x] **SESS-01**: User can finish the active recording with the activation hotkey while remaining in the current application.
-- [ ] **SESS-02**: User can cancel the active recording with Escape and leave the clipboard unchanged.
-- [ ] **SESS-03**: User can restart the current recording from a clean point without leaving recording state.
-- [ ] **SESS-04**: User receives a clear visual confirmation when a session is canceled or restarted.
+- [x] **SESS-02**: User can cancel the active recording with Escape and leave the clipboard unchanged.
+- [x] **SESS-03**: User can restart the current recording from a clean point without leaving recording state.
+- [x] **SESS-04**: User receives a clear visual confirmation when a session is canceled or restarted.
 
 ### Audio Capture
 
@@ -40,7 +40,7 @@
 ### Clipboard Output
 
 - [x] **CLIP-01**: User receives the final transcription in the system clipboard after a successful session.
-- [ ] **CLIP-02**: User can rely on the app to avoid overwriting the clipboard when a session is canceled or produces no usable transcription.
+- [x] **CLIP-02**: User can rely on the app to avoid overwriting the clipboard when a session is canceled or produces no usable transcription.
 
 ### Feedback
 
@@ -90,9 +90,9 @@
 | ACTV-03 | Phase 3 | Complete |
 | ACTV-04 | Phase 2 | Complete |
 | SESS-01 | Phase 3 | Complete |
-| SESS-02 | Phase 4 | Pending |
-| SESS-03 | Phase 4 | Pending |
-| SESS-04 | Phase 4 | Pending |
+| SESS-02 | Phase 4 | Complete |
+| SESS-03 | Phase 4 | Complete |
+| SESS-04 | Phase 4 | Complete |
 | AUDI-01 | Phase 2 | Complete |
 | AUDI-02 | Phase 2 | Complete |
 | AUDI-03 | Phase 2 | Complete |
@@ -104,7 +104,7 @@
 | TRNS-05 | Phase 5 | Pending |
 | TRNS-06 | Phase 3 | Complete |
 | CLIP-01 | Phase 3 | Complete |
-| CLIP-02 | Phase 4 | Pending |
+| CLIP-02 | Phase 4 | Complete |
 | FEED-01 | Phase 3 | Complete |
 | FEED-02 | Phase 1 | Pending |
 | FEED-03 | Phase 3 | Complete |
