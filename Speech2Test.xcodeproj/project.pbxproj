@@ -50,6 +50,7 @@
 		A00000010000000000000028 /* SpacebarInterceptorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0000002000000000000002D /* SpacebarInterceptorTests.swift */; };
 		A00000010000000000000029 /* ShellPreferencesPhase3Tests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0000002000000000000002E /* ShellPreferencesPhase3Tests.swift */; };
 		A0000001000000000000002A /* whisper in Frameworks */ = {isa = PBXBuildFile; productRef = A00000130000000000000002 /* whisper */; };
+		A0000001000000000000002B /* LongDictationSession.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0000002000000000000002F /* LongDictationSession.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -117,6 +118,7 @@
 		A0000002000000000000002C /* ClipboardServiceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClipboardServiceTests.swift; sourceTree = "<group>"; };
 		A0000002000000000000002D /* SpacebarInterceptorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpacebarInterceptorTests.swift; sourceTree = "<group>"; };
 		A0000002000000000000002E /* ShellPreferencesPhase3Tests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShellPreferencesPhase3Tests.swift; sourceTree = "<group>"; };
+		A0000002000000000000002F /* LongDictationSession.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LongDictationSession.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -267,6 +269,7 @@
 			children = (
 				A00000020000000000000017 /* ActivationStore.swift */,
 				A0000002000000000000001A /* HotkeyService.swift */,
+				A0000002000000000000002F /* LongDictationSession.swift */,
 				A00000020000000000000018 /* RecordingState.swift */,
 				A00000020000000000000029 /* SpacebarInterceptor.swift */,
 			);
@@ -450,6 +453,7 @@
 				A00000010000000000000023 /* ClipboardService.swift in Sources */,
 				A00000010000000000000017 /* HotkeyService.swift in Sources */,
 				A00000010000000000000006 /* KeyboardPermissionService.swift in Sources */,
+				A0000001000000000000002B /* LongDictationSession.swift in Sources */,
 				A00000010000000000000007 /* MicrophonePermissionService.swift in Sources */,
 				A0000001000000000000001F /* ObjCExceptionCatcher.m in Sources */,
 				A0000001000000000000000A /* PermissionChecklistView.swift in Sources */,

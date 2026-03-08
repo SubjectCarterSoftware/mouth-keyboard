@@ -1,4 +1,5 @@
 import AVFoundation
+import Foundation
 
 enum AudioBufferAccumulatorError: Error {
     case emptyBuffers
@@ -13,12 +14,14 @@ class AudioBufferAccumulator {
     // MARK: - Public Interface
 
     nonisolated func append(_ buffer: AVAudioPCMBuffer) {
+        let storedBuffer = Self.deepCopy(buffer) ?? buffer
+
         lock.lock()
         defer { lock.unlock() }
         if inputFormat == nil {
-            inputFormat = buffer.format
+            inputFormat = storedBuffer.format
         }
-        buffers.append(buffer)
+        buffers.append(storedBuffer)
     }
 
     var totalFrameCount: AVAudioFrameCount {
@@ -28,6 +31,29 @@ class AudioBufferAccumulator {
     }
 
     func convertToWhisperFormat() throws -> [Float] {
+        let snapshot = try snapshot()
+        return try Self.convertToWhisperFormat(buffers: snapshot.buffers, format: snapshot.format)
+    }
+
+    func sealSegment(index: Int, reason: SegmentSealReason) throws -> QueuedSegment {
+        let snapshot = try snapshotAndReset()
+        let samples = try Self.convertToWhisperFormat(buffers: snapshot.buffers, format: snapshot.format)
+        let audio = SealedAudioSegment(
+            samples: samples,
+            sourceFrameCount: snapshot.totalFrameCount,
+            sourceSampleRate: snapshot.format.sampleRate
+        )
+        return QueuedSegment(index: index, sealReason: reason, audio: audio)
+    }
+
+    func reset() {
+        lock.lock()
+        defer { lock.unlock() }
+        buffers.removeAll()
+        inputFormat = nil
+    }
+
+    private func snapshot() throws -> (buffers: [AVAudioPCMBuffer], format: AVAudioFormat, totalFrameCount: AVAudioFrameCount) {
         lock.lock()
         let localBuffers = buffers
         let localFormat = inputFormat
@@ -37,32 +63,80 @@ class AudioBufferAccumulator {
             throw AudioBufferAccumulatorError.emptyBuffers
         }
 
-        // Combine all buffers into one
-        let totalFrames = localBuffers.reduce(0) { $0 + $1.frameLength }
+        return (
+            buffers: localBuffers,
+            format: format,
+            totalFrameCount: localBuffers.reduce(0) { $0 + $1.frameLength }
+        )
+    }
+
+    private func snapshotAndReset() throws -> (buffers: [AVAudioPCMBuffer], format: AVAudioFormat, totalFrameCount: AVAudioFrameCount) {
+        lock.lock()
+        let localBuffers = buffers
+        let localFormat = inputFormat
+        buffers.removeAll()
+        inputFormat = nil
+        lock.unlock()
+
+        guard !localBuffers.isEmpty, let format = localFormat else {
+            throw AudioBufferAccumulatorError.emptyBuffers
+        }
+
+        return (
+            buffers: localBuffers,
+            format: format,
+            totalFrameCount: localBuffers.reduce(0) { $0 + $1.frameLength }
+        )
+    }
+
+    private static func convertToWhisperFormat(buffers: [AVAudioPCMBuffer], format: AVAudioFormat) throws -> [Float] {
+        guard !buffers.isEmpty else {
+            throw AudioBufferAccumulatorError.emptyBuffers
+        }
+
+        if format.sampleRate == SealedAudioSegment.whisperSampleRate,
+           format.channelCount == 1,
+           format.commonFormat == .pcmFormatFloat32,
+           !format.isInterleaved {
+            let totalFrames = buffers.reduce(0) { $0 + Int($1.frameLength) }
+            var samples: [Float] = []
+            samples.reserveCapacity(totalFrames)
+
+            for buffer in buffers {
+                guard let channelData = buffer.floatChannelData else {
+                    throw AudioBufferAccumulatorError.conversionFailed
+                }
+                samples.append(contentsOf: UnsafeBufferPointer(start: channelData[0], count: Int(buffer.frameLength)))
+            }
+
+            return samples
+        }
+
+        let totalFrames = buffers.reduce(0) { $0 + $1.frameLength }
         guard let combined = AVAudioPCMBuffer(pcmFormat: format, frameCapacity: totalFrames) else {
             throw AudioBufferAccumulatorError.conversionFailed
         }
         combined.frameLength = totalFrames
 
         var offset: AVAudioFrameCount = 0
-        for buf in localBuffers {
-            let frameLength = buf.frameLength
+        for buffer in buffers {
+            let frameLength = buffer.frameLength
             guard frameLength > 0 else { continue }
-            if let srcData = buf.floatChannelData, let dstData = combined.floatChannelData {
-                let channelCount = Int(format.channelCount)
-                for ch in 0..<channelCount {
-                    let src = srcData[ch]
-                    let dst = dstData[ch].advanced(by: Int(offset))
-                    dst.assign(from: src, count: Int(frameLength))
-                }
+            guard let srcData = buffer.floatChannelData, let dstData = combined.floatChannelData else {
+                throw AudioBufferAccumulatorError.conversionFailed
+            }
+
+            for channel in 0..<Int(format.channelCount) {
+                let src = srcData[channel]
+                let dst = dstData[channel].advanced(by: Int(offset))
+                dst.update(from: src, count: Int(frameLength))
             }
             offset += frameLength
         }
 
-        // Convert to 16kHz mono Float32
         let whisperFormat = AVAudioFormat(
             commonFormat: .pcmFormatFloat32,
-            sampleRate: 16000,
+            sampleRate: SealedAudioSegment.whisperSampleRate,
             channels: 1,
             interleaved: false
         )!
@@ -85,6 +159,7 @@ class AudioBufferAccumulator {
                 outStatus.pointee = .noDataNow
                 return nil
             }
+
             outStatus.pointee = .haveData
             inputConsumed = true
             return combined
@@ -93,21 +168,27 @@ class AudioBufferAccumulator {
         if let error = conversionError {
             throw error
         }
-        guard status != .error else {
+        guard status != .error, let channelData = outputBuffer.floatChannelData else {
             throw AudioBufferAccumulatorError.conversionFailed
         }
 
-        let frameCount = Int(outputBuffer.frameLength)
-        guard let channelData = outputBuffer.floatChannelData else {
-            throw AudioBufferAccumulatorError.conversionFailed
-        }
-        return Array(UnsafeBufferPointer(start: channelData[0], count: frameCount))
+        return Array(UnsafeBufferPointer(start: channelData[0], count: Int(outputBuffer.frameLength)))
     }
 
-    func reset() {
-        lock.lock()
-        defer { lock.unlock() }
-        buffers.removeAll()
-        inputFormat = nil
+    private static func deepCopy(_ buffer: AVAudioPCMBuffer) -> AVAudioPCMBuffer? {
+        guard let copy = AVAudioPCMBuffer(pcmFormat: buffer.format, frameCapacity: buffer.frameLength) else {
+            return nil
+        }
+
+        copy.frameLength = buffer.frameLength
+        guard let sourceChannels = buffer.floatChannelData, let destinationChannels = copy.floatChannelData else {
+            return nil
+        }
+
+        for channel in 0..<Int(buffer.format.channelCount) {
+            destinationChannels[channel].update(from: sourceChannels[channel], count: Int(buffer.frameLength))
+        }
+
+        return copy
     }
 }
