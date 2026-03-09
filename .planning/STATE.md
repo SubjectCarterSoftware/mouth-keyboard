@@ -2,11 +2,11 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-current_plan: 03 of 03 — COMPLETE
-status: complete
-stopped_at: Completed 05-03-PLAN.md
-last_updated: "2026-03-09T01:08:43.108Z"
-last_activity: 2026-03-08 — Phase 5 Plan 03 executed, verified, and summarized
+current_plan: None
+status: milestone_complete
+stopped_at: Archived v1.0 milestone
+last_updated: "2026-03-09T01:35:00.000Z"
+last_activity: 2026-03-09 — v1.0 milestone archived and ready for next milestone definition
 progress:
   total_phases: 5
   completed_phases: 5
@@ -22,18 +22,17 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-05)
 
 **Core value:** From a single hotkey, the user can dictate and get reliable text into the clipboard fast enough that it feels close to typing speed.
-**Current focus:** Roadmap execution complete; ready for milestone closeout
+**Current focus:** Between milestones; ready to define the next roadmap
 
 ## Current Position
 
-Phase: 4 of 5 (Recovery Controls) — COMPLETE
-Phase: 5 of 5 (Long-Dictation Reliability) — COMPLETE
-Current plan: 03 of 03 — COMPLETE
+Phase: All v1.0 phases complete
+Current plan: None
 Next plan: None
-Status: All currently planned roadmap work complete; ready for milestone audit/closeout
-Last activity: 2026-03-08 — Phase 5 Plan 03 executed, verified, and summarized
+Status: v1.0 archived; no active roadmap until the next milestone is created
+Last activity: 2026-03-09 — v1.0 milestone archived and tagged
 
-Progress: [██████████] 100% (13 of 13 currently planned plans summarized; Phases 1-5 complete)
+Progress: [██████████] 100% (v1.0 archived; awaiting next milestone)
 
 ## Performance Metrics
 
@@ -99,12 +98,12 @@ None yet.
 
 ### Blockers/Concerns
 
-- No current blockers; all currently planned roadmap work is complete.
+- No current blockers; v1.0 is archived and the next milestone is undefined.
 - Non-blocking risk: the 45-second silence warning is not yet wired into the pill UI.
 - Non-blocking risk: clipboard write failure is not surfaced explicitly.
 
 ## Session Continuity
 
-Last session: 2026-03-09T01:08:43.106Z
-Stopped at: Completed 05-03-PLAN.md
+Last session: 2026-03-09T01:35:00.000Z
+Stopped at: Archived v1.0 milestone
 Resume file: None
