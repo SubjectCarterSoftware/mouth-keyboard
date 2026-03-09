@@ -455,6 +455,41 @@ final class ActivationStoreTests: XCTestCase {
         XCTAssertEqual(store.state, .processing)
     }
 
+    func test_arm_after_longSessionSuccess_restartsImmediatelyWithoutWaitingForAutoDismiss() async throws {
+        let clipboard = ActivationStoreMockClipboard()
+        let store = makeStore(
+            permissionsAuthorized: true,
+            transcriber: SampleMappingWhisperTranscriber(
+                responses: [
+                    1.0: .init(delayNanoseconds: 0, result: .success("first")),
+                    2.0: .init(delayNanoseconds: 0, result: .success("second"))
+                ]
+            ),
+            clipboard: clipboard,
+            bufferAccumulator: SealingBufferAccumulator()
+        )
+
+        store.arm()
+        store.handleLongDictationBoundary(.thresholdReached)
+        store.handleLongDictationBoundary(.segmentBoundary(reason: .pause))
+        store.finish()
+
+        try await Task.sleep(nanoseconds: 250_000_000)
+
+        if case .success(let text) = store.state {
+            XCTAssertEqual(text, "first second")
+        } else {
+            XCTFail("Expected .success state, got \(store.state)")
+        }
+
+        store.arm()
+
+        XCTAssertEqual(store.state, .recording)
+        XCTAssertNil(store.resultNotice)
+        XCTAssertEqual(store.longSessionStatus, .inactive)
+        XCTAssertEqual(clipboard.writeCount, 1)
+    }
+
     func test_failure_does_not_write_clipboard() async throws {
         let mockTranscriber = ActivationStoreMockTranscriber(result: .failure(TranscriptionError.inferenceFailed))
         let mockClipboard = ActivationStoreMockClipboard()

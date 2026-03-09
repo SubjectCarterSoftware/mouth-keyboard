@@ -92,9 +92,10 @@ final class ActivationStore: ObservableObject {
             return
         }
 
-        // Ignore activation while transcription or terminal feedback is still
-        // on-screen. The hotkey is a start/finish toggle, not a restart.
-        guard state == .idle else {
+        // Ignore activation while transcription is in flight, but allow a new
+        // recording to interrupt terminal feedback instead of waiting for the
+        // auto-dismiss timer to return to idle.
+        guard state == .idle || state.isTerminal else {
             return
         }
 
