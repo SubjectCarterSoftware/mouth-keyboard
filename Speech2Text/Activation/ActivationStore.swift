@@ -37,6 +37,7 @@ final class ActivationStore: ObservableObject {
 
     @Published private(set) var state: RecordingState = .idle
     @Published private(set) var recoveryFeedback: RecordingState.RecoveryFeedback?
+    @Published private(set) var lastTranscription: String?
 
     private let preferences: ShellPreferences
     private let readinessProvider: any ReadinessProviding
@@ -146,6 +147,13 @@ final class ActivationStore: ObservableObject {
         state = .recording
     }
 
+    /// Copies the last transcription to the clipboard.
+    func copyLastTranscription() {
+        if let text = lastTranscription {
+            clipboardService.writeToClipboard(text)
+        }
+    }
+
     /// Finish recording: stops capture and runs the transcription -> clipboard -> dismiss flow.
     func finish() {
         guard state == .recording else { return }
@@ -199,6 +207,7 @@ final class ActivationStore: ObservableObject {
             }
 
             state = .success(text: trimmed)
+            lastTranscription = trimmed
             clipboardService.writeToClipboard(trimmed)
             scheduleDismissToIdle(afterNanoseconds: 1_500_000_000, sessionID: sessionID)
         } catch TranscriptionError.noSpeechDetected {

@@ -23,6 +23,7 @@ struct Speech2TextApp: App {
             StatusMenuView(
                 recordingState: activationStore.state,
                 recoveryFeedback: activationStore.recoveryFeedback,
+                lastTranscription: activationStore.lastTranscription,
                 preferences: preferences,
                 readinessStore: readinessStore,
                 cancelSession: {
@@ -30,6 +31,9 @@ struct Speech2TextApp: App {
                 },
                 restartSession: {
                     activationStore.restartCurrentSession()
+                },
+                copyLastTranscription: {
+                    activationStore.copyLastTranscription()
                 },
                 openSetup: {
                     appDelegate.presentSetupWindow()

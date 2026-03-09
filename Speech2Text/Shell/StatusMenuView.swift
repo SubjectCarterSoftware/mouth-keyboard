@@ -3,11 +3,13 @@ import SwiftUI
 struct StatusMenuView: View {
     let recordingState: RecordingState
     let recoveryFeedback: RecordingState.RecoveryFeedback?
+    let lastTranscription: String?
     @ObservedObject var preferences: ShellPreferences
     @ObservedObject var readinessStore: ReadinessStore
     let recoveryActionPerformer: RecoveryActionPerformer = .live
     let cancelSession: () -> Void
     let restartSession: () -> Void
+    let copyLastTranscription: () -> Void
     let openSetup: () -> Void
     let quitApp: () -> Void
 
@@ -137,6 +139,11 @@ struct StatusMenuView: View {
             }
 
             Divider()
+
+            if lastTranscription != nil {
+                Button("Copy Last Transcription", action: copyLastTranscription)
+                    .accessibilityIdentifier("statusMenu.copyLastTranscription")
+            }
 
             Button("Quit Speech2Text", action: quitApp)
         }

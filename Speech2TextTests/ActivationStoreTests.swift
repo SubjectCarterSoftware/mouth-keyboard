@@ -82,6 +82,7 @@ final class ActivationStoreTests: XCTestCase {
         try await Task.sleep(nanoseconds: 200_000_000)
 
         XCTAssertEqual(mockClipboard.lastWrittenText, "Hello world")
+        XCTAssertEqual(store.lastTranscription, "Hello world")
         if case .success(let text) = store.state {
             XCTAssertEqual(text, "Hello world")
         } else {
@@ -224,6 +225,27 @@ final class ActivationStoreTests: XCTestCase {
 
         XCTAssertEqual(store.state, .failure(reason: .noSpeechDetected))
         XCTAssertNil(mockClipboard.lastWrittenText)
+    }
+
+    func test_copyLastTranscription_writes_to_clipboard() async throws {
+        let mockClipboard = ActivationStoreMockClipboard()
+        let store = makeStore(
+            permissionsAuthorized: true,
+            transcriber: ActivationStoreMockTranscriber(result: .success("Target text")),
+            clipboard: mockClipboard
+        )
+        store.arm()
+        store.finish()
+
+        try await Task.sleep(nanoseconds: 200_000_000)
+
+        // Clear clipboard mock to isolate behavior
+        mockClipboard.clearWriteCount()
+
+        store.copyLastTranscription()
+
+        XCTAssertEqual(mockClipboard.lastWrittenText, "Target text")
+        XCTAssertEqual(mockClipboard.writeCount, 1)
     }
 
     func test_arm_while_recording_calls_finish() async throws {
@@ -467,6 +489,11 @@ class ActivationStoreMockClipboard: ClipboardService {
         writeCount += 1
         lastWrittenText = text
         return true
+    }
+
+    func clearWriteCount() {
+        writeCount = 0
+        lastWrittenText = nil
     }
 }
 
