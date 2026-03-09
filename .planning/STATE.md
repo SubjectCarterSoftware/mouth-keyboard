@@ -2,16 +2,17 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-status: executing
-stopped_at: Completed 05-02-PLAN.md
-last_updated: "2026-03-08T20:30:48.762Z"
-last_activity: 2026-03-08 — Phase 5 Plan 02 executed and summarized
+current_plan: 03 of 03 — COMPLETE
+status: complete
+stopped_at: Completed 05-03-PLAN.md
+last_updated: "2026-03-09T01:08:43.108Z"
+last_activity: 2026-03-08 — Phase 5 Plan 03 executed, verified, and summarized
 progress:
   total_phases: 5
-  completed_phases: 4
+  completed_phases: 5
   total_plans: 13
-  completed_plans: 12
-  percent: 92
+  completed_plans: 13
+  percent: 100
 ---
 
 # Project State
@@ -21,25 +22,25 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-05)
 
 **Core value:** From a single hotkey, the user can dictate and get reliable text into the clipboard fast enough that it feels close to typing speed.
-**Current focus:** Phase 5: Long-Dictation Reliability
+**Current focus:** Roadmap execution complete; ready for milestone closeout
 
 ## Current Position
 
 Phase: 4 of 5 (Recovery Controls) — COMPLETE
-Phase: 5 of 5 (Long-Dictation Reliability) — IN PROGRESS
-Current plan: 02 of 03 — COMPLETE
-Next plan: 03 of 03 — pending execution
-Status: Ready to execute Phase 5 Plan 03
-Last activity: 2026-03-08 — Phase 5 Plan 02 executed and summarized
+Phase: 5 of 5 (Long-Dictation Reliability) — COMPLETE
+Current plan: 03 of 03 — COMPLETE
+Next plan: None
+Status: All currently planned roadmap work complete; ready for milestone audit/closeout
+Last activity: 2026-03-08 — Phase 5 Plan 03 executed, verified, and summarized
 
-Progress: [█████████░] 92% (12 of 13 currently planned plans summarized; Phases 1-4 complete, Phase 5 in progress)
+Progress: [██████████] 100% (13 of 13 currently planned plans summarized; Phases 1-5 complete)
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 8
-- Average duration: ~24 min (excluding multi-session 02-03)
-- Total execution time: ~2h 26m
+- Total plans completed: 9
+- Average duration: ~25 min (excluding multi-session 02-03)
+- Total execution time: ~3h 03m
 
 **By Phase:**
 
@@ -53,7 +54,7 @@ Progress: [█████████░] 92% (12 of 13 currently planned plans
 | Phase 04-recovery-controls P02 | ~5h across 2 sessions | 4 tasks | 11 files |
 | Phase 05-long-dictation-reliability P01 | 10m | 2 tasks | 9 files |
 | Phase 05-long-dictation-reliability P02 | 16m | 2 tasks | 10 files |
-| Phase 05-long-dictation-reliability P02 | 16m | 2 tasks | 10 files |
+| Phase 05-long-dictation-reliability P03 | 37m | 2 tasks | 6 files |
 
 ## Accumulated Context
 
@@ -88,6 +89,9 @@ Recent decisions affecting current work:
 - [Phase 05-long-dictation-reliability]: Long-session segments may transcribe as they seal, but only finish-time assembly may write to the clipboard.
 - [Phase 05-long-dictation-reliability]: Incomplete long-session results stay in companion menu notices so clipboard text remains clean best-effort prose.
 - [Phase 05-long-dictation-reliability]: Menu smoke tests use the existing status-window harness instead of automating the live MenuBarExtra.
+- [Phase 05-long-dictation-reliability]: Cover long-session reliability with integration-style ActivationStore tests that exercise real queue-settlement behavior instead of building a second verification-only path.
+- [Phase 05-long-dictation-reliability]: Drive partial-failure verification through a non-production launch flag so UI and manual checks can force a chosen sealed segment to fail deterministically.
+- [Phase 05-long-dictation-reliability]: Allow ActivationStore re-arming from terminal success or failure feedback while continuing to block activation during in-flight processing.
 
 ### Pending Todos
 
@@ -95,13 +99,12 @@ None yet.
 
 ### Blockers/Concerns
 
-- No current blockers; Phase 5 Plan 02 is complete and Plan 03 remains.
+- No current blockers; all currently planned roadmap work is complete.
 - Non-blocking risk: the 45-second silence warning is not yet wired into the pill UI.
 - Non-blocking risk: clipboard write failure is not surfaced explicitly.
-- Remaining Phase 5 work should validate long-session latency/regression and close the phase without weakening the clipboard guarantees from Phases 3-4.
 
 ## Session Continuity
 
-Last session: 2026-03-08T20:30:48.760Z
-Stopped at: Completed 05-02-PLAN.md
+Last session: 2026-03-09T01:08:43.106Z
+Stopped at: Completed 05-03-PLAN.md
 Resume file: None

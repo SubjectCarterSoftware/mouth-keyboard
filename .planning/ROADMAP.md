@@ -16,7 +16,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [x] **Phase 2: Activation and Capture** - Deliver configurable hotkey activation, microphone capture, and immediate recording start.
 - [x] **Phase 3: Recognition and Clipboard Loop** - Turn recordings into final clipboard text with clear user-visible states.
 - [x] **Phase 4: Recovery Controls** - Make cancel, restart, and input failure handling trustworthy. (completed 2026-03-08)
-- [ ] **Phase 5: Long-Dictation Reliability** - Add segmentation, queued transcription, and best-effort recovery for longer sessions.
+- [x] **Phase 5: Long-Dictation Reliability** - Add segmentation, queued transcription, and best-effort recovery for longer sessions. (completed 2026-03-08)
 
 ## Phase Details
 
@@ -86,12 +86,12 @@ Plans:
   1. Sessions longer than the configured threshold segment on natural speech gaps without losing or duplicating content.
   2. Queued segments combine into final text in the same order they were spoken.
   3. If a segment fails, the user still receives the best available combined output with a clear warning.
-**Plans**: 2/3 plans executed
+**Plans**: 3/3 plans executed
 
 Plans:
 - [x] 05-01: Implement silence-aware segmentation thresholds and immutable segment queueing.
 - [x] 05-02: Add ordered transcript assembly and best-effort partial failure handling.
-- [ ] 05-03: Verify long-session reliability, latency impact, and regression cases.
+- [x] 05-03: Verify long-session reliability, latency impact, and regression cases.
 
 ## Progress
 
@@ -104,4 +104,4 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5
 | 2. Activation and Capture | 3/3 | Complete | 2026-03-06 |
 | 3. Recognition and Clipboard Loop | 3/3 | Complete | 2026-03-07 |
 | 4. Recovery Controls | 2/2 | Complete    | 2026-03-08 |
-| 5. Long-Dictation Reliability | 2/3 | In Progress | - |
+| 5. Long-Dictation Reliability | 3/3 | Complete | 2026-03-08 |
