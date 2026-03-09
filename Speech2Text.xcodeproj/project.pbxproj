@@ -1,0 +1,759 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 60;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		9352F5FC2F5E578E00A7E109 /* ggml-tiny.en.bin in Resources */ = {isa = PBXBuildFile; fileRef = 9352F5FB2F5E578E00A7E109 /* ggml-tiny.en.bin */; };
+		A00000010000000000000001 /* Speech2TextApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000020000000000000001 /* Speech2TextApp.swift */; };
+		A00000010000000000000002 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000020000000000000002 /* AppDelegate.swift */; };
+		A00000010000000000000003 /* StatusMenuView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000020000000000000005 /* StatusMenuView.swift */; };
+		A00000010000000000000004 /* SetupWindowView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000020000000000000006 /* SetupWindowView.swift */; };
+		A00000010000000000000005 /* ShellPreferences.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000020000000000000007 /* ShellPreferences.swift */; };
+		A00000010000000000000006 /* KeyboardPermissionService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000020000000000000008 /* KeyboardPermissionService.swift */; };
+		A00000010000000000000007 /* MicrophonePermissionService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000020000000000000009 /* MicrophonePermissionService.swift */; };
+		A00000010000000000000008 /* ReadinessSnapshot.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0000002000000000000000A /* ReadinessSnapshot.swift */; };
+		A00000010000000000000009 /* ReadinessStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0000002000000000000000B /* ReadinessStore.swift */; };
+		A0000001000000000000000A /* PermissionChecklistView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0000002000000000000000C /* PermissionChecklistView.swift */; };
+		A0000001000000000000000B /* RecoveryActions.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0000002000000000000000D /* RecoveryActions.swift */; };
+		A0000001000000000000000C /* StatusCardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0000002000000000000000E /* StatusCardView.swift */; };
+		A0000001000000000000000D /* PermissionServiceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0000002000000000000000F /* PermissionServiceTests.swift */; };
+		A0000001000000000000000E /* ReadinessStateTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000020000000000000010 /* ReadinessStateTests.swift */; };
+		A0000001000000000000000F /* MenuBarShellSmokeTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000020000000000000011 /* MenuBarShellSmokeTests.swift */; };
+		A00000010000000000000010 /* PermissionRecoveryFlowTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000020000000000000012 /* PermissionRecoveryFlowTests.swift */; };
+		A00000010000000000000011 /* ActivationStoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000020000000000000015 /* ActivationStoreTests.swift */; };
+		A00000010000000000000012 /* ShellPreferencesPhase2Tests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000020000000000000016 /* ShellPreferencesPhase2Tests.swift */; };
+		A00000010000000000000013 /* ActivationStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000020000000000000017 /* ActivationStore.swift */; };
+		A00000010000000000000014 /* RecordingState.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000020000000000000018 /* RecordingState.swift */; };
+		A00000010000000000000015 /* HotkeyServiceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000020000000000000019 /* HotkeyServiceTests.swift */; };
+		A00000010000000000000016 /* KeyboardShortcuts in Frameworks */ = {isa = PBXBuildFile; productRef = A00000130000000000000001 /* KeyboardShortcuts */; };
+		A00000010000000000000017 /* HotkeyService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0000002000000000000001A /* HotkeyService.swift */; };
+		A00000010000000000000018 /* AudioCaptureServiceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0000002000000000000001B /* AudioCaptureServiceTests.swift */; };
+		A00000010000000000000019 /* AudioCaptureService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0000002000000000000001C /* AudioCaptureService.swift */; };
+		A0000001000000000000001A /* AudioLevelMonitor.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0000002000000000000001D /* AudioLevelMonitor.swift */; };
+		A0000001000000000000001B /* AudioDeviceServiceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0000002000000000000001E /* AudioDeviceServiceTests.swift */; };
+		A0000001000000000000001C /* AudioDeviceService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0000002000000000000001F /* AudioDeviceService.swift */; };
+		A0000001000000000000001D /* RecordingPillView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000020000000000000020 /* RecordingPillView.swift */; };
+		A0000001000000000000001E /* RecordingPillPanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000020000000000000021 /* RecordingPillPanel.swift */; };
+		A0000001000000000000001F /* ObjCExceptionCatcher.m in Sources */ = {isa = PBXBuildFile; fileRef = A00000020000000000000023 /* ObjCExceptionCatcher.m */; };
+		A00000010000000000000020 /* TranscriptionResult.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000020000000000000025 /* TranscriptionResult.swift */; };
+		A00000010000000000000021 /* WhisperService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000020000000000000026 /* WhisperService.swift */; };
+		A00000010000000000000022 /* AudioBufferAccumulator.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000020000000000000027 /* AudioBufferAccumulator.swift */; };
+		A00000010000000000000023 /* ClipboardService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000020000000000000028 /* ClipboardService.swift */; };
+		A00000010000000000000024 /* SpacebarInterceptor.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000020000000000000029 /* SpacebarInterceptor.swift */; };
+		A00000010000000000000025 /* WhisperServiceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0000002000000000000002A /* WhisperServiceTests.swift */; };
+		A00000010000000000000026 /* AudioBufferAccumulatorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0000002000000000000002B /* AudioBufferAccumulatorTests.swift */; };
+		A00000010000000000000027 /* ClipboardServiceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0000002000000000000002C /* ClipboardServiceTests.swift */; };
+		A00000010000000000000028 /* SpacebarInterceptorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0000002000000000000002D /* SpacebarInterceptorTests.swift */; };
+		A00000010000000000000029 /* ShellPreferencesPhase3Tests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0000002000000000000002E /* ShellPreferencesPhase3Tests.swift */; };
+		A0000001000000000000002A /* whisper in Frameworks */ = {isa = PBXBuildFile; productRef = A00000130000000000000002 /* whisper */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXContainerItemProxy section */
+		A00000110000000000000001 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = A00000080000000000000001 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = A00000050000000000000001;
+			remoteInfo = Speech2Text;
+		};
+		A00000110000000000000002 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = A00000080000000000000001 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = A00000050000000000000001;
+			remoteInfo = Speech2Text;
+		};
+/* End PBXContainerItemProxy section */
+
+/* Begin PBXFileReference section */
+		9352F5FB2F5E578E00A7E109 /* ggml-tiny.en.bin */ = {isa = PBXFileReference; lastKnownFileType = archive.macbinary; path = "ggml-tiny.en.bin"; sourceTree = "<group>"; };
+		A00000020000000000000001 /* Speech2TextApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Speech2TextApp.swift; sourceTree = "<group>"; };
+		A00000020000000000000002 /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
+		A00000020000000000000003 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		A00000020000000000000004 /* Speech2Text.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Speech2Text.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		A00000020000000000000005 /* StatusMenuView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StatusMenuView.swift; sourceTree = "<group>"; };
+		A00000020000000000000006 /* SetupWindowView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SetupWindowView.swift; sourceTree = "<group>"; };
+		A00000020000000000000007 /* ShellPreferences.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShellPreferences.swift; sourceTree = "<group>"; };
+		A00000020000000000000008 /* KeyboardPermissionService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeyboardPermissionService.swift; sourceTree = "<group>"; };
+		A00000020000000000000009 /* MicrophonePermissionService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MicrophonePermissionService.swift; sourceTree = "<group>"; };
+		A0000002000000000000000A /* ReadinessSnapshot.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReadinessSnapshot.swift; sourceTree = "<group>"; };
+		A0000002000000000000000B /* ReadinessStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReadinessStore.swift; sourceTree = "<group>"; };
+		A0000002000000000000000C /* PermissionChecklistView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PermissionChecklistView.swift; sourceTree = "<group>"; };
+		A0000002000000000000000D /* RecoveryActions.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecoveryActions.swift; sourceTree = "<group>"; };
+		A0000002000000000000000E /* StatusCardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StatusCardView.swift; sourceTree = "<group>"; };
+		A0000002000000000000000F /* PermissionServiceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PermissionServiceTests.swift; sourceTree = "<group>"; };
+		A00000020000000000000010 /* ReadinessStateTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReadinessStateTests.swift; sourceTree = "<group>"; };
+		A00000020000000000000011 /* MenuBarShellSmokeTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MenuBarShellSmokeTests.swift; sourceTree = "<group>"; };
+		A00000020000000000000012 /* PermissionRecoveryFlowTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PermissionRecoveryFlowTests.swift; sourceTree = "<group>"; };
+		A00000020000000000000013 /* Speech2TextTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = Speech2TextTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		A00000020000000000000014 /* Speech2TextUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = Speech2TextUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		A00000020000000000000015 /* ActivationStoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ActivationStoreTests.swift; sourceTree = "<group>"; };
+		A00000020000000000000016 /* ShellPreferencesPhase2Tests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShellPreferencesPhase2Tests.swift; sourceTree = "<group>"; };
+		A00000020000000000000017 /* ActivationStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ActivationStore.swift; sourceTree = "<group>"; };
+		A00000020000000000000018 /* RecordingState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecordingState.swift; sourceTree = "<group>"; };
+		A00000020000000000000019 /* HotkeyServiceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HotkeyServiceTests.swift; sourceTree = "<group>"; };
+		A0000002000000000000001A /* HotkeyService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HotkeyService.swift; sourceTree = "<group>"; };
+		A0000002000000000000001B /* AudioCaptureServiceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudioCaptureServiceTests.swift; sourceTree = "<group>"; };
+		A0000002000000000000001C /* AudioCaptureService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudioCaptureService.swift; sourceTree = "<group>"; };
+		A0000002000000000000001D /* AudioLevelMonitor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudioLevelMonitor.swift; sourceTree = "<group>"; };
+		A0000002000000000000001E /* AudioDeviceServiceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudioDeviceServiceTests.swift; sourceTree = "<group>"; };
+		A0000002000000000000001F /* AudioDeviceService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudioDeviceService.swift; sourceTree = "<group>"; };
+		A00000020000000000000020 /* RecordingPillView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecordingPillView.swift; sourceTree = "<group>"; };
+		A00000020000000000000021 /* RecordingPillPanel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecordingPillPanel.swift; sourceTree = "<group>"; };
+		A00000020000000000000022 /* ObjCExceptionCatcher.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = ObjCExceptionCatcher.h; sourceTree = "<group>"; };
+		A00000020000000000000023 /* ObjCExceptionCatcher.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = ObjCExceptionCatcher.m; sourceTree = "<group>"; };
+		A00000020000000000000024 /* Speech2Text-Bridging-Header.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = "Speech2Text-Bridging-Header.h"; sourceTree = "<group>"; };
+		A00000020000000000000025 /* TranscriptionResult.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TranscriptionResult.swift; sourceTree = "<group>"; };
+		A00000020000000000000026 /* WhisperService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WhisperService.swift; sourceTree = "<group>"; };
+		A00000020000000000000027 /* AudioBufferAccumulator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudioBufferAccumulator.swift; sourceTree = "<group>"; };
+		A00000020000000000000028 /* ClipboardService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClipboardService.swift; sourceTree = "<group>"; };
+		A00000020000000000000029 /* SpacebarInterceptor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpacebarInterceptor.swift; sourceTree = "<group>"; };
+		A0000002000000000000002A /* WhisperServiceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WhisperServiceTests.swift; sourceTree = "<group>"; };
+		A0000002000000000000002B /* AudioBufferAccumulatorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudioBufferAccumulatorTests.swift; sourceTree = "<group>"; };
+		A0000002000000000000002C /* ClipboardServiceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClipboardServiceTests.swift; sourceTree = "<group>"; };
+		A0000002000000000000002D /* SpacebarInterceptorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpacebarInterceptorTests.swift; sourceTree = "<group>"; };
+		A0000002000000000000002E /* ShellPreferencesPhase3Tests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShellPreferencesPhase3Tests.swift; sourceTree = "<group>"; };
+/* End PBXFileReference section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		A00000030000000000000001 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				A00000010000000000000016 /* KeyboardShortcuts in Frameworks */,
+				A0000001000000000000002A /* whisper in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		A00000030000000000000002 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		A00000030000000000000003 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		A00000040000000000000001 = {
+			isa = PBXGroup;
+			children = (
+				A00000040000000000000002 /* Speech2Text */,
+				A00000040000000000000009 /* Speech2TextTests */,
+				A0000004000000000000000A /* Speech2TextUITests */,
+				A00000040000000000000003 /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		A00000040000000000000002 /* Speech2Text */ = {
+			isa = PBXGroup;
+			children = (
+				9352F5FB2F5E578E00A7E109 /* ggml-tiny.en.bin */,
+				A00000040000000000000004 /* App */,
+				A0000004000000000000000B /* Activation */,
+				A0000004000000000000000C /* Audio */,
+				A0000004000000000000000D /* Transcription */,
+				A0000004000000000000000E /* Clipboard */,
+				A00000040000000000000005 /* Shell */,
+				A00000040000000000000006 /* Persistence */,
+				A00000040000000000000007 /* Permissions */,
+				A00000040000000000000008 /* Readiness */,
+				A00000020000000000000003 /* Info.plist */,
+				A00000020000000000000024 /* Speech2Text-Bridging-Header.h */,
+			);
+			path = Speech2Text;
+			sourceTree = "<group>";
+		};
+		A00000040000000000000003 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				A00000020000000000000004 /* Speech2Text.app */,
+				A00000020000000000000013 /* Speech2TextTests.xctest */,
+				A00000020000000000000014 /* Speech2TextUITests.xctest */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		A00000040000000000000004 /* App */ = {
+			isa = PBXGroup;
+			children = (
+				A00000020000000000000001 /* Speech2TextApp.swift */,
+				A00000020000000000000002 /* AppDelegate.swift */,
+			);
+			path = App;
+			sourceTree = "<group>";
+		};
+		A00000040000000000000005 /* Shell */ = {
+			isa = PBXGroup;
+			children = (
+				A0000002000000000000000C /* PermissionChecklistView.swift */,
+				A00000020000000000000021 /* RecordingPillPanel.swift */,
+				A00000020000000000000020 /* RecordingPillView.swift */,
+				A0000002000000000000000D /* RecoveryActions.swift */,
+				A00000020000000000000006 /* SetupWindowView.swift */,
+				A0000002000000000000000E /* StatusCardView.swift */,
+				A00000020000000000000005 /* StatusMenuView.swift */,
+			);
+			path = Shell;
+			sourceTree = "<group>";
+		};
+		A00000040000000000000006 /* Persistence */ = {
+			isa = PBXGroup;
+			children = (
+				A00000020000000000000007 /* ShellPreferences.swift */,
+			);
+			path = Persistence;
+			sourceTree = "<group>";
+		};
+		A00000040000000000000007 /* Permissions */ = {
+			isa = PBXGroup;
+			children = (
+				A00000020000000000000008 /* KeyboardPermissionService.swift */,
+				A00000020000000000000009 /* MicrophonePermissionService.swift */,
+			);
+			path = Permissions;
+			sourceTree = "<group>";
+		};
+		A00000040000000000000008 /* Readiness */ = {
+			isa = PBXGroup;
+			children = (
+				A0000002000000000000000A /* ReadinessSnapshot.swift */,
+				A0000002000000000000000B /* ReadinessStore.swift */,
+			);
+			path = Readiness;
+			sourceTree = "<group>";
+		};
+		A00000040000000000000009 /* Speech2TextTests */ = {
+			isa = PBXGroup;
+			children = (
+				A00000020000000000000015 /* ActivationStoreTests.swift */,
+				A0000002000000000000001B /* AudioCaptureServiceTests.swift */,
+				A0000002000000000000002B /* AudioBufferAccumulatorTests.swift */,
+				A0000002000000000000001E /* AudioDeviceServiceTests.swift */,
+				A0000002000000000000002C /* ClipboardServiceTests.swift */,
+				A00000020000000000000019 /* HotkeyServiceTests.swift */,
+				A0000002000000000000000F /* PermissionServiceTests.swift */,
+				A00000020000000000000010 /* ReadinessStateTests.swift */,
+				A00000020000000000000016 /* ShellPreferencesPhase2Tests.swift */,
+				A0000002000000000000002E /* ShellPreferencesPhase3Tests.swift */,
+				A0000002000000000000002D /* SpacebarInterceptorTests.swift */,
+				A0000002000000000000002A /* WhisperServiceTests.swift */,
+			);
+			path = Speech2TextTests;
+			sourceTree = "<group>";
+		};
+		A0000004000000000000000A /* Speech2TextUITests */ = {
+			isa = PBXGroup;
+			children = (
+				A00000020000000000000011 /* MenuBarShellSmokeTests.swift */,
+				A00000020000000000000012 /* PermissionRecoveryFlowTests.swift */,
+			);
+			path = Speech2TextUITests;
+			sourceTree = "<group>";
+		};
+		A0000004000000000000000B /* Activation */ = {
+			isa = PBXGroup;
+			children = (
+				A00000020000000000000017 /* ActivationStore.swift */,
+				A0000002000000000000001A /* HotkeyService.swift */,
+				A00000020000000000000018 /* RecordingState.swift */,
+				A00000020000000000000029 /* SpacebarInterceptor.swift */,
+			);
+			path = Activation;
+			sourceTree = "<group>";
+		};
+		A0000004000000000000000C /* Audio */ = {
+			isa = PBXGroup;
+			children = (
+				A0000002000000000000001C /* AudioCaptureService.swift */,
+				A0000002000000000000001F /* AudioDeviceService.swift */,
+				A0000002000000000000001D /* AudioLevelMonitor.swift */,
+				A00000020000000000000027 /* AudioBufferAccumulator.swift */,
+				A00000020000000000000022 /* ObjCExceptionCatcher.h */,
+				A00000020000000000000023 /* ObjCExceptionCatcher.m */,
+			);
+			path = Audio;
+			sourceTree = "<group>";
+		};
+		A0000004000000000000000D /* Transcription */ = {
+			isa = PBXGroup;
+			children = (
+				A00000020000000000000025 /* TranscriptionResult.swift */,
+				A00000020000000000000026 /* WhisperService.swift */,
+			);
+			path = Transcription;
+			sourceTree = "<group>";
+		};
+		A0000004000000000000000E /* Clipboard */ = {
+			isa = PBXGroup;
+			children = (
+				A00000020000000000000028 /* ClipboardService.swift */,
+			);
+			path = Clipboard;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		A00000050000000000000001 /* Speech2Text */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = A00000070000000000000001 /* Build configuration list for PBXNativeTarget "Speech2Text" */;
+			buildPhases = (
+				A00000060000000000000001 /* Sources */,
+				A00000030000000000000001 /* Frameworks */,
+				A00000060000000000000002 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = Speech2Text;
+			packageProductDependencies = (
+				A00000130000000000000001 /* KeyboardShortcuts */,
+				A00000130000000000000002 /* whisper */,
+			);
+			productName = Speech2Text;
+			productReference = A00000020000000000000004 /* Speech2Text.app */;
+			productType = "com.apple.product-type.application";
+		};
+		A00000050000000000000002 /* Speech2TextTests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = A00000070000000000000003 /* Build configuration list for PBXNativeTarget "Speech2TextTests" */;
+			buildPhases = (
+				A00000060000000000000003 /* Sources */,
+				A00000030000000000000002 /* Frameworks */,
+				A00000060000000000000004 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				A00000120000000000000001 /* PBXTargetDependency */,
+			);
+			name = Speech2TextTests;
+			productName = Speech2TextTests;
+			productReference = A00000020000000000000013 /* Speech2TextTests.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
+		};
+		A00000050000000000000003 /* Speech2TextUITests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = A00000070000000000000004 /* Build configuration list for PBXNativeTarget "Speech2TextUITests" */;
+			buildPhases = (
+				A00000060000000000000005 /* Sources */,
+				A00000030000000000000003 /* Frameworks */,
+				A00000060000000000000006 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				A00000120000000000000002 /* PBXTargetDependency */,
+			);
+			name = Speech2TextUITests;
+			productName = Speech2TextUITests;
+			productReference = A00000020000000000000014 /* Speech2TextUITests.xctest */;
+			productType = "com.apple.product-type.bundle.ui-testing";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		A00000080000000000000001 /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = 1;
+				LastSwiftUpdateCheck = 1600;
+				LastUpgradeCheck = 1600;
+				ORGANIZATIONNAME = Speech2Text;
+				TargetAttributes = {
+					A00000050000000000000001 = {
+						CreatedOnToolsVersion = 16.0;
+					};
+					A00000050000000000000002 = {
+						CreatedOnToolsVersion = 16.0;
+						TestTargetID = A00000050000000000000001;
+					};
+					A00000050000000000000003 = {
+						CreatedOnToolsVersion = 16.0;
+						TestTargetID = A00000050000000000000001;
+					};
+				};
+			};
+			buildConfigurationList = A00000070000000000000002 /* Build configuration list for PBXProject "Speech2Text" */;
+			compatibilityVersion = "Xcode 15.0";
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				en,
+				Base,
+			);
+			mainGroup = A00000040000000000000001;
+			packageReferences = (
+				A00000140000000000000001 /* XCRemoteSwiftPackageReference "KeyboardShortcuts" */,
+				A00000140000000000000002 /* XCRemoteSwiftPackageReference "whisper" */,
+			);
+			productRefGroup = A00000040000000000000003 /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				A00000050000000000000001 /* Speech2Text */,
+				A00000050000000000000002 /* Speech2TextTests */,
+				A00000050000000000000003 /* Speech2TextUITests */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		A00000060000000000000002 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				9352F5FC2F5E578E00A7E109 /* ggml-tiny.en.bin in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		A00000060000000000000004 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		A00000060000000000000006 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		A00000060000000000000001 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				A00000010000000000000013 /* ActivationStore.swift in Sources */,
+				A00000010000000000000002 /* AppDelegate.swift in Sources */,
+				A00000010000000000000022 /* AudioBufferAccumulator.swift in Sources */,
+				A00000010000000000000019 /* AudioCaptureService.swift in Sources */,
+				A0000001000000000000001C /* AudioDeviceService.swift in Sources */,
+				A0000001000000000000001A /* AudioLevelMonitor.swift in Sources */,
+				A00000010000000000000023 /* ClipboardService.swift in Sources */,
+				A00000010000000000000017 /* HotkeyService.swift in Sources */,
+				A00000010000000000000006 /* KeyboardPermissionService.swift in Sources */,
+				A00000010000000000000007 /* MicrophonePermissionService.swift in Sources */,
+				A0000001000000000000001F /* ObjCExceptionCatcher.m in Sources */,
+				A0000001000000000000000A /* PermissionChecklistView.swift in Sources */,
+				A00000010000000000000008 /* ReadinessSnapshot.swift in Sources */,
+				A00000010000000000000009 /* ReadinessStore.swift in Sources */,
+				A0000001000000000000001E /* RecordingPillPanel.swift in Sources */,
+				A0000001000000000000001D /* RecordingPillView.swift in Sources */,
+				A00000010000000000000014 /* RecordingState.swift in Sources */,
+				A0000001000000000000000B /* RecoveryActions.swift in Sources */,
+				A00000010000000000000005 /* ShellPreferences.swift in Sources */,
+				A00000010000000000000004 /* SetupWindowView.swift in Sources */,
+				A00000010000000000000024 /* SpacebarInterceptor.swift in Sources */,
+				A00000010000000000000001 /* Speech2TextApp.swift in Sources */,
+				A0000001000000000000000C /* StatusCardView.swift in Sources */,
+				A00000010000000000000003 /* StatusMenuView.swift in Sources */,
+				A00000010000000000000020 /* TranscriptionResult.swift in Sources */,
+				A00000010000000000000021 /* WhisperService.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		A00000060000000000000003 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				A00000010000000000000011 /* ActivationStoreTests.swift in Sources */,
+				A00000010000000000000026 /* AudioBufferAccumulatorTests.swift in Sources */,
+				A00000010000000000000018 /* AudioCaptureServiceTests.swift in Sources */,
+				A0000001000000000000001B /* AudioDeviceServiceTests.swift in Sources */,
+				A00000010000000000000027 /* ClipboardServiceTests.swift in Sources */,
+				A00000010000000000000015 /* HotkeyServiceTests.swift in Sources */,
+				A0000001000000000000000D /* PermissionServiceTests.swift in Sources */,
+				A0000001000000000000000E /* ReadinessStateTests.swift in Sources */,
+				A00000010000000000000012 /* ShellPreferencesPhase2Tests.swift in Sources */,
+				A00000010000000000000029 /* ShellPreferencesPhase3Tests.swift in Sources */,
+				A00000010000000000000028 /* SpacebarInterceptorTests.swift in Sources */,
+				A00000010000000000000025 /* WhisperServiceTests.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		A00000060000000000000005 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				A0000001000000000000000F /* MenuBarShellSmokeTests.swift in Sources */,
+				A00000010000000000000010 /* PermissionRecoveryFlowTests.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		A00000120000000000000001 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = A00000050000000000000001 /* Speech2Text */;
+			targetProxy = A00000110000000000000001 /* PBXContainerItemProxy */;
+		};
+		A00000120000000000000002 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = A00000050000000000000001 /* Speech2Text */;
+			targetProxy = A00000110000000000000002 /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
+
+/* Begin XCBuildConfiguration section */
+		A00000090000000000000001 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu17;
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				ONLY_ACTIVE_ARCH = YES;
+				SDKROOT = macosx;
+				SWIFT_VERSION = 5.0;
+			};
+			name = Debug;
+		};
+		A00000090000000000000002 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu17;
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				SDKROOT = macosx;
+				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_VERSION = 5.0;
+			};
+			name = Release;
+		};
+		A00000090000000000000003 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				ENABLE_TESTABILITY = YES;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = Speech2Text/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				MARKETING_VERSION = 0.1;
+				ONLY_ACTIVE_ARCH = YES;
+				PRODUCT_BUNDLE_IDENTIFIER = com.elicarter.Speech2Text;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = macosx;
+				SUPPORTED_PLATFORMS = macosx;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_OBJC_BRIDGING_HEADER = "Speech2Text/Speech2Text-Bridging-Header.h";
+				SWIFT_VERSION = 5.0;
+			};
+			name = Debug;
+		};
+		A00000090000000000000004 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = Speech2Text/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				MARKETING_VERSION = 0.1;
+				PRODUCT_BUNDLE_IDENTIFIER = com.elicarter.Speech2Text;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = macosx;
+				SUPPORTED_PLATFORMS = macosx;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_OBJC_BRIDGING_HEADER = "Speech2Text/Speech2Text-Bridging-Header.h";
+				SWIFT_VERSION = 5.0;
+			};
+			name = Release;
+		};
+		A00000090000000000000005 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				GENERATE_INFOPLIST_FILE = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+					"@loader_path/../Frameworks",
+				);
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				ONLY_ACTIVE_ARCH = YES;
+				PRODUCT_BUNDLE_IDENTIFIER = com.elicarter.Speech2TextTests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = macosx;
+				SUPPORTED_PLATFORMS = macosx;
+				SWIFT_VERSION = 5.0;
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Speech2Text.app/Contents/MacOS/Speech2Text";
+				TEST_TARGET_NAME = Speech2Text;
+			};
+			name = Debug;
+		};
+		A00000090000000000000006 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				GENERATE_INFOPLIST_FILE = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+					"@loader_path/../Frameworks",
+				);
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.elicarter.Speech2TextTests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = macosx;
+				SUPPORTED_PLATFORMS = macosx;
+				SWIFT_VERSION = 5.0;
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Speech2Text.app/Contents/MacOS/Speech2Text";
+				TEST_TARGET_NAME = Speech2Text;
+			};
+			name = Release;
+		};
+		A00000090000000000000007 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				GENERATE_INFOPLIST_FILE = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+					"@loader_path/../Frameworks",
+				);
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				ONLY_ACTIVE_ARCH = YES;
+				PRODUCT_BUNDLE_IDENTIFIER = com.elicarter.Speech2TextUITests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = macosx;
+				SUPPORTED_PLATFORMS = macosx;
+				SWIFT_VERSION = 5.0;
+				TEST_TARGET_NAME = Speech2Text;
+			};
+			name = Debug;
+		};
+		A00000090000000000000008 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				GENERATE_INFOPLIST_FILE = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+					"@loader_path/../Frameworks",
+				);
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.elicarter.Speech2TextUITests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = macosx;
+				SUPPORTED_PLATFORMS = macosx;
+				SWIFT_VERSION = 5.0;
+				TEST_TARGET_NAME = Speech2Text;
+			};
+			name = Release;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		A00000070000000000000001 /* Build configuration list for PBXNativeTarget "Speech2Text" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				A00000090000000000000003 /* Debug */,
+				A00000090000000000000004 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		A00000070000000000000002 /* Build configuration list for PBXProject "Speech2Text" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				A00000090000000000000001 /* Debug */,
+				A00000090000000000000002 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		A00000070000000000000003 /* Build configuration list for PBXNativeTarget "Speech2TextTests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				A00000090000000000000005 /* Debug */,
+				A00000090000000000000006 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		A00000070000000000000004 /* Build configuration list for PBXNativeTarget "Speech2TextUITests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				A00000090000000000000007 /* Debug */,
+				A00000090000000000000008 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+/* End XCConfigurationList section */
+
+/* Begin XCRemoteSwiftPackageReference section */
+		A00000140000000000000001 /* XCRemoteSwiftPackageReference "KeyboardShortcuts" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/sindresorhus/KeyboardShortcuts";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 1.0.0;
+			};
+		};
+		A00000140000000000000002 /* XCRemoteSwiftPackageReference "whisper" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/ggerganov/whisper.spm";
+			requirement = {
+				branch = master;
+				kind = branch;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		A00000130000000000000001 /* KeyboardShortcuts */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = A00000140000000000000001 /* XCRemoteSwiftPackageReference "KeyboardShortcuts" */;
+			productName = KeyboardShortcuts;
+		};
+		A00000130000000000000002 /* whisper */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = A00000140000000000000002 /* XCRemoteSwiftPackageReference "whisper" */;
+			productName = whisper;
+		};
+/* End XCSwiftPackageProductDependency section */
+	};
+	rootObject = A00000080000000000000001 /* Project object */;
+}
