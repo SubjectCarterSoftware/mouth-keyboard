@@ -70,8 +70,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
                 }
             }
 
-        if preferences.shouldPresentSetupOnLaunch || forcePresentSetupOnLaunch {
-            presentSetupWindow()
+        if preferences.shouldPresentSetupOnLaunch || forcePresentSetupOnLaunch || !preferences.hasCompletedInitialSetup {
+            DispatchQueue.main.async { [weak self] in
+                NSApp.activate(ignoringOtherApps: true)
+                self?.presentSetupWindow()
+            }
         }
 
         applyUITestingOverrides()

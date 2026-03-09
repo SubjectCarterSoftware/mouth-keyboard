@@ -4,6 +4,7 @@ import SwiftUI
 
 @MainActor
 final class RecordingPillPanel: NSPanel {
+    private static let recordingSize = NSSize(width: 220, height: 44)
     private static let defaultSize = NSSize(width: 160, height: 44)
     private static let recoverySize = NSSize(width: 180, height: 44)
     private static let failureSize = NSSize(width: 220, height: 44)
@@ -111,6 +112,12 @@ final class RecordingPillPanel: NSPanel {
         let shouldShow = preferences.indicatorVisible && (feedback != nil || state != .idle)
 
         if shouldShow {
+            // Enable mouse events only during recording so the finish/cancel buttons work
+            let interactive = (state == .recording)
+            if ignoresMouseEvents == interactive {
+                ignoresMouseEvents = !interactive
+            }
+
             if currentSize != targetSize {
                 currentSize = targetSize
                 containerView.layer?.cornerRadius = targetSize.height / 2
@@ -118,6 +125,7 @@ final class RecordingPillPanel: NSPanel {
             }
             orderFrontRegardless()
         } else {
+            ignoresMouseEvents = true
             orderOut(nil)
         }
     }
@@ -128,6 +136,8 @@ final class RecordingPillPanel: NSPanel {
         }
 
         switch state {
+        case .recording:
+            return RecordingPillPanel.recordingSize
         case .failure:
             return RecordingPillPanel.failureSize
         default:
@@ -158,7 +168,9 @@ private struct RecordingPillViewWrapper: View {
         RecordingPillView(
             levelMonitor: levelMonitor,
             recordingState: activationStore.state,
-            recoveryFeedback: activationStore.recoveryFeedback
+            recoveryFeedback: activationStore.recoveryFeedback,
+            onFinish: { activationStore.arm() },
+            onCancel: { activationStore.cancelCurrentSession() }
         )
     }
 }

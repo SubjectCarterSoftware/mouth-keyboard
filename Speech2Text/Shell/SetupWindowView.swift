@@ -58,27 +58,10 @@ struct SetupWindowView: View {
 
                 Divider()
 
-                // MARK: - Hotkeys
+                // MARK: - Audio Input
 
                 VStack(alignment: .leading, spacing: 12) {
-                    Text("Hotkeys")
-                        .font(.headline)
-
-                    KeyboardShortcuts.Recorder("Activation:", name: .activate)
-                    KeyboardShortcuts.Recorder("Cancellation:", name: .cancelSession)
-
-                    Text("Press activation to start/finish recording. Press cancellation to discard.")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-
-                Divider()
-
-                // MARK: - Audio
-
-                VStack(alignment: .leading, spacing: 12) {
-                    Text("Audio")
+                    Text("Audio Input")
                         .font(.headline)
 
                     Picker("Microphone", selection: microphoneSelection) {
@@ -89,6 +72,32 @@ struct SetupWindowView: View {
                         }
                     }
                     .pickerStyle(.menu)
+                }
+
+                Divider()
+
+                // MARK: - Hotkeys
+
+                VStack(alignment: .leading, spacing: 12) {
+                    Text("Hotkeys")
+                        .font(.headline)
+
+                    KeyboardShortcuts.Recorder("Activation / Submit:", name: .activate)
+                    KeyboardShortcuts.Recorder("Cancellation:", name: .cancelSession)
+
+                    Text("Press activation to start recording and again to submit. Press cancellation to discard.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+
+                Divider()
+
+                // MARK: - Preferences
+
+                VStack(alignment: .leading, spacing: 12) {
+                    Text("Preferences")
+                        .font(.headline)
 
                     Toggle("Activation sound", isOn: $preferences.activationSoundEnabled)
                     Toggle("Show recording indicator", isOn: $preferences.indicatorVisible)
@@ -118,7 +127,7 @@ struct SetupWindowView: View {
             }
             .padding(24)
         }
-        .frame(minWidth: 440, maxWidth: 440, minHeight: 460, maxHeight: 600)
+        .frame(minWidth: 440, maxWidth: 440, minHeight: 560, maxHeight: 700)
         .background(.regularMaterial)
         .onAppear {
             audioDeviceService.refresh()

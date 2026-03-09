@@ -42,6 +42,7 @@ final class AudioCaptureServiceTests: XCTestCase {
     @MainActor
     func testStartInstallsTapWithoutOutputConnection() throws {
         let service = AudioCaptureService(
+            preferences: makePreferences(),
             engineStarter: { _ in },
             authorizationStatusProvider: { .authorized }
         )
@@ -56,6 +57,7 @@ final class AudioCaptureServiceTests: XCTestCase {
     @MainActor
     func testStopRemovesTapAndSupportsRestart() throws {
         let service = AudioCaptureService(
+            preferences: makePreferences(),
             engineStarter: { _ in },
             authorizationStatusProvider: { .authorized }
         )

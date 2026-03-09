@@ -11,9 +11,6 @@ struct StatusMenuView: View {
     let openSetup: () -> Void
     let quitApp: () -> Void
 
-    private var attentionItems: [PermissionChecklistItem] {
-        readinessStore.snapshot.permissions.filter { !$0.isAuthorized }
-    }
 
     private var canCancelSession: Bool {
         recordingState == .recording || recordingState == .processing
@@ -84,67 +81,60 @@ struct StatusMenuView: View {
         }
     }
 
-    private var menuHintText: String {
-        switch readinessStore.snapshot.state {
-        case .ready:
-            return "Speech2Text is ready to stay quiet in the menu bar until you trigger a session."
-        case .needsSetup:
-            return "Finish the checklist once and the app will settle into the quieter menu bar shell on future launches."
-        case .blocked:
-            return "One or more permissions still need recovery in System Settings before Speech2Text can become ready."
-        }
+
+    private var needsSetup: Bool {
+        readinessStore.snapshot.state != .ready
     }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
-            if !attentionItems.isEmpty {
-                PermissionChecklistView(
-                    permissions: attentionItems,
-                    requestPermission: { kind in
-                        readinessStore.requestPermission(for: kind)
-                    },
-                    openRecovery: { kind in
-                        readinessStore.openRecovery(for: kind)
+            if needsSetup {
+                Button(action: openSetup) {
+                    HStack(spacing: 6) {
+                        Image(systemName: "exclamationmark.circle.fill")
+                            .foregroundStyle(.red)
+                        Text("Settings — Setup Required")
                     }
-                )
-            }
-
-            if canCancelSession {
-                Button("Cancel Session", action: cancelSession)
-                    .accessibilityIdentifier("statusMenu.cancelSession")
-            }
-
-            if canRestartSession {
-                Button("Restart Recording", action: restartSession)
-                    .accessibilityIdentifier("statusMenu.restartSession")
-            }
-
-            if let recoveryStatusText {
-                Text(recoveryStatusText)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
-                    .accessibilityLabel(recoveryStatusText)
-                    .accessibilityIdentifier("statusMenu.recoveryMessage")
-            }
-
-            if showsMicrophoneRecoveryAction {
-                Button("Open Microphone Recovery", action: openSetup)
-                    .accessibilityIdentifier("statusMenu.openMicrophoneRecovery")
-            }
-
-            if showsMicrophoneSettingsAction {
-                Button("Open Microphone Settings") {
-                    recoveryActionPerformer.openMicrophoneSettings()
                 }
-                .accessibilityIdentifier("statusMenu.openMicrophoneSettings")
-            }
-
-            Toggle("Show recording indicator", isOn: $preferences.indicatorVisible)
-                .accessibilityIdentifier("statusMenu.indicatorVisible")
-
-            Button("Settings…", action: openSetup)
                 .accessibilityIdentifier("statusMenu.primaryAction")
+            } else {
+                if canCancelSession {
+                    Button("Cancel Session", action: cancelSession)
+                        .accessibilityIdentifier("statusMenu.cancelSession")
+                }
+
+                if canRestartSession {
+                    Button("Restart Recording", action: restartSession)
+                        .accessibilityIdentifier("statusMenu.restartSession")
+                }
+
+                if let recoveryStatusText {
+                    Text(recoveryStatusText)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .accessibilityLabel(recoveryStatusText)
+                        .accessibilityIdentifier("statusMenu.recoveryMessage")
+                }
+
+                if showsMicrophoneRecoveryAction {
+                    Button("Open Microphone Recovery", action: openSetup)
+                        .accessibilityIdentifier("statusMenu.openMicrophoneRecovery")
+                }
+
+                if showsMicrophoneSettingsAction {
+                    Button("Open Microphone Settings") {
+                        recoveryActionPerformer.openMicrophoneSettings()
+                    }
+                    .accessibilityIdentifier("statusMenu.openMicrophoneSettings")
+                }
+
+                Toggle("Show recording indicator", isOn: $preferences.indicatorVisible)
+                    .accessibilityIdentifier("statusMenu.indicatorVisible")
+
+                Button("Settings…", action: openSetup)
+                    .accessibilityIdentifier("statusMenu.primaryAction")
+            }
 
             Divider()
 

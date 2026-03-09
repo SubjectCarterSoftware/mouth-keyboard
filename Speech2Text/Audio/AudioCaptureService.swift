@@ -123,6 +123,8 @@ final class AudioCaptureService {
             return
         }
 
+        let engine = try ensureEngine()
+
         audioDeviceService.refresh()
         let selectedDevice: AudioInputDevice? = if let selectedUID = preferences.micDeviceUID {
             audioDeviceService.device(forUID: selectedUID)
@@ -133,8 +135,6 @@ final class AudioCaptureService {
         if preferences.micDeviceUID != nil, selectedDevice == nil {
             throw AudioCaptureError.selectedInputUnavailable
         }
-
-        let engine = try ensureEngine()
 
         self.levelMonitor = levelMonitor
         self.bufferAccumulator = bufferAccumulator
