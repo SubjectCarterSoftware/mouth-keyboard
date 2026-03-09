@@ -48,6 +48,7 @@ final class ActivationStore: ObservableObject {
     let bufferAccumulator: AudioBufferAccumulator
     private(set) var queuedSegments: [QueuedSegment] = []
     var soundPlayer: ActivationSoundPlayer = .init()
+    private var uiTestingLongSessionFailureSegmentIndex: Int?
     private var activeSessionID = UUID()
     private var transcriptionTask: Task<Void, Never>?
     private var queuedSegmentTasks: [Int: Task<Void, Never>] = [:]
@@ -193,6 +194,10 @@ final class ActivationStore: ObservableObject {
             guard longSessionStatus.phase != .inactive else { return }
             sealAndQueueCurrentSegment(reason: reason, phase: .recordingSegmented, sessionID: activeSessionID)
         }
+    }
+
+    func configureUITestingLongSessionFailure(segmentIndex: Int?) {
+        uiTestingLongSessionFailureSegmentIndex = segmentIndex
     }
 
     // MARK: - Private transcription flow
@@ -395,6 +400,13 @@ final class ActivationStore: ObservableObject {
             }
 
             do {
+                if self.shouldInjectUITestingFailure(for: segment.index) {
+                    self.updateQueuedSegment(index: segment.index) {
+                        $0.transcriptionState = .failed(message: TranscriptionError.inferenceFailed.localizedDescription)
+                    }
+                    return
+                }
+
                 try await self.prepareWhisperModelIfNeeded()
                 guard self.isCurrentSession(sessionID) else { return }
 
@@ -420,6 +432,10 @@ final class ActivationStore: ObservableObject {
                 }
             }
         }
+    }
+
+    private func shouldInjectUITestingFailure(for segmentIndex: Int) -> Bool {
+        uiTestingLongSessionFailureSegmentIndex == segmentIndex
     }
 
     private func settleQueuedSegmentWork(sessionID: UUID) async {

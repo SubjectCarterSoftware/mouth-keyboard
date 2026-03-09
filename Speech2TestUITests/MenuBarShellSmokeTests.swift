@@ -68,13 +68,13 @@ final class MenuBarShellSmokeTests: XCTestCase {
         XCTAssertTrue(status.waitForExistence(timeout: 5))
     }
 
-    func testPartialFailureWarningIdentifierAppearsWhenSessionResultIsIncomplete() {
+    func testLongSessionFailureFlagStillExposesWarningIdentifier() {
         let app = XCUIApplication()
         app.launchArguments = [
             "-ui-testing",
             "-complete-shell-setup",
             "-ui-testing-open-status-window",
-            "-ui-testing-long-session-warning", "2",
+            "-ui-testing-long-session-fail-segment", "2",
             "-mock-microphone-status", "authorized",
             "-mock-keyboard-status", "authorized",
         ]

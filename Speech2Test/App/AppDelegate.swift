@@ -290,6 +290,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             return
         }
 
+        activationStore.configureUITestingLongSessionFailure(
+            segmentIndex: longSessionFailureOverrideIndex(from: arguments)
+        )
+
         if let failure = captureFailureOverride(from: arguments) {
             activationStore.handleCaptureFailure(failure)
         }
@@ -380,21 +384,43 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     }
 
     private func longSessionWarningOverride(from arguments: [String]) -> LongSessionResultNotice? {
-        guard let index = arguments.firstIndex(of: "-ui-testing-long-session-warning") else {
+        if let index = arguments.firstIndex(of: "-ui-testing-long-session-warning") {
+            let valueIndex = arguments.index(after: index)
+            guard arguments.indices.contains(valueIndex),
+                  let failedSegmentCount = Int(arguments[valueIndex]),
+                  failedSegmentCount > 0 else {
+                return nil
+            }
+
+            return LongSessionResultNotice(
+                failedSegmentCount: failedSegmentCount,
+                successfulSegmentCount: max(1, failedSegmentCount + 1)
+            )
+        }
+
+        guard let failingSegmentIndex = longSessionFailureOverrideIndex(from: arguments) else {
+            return nil
+        }
+
+        return LongSessionResultNotice(
+            failedSegmentCount: 1,
+            successfulSegmentCount: max(1, failingSegmentIndex + 1)
+        )
+    }
+
+    private func longSessionFailureOverrideIndex(from arguments: [String]) -> Int? {
+        guard let index = arguments.firstIndex(of: "-ui-testing-long-session-fail-segment") else {
             return nil
         }
 
         let valueIndex = arguments.index(after: index)
         guard arguments.indices.contains(valueIndex),
-              let failedSegmentCount = Int(arguments[valueIndex]),
-              failedSegmentCount > 0 else {
+              let failingSegmentIndex = Int(arguments[valueIndex]),
+              failingSegmentIndex >= 0 else {
             return nil
         }
 
-        return LongSessionResultNotice(
-            failedSegmentCount: failedSegmentCount,
-            successfulSegmentCount: max(1, failedSegmentCount + 1)
-        )
+        return failingSegmentIndex
     }
 
     private func presentStatusMenuTestWindow(testingOverride: StatusMenuTestingOverride? = nil) {
