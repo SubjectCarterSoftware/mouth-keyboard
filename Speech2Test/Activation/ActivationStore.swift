@@ -315,7 +315,7 @@ final class ActivationStore: ObservableObject {
 
     private func prepareWhisperModelIfNeeded() async throws {
         if let whisperService = whisperService as? WhisperService,
-           let modelPath = Bundle.main.path(forResource: "ggml-small.en", ofType: "bin") {
+           let modelPath = Bundle.main.path(forResource: "ggml-tiny.en", ofType: "bin") {
             try await whisperService.ensureModelLoaded(at: modelPath)
         }
     }

@@ -8,6 +8,7 @@
 
 /* Begin PBXBuildFile section */
 		9352F5FA2F5BBF3C00A7E109 /* ggml-small.en.bin in Resources */ = {isa = PBXBuildFile; fileRef = 9352F5F92F5BBF3C00A7E109 /* ggml-small.en.bin */; };
+		9352F5FC2F5E578E00A7E109 /* ggml-tiny.en.bin in Resources */ = {isa = PBXBuildFile; fileRef = 9352F5FB2F5E578E00A7E109 /* ggml-tiny.en.bin */; };
 		A00000010000000000000001 /* Speech2TestApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000020000000000000001 /* Speech2TestApp.swift */; };
 		A00000010000000000000002 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000020000000000000002 /* AppDelegate.swift */; };
 		A00000010000000000000003 /* StatusMenuView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000020000000000000005 /* StatusMenuView.swift */; };
@@ -76,6 +77,7 @@
 
 /* Begin PBXFileReference section */
 		9352F5F92F5BBF3C00A7E109 /* ggml-small.en.bin */ = {isa = PBXFileReference; lastKnownFileType = archive.macbinary; path = "ggml-small.en.bin"; sourceTree = "<group>"; };
+		9352F5FB2F5E578E00A7E109 /* ggml-tiny.en.bin */ = {isa = PBXFileReference; lastKnownFileType = archive.macbinary; path = "ggml-tiny.en.bin"; sourceTree = "<group>"; };
 		A00000020000000000000001 /* Speech2TestApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Speech2TestApp.swift; sourceTree = "<group>"; };
 		A00000020000000000000002 /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
 		A00000020000000000000003 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
@@ -169,6 +171,7 @@
 		A00000040000000000000002 /* Speech2Test */ = {
 			isa = PBXGroup;
 			children = (
+				9352F5FB2F5E578E00A7E109 /* ggml-tiny.en.bin */,
 				9352F5F92F5BBF3C00A7E109 /* ggml-small.en.bin */,
 				A00000040000000000000004 /* App */,
 				A0000004000000000000000B /* Activation */,
@@ -431,6 +434,7 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				9352F5FC2F5E578E00A7E109 /* ggml-tiny.en.bin in Resources */,
 				9352F5FA2F5BBF3C00A7E109 /* ggml-small.en.bin in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;

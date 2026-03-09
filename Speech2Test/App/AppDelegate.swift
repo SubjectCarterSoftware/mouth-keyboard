@@ -53,7 +53,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
 
         // Load Whisper model from bundle (non-blocking — log error if missing).
         Task {
-            if let modelPath = Bundle.main.path(forResource: "ggml-small.en", ofType: "bin") {
+            if let modelPath = Bundle.main.path(forResource: "ggml-tiny.en", ofType: "bin") {
                 do {
                     try await WhisperService.shared.ensureModelLoaded(at: modelPath)
                     NSLog("WhisperService: model loaded from \(modelPath)")
@@ -61,7 +61,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
                     NSLog("WhisperService: failed to load model at \(modelPath): \(error.localizedDescription)")
                 }
             } else {
-                NSLog("WhisperService: model 'ggml-small.en.bin' not found in app bundle — transcription unavailable")
+                NSLog("WhisperService: model 'ggml-tiny.en.bin' not found in app bundle — transcription unavailable")
             }
         }
 
