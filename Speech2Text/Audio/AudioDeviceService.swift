@@ -12,8 +12,8 @@ struct AudioInputDevice: Identifiable, Equatable {
 
 @MainActor
 final class AudioDeviceService: ObservableObject {
-    typealias DeviceEnumerator = () -> [AudioInputDevice]
-    typealias AudioUnitSetter = (AudioUnit, AudioDeviceID) -> OSStatus
+    typealias DeviceEnumerator = @MainActor () -> [AudioInputDevice]
+    typealias AudioUnitSetter = @MainActor (AudioUnit, AudioDeviceID) -> OSStatus
 
     static let shared = AudioDeviceService()
 
@@ -219,13 +219,19 @@ final class AudioDeviceService: ObservableObject {
             return nil
         }
 
-        var cfString: CFString = "" as CFString
-        var dataSize = UInt32(MemoryLayout<CFString>.stride)
+        var cfString: Unmanaged<CFString>?
+        var dataSize = UInt32(MemoryLayout<Unmanaged<CFString>>.stride)
         guard AudioObjectGetPropertyData(deviceID, &address, 0, nil, &dataSize, &cfString) == noErr else {
             return nil
         }
 
-        return cfString as String
+        guard let unmanaged = cfString else {
+            return nil
+        }
+
+        let string = unmanaged.takeUnretainedValue() as String
+        unmanaged.release()
+        return string
     }
 
     private static func defaultAudioUnitSetter(_ audioUnit: AudioUnit, _ deviceID: AudioDeviceID) -> OSStatus {
