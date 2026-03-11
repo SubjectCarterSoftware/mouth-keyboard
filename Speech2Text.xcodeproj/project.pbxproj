@@ -8,6 +8,8 @@
 
 /* Begin PBXBuildFile section */
 		9352F5FC2F5E578E00A7E109 /* ggml-tiny.en.bin in Resources */ = {isa = PBXBuildFile; fileRef = 9352F5FB2F5E578E00A7E109 /* ggml-tiny.en.bin */; };
+		93DB3C462F5FBB65001946A2 /* ggml-small.en.bin in Resources */ = {isa = PBXBuildFile; fileRef = 93DB3C442F5FBB65001946A2 /* ggml-small.en.bin */; };
+		93DB3C492F5FBB9D001946A2 /* ggml-base.en.bin in Resources */ = {isa = PBXBuildFile; fileRef = 93DB3C482F5FBB9D001946A2 /* ggml-base.en.bin */; };
 		A00000010000000000000001 /* Speech2TextApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000020000000000000001 /* Speech2TextApp.swift */; };
 		A00000010000000000000002 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000020000000000000002 /* AppDelegate.swift */; };
 		A00000010000000000000003 /* StatusMenuView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000020000000000000005 /* StatusMenuView.swift */; };
@@ -50,6 +52,8 @@
 		A00000010000000000000028 /* SpacebarInterceptorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0000002000000000000002D /* SpacebarInterceptorTests.swift */; };
 		A00000010000000000000029 /* ShellPreferencesPhase3Tests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0000002000000000000002E /* ShellPreferencesPhase3Tests.swift */; };
 		A0000001000000000000002A /* whisper in Frameworks */ = {isa = PBXBuildFile; productRef = A00000130000000000000002 /* whisper */; };
+		A0000001000000000000002B /* WhisperModelChoice.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0000002000000000000002F /* WhisperModelChoice.swift */; };
+		A0000001000000000000002C /* ShellPreferencesModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000020000000000000030 /* ShellPreferencesModelTests.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -71,6 +75,8 @@
 
 /* Begin PBXFileReference section */
 		9352F5FB2F5E578E00A7E109 /* ggml-tiny.en.bin */ = {isa = PBXFileReference; lastKnownFileType = archive.macbinary; path = "ggml-tiny.en.bin"; sourceTree = "<group>"; };
+		93DB3C442F5FBB65001946A2 /* ggml-small.en.bin */ = {isa = PBXFileReference; lastKnownFileType = archive.macbinary; path = "ggml-small.en.bin"; sourceTree = "<group>"; };
+		93DB3C482F5FBB9D001946A2 /* ggml-base.en.bin */ = {isa = PBXFileReference; lastKnownFileType = archive.macbinary; path = "ggml-base.en.bin"; sourceTree = "<group>"; };
 		A00000020000000000000001 /* Speech2TextApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Speech2TextApp.swift; sourceTree = "<group>"; };
 		A00000020000000000000002 /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
 		A00000020000000000000003 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
@@ -117,6 +123,8 @@
 		A0000002000000000000002C /* ClipboardServiceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClipboardServiceTests.swift; sourceTree = "<group>"; };
 		A0000002000000000000002D /* SpacebarInterceptorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpacebarInterceptorTests.swift; sourceTree = "<group>"; };
 		A0000002000000000000002E /* ShellPreferencesPhase3Tests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShellPreferencesPhase3Tests.swift; sourceTree = "<group>"; };
+		A0000002000000000000002F /* WhisperModelChoice.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WhisperModelChoice.swift; sourceTree = "<group>"; };
+		A00000020000000000000030 /* ShellPreferencesModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShellPreferencesModelTests.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -159,6 +167,8 @@
 		A00000040000000000000002 /* Speech2Text */ = {
 			isa = PBXGroup;
 			children = (
+				93DB3C482F5FBB9D001946A2 /* ggml-base.en.bin */,
+				93DB3C442F5FBB65001946A2 /* ggml-small.en.bin */,
 				9352F5FB2F5E578E00A7E109 /* ggml-tiny.en.bin */,
 				A00000040000000000000004 /* App */,
 				A0000004000000000000000B /* Activation */,
@@ -247,6 +257,7 @@
 				A00000020000000000000010 /* ReadinessStateTests.swift */,
 				A00000020000000000000016 /* ShellPreferencesPhase2Tests.swift */,
 				A0000002000000000000002E /* ShellPreferencesPhase3Tests.swift */,
+				A00000020000000000000030 /* ShellPreferencesModelTests.swift */,
 				A0000002000000000000002D /* SpacebarInterceptorTests.swift */,
 				A0000002000000000000002A /* WhisperServiceTests.swift */,
 			);
@@ -290,6 +301,7 @@
 			isa = PBXGroup;
 			children = (
 				A00000020000000000000025 /* TranscriptionResult.swift */,
+				A0000002000000000000002F /* WhisperModelChoice.swift */,
 				A00000020000000000000026 /* WhisperService.swift */,
 			);
 			path = Transcription;
@@ -416,7 +428,9 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				93DB3C462F5FBB65001946A2 /* ggml-small.en.bin in Resources */,
 				9352F5FC2F5E578E00A7E109 /* ggml-tiny.en.bin in Resources */,
+				93DB3C492F5FBB9D001946A2 /* ggml-base.en.bin in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -467,6 +481,7 @@
 				A00000010000000000000003 /* StatusMenuView.swift in Sources */,
 				A00000010000000000000020 /* TranscriptionResult.swift in Sources */,
 				A00000010000000000000021 /* WhisperService.swift in Sources */,
+				A0000001000000000000002B /* WhisperModelChoice.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -484,6 +499,7 @@
 				A0000001000000000000000E /* ReadinessStateTests.swift in Sources */,
 				A00000010000000000000012 /* ShellPreferencesPhase2Tests.swift in Sources */,
 				A00000010000000000000029 /* ShellPreferencesPhase3Tests.swift in Sources */,
+				A0000001000000000000002C /* ShellPreferencesModelTests.swift in Sources */,
 				A00000010000000000000028 /* SpacebarInterceptorTests.swift in Sources */,
 				A00000010000000000000025 /* WhisperServiceTests.swift in Sources */,
 			);

@@ -12,6 +12,7 @@ final class ShellPreferences: ObservableObject {
         static let activationSoundEnabled = "activationSoundEnabled"
         static let micDeviceUID = "micDeviceUID"
         static let indicatorVisible = "indicatorVisible"
+        static let whisperModel = "whisperModel"
     }
 
     static let shared = makeShared()
@@ -64,6 +65,14 @@ final class ShellPreferences: ObservableObject {
         }
     }
 
+    @Published var whisperModel: WhisperModelChoice {
+        didSet {
+            persistIfNeeded {
+                defaults.set(whisperModel.rawValue, forKey: Keys.whisperModel)
+            }
+        }
+    }
+
     var shouldPresentSetupOnLaunch: Bool {
         !hasCompletedInitialSetup
     }
@@ -92,6 +101,13 @@ final class ShellPreferences: ObservableObject {
         }
 
         indicatorVisible = userDefaults.object(forKey: Keys.indicatorVisible) as? Bool ?? true
+
+        if let storedModel = userDefaults.string(forKey: Keys.whisperModel),
+           let model = WhisperModelChoice(rawValue: storedModel) {
+            whisperModel = model
+        } else {
+            whisperModel = .tinyEN
+        }
     }
 
     func completeInitialSetup() {
@@ -115,6 +131,7 @@ final class ShellPreferences: ObservableObject {
             activationSoundEnabled = true
             micDeviceUID = nil
             indicatorVisible = true
+            whisperModel = .tinyEN
         }
 
         defaults.removeObject(forKey: Keys.hasCompletedInitialSetup)
@@ -124,6 +141,7 @@ final class ShellPreferences: ObservableObject {
         defaults.removeObject(forKey: Keys.activationSoundEnabled)
         defaults.removeObject(forKey: Keys.micDeviceUID)
         defaults.removeObject(forKey: Keys.indicatorVisible)
+        defaults.removeObject(forKey: Keys.whisperModel)
     }
 
     private static func makeShared() -> ShellPreferences {

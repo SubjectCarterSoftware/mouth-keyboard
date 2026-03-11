@@ -101,6 +101,13 @@ struct SetupWindowView: View {
 
                     Toggle("Activation sound", isOn: $preferences.activationSoundEnabled)
                     Toggle("Show recording indicator", isOn: $preferences.indicatorVisible)
+
+                    Picker("Transcription Model", selection: $preferences.whisperModel) {
+                        ForEach(WhisperModelChoice.allCases) { model in
+                            Text(model.displayName).tag(model)
+                        }
+                    }
+                    .pickerStyle(.menu)
                 }
 
                 Spacer(minLength: 16)
