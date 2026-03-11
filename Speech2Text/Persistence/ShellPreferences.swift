@@ -1,5 +1,6 @@
 import Combine
 import Foundation
+import ServiceManagement
 
 @MainActor
 final class ShellPreferences: ObservableObject {
@@ -13,6 +14,8 @@ final class ShellPreferences: ObservableObject {
         static let micDeviceUID = "micDeviceUID"
         static let indicatorVisible = "indicatorVisible"
         static let whisperModel = "whisperModel"
+        static let autoModelSelection = "autoModelSelection"
+        static let launchAtLogin = "launchAtLogin"
     }
 
     static let shared = makeShared()
@@ -73,6 +76,16 @@ final class ShellPreferences: ObservableObject {
         }
     }
 
+    @Published var autoModelSelection: Bool {
+        didSet {
+            persistIfNeeded {
+                defaults.set(autoModelSelection, forKey: Keys.autoModelSelection)
+            }
+        }
+    }
+
+    @Published private(set) var launchAtLogin: Bool
+
     var shouldPresentSetupOnLaunch: Bool {
         !hasCompletedInitialSetup
     }
@@ -108,6 +121,10 @@ final class ShellPreferences: ObservableObject {
         } else {
             whisperModel = .tinyEN
         }
+
+        autoModelSelection = userDefaults.object(forKey: Keys.autoModelSelection) as? Bool ?? true
+
+        launchAtLogin = SMAppService.mainApp.status == .enabled
     }
 
     func completeInitialSetup() {
@@ -122,6 +139,19 @@ final class ShellPreferences: ObservableObject {
         hasRequestedKeyboardPermission = true
     }
 
+    func setLaunchAtLogin(_ enabled: Bool) {
+        do {
+            if enabled {
+                try SMAppService.mainApp.register()
+            } else {
+                try SMAppService.mainApp.unregister()
+            }
+        } catch {
+            NSLog("Speech2Text: failed to update launch-at-login: \(error.localizedDescription)")
+        }
+        launchAtLogin = SMAppService.mainApp.status == .enabled
+    }
+
     func reset() {
         withPersistenceSuspended {
             hasCompletedInitialSetup = false
@@ -132,6 +162,7 @@ final class ShellPreferences: ObservableObject {
             micDeviceUID = nil
             indicatorVisible = true
             whisperModel = .tinyEN
+            autoModelSelection = true
         }
 
         defaults.removeObject(forKey: Keys.hasCompletedInitialSetup)
@@ -142,6 +173,7 @@ final class ShellPreferences: ObservableObject {
         defaults.removeObject(forKey: Keys.micDeviceUID)
         defaults.removeObject(forKey: Keys.indicatorVisible)
         defaults.removeObject(forKey: Keys.whisperModel)
+        defaults.removeObject(forKey: Keys.autoModelSelection)
     }
 
     private static func makeShared() -> ShellPreferences {

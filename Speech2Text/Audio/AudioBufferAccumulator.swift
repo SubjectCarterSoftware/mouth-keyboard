@@ -32,6 +32,14 @@ class AudioBufferAccumulator {
         return buffers.reduce(0) { $0 + $1.frameLength }
     }
 
+    /// Total duration of accumulated audio in seconds.
+    var duration: TimeInterval {
+        lock.lock()
+        defer { lock.unlock() }
+        guard let format = inputFormat, format.sampleRate > 0 else { return 0 }
+        return Double(buffers.reduce(0) { $0 + $1.frameLength }) / format.sampleRate
+    }
+
     func convertToWhisperFormat() throws -> [Float] {
         let snapshot = try snapshot()
         return try Self.convertToWhisperFormat(buffers: snapshot.buffers, format: snapshot.format)

@@ -35,6 +35,7 @@ actor WhisperService: WhisperTranscribing {
     static let shared = WhisperService()
 
     private var context: OpaquePointer?
+    private var currentModelPath: String?
 
     deinit {
         if let ctx = context {
@@ -43,6 +44,7 @@ actor WhisperService: WhisperTranscribing {
     }
 
     func loadModel(at path: String) throws {
+        guard path != currentModelPath else { return }
         var params = whisper_context_default_params()
         params.flash_attn = true
         guard let ctx = whisper_init_from_file_with_params(path, params) else {
@@ -52,6 +54,7 @@ actor WhisperService: WhisperTranscribing {
             whisper_free(existing)
         }
         context = ctx
+        currentModelPath = path
     }
 
     func ensureModelLoaded(at path: String) throws {

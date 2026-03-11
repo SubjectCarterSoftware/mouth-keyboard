@@ -270,9 +270,18 @@ final class ActivationStore: ObservableObject {
     }
 
     private func prepareWhisperModelIfNeeded() async throws {
-        if let whisperService = whisperService as? WhisperService,
-           let modelPath = Bundle.main.path(forResource: preferences.whisperModel.rawValue, ofType: "bin") {
-            try await whisperService.ensureModelLoaded(at: modelPath)
+        if let whisperService = whisperService as? WhisperService {
+            let modelChoice: WhisperModelChoice
+            if preferences.autoModelSelection {
+                let duration = bufferAccumulator.duration
+                modelChoice = WhisperModelChoice.forDuration(duration)
+            } else {
+                modelChoice = preferences.whisperModel
+            }
+
+            if let modelPath = Bundle.main.path(forResource: modelChoice.rawValue, ofType: "bin") {
+                try await whisperService.loadModel(at: modelPath)
+            }
         }
     }
 

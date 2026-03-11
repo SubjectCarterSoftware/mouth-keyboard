@@ -86,6 +86,7 @@ final class ReadinessStore: ObservableObject {
         }
 
         preferences.completeInitialSetup()
+        preferences.setLaunchAtLogin(true)
         refresh()
         return true
     }

@@ -101,6 +101,18 @@ struct SetupWindowView: View {
 
                     Toggle("Activation sound", isOn: $preferences.activationSoundEnabled)
                     Toggle("Show recording indicator", isOn: $preferences.indicatorVisible)
+                    Toggle("Launch at Login", isOn: Binding(
+                        get: { preferences.launchAtLogin },
+                        set: { preferences.setLaunchAtLogin($0) }
+                    ))
+
+                    Toggle("Auto-select model", isOn: $preferences.autoModelSelection)
+
+                    if preferences.autoModelSelection {
+                        Text("Model auto selection is based on recording time\nTiny under 5s · Base 5–15s · Small over 15s")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
 
                     Picker("Transcription Model", selection: $preferences.whisperModel) {
                         ForEach(WhisperModelChoice.allCases) { model in
@@ -108,6 +120,7 @@ struct SetupWindowView: View {
                         }
                     }
                     .pickerStyle(.menu)
+                    .disabled(preferences.autoModelSelection)
                 }
 
                 Spacer(minLength: 16)
