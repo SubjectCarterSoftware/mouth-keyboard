@@ -2,6 +2,10 @@ import AVFoundation
 import CoreAudio
 import Foundation
 
+protocol AudioBufferReceiving: AnyObject {
+    nonisolated func append(_ buffer: AVAudioPCMBuffer)
+}
+
 enum AudioCaptureError: LocalizedError {
     case microphonePermissionDenied
     case selectedInputUnavailable
@@ -42,7 +46,7 @@ final class AudioCaptureService {
     private let authorizationStatusProvider: () -> AVAuthorizationStatus
     private let hasDefaultInputDeviceProvider: () -> Bool
     private var levelMonitor: AudioLevelMonitor?
-    private var bufferAccumulator: AudioBufferAccumulator?
+    private var bufferReceiver: (any AudioBufferReceiving)?
     private var hasInstalledTap = false
     private var observedDeviceUID: String?
     var onCaptureFailure: (@MainActor (AudioCaptureError) -> Void)?
@@ -118,7 +122,7 @@ final class AudioCaptureService {
     }
 
     @MainActor
-    func start(levelMonitor: AudioLevelMonitor, bufferAccumulator: AudioBufferAccumulator? = nil) throws {
+    func start(levelMonitor: AudioLevelMonitor, bufferReceiver: (any AudioBufferReceiving)? = nil) throws {
         guard !hasInstalledTap else {
             return
         }
@@ -137,7 +141,7 @@ final class AudioCaptureService {
         }
 
         self.levelMonitor = levelMonitor
-        self.bufferAccumulator = bufferAccumulator
+        self.bufferReceiver = bufferReceiver
         levelMonitor.reset()
         audioDeviceService.unregisterDisconnectListener()
         observedDeviceUID = nil
@@ -169,7 +173,7 @@ final class AudioCaptureService {
         // Specifying a mismatched format causes silent -10877 errors.
         inputNode.installTap(onBus: 0, bufferSize: 4_096, format: nil) { [weak self] buffer, _ in
             self?.levelMonitor?.process(buffer: buffer)
-            self?.bufferAccumulator?.append(buffer)
+            self?.bufferReceiver?.append(buffer)
         }
         hasInstalledTap = true
 
@@ -202,7 +206,7 @@ final class AudioCaptureService {
         // ensureEngine() detects it is no longer usable.
         levelMonitor?.reset()
         levelMonitor = nil
-        bufferAccumulator = nil
+        bufferReceiver = nil
     }
 
     @MainActor

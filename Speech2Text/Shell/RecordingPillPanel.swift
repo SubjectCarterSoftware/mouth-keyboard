@@ -12,12 +12,11 @@ final class RecordingPillPanel: NSPanel {
     private var currentSize: NSSize = RecordingPillPanel.defaultSize
     private var screenObserver: NSObjectProtocol?
     private var stateObserver: AnyCancellable?
-    private var prefObserver: AnyCancellable?
 
     private let hostingView: NSHostingView<RecordingPillViewWrapper>
     private let containerView: NSVisualEffectView
 
-    init(levelMonitor: AudioLevelMonitor, activationStore: ActivationStore, preferences: ShellPreferences) {
+    init(levelMonitor: AudioLevelMonitor, activationStore: ActivationStore) {
         let initialSize = RecordingPillPanel.defaultSize
 
         let wrapper = RecordingPillViewWrapper(
@@ -76,19 +75,7 @@ final class RecordingPillPanel: NSPanel {
         )
             .receive(on: DispatchQueue.main)
             .sink { [weak self] state, feedback in
-                self?.updatePresentation(state: state, feedback: feedback, preferences: preferences)
-            }
-
-        // Observe indicator visibility preference.
-        prefObserver = preferences.$indicatorVisible
-            .receive(on: DispatchQueue.main)
-            .sink { [weak self] _ in
-                guard let self else { return }
-                self.updatePresentation(
-                    state: activationStore.state,
-                    feedback: activationStore.recoveryFeedback,
-                    preferences: preferences
-                )
+                self?.updatePresentation(state: state, feedback: feedback)
             }
     }
 
@@ -103,13 +90,9 @@ final class RecordingPillPanel: NSPanel {
 
     // MARK: - State-driven updates
 
-    func updatePresentation(
-        state: RecordingState,
-        feedback: RecordingState.RecoveryFeedback?,
-        preferences: ShellPreferences
-    ) {
+    func updatePresentation(state: RecordingState, feedback: RecordingState.RecoveryFeedback?) {
         let targetSize = panelSize(for: state, feedback: feedback)
-        let shouldShow = preferences.indicatorVisible && (feedback != nil || state != .idle)
+        let shouldShow = feedback != nil || state != .idle
 
         if shouldShow {
             // Enable mouse events only during recording so the finish/cancel buttons work

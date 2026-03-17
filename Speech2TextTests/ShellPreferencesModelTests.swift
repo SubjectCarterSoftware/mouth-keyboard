@@ -4,9 +4,9 @@ import XCTest
 @MainActor
 final class ShellPreferencesModelTests: XCTestCase {
 
-    func testWhisperModelDefaultsToTinyEN() {
+    func testWhisperModelDefaultsToBaseEN() {
         let (_, preferences) = makePreferences()
-        XCTAssertEqual(preferences.whisperModel, .tinyEN)
+        XCTAssertEqual(preferences.whisperModel, .baseEN)
     }
 
     func testSettingWhisperModelPersistsToDefaults() {
@@ -21,52 +21,52 @@ final class ShellPreferencesModelTests: XCTestCase {
         XCTAssertFalse(preferences.launchAtLogin)
     }
 
-    func testResetRestoresWhisperModelToTinyEN() {
+    func testResetRestoresWhisperModelToBaseEN() {
         let (_, preferences) = makePreferences()
-        preferences.whisperModel = .baseEN
+        preferences.whisperModel = .smallEN
         preferences.reset()
-        XCTAssertEqual(preferences.whisperModel, .tinyEN)
+        XCTAssertEqual(preferences.whisperModel, .baseEN)
     }
 
     // MARK: - Auto Model Selection
 
-    func testAutoModelSelectionDefaultsToTrue() {
+    func testAutoModelSelectionDefaultsToFalse() {
         let (_, preferences) = makePreferences()
-        XCTAssertTrue(preferences.autoModelSelection)
+        XCTAssertFalse(preferences.autoModelSelection)
     }
 
     func testSettingAutoModelSelectionPersistsToDefaults() {
         let (defaults, preferences) = makePreferences()
-        preferences.autoModelSelection = false
+        preferences.autoModelSelection = true
         let reloaded = ShellPreferences(userDefaults: defaults)
-        XCTAssertFalse(reloaded.autoModelSelection)
+        XCTAssertTrue(reloaded.autoModelSelection)
     }
 
-    func testResetRestoresAutoModelSelectionToTrue() {
+    func testResetRestoresAutoModelSelectionToFalse() {
         let (_, preferences) = makePreferences()
-        preferences.autoModelSelection = false
+        preferences.autoModelSelection = true
         preferences.reset()
-        XCTAssertTrue(preferences.autoModelSelection)
+        XCTAssertFalse(preferences.autoModelSelection)
     }
 
     // MARK: - WhisperModelChoice.forDuration
 
     func testForDurationReturnsTinyForShortRecordings() {
         XCTAssertEqual(WhisperModelChoice.forDuration(0), .tinyEN)
-        XCTAssertEqual(WhisperModelChoice.forDuration(2.5), .tinyEN)
-        XCTAssertEqual(WhisperModelChoice.forDuration(4.99), .tinyEN)
+        XCTAssertEqual(WhisperModelChoice.forDuration(30), .tinyEN)
+        XCTAssertEqual(WhisperModelChoice.forDuration(59.99), .tinyEN)
     }
 
     func testForDurationReturnsBaseForMediumRecordings() {
-        XCTAssertEqual(WhisperModelChoice.forDuration(5.0), .baseEN)
-        XCTAssertEqual(WhisperModelChoice.forDuration(10), .baseEN)
-        XCTAssertEqual(WhisperModelChoice.forDuration(14.99), .baseEN)
+        XCTAssertEqual(WhisperModelChoice.forDuration(60.0), .baseEN)
+        XCTAssertEqual(WhisperModelChoice.forDuration(180), .baseEN)
+        XCTAssertEqual(WhisperModelChoice.forDuration(299.99), .baseEN)
     }
 
     func testForDurationReturnsSmallForLongRecordings() {
-        XCTAssertEqual(WhisperModelChoice.forDuration(15.0), .smallEN)
-        XCTAssertEqual(WhisperModelChoice.forDuration(30), .smallEN)
-        XCTAssertEqual(WhisperModelChoice.forDuration(120), .smallEN)
+        XCTAssertEqual(WhisperModelChoice.forDuration(300.0), .smallEN)
+        XCTAssertEqual(WhisperModelChoice.forDuration(600), .smallEN)
+        XCTAssertEqual(WhisperModelChoice.forDuration(1200), .smallEN)
     }
 
     private func makePreferences(file: StaticString = #filePath, line: UInt = #line) -> (UserDefaults, ShellPreferences) {

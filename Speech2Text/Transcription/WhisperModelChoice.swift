@@ -17,8 +17,8 @@ enum WhisperModelChoice: String, CaseIterable, Identifiable {
 
     /// Selects the appropriate model based on recording duration.
     static func forDuration(_ seconds: TimeInterval) -> WhisperModelChoice {
-        if seconds < 5  { return .tinyEN }
-        if seconds < 15 { return .baseEN }
+        if seconds < 60 { return .tinyEN }
+        if seconds < 300 { return .baseEN }
         return .smallEN
     }
 }

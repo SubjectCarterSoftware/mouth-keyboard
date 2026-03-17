@@ -26,13 +26,9 @@ struct StatusMenuView: View {
         if let recoveryFeedback {
             switch recoveryFeedback {
             case .canceled:
-                return preferences.indicatorVisible
-                    ? "Last session canceled."
-                    : "Last session canceled. The menu is carrying confirmation because the indicator is hidden."
+                return "Last session canceled."
             case .restarted:
-                return preferences.indicatorVisible
-                    ? "Recording restarted from a clean buffer."
-                    : "Recording restarted from a clean buffer. The menu is carrying confirmation because the indicator is hidden."
+                return "Recording restarted from a clean buffer."
             }
         }
 
@@ -131,9 +127,6 @@ struct StatusMenuView: View {
                     .accessibilityIdentifier("statusMenu.openMicrophoneSettings")
                 }
 
-                Toggle("Show recording indicator", isOn: $preferences.indicatorVisible)
-                    .accessibilityIdentifier("statusMenu.indicatorVisible")
-
                 Button("Settings…", action: openSetup)
                     .accessibilityIdentifier("statusMenu.primaryAction")
             }
@@ -173,11 +166,4 @@ struct StatusMenuView: View {
         }
     }
 
-    private func menuCarriedText(_ text: String) -> String {
-        if preferences.indicatorVisible {
-            return text
-        }
-
-        return "\(text) The menu is carrying this status because the indicator is hidden."
-    }
 }

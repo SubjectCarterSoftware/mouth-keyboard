@@ -8,6 +8,9 @@
 
 /* Begin PBXBuildFile section */
 		9352F5FC2F5E578E00A7E109 /* ggml-tiny.en.bin in Resources */ = {isa = PBXBuildFile; fileRef = 9352F5FB2F5E578E00A7E109 /* ggml-tiny.en.bin */; };
+		A0000001000000000000002F /* Tink.aiff in Resources */ = {isa = PBXBuildFile; fileRef = A00000020000000000000033 /* Tink.aiff */; };
+		A00000010000000000000030 /* Glass.aiff in Resources */ = {isa = PBXBuildFile; fileRef = A00000020000000000000034 /* Glass.aiff */; };
+		A00000010000000000000031 /* Basso.aiff in Resources */ = {isa = PBXBuildFile; fileRef = A00000020000000000000035 /* Basso.aiff */; };
 		93DB3C462F5FBB65001946A2 /* ggml-small.en.bin in Resources */ = {isa = PBXBuildFile; fileRef = 93DB3C442F5FBB65001946A2 /* ggml-small.en.bin */; };
 		93DB3C492F5FBB9D001946A2 /* ggml-base.en.bin in Resources */ = {isa = PBXBuildFile; fileRef = 93DB3C482F5FBB9D001946A2 /* ggml-base.en.bin */; };
 		A00000010000000000000001 /* Speech2TextApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000020000000000000001 /* Speech2TextApp.swift */; };
@@ -50,10 +53,11 @@
 		A00000010000000000000026 /* AudioBufferAccumulatorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0000002000000000000002B /* AudioBufferAccumulatorTests.swift */; };
 		A00000010000000000000027 /* ClipboardServiceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0000002000000000000002C /* ClipboardServiceTests.swift */; };
 		A00000010000000000000028 /* SpacebarInterceptorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0000002000000000000002D /* SpacebarInterceptorTests.swift */; };
-		A00000010000000000000029 /* ShellPreferencesPhase3Tests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0000002000000000000002E /* ShellPreferencesPhase3Tests.swift */; };
 		A0000001000000000000002A /* whisper in Frameworks */ = {isa = PBXBuildFile; productRef = A00000130000000000000002 /* whisper */; };
 		A0000001000000000000002B /* WhisperModelChoice.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0000002000000000000002F /* WhisperModelChoice.swift */; };
 		A0000001000000000000002C /* ShellPreferencesModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000020000000000000030 /* ShellPreferencesModelTests.swift */; };
+		A0000001000000000000002D /* VoiceActivityDetector.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000020000000000000031 /* VoiceActivityDetector.swift */; };
+		A0000001000000000000002E /* VoiceActivityDetectorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000020000000000000032 /* VoiceActivityDetectorTests.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -75,6 +79,9 @@
 
 /* Begin PBXFileReference section */
 		9352F5FB2F5E578E00A7E109 /* ggml-tiny.en.bin */ = {isa = PBXFileReference; lastKnownFileType = archive.macbinary; path = "ggml-tiny.en.bin"; sourceTree = "<group>"; };
+		A00000020000000000000033 /* Tink.aiff */ = {isa = PBXFileReference; lastKnownFileType = audio.aiff; path = "Resources/Sounds/Tink.aiff"; sourceTree = "<group>"; };
+		A00000020000000000000034 /* Glass.aiff */ = {isa = PBXFileReference; lastKnownFileType = audio.aiff; path = "Resources/Sounds/Glass.aiff"; sourceTree = "<group>"; };
+		A00000020000000000000035 /* Basso.aiff */ = {isa = PBXFileReference; lastKnownFileType = audio.aiff; path = "Resources/Sounds/Basso.aiff"; sourceTree = "<group>"; };
 		93DB3C442F5FBB65001946A2 /* ggml-small.en.bin */ = {isa = PBXFileReference; lastKnownFileType = archive.macbinary; path = "ggml-small.en.bin"; sourceTree = "<group>"; };
 		93DB3C482F5FBB9D001946A2 /* ggml-base.en.bin */ = {isa = PBXFileReference; lastKnownFileType = archive.macbinary; path = "ggml-base.en.bin"; sourceTree = "<group>"; };
 		A00000020000000000000001 /* Speech2TextApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Speech2TextApp.swift; sourceTree = "<group>"; };
@@ -122,9 +129,10 @@
 		A0000002000000000000002B /* AudioBufferAccumulatorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudioBufferAccumulatorTests.swift; sourceTree = "<group>"; };
 		A0000002000000000000002C /* ClipboardServiceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClipboardServiceTests.swift; sourceTree = "<group>"; };
 		A0000002000000000000002D /* SpacebarInterceptorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpacebarInterceptorTests.swift; sourceTree = "<group>"; };
-		A0000002000000000000002E /* ShellPreferencesPhase3Tests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShellPreferencesPhase3Tests.swift; sourceTree = "<group>"; };
 		A0000002000000000000002F /* WhisperModelChoice.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WhisperModelChoice.swift; sourceTree = "<group>"; };
 		A00000020000000000000030 /* ShellPreferencesModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShellPreferencesModelTests.swift; sourceTree = "<group>"; };
+		A00000020000000000000031 /* VoiceActivityDetector.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VoiceActivityDetector.swift; sourceTree = "<group>"; };
+		A00000020000000000000032 /* VoiceActivityDetectorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VoiceActivityDetectorTests.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -170,6 +178,9 @@
 				93DB3C482F5FBB9D001946A2 /* ggml-base.en.bin */,
 				93DB3C442F5FBB65001946A2 /* ggml-small.en.bin */,
 				9352F5FB2F5E578E00A7E109 /* ggml-tiny.en.bin */,
+				A00000020000000000000033 /* Tink.aiff */,
+				A00000020000000000000034 /* Glass.aiff */,
+				A00000020000000000000035 /* Basso.aiff */,
 				A00000040000000000000004 /* App */,
 				A0000004000000000000000B /* Activation */,
 				A0000004000000000000000C /* Audio */,
@@ -250,13 +261,13 @@
 				A00000020000000000000015 /* ActivationStoreTests.swift */,
 				A0000002000000000000001B /* AudioCaptureServiceTests.swift */,
 				A0000002000000000000002B /* AudioBufferAccumulatorTests.swift */,
+				A00000020000000000000032 /* VoiceActivityDetectorTests.swift */,
 				A0000002000000000000001E /* AudioDeviceServiceTests.swift */,
 				A0000002000000000000002C /* ClipboardServiceTests.swift */,
 				A00000020000000000000019 /* HotkeyServiceTests.swift */,
 				A0000002000000000000000F /* PermissionServiceTests.swift */,
 				A00000020000000000000010 /* ReadinessStateTests.swift */,
 				A00000020000000000000016 /* ShellPreferencesPhase2Tests.swift */,
-				A0000002000000000000002E /* ShellPreferencesPhase3Tests.swift */,
 				A00000020000000000000030 /* ShellPreferencesModelTests.swift */,
 				A0000002000000000000002D /* SpacebarInterceptorTests.swift */,
 				A0000002000000000000002A /* WhisperServiceTests.swift */,
@@ -291,6 +302,7 @@
 				A0000002000000000000001F /* AudioDeviceService.swift */,
 				A0000002000000000000001D /* AudioLevelMonitor.swift */,
 				A00000020000000000000027 /* AudioBufferAccumulator.swift */,
+				A00000020000000000000031 /* VoiceActivityDetector.swift */,
 				A00000020000000000000022 /* ObjCExceptionCatcher.h */,
 				A00000020000000000000023 /* ObjCExceptionCatcher.m */,
 			);
@@ -431,6 +443,9 @@
 				93DB3C462F5FBB65001946A2 /* ggml-small.en.bin in Resources */,
 				9352F5FC2F5E578E00A7E109 /* ggml-tiny.en.bin in Resources */,
 				93DB3C492F5FBB9D001946A2 /* ggml-base.en.bin in Resources */,
+				A0000001000000000000002F /* Tink.aiff in Resources */,
+				A00000010000000000000030 /* Glass.aiff in Resources */,
+				A00000010000000000000031 /* Basso.aiff in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -458,6 +473,7 @@
 				A00000010000000000000013 /* ActivationStore.swift in Sources */,
 				A00000010000000000000002 /* AppDelegate.swift in Sources */,
 				A00000010000000000000022 /* AudioBufferAccumulator.swift in Sources */,
+				A0000001000000000000002D /* VoiceActivityDetector.swift in Sources */,
 				A00000010000000000000019 /* AudioCaptureService.swift in Sources */,
 				A0000001000000000000001C /* AudioDeviceService.swift in Sources */,
 				A0000001000000000000001A /* AudioLevelMonitor.swift in Sources */,
@@ -491,6 +507,7 @@
 			files = (
 				A00000010000000000000011 /* ActivationStoreTests.swift in Sources */,
 				A00000010000000000000026 /* AudioBufferAccumulatorTests.swift in Sources */,
+				A0000001000000000000002E /* VoiceActivityDetectorTests.swift in Sources */,
 				A00000010000000000000018 /* AudioCaptureServiceTests.swift in Sources */,
 				A0000001000000000000001B /* AudioDeviceServiceTests.swift in Sources */,
 				A00000010000000000000027 /* ClipboardServiceTests.swift in Sources */,
@@ -498,7 +515,6 @@
 				A0000001000000000000000D /* PermissionServiceTests.swift in Sources */,
 				A0000001000000000000000E /* ReadinessStateTests.swift in Sources */,
 				A00000010000000000000012 /* ShellPreferencesPhase2Tests.swift in Sources */,
-				A00000010000000000000029 /* ShellPreferencesPhase3Tests.swift in Sources */,
 				A0000001000000000000002C /* ShellPreferencesModelTests.swift in Sources */,
 				A00000010000000000000028 /* SpacebarInterceptorTests.swift in Sources */,
 				A00000010000000000000025 /* WhisperServiceTests.swift in Sources */,

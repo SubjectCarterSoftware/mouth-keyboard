@@ -33,23 +33,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             self?.activationStore.handleCaptureFailure(error)
         }
 
-        // Load Whisper model from bundle (non-blocking — log error if missing).
-        Task {
-            let modelName = preferences.whisperModel.rawValue
-            if let modelPath = Bundle.main.path(forResource: modelName, ofType: "bin") {
-                do {
-                    try await WhisperService.shared.ensureModelLoaded(at: modelPath)
-                    NSLog("WhisperService: model loaded from \(modelPath)")
-                } catch {
-                    NSLog("WhisperService: failed to load model at \(modelPath): \(error.localizedDescription)")
-                }
-            } else {
-                NSLog("WhisperService: model '\(modelName).bin' not found in app bundle — transcription unavailable")
-            }
-        }
+
 
         // Create the pill panel once — shown/hidden reactively via RecordingPillPanel's own state observer.
-        pillPanel = RecordingPillPanel(levelMonitor: levelMonitor, activationStore: activationStore, preferences: preferences)
+        pillPanel = RecordingPillPanel(levelMonitor: levelMonitor, activationStore: activationStore)
 
         // Observe ActivationStore state to drive audio capture, spacebar, and menu bar icon.
         stateObservation = activationStore.$state
@@ -99,7 +86,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         do {
             try audioCaptureService.start(
                 levelMonitor: levelMonitor,
-                bufferAccumulator: activationStore.bufferAccumulator
+                bufferReceiver: activationStore.voiceActivityDetector
             )
         } catch {
             let captureError = if let captureError = error as? AudioCaptureError {
@@ -200,7 +187,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         }
 
         let window = NSWindow(
-            contentRect: NSRect(x: 0, y: 0, width: 440, height: 520),
+            contentRect: NSRect(x: 0, y: 0, width: 440, height: 480),
             styleMask: [.titled, .closable, .miniaturizable],
             backing: .buffered,
             defer: false

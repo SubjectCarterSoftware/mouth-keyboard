@@ -34,120 +34,86 @@ struct SetupWindowView: View {
 
     var body: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: 20) {
+            VStack(alignment: .leading, spacing: 16) {
                 Text("Speech2Text Settings")
                     .font(.title2.weight(.semibold))
                     .accessibilityIdentifier("setupWindow.title")
 
-                // MARK: - Permissions
-
-                VStack(alignment: .leading, spacing: 12) {
-                    Text("Permissions")
-                        .font(.headline)
-
-                    PermissionChecklistView(
-                        permissions: readinessStore.snapshot.permissions,
-                        requestPermission: { kind in
-                            readinessStore.requestPermission(for: kind)
-                        },
-                        openRecovery: { kind in
-                            readinessStore.openRecovery(for: kind)
-                        }
-                    )
-                }
+                PermissionChecklistView(
+                    permissions: readinessStore.snapshot.permissions,
+                    requestPermission: { kind in readinessStore.requestPermission(for: kind) },
+                    openRecovery: { kind in readinessStore.openRecovery(for: kind) },
+                    launchAtLoginEnabled: preferences.launchAtLogin,
+                    onToggleLaunchAtLogin: { preferences.setLaunchAtLogin($0) }
+                )
 
                 Divider()
 
-                // MARK: - Audio Input
-
-                VStack(alignment: .leading, spacing: 12) {
-                    Text("Audio Input")
-                        .font(.headline)
-
+                Form {
                     Picker("Microphone", selection: microphoneSelection) {
                         Text("System Default").tag(Optional<String>.none)
-
                         ForEach(audioDeviceService.availableDevices) { device in
                             Text(device.name).tag(Optional(device.uid))
                         }
                     }
                     .pickerStyle(.menu)
+
+                    KeyboardShortcuts.Recorder("Start / Stop:", name: .activate)
                 }
+                .formStyle(.columns)
 
                 Divider()
-
-                // MARK: - Hotkeys
-
-                VStack(alignment: .leading, spacing: 12) {
-                    Text("Hotkeys")
-                        .font(.headline)
-
-                    KeyboardShortcuts.Recorder("Activation / Submit:", name: .activate)
-                    KeyboardShortcuts.Recorder("Cancellation:", name: .cancelSession)
-
-                    Text("Press activation to start recording and again to submit. Press cancellation to discard.")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-
-                Divider()
-
-                // MARK: - Preferences
-
-                VStack(alignment: .leading, spacing: 12) {
-                    Text("Preferences")
-                        .font(.headline)
-
-                    Toggle("Activation sound", isOn: $preferences.activationSoundEnabled)
-                    Toggle("Show recording indicator", isOn: $preferences.indicatorVisible)
-                    Toggle("Launch at Login", isOn: Binding(
-                        get: { preferences.launchAtLogin },
-                        set: { preferences.setLaunchAtLogin($0) }
-                    ))
-
-                    Toggle("Auto-select model", isOn: $preferences.autoModelSelection)
-
-                    if preferences.autoModelSelection {
-                        Text("Model auto selection is based on recording time\nTiny under 5s · Base 5–15s · Small over 15s")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                    }
-
-                    Picker("Transcription Model", selection: $preferences.whisperModel) {
-                        ForEach(WhisperModelChoice.allCases) { model in
-                            Text(model.displayName).tag(model)
-                        }
-                    }
-                    .pickerStyle(.menu)
-                    .disabled(preferences.autoModelSelection)
-                }
-
-                Spacer(minLength: 16)
-
-                // MARK: - Actions
 
                 HStack {
-                    Button("Refresh Status") {
-                        readinessStore.refresh()
-                    }
-
+                    Text("Speech Transcription Model")
                     Spacer()
+                    Toggle("Auto-select", isOn: $preferences.autoModelSelection)
+                        .toggleStyle(.checkbox)
+                }
+
+                if !preferences.autoModelSelection {
+                    Form {
+                        Picker("Quality", selection: $preferences.whisperModel) {
+                            ForEach(WhisperModelChoice.allCases) { model in
+                                Text(model.displayName).tag(model)
+                            }
+                        }
+                        .pickerStyle(.menu)
+                    }
+                    .formStyle(.columns)
+                } else {
+                    Text("Tiny < 1 min  ·  Base 1–5 min  ·  Small > 5 min")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+
+                Divider()
+
+                HStack(spacing: 12) {
+                    Spacer()
+
+                    Button("Reset") {
+                        KeyboardShortcuts.reset(.activate)
+                        preferences.micDeviceUID = nil
+                        preferences.whisperModel = .baseEN
+                        preferences.autoModelSelection = false
+                    }
 
                     Button(primaryActionTitle) {
                         if readinessStore.canFinishSetup {
                             _ = readinessStore.finalizeSetup()
                         }
-
                         dismissWindow()
                     }
                     .keyboardShortcut(.defaultAction)
                     .accessibilityIdentifier("setupWindow.primaryAction")
+
+                    Spacer()
                 }
             }
             .padding(24)
         }
-        .frame(minWidth: 440, maxWidth: 440, minHeight: 560, maxHeight: 700)
+        .frame(minWidth: 440, maxWidth: 440, minHeight: 420, maxHeight: 500)
         .background(.regularMaterial)
         .onAppear {
             audioDeviceService.refresh()

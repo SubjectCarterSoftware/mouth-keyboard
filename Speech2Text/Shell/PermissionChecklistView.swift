@@ -4,78 +4,110 @@ struct PermissionChecklistView: View {
     let permissions: [PermissionChecklistItem]
     let requestPermission: (PermissionKind) -> Void
     let openRecovery: (PermissionKind) -> Void
+    let launchAtLoginEnabled: Bool
+    let onToggleLaunchAtLogin: (Bool) -> Void
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
+        HStack(spacing: 12) {
             ForEach(permissions) { item in
-                PermissionChecklistRow(
+                PermissionTile(
                     item: item,
                     requestPermission: requestPermission,
                     openRecovery: openRecovery
                 )
             }
+
+            LaunchAtLoginTile(
+                isEnabled: launchAtLoginEnabled,
+                onToggle: onToggleLaunchAtLogin
+            )
         }
     }
 }
 
-private struct PermissionChecklistRow: View {
+// MARK: - Permission tile
+
+private struct PermissionTile: View {
     let item: PermissionChecklistItem
     let requestPermission: (PermissionKind) -> Void
     let openRecovery: (PermissionKind) -> Void
 
     private var tintColor: Color {
         switch item.status {
-        case .authorized:
-            return .green
-        case .notDetermined:
-            return .orange
-        case .denied:
-            return .red
+        case .authorized:    return .green
+        case .notDetermined: return .orange
+        case .denied:        return .red
         }
     }
 
     var body: some View {
-        HStack(alignment: .top, spacing: 12) {
-            Image(systemName: item.kind.systemImage)
-                .font(.system(size: 15, weight: .semibold))
-                .foregroundStyle(tintColor)
-                .frame(width: 22)
+        VStack(alignment: .leading, spacing: 8) {
+            HStack {
+                Image(systemName: item.kind.systemImage)
+                    .font(.system(size: 18, weight: .semibold))
+                    .foregroundStyle(tintColor)
+                Spacer()
+                Text(item.status.label)
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(tintColor)
+                    .accessibilityIdentifier("permission.\(item.kind.rawValue).status")
+            }
 
-            VStack(alignment: .leading, spacing: 4) {
-                HStack(alignment: .firstTextBaseline) {
-                    Text(item.kind.title)
-                        .font(.headline)
+            Text(item.kind.title)
+                .font(.subheadline.weight(.semibold))
 
-                    Spacer()
-
-                    Text(item.status.label)
-                        .font(.caption.weight(.semibold))
-                        .foregroundStyle(tintColor)
-                        .accessibilityIdentifier("permission.\(item.kind.rawValue).status")
-                }
-
-                Text(item.message)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
-
-                if let actionTitle = item.actionTitle {
-                    Button(actionTitle) {
-                        if item.status == .denied {
-                            openRecovery(item.kind)
-                        } else {
-                            requestPermission(item.kind)
-                        }
+            if let actionTitle = item.actionTitle {
+                Button(actionTitle) {
+                    if item.status == .denied {
+                        openRecovery(item.kind)
+                    } else {
+                        requestPermission(item.kind)
                     }
-                    .buttonStyle(.plain)
-                    .foregroundStyle(Color.accentColor)
-                    .accessibilityIdentifier("permission.\(item.kind.rawValue).action")
                 }
+                .buttonStyle(.plain)
+                .font(.caption)
+                .foregroundStyle(Color.accentColor)
+                .accessibilityIdentifier("permission.\(item.kind.rawValue).action")
             }
         }
-        .padding(12)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        .padding(14)
         .background(.quaternary.opacity(0.25), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("permission.\(item.kind.rawValue).row")
+    }
+}
+
+// MARK: - Launch at login tile
+
+private struct LaunchAtLoginTile: View {
+    let isEnabled: Bool
+    let onToggle: (Bool) -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack {
+                Image(systemName: "power")
+                    .font(.system(size: 18, weight: .semibold))
+                    .foregroundStyle(isEnabled ? Color.green : Color.secondary)
+                Spacer()
+                Text(isEnabled ? "On" : "Off")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(isEnabled ? Color.green : Color.secondary)
+            }
+
+            Text("Start on Login")
+                .font(.subheadline.weight(.semibold))
+
+            Button(isEnabled ? "Disable" : "Enable") {
+                onToggle(!isEnabled)
+            }
+            .buttonStyle(.plain)
+            .font(.caption)
+            .foregroundStyle(Color.accentColor)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        .padding(14)
+        .background(.quaternary.opacity(0.25), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
     }
 }

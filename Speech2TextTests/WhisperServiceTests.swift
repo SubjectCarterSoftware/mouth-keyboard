@@ -79,4 +79,29 @@ final class WhisperServiceTests: XCTestCase {
             // expected
         }
     }
+
+    func testUnloadModelFreesContext() async throws {
+        let service = WhisperService()
+        // After unload (even without a prior load), transcribe should throw noModel.
+        await service.unloadModel()
+        do {
+            _ = try await service.transcribe(samples: [0.1, 0.2])
+            XCTFail("Expected noModel to be thrown")
+        } catch TranscriptionError.noModel {
+            // expected — context was freed
+        }
+    }
+
+    func testLoadModelWorksAfterUnload() async throws {
+        let service = WhisperService()
+        // Unload resets currentModelPath, so a subsequent load should attempt
+        // to initialize (and fail with an invalid path, proving the reset worked).
+        await service.unloadModel()
+        do {
+            try await service.loadModel(at: "/nonexistent/path/model.bin")
+            XCTFail("Expected modelLoadFailed to be thrown")
+        } catch TranscriptionError.modelLoadFailed {
+            // expected — path tracking was reset, load was attempted
+        }
+    }
 }

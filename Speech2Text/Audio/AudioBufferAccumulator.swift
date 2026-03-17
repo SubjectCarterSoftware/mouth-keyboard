@@ -8,7 +8,7 @@ enum AudioBufferAccumulatorError: Error {
 
 private let whisperSampleRate: Double = 16_000.0
 
-class AudioBufferAccumulator {
+class AudioBufferAccumulator: AudioBufferReceiving {
     private var buffers: [AVAudioPCMBuffer] = []
     private var inputFormat: AVAudioFormat?
     private let lock = NSLock()

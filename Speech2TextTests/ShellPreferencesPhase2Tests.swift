@@ -3,12 +3,6 @@ import XCTest
 
 @MainActor
 final class ShellPreferencesPhase2Tests: XCTestCase {
-    func testActivationSoundEnabledDefaultsToTrue() {
-        let (_, preferences) = makePreferences()
-
-        XCTAssertTrue(preferences.activationSoundEnabled)
-    }
-
     func testMicDeviceUIDDefaultsToNil() {
         let (_, preferences) = makePreferences()
 
@@ -17,14 +11,11 @@ final class ShellPreferencesPhase2Tests: XCTestCase {
 
     func testResetClearsPhase2KeysBackToDefaults() {
         let (defaults, preferences) = makePreferences()
-        preferences.activationSoundEnabled = false
         preferences.micDeviceUID = "BuiltInMic"
 
         preferences.reset()
 
-        XCTAssertTrue(preferences.activationSoundEnabled)
         XCTAssertNil(preferences.micDeviceUID)
-        XCTAssertNil(defaults.object(forKey: ShellPreferences.Keys.activationSoundEnabled))
         XCTAssertNil(defaults.object(forKey: ShellPreferences.Keys.micDeviceUID))
     }
 

@@ -10,9 +10,7 @@ final class ShellPreferences: ObservableObject {
         static let showsMenuHints = "showsMenuHints"
         static let hasRequestedMicrophonePermission = "hasRequestedMicrophonePermission"
         static let hasRequestedKeyboardPermission = "hasRequestedKeyboardPermission"
-        static let activationSoundEnabled = "activationSoundEnabled"
         static let micDeviceUID = "micDeviceUID"
-        static let indicatorVisible = "indicatorVisible"
         static let whisperModel = "whisperModel"
         static let autoModelSelection = "autoModelSelection"
         static let launchAtLogin = "launchAtLogin"
@@ -44,26 +42,10 @@ final class ShellPreferences: ObservableObject {
         }
     }
 
-    @Published var activationSoundEnabled: Bool {
-        didSet {
-            persistIfNeeded {
-                defaults.set(activationSoundEnabled, forKey: Keys.activationSoundEnabled)
-            }
-        }
-    }
-
     @Published var micDeviceUID: String? {
         didSet {
             persistIfNeeded {
                 defaults.set(micDeviceUID ?? "", forKey: Keys.micDeviceUID)
-            }
-        }
-    }
-
-    @Published var indicatorVisible: Bool {
-        didSet {
-            persistIfNeeded {
-                defaults.set(indicatorVisible, forKey: Keys.indicatorVisible)
             }
         }
     }
@@ -98,8 +80,6 @@ final class ShellPreferences: ObservableObject {
         hasCompletedInitialSetup = userDefaults.bool(forKey: Keys.hasCompletedInitialSetup)
         hasRequestedMicrophonePermission = userDefaults.bool(forKey: Keys.hasRequestedMicrophonePermission)
         hasRequestedKeyboardPermission = userDefaults.bool(forKey: Keys.hasRequestedKeyboardPermission)
-        activationSoundEnabled = userDefaults.object(forKey: Keys.activationSoundEnabled) as? Bool ?? true
-
         let storedMicDeviceUID = userDefaults.string(forKey: Keys.micDeviceUID)
         if let storedMicDeviceUID, !storedMicDeviceUID.isEmpty {
             micDeviceUID = storedMicDeviceUID
@@ -113,16 +93,14 @@ final class ShellPreferences: ObservableObject {
             showsMenuHints = userDefaults.bool(forKey: Keys.showsMenuHints)
         }
 
-        indicatorVisible = userDefaults.object(forKey: Keys.indicatorVisible) as? Bool ?? true
-
         if let storedModel = userDefaults.string(forKey: Keys.whisperModel),
            let model = WhisperModelChoice(rawValue: storedModel) {
             whisperModel = model
         } else {
-            whisperModel = .tinyEN
+            whisperModel = .baseEN
         }
 
-        autoModelSelection = userDefaults.object(forKey: Keys.autoModelSelection) as? Bool ?? true
+        autoModelSelection = userDefaults.object(forKey: Keys.autoModelSelection) as? Bool ?? false
 
         launchAtLogin = SMAppService.mainApp.status == .enabled
     }
@@ -158,20 +136,16 @@ final class ShellPreferences: ObservableObject {
             showsMenuHints = true
             hasRequestedMicrophonePermission = false
             hasRequestedKeyboardPermission = false
-            activationSoundEnabled = true
             micDeviceUID = nil
-            indicatorVisible = true
-            whisperModel = .tinyEN
-            autoModelSelection = true
+            whisperModel = .baseEN
+            autoModelSelection = false
         }
 
         defaults.removeObject(forKey: Keys.hasCompletedInitialSetup)
         defaults.removeObject(forKey: Keys.showsMenuHints)
         defaults.removeObject(forKey: Keys.hasRequestedMicrophonePermission)
         defaults.removeObject(forKey: Keys.hasRequestedKeyboardPermission)
-        defaults.removeObject(forKey: Keys.activationSoundEnabled)
         defaults.removeObject(forKey: Keys.micDeviceUID)
-        defaults.removeObject(forKey: Keys.indicatorVisible)
         defaults.removeObject(forKey: Keys.whisperModel)
         defaults.removeObject(forKey: Keys.autoModelSelection)
     }
@@ -187,10 +161,6 @@ final class ShellPreferences: ObservableObject {
 
         if arguments.contains("-complete-shell-setup") {
             userDefaults.set(true, forKey: Keys.hasCompletedInitialSetup)
-        }
-
-        if arguments.contains("-hide-recording-indicator") {
-            userDefaults.set(false, forKey: Keys.indicatorVisible)
         }
 
         if arguments.contains("-hide-menu-hints") {

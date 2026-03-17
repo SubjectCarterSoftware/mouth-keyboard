@@ -6,11 +6,22 @@ import Foundation
 
 struct ActivationSoundPlayer {
     func play() {
-        if let sound = NSSound(named: "Tink") {
-            sound.play()
-        } else {
-            NSSound.beep()
+        sound(named: "Tink")?.play()
+    }
+
+    func playSuccess() {
+        sound(named: "Glass")?.play()
+    }
+
+    func playFailure() {
+        sound(named: "Basso")?.play()
+    }
+
+    private func sound(named name: String) -> NSSound? {
+        if let url = Bundle.main.url(forResource: name, withExtension: "aiff") {
+            return NSSound(contentsOf: url, byReference: false)
         }
+        return NSSound(named: name)
     }
 }
 
@@ -45,6 +56,7 @@ final class ActivationStore: ObservableObject {
     private let clipboardService: ClipboardService
     private let resetSessionMonitoring: @MainActor () -> Void
     let bufferAccumulator: AudioBufferAccumulator
+    let voiceActivityDetector: VoiceActivityDetector
     var soundPlayer: ActivationSoundPlayer = .init()
     private var activeSessionID = UUID()
     private var transcriptionTask: Task<Void, Never>?
@@ -75,6 +87,7 @@ final class ActivationStore: ObservableObject {
         self.whisperService = whisperService
         self.clipboardService = clipboardService
         self.bufferAccumulator = bufferAccumulator
+        self.voiceActivityDetector = VoiceActivityDetector(destination: bufferAccumulator)
         self.resetSessionMonitoring = resetSessionMonitoring
     }
 
@@ -112,15 +125,21 @@ final class ActivationStore: ObservableObject {
             return
         }
 
-        if preferences.activationSoundEnabled {
-            soundPlayer.play()
-        }
+        soundPlayer.play()
 
         invalidateScheduledWork()
         recoveryFeedback = nil
         activeSessionID = UUID()
-        bufferAccumulator.reset()
+        voiceActivityDetector.reset()
         state = .recording
+
+        // When auto-selection is off the model choice is fixed, so preload it
+        // while the user is still speaking to eliminate load-time after recording.
+        if !preferences.autoModelSelection {
+            Task { [weak self] in
+                try? await self?.prepareWhisperModelIfNeeded()
+            }
+        }
     }
 
     /// Hard stop — transitions directly to idle without transcribing. Used for cancel (Phase 4).
@@ -132,7 +151,7 @@ final class ActivationStore: ObservableObject {
         guard state == .recording || state == .processing else { return }
 
         invalidateActiveSession()
-        bufferAccumulator.reset()
+        voiceActivityDetector.reset()
         publishRecoveryFeedback(.canceled)
         state = .idle
     }
@@ -141,7 +160,7 @@ final class ActivationStore: ObservableObject {
         guard state == .recording else { return }
 
         invalidateActiveSession()
-        bufferAccumulator.reset()
+        voiceActivityDetector.reset()
         resetSessionMonitoring()
         publishRecoveryFeedback(.restarted)
         state = .recording
@@ -180,11 +199,12 @@ final class ActivationStore: ObservableObject {
 
     func handleCaptureFailure(_ error: AudioCaptureError) {
         invalidateActiveSession()
-        bufferAccumulator.reset()
+        voiceActivityDetector.reset()
         recoveryFeedback = nil
 
         let failureSessionID = activeSessionID
         state = .failure(reason: failureReason(for: error))
+        soundPlayer.playFailure()
         scheduleDismissToIdle(afterNanoseconds: 2_000_000_000, sessionID: failureSessionID)
     }
 
@@ -209,19 +229,29 @@ final class ActivationStore: ObservableObject {
             state = .success(text: trimmed)
             lastTranscription = trimmed
             clipboardService.writeToClipboard(trimmed)
+            soundPlayer.playSuccess()
             scheduleDismissToIdle(afterNanoseconds: 1_500_000_000, sessionID: sessionID)
         } catch TranscriptionError.noSpeechDetected {
             guard isCurrentSession(sessionID) else { return }
             state = .failure(reason: .noSpeechDetected)
+            soundPlayer.playFailure()
             scheduleDismissToIdle(afterNanoseconds: 2_000_000_000, sessionID: sessionID)
         } catch {
             guard isCurrentSession(sessionID) else { return }
             state = .failure(reason: .modelError(error.localizedDescription))
+            soundPlayer.playFailure()
             scheduleDismissToIdle(afterNanoseconds: 2_000_000_000, sessionID: sessionID)
         }
 
         if sessionID == activeSessionID {
             transcriptionTask = nil
+        }
+
+        // Only unload when auto-selection is on, since the next recording may
+        // need a different model. When auto-selection is off the model choice is
+        // fixed, so keeping it in memory avoids reload overhead.
+        if preferences.autoModelSelection {
+            await unloadWhisperModelIfNeeded()
         }
     }
 
@@ -282,6 +312,13 @@ final class ActivationStore: ObservableObject {
             if let modelPath = Bundle.main.path(forResource: modelChoice.rawValue, ofType: "bin") {
                 try await whisperService.loadModel(at: modelPath)
             }
+        }
+    }
+
+    private func unloadWhisperModelIfNeeded() async {
+        if let whisperService = whisperService as? WhisperService {
+            await whisperService.unloadModel()
+            NSLog("WhisperService: model unloaded to free memory")
         }
     }
 
