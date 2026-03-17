@@ -19,17 +19,21 @@ struct SetupWindowView: View {
     private var microphoneSelection: Binding<String?> {
         Binding(
             get: {
-                guard let selectedUID = preferences.micDeviceUID else {
-                    return nil
-                }
-
-                let isAvailable = audioDeviceService.availableDevices.contains { $0.uid == selectedUID }
-                return isAvailable ? selectedUID : nil
+                preferences.micDeviceUID
             },
             set: { newValue in
                 preferences.micDeviceUID = newValue
             }
         )
+    }
+
+    private var unavailableSelectedMicrophoneUID: String? {
+        guard let selectedUID = preferences.micDeviceUID else {
+            return nil
+        }
+
+        let isAvailable = audioDeviceService.availableDevices.contains { $0.uid == selectedUID }
+        return isAvailable ? nil : selectedUID
     }
 
     var body: some View {
@@ -54,6 +58,9 @@ struct SetupWindowView: View {
                         Text("System Default").tag(Optional<String>.none)
                         ForEach(audioDeviceService.availableDevices) { device in
                             Text(device.name).tag(Optional(device.uid))
+                        }
+                        if let unavailableSelectedMicrophoneUID {
+                            Text("Selected Microphone (Unavailable)").tag(Optional(unavailableSelectedMicrophoneUID))
                         }
                     }
                     .pickerStyle(.menu)
@@ -82,7 +89,7 @@ struct SetupWindowView: View {
                     }
                     .formStyle(.columns)
                 } else {
-                    Text("Tiny < 1 min  ·  Base 1–5 min  ·  Small > 5 min")
+                    Text("Base < 1 min  ·  Small 1–5 min  ·  Medium > 5 min")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }

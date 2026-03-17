@@ -13,6 +13,7 @@ struct AudioInputDevice: Identifiable, Equatable {
 @MainActor
 final class AudioDeviceService: ObservableObject {
     typealias DeviceEnumerator = @MainActor () -> [AudioInputDevice]
+    typealias DefaultInputDeviceResolver = @MainActor () -> AudioInputDevice?
     typealias AudioUnitSetter = @MainActor (AudioUnit, AudioDeviceID) -> OSStatus
 
     static let shared = AudioDeviceService()
@@ -22,14 +23,17 @@ final class AudioDeviceService: ObservableObject {
     private static let listenerQueue = DispatchQueue.main
 
     private let deviceEnumerator: DeviceEnumerator
+    private let defaultInputDeviceResolver: DefaultInputDeviceResolver
     private let audioUnitSetter: AudioUnitSetter
     private var disconnectListener: DisconnectListener?
 
     init(
         deviceEnumerator: @escaping DeviceEnumerator = AudioDeviceService.enumerateInputDevices,
+        defaultInputDeviceResolver: @escaping DefaultInputDeviceResolver = AudioDeviceService.defaultInputDevice,
         audioUnitSetter: @escaping AudioUnitSetter = AudioDeviceService.defaultAudioUnitSetter
     ) {
         self.deviceEnumerator = deviceEnumerator
+        self.defaultInputDeviceResolver = defaultInputDeviceResolver
         self.audioUnitSetter = audioUnitSetter
     }
 
@@ -43,6 +47,10 @@ final class AudioDeviceService: ObservableObject {
         }
 
         return deviceEnumerator().first(where: { $0.uid == uid })
+    }
+
+    func currentDefaultInputDevice() -> AudioInputDevice? {
+        defaultInputDeviceResolver()
     }
 
     func setInputDevice(_ device: AudioInputDevice?, on engine: AVAudioEngine) throws {
@@ -183,6 +191,62 @@ final class AudioDeviceService: ObservableObject {
         }
 
         return deviceIDs
+    }
+
+    private static func defaultInputDevice() -> AudioInputDevice? {
+        guard let deviceID = defaultInputDeviceID() else {
+            return nil
+        }
+
+        return makeInputDevice(for: deviceID)
+    }
+
+    private static func defaultInputDeviceID() -> AudioDeviceID? {
+        var deviceID = AudioDeviceID()
+        var size = UInt32(MemoryLayout<AudioDeviceID>.size)
+        var address = AudioObjectPropertyAddress(
+            mSelector: kAudioHardwarePropertyDefaultInputDevice,
+            mScope: kAudioObjectPropertyScopeGlobal,
+            mElement: kAudioObjectPropertyElementMain
+        )
+
+        let status = AudioObjectGetPropertyData(
+            AudioObjectID(kAudioObjectSystemObject),
+            &address,
+            0,
+            nil,
+            &size,
+            &deviceID
+        )
+        guard status == noErr, deviceID != kAudioObjectUnknown else {
+            return nil
+        }
+
+        return deviceID
+    }
+
+    private static func makeInputDevice(for deviceID: AudioDeviceID) -> AudioInputDevice? {
+        guard hasInputStreams(deviceID) else {
+            return nil
+        }
+
+        guard
+            let name = stringProperty(
+                selector: kAudioObjectPropertyName,
+                on: deviceID,
+                scope: kAudioObjectPropertyScopeGlobal
+            ),
+            let uid = stringProperty(
+                selector: kAudioDevicePropertyDeviceUID,
+                on: deviceID,
+                scope: kAudioObjectPropertyScopeGlobal
+            ),
+            !uid.isEmpty
+        else {
+            return nil
+        }
+
+        return AudioInputDevice(id: deviceID, name: name, uid: uid)
     }
 
     private static func hasInputStreams(_ deviceID: AudioDeviceID) -> Bool {

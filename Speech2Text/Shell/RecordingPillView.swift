@@ -7,6 +7,7 @@ struct RecordingPillView: View {
     var silenceWarningActive: Bool = false
     var onFinish: (() -> Void)?
     var onCancel: (() -> Void)?
+    var onRestart: (() -> Void)?
 
     private let barScales: [CGFloat]
 
@@ -18,7 +19,8 @@ struct RecordingPillView: View {
         recoveryFeedback: RecordingState.RecoveryFeedback? = nil,
         silenceWarningActive: Bool = false,
         onFinish: (() -> Void)? = nil,
-        onCancel: (() -> Void)? = nil
+        onCancel: (() -> Void)? = nil,
+        onRestart: (() -> Void)? = nil
     ) {
         self.levelMonitor = levelMonitor
         self.recordingState = recordingState
@@ -26,6 +28,7 @@ struct RecordingPillView: View {
         self.silenceWarningActive = silenceWarningActive
         self.onFinish = onFinish
         self.onCancel = onCancel
+        self.onRestart = onRestart
         barScales = (0..<5).map { _ in CGFloat.random(in: 0.55...1.0) }
     }
 
@@ -53,35 +56,47 @@ struct RecordingPillView: View {
     private var recordingContent: some View {
         let barTint: Color = silenceWarningActive ? Color.orange : Color.white
 
-        return HStack(spacing: 12) {
-            Button(action: { onFinish?() }) {
-                Image(systemName: "checkmark.circle.fill")
-                    .font(.system(size: 18, weight: .semibold))
-                    .foregroundStyle(Color.green)
-            }
-            .buttonStyle(.plain)
-            .accessibilityIdentifier("pill.finish")
-
-            Image(systemName: "mic.fill")
-                .font(.system(size: 14, weight: .semibold))
-                .foregroundStyle(barTint.opacity(0.9))
-
-            HStack(alignment: .center, spacing: 3) {
-                ForEach(Array(barScales.enumerated()), id: \.offset) { index, scale in
-                    RoundedRectangle(cornerRadius: 1.5, style: .continuous)
-                        .fill(barTint.opacity(0.9))
-                        .frame(width: 3, height: barHeight(for: scale, index: index))
+        return ZStack(alignment: .trailing) {
+            HStack(spacing: 12) {
+                Button(action: { onFinish?() }) {
+                    Image(systemName: "checkmark.circle.fill")
+                        .font(.system(size: 18, weight: .semibold))
+                        .foregroundStyle(Color.green)
                 }
-            }
-            .frame(height: 28)
+                .buttonStyle(.plain)
+                .accessibilityIdentifier("pill.finish")
 
-            Button(action: { onCancel?() }) {
-                Image(systemName: "xmark.circle.fill")
+                Image(systemName: "mic.fill")
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundStyle(barTint.opacity(0.9))
+
+                HStack(alignment: .center, spacing: 3) {
+                    ForEach(Array(barScales.enumerated()), id: \.offset) { index, scale in
+                        RoundedRectangle(cornerRadius: 1.5, style: .continuous)
+                            .fill(barTint.opacity(0.9))
+                            .frame(width: 3, height: barHeight(for: scale, index: index))
+                    }
+                }
+                .frame(height: 28)
+
+                Button(action: { onCancel?() }) {
+                    Image(systemName: "xmark.circle.fill")
+                        .font(.system(size: 18, weight: .semibold))
+                        .foregroundStyle(Color.red)
+                }
+                .buttonStyle(.plain)
+                .accessibilityIdentifier("pill.cancel")
+            }
+            .frame(width: 220, height: 44)
+
+            Button(action: { onRestart?() }) {
+                Image(systemName: "arrow.clockwise.circle.fill")
                     .font(.system(size: 18, weight: .semibold))
-                    .foregroundStyle(Color.red)
+                    .foregroundStyle(Color.orange)
             }
             .buttonStyle(.plain)
-            .accessibilityIdentifier("pill.cancel")
+            .accessibilityIdentifier("pill.restart")
+            .padding(.trailing, 10)
         }
         .frame(width: 220, height: 44)
         .preferredColorScheme(.dark)

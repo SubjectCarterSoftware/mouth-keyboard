@@ -24,11 +24,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             NSApp.setActivationPolicy(.accessory)
         }
 
-        // Reset any cached shortcut so the code default (Ctrl+V) takes effect.
-        KeyboardShortcuts.reset(.activate)
-
         hotkeyService.start()
         readinessStore.refresh()
+
+        // Eagerly download/load the WhisperKit model so it's ready when the user
+        // first records. Failure is non-fatal — transcribe will surface the error.
+        Task {
+            try? await WhisperService.shared.prepare()
+        }
         audioCaptureService.onCaptureFailure = { [weak self] error in
             self?.activationStore.handleCaptureFailure(error)
         }

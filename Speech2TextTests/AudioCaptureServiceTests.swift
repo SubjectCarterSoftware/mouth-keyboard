@@ -19,10 +19,19 @@ final class AudioCaptureServiceTests: XCTestCase {
     }
 
     @MainActor
-    func testMissingSelectedDeviceThrowsUnavailableErrorAndPreservesStoredUID() {
+    func testMissingSelectedDeviceFallsBackToSystemDefaultAndPreservesStoredUID() throws {
         let preferences = makePreferences()
         preferences.micDeviceUID = "missing-device"
-        let audioDeviceService = AudioDeviceService(deviceEnumerator: { [] }, audioUnitSetter: { _, _ in noErr })
+        let defaultDevice = AudioInputDevice(id: 7, name: "MacBook Pro Microphone", uid: "built-in-mic")
+        var appliedDeviceIDs: [AudioDeviceID] = []
+        let audioDeviceService = AudioDeviceService(
+            deviceEnumerator: { [] },
+            defaultInputDeviceResolver: { defaultDevice },
+            audioUnitSetter: { _, deviceID in
+                appliedDeviceIDs.append(deviceID)
+                return noErr
+            }
+        )
         let service = AudioCaptureService(
             preferences: preferences,
             audioDeviceService: audioDeviceService,
@@ -31,12 +40,10 @@ final class AudioCaptureServiceTests: XCTestCase {
             hasDefaultInputDeviceProvider: { true }
         )
 
-        XCTAssertThrowsError(try service.start(levelMonitor: AudioLevelMonitor())) { error in
-            guard case AudioCaptureError.selectedInputUnavailable = error else {
-                return XCTFail("Expected selectedInputUnavailable, got \(error)")
-            }
-        }
+        try service.start(levelMonitor: AudioLevelMonitor())
+
         XCTAssertEqual(preferences.micDeviceUID, "missing-device")
+        XCTAssertEqual(appliedDeviceIDs, [defaultDevice.id])
     }
 
     @MainActor
@@ -107,29 +114,78 @@ final class AudioCaptureServiceTests: XCTestCase {
     }
 
     @MainActor
-    func testServiceCanRestartAfterFailureOnceRecoveryChangesSelection() throws {
-        let preferences = makePreferences()
-        preferences.micDeviceUID = "missing-device"
-        let audioDeviceService = AudioDeviceService(deviceEnumerator: { [] }, audioUnitSetter: { _, _ in noErr })
+    func testSystemDefaultIsUsedWhenNoPreferredDeviceIsSelected() throws {
+        let defaultDevice = AudioInputDevice(id: 3, name: "MacBook Pro Microphone", uid: "built-in-mic")
+        var appliedDeviceIDs: [AudioDeviceID] = []
         let service = AudioCaptureService(
-            preferences: preferences,
-            audioDeviceService: audioDeviceService,
+            preferences: makePreferences(),
+            audioDeviceService: AudioDeviceService(
+                deviceEnumerator: { [defaultDevice] },
+                defaultInputDeviceResolver: { defaultDevice },
+                audioUnitSetter: { _, deviceID in
+                    appliedDeviceIDs.append(deviceID)
+                    return noErr
+                }
+            ),
             engineStarter: { _ in },
             authorizationStatusProvider: { .authorized },
             hasDefaultInputDeviceProvider: { true }
         )
 
-        XCTAssertThrowsError(try service.start(levelMonitor: AudioLevelMonitor())) { error in
-            guard case AudioCaptureError.selectedInputUnavailable = error else {
-                return XCTFail("Expected selectedInputUnavailable, got \(error)")
-            }
-        }
-
-        service.stop()
-        preferences.micDeviceUID = nil
         try service.start(levelMonitor: AudioLevelMonitor())
 
-        XCTAssertTrue(service.debugState.hasInstalledTap)
+        XCTAssertEqual(appliedDeviceIDs, [defaultDevice.id])
+    }
+
+    @MainActor
+    func testPreferredDeviceWinsOverSystemDefaultWhenAvailable() throws {
+        let preferences = makePreferences()
+        preferences.micDeviceUID = "usb-mic"
+        let preferredDevice = AudioInputDevice(id: 1, name: "USB Mic", uid: "usb-mic")
+        let defaultDevice = AudioInputDevice(id: 3, name: "MacBook Pro Microphone", uid: "built-in-mic")
+        var appliedDeviceIDs: [AudioDeviceID] = []
+        let service = AudioCaptureService(
+            preferences: preferences,
+            audioDeviceService: AudioDeviceService(
+                deviceEnumerator: { [preferredDevice, defaultDevice] },
+                defaultInputDeviceResolver: { defaultDevice },
+                audioUnitSetter: { _, deviceID in
+                    appliedDeviceIDs.append(deviceID)
+                    return noErr
+                }
+            ),
+            engineStarter: { _ in },
+            authorizationStatusProvider: { .authorized },
+            hasDefaultInputDeviceProvider: { true }
+        )
+
+        try service.start(levelMonitor: AudioLevelMonitor())
+
+        XCTAssertEqual(appliedDeviceIDs, [preferredDevice.id])
+    }
+
+    @MainActor
+    func testServiceThrowsUnavailableWhenNoPreferredOrSystemDefaultDeviceExists() throws {
+        let preferences = makePreferences()
+        preferences.micDeviceUID = "missing-device"
+        let audioDeviceService = AudioDeviceService(
+            deviceEnumerator: { [] },
+            defaultInputDeviceResolver: { nil },
+            audioUnitSetter: { _, _ in noErr }
+        )
+        let service = AudioCaptureService(
+            preferences: preferences,
+            audioDeviceService: audioDeviceService,
+            engineStarter: { _ in },
+            authorizationStatusProvider: { .authorized },
+            hasDefaultInputDeviceProvider: { false }
+        )
+
+        XCTAssertThrowsError(try service.start(levelMonitor: AudioLevelMonitor())) { error in
+            guard case AudioCaptureError.noUsableInputDevice = error else {
+                return XCTFail("Expected noUsableInputDevice, got \(error)")
+            }
+        }
     }
 
     @MainActor

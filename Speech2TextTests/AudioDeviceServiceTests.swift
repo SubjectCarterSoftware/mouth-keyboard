@@ -39,4 +39,15 @@ final class AudioDeviceServiceTests: XCTestCase {
         XCTAssertFalse(service.availableDevices.contains(where: { $0.uid.isEmpty }))
         XCTAssertFalse(service.availableDevices.contains(where: { $0.name == "System Default" }))
     }
+
+    func testCurrentDefaultInputDeviceUsesInjectedResolver() {
+        let defaultDevice = AudioInputDevice(id: 11, name: "MacBook Pro Microphone", uid: "built-in-mic")
+        let service = AudioDeviceService(
+            deviceEnumerator: { [] },
+            defaultInputDeviceResolver: { defaultDevice },
+            audioUnitSetter: { _, _ in noErr }
+        )
+
+        XCTAssertEqual(service.currentDefaultInputDevice(), defaultDevice)
+    }
 }

@@ -1,5 +1,5 @@
 import Foundation
-import whisper
+import WhisperKit
 
 // MARK: - Error Types
 
@@ -12,9 +12,9 @@ enum TranscriptionError: LocalizedError {
     var errorDescription: String? {
         switch self {
         case .modelLoadFailed:
-            return "Failed to load Whisper model from the specified path."
+            return "Failed to load Whisper model."
         case .noModel:
-            return "No Whisper model has been loaded. Call loadModel(at:) first."
+            return "Whisper model is not ready. It may still be downloading."
         case .inferenceFailed:
             return "Whisper inference failed during transcription."
         case .noSpeechDetected:
@@ -34,79 +34,44 @@ protocol WhisperTranscribing: Sendable {
 actor WhisperService: WhisperTranscribing {
     static let shared = WhisperService()
 
-    private var context: OpaquePointer?
-    private var currentModelPath: String?
+    private var pipe: WhisperKit?
+    private var currentModel: String?
+    private var isLoading = false
 
-    deinit {
-        if let ctx = context {
-            whisper_free(ctx)
-        }
-    }
+    func prepare(model: String = WhisperModelChoice.baseEN.rawValue) async throws {
+        guard model != currentModel || pipe == nil else { return }
+        guard !isLoading else { return }
+        isLoading = true
+        defer { isLoading = false }
 
-    func loadModel(at path: String) throws {
-        guard path != currentModelPath else { return }
-        var params = whisper_context_default_params()
-        params.flash_attn = true
-        guard let ctx = whisper_init_from_file_with_params(path, params) else {
+        do {
+            pipe = try await WhisperKit(model: model)
+            currentModel = model
+        } catch {
             throw TranscriptionError.modelLoadFailed
         }
-        if let existing = context {
-            whisper_free(existing)
-        }
-        context = ctx
-        currentModelPath = path
-    }
-
-    func ensureModelLoaded(at path: String) throws {
-        guard context == nil else { return }
-        try loadModel(at: path)
-    }
-
-    func unloadModel() {
-        if let ctx = context {
-            whisper_free(ctx)
-        }
-        context = nil
-        currentModelPath = nil
     }
 
     func transcribe(samples: [Float]) async throws -> String {
-        guard let ctx = context else {
+        guard let pipe else {
             throw TranscriptionError.noModel
         }
 
-        var params = whisper_full_default_params(WHISPER_SAMPLING_GREEDY)
-        let threadCount = max(1, min(8, ProcessInfo.processInfo.processorCount - 2))
-        params.n_threads = Int32(threadCount)
-        params.language = ("en" as NSString).utf8String
-        params.no_context = true
-        params.print_progress = false
-        params.print_realtime = false
-        params.print_special = false
-        params.print_timestamps = false
-        params.no_timestamps = true
+        let options = DecodingOptions(language: "en")
+        do {
+            let results = try await pipe.transcribe(audioArray: samples, decodeOptions: options)
+            let text = results.map { $0.text }.joined()
+                .trimmingCharacters(in: CharacterSet.whitespacesAndNewlines)
 
-        let result = samples.withUnsafeBufferPointer { ptr in
-            whisper_full(ctx, params, ptr.baseAddress, Int32(samples.count))
-        }
+            guard !text.isEmpty else {
+                throw TranscriptionError.noSpeechDetected
+            }
 
-        guard result == 0 else {
+            return text
+        } catch let error as TranscriptionError {
+            throw error
+        } catch {
             throw TranscriptionError.inferenceFailed
         }
-
-        let segmentCount = whisper_full_n_segments(ctx)
-        var text = ""
-        for i in 0..<segmentCount {
-            if let segment = whisper_full_get_segment_text(ctx, i) {
-                text += String(cString: segment)
-            }
-        }
-
-        let trimmed = text.trimmingCharacters(in: .whitespaces)
-        guard !trimmed.isEmpty else {
-            throw TranscriptionError.noSpeechDetected
-        }
-
-        return trimmed
     }
 }

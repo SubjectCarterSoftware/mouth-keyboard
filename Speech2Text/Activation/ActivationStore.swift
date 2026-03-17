@@ -43,7 +43,8 @@ final class ActivationStore: ObservableObject {
         readinessProvider: ReadinessStore.shared,
         whisperService: WhisperService.shared,
         clipboardService: ClipboardService(),
-        bufferAccumulator: AudioBufferAccumulator()
+        bufferAccumulator: AudioBufferAccumulator(),
+        resetSessionMonitoring: {}
     )
 
     @Published private(set) var state: RecordingState = .idle
@@ -58,10 +59,13 @@ final class ActivationStore: ObservableObject {
     let bufferAccumulator: AudioBufferAccumulator
     let voiceActivityDetector: VoiceActivityDetector
     var soundPlayer: ActivationSoundPlayer = .init()
+    private static let maxRecordingDuration: UInt64 = 5 * 60 * 1_000_000_000 // 5 minutes
+
     private var activeSessionID = UUID()
     private var transcriptionTask: Task<Void, Never>?
     private var dismissTask: Task<Void, Never>?
     private var feedbackClearTask: Task<Void, Never>?
+    private var maxDurationTask: Task<Void, Never>?
 
     convenience init(preferences: ShellPreferences, readinessStore: ReadinessStore) {
         self.init(
@@ -133,11 +137,19 @@ final class ActivationStore: ObservableObject {
         voiceActivityDetector.reset()
         state = .recording
 
+        // Auto-stop after 5 minutes to prevent runaway recordings.
+        let sessionID = activeSessionID
+        maxDurationTask = Task { [weak self] in
+            try? await Task.sleep(nanoseconds: Self.maxRecordingDuration)
+            guard let self, self.isCurrentSession(sessionID), self.state == .recording else { return }
+            self.finish()
+        }
+
         // When auto-selection is off the model choice is fixed, so preload it
         // while the user is still speaking to eliminate load-time after recording.
         if !preferences.autoModelSelection {
             Task { [weak self] in
-                try? await self?.prepareWhisperModelIfNeeded()
+                try? await self?.prepareWhisperModel(for: nil)
             }
         }
     }
@@ -214,7 +226,7 @@ final class ActivationStore: ObservableObject {
         do {
             guard isCurrentSession(sessionID) else { return }
 
-            try await prepareWhisperModelIfNeeded()
+            try await prepareWhisperModel(for: bufferAccumulator.duration)
             guard isCurrentSession(sessionID) else { return }
 
             let samples = try bufferAccumulator.convertToWhisperFormat()
@@ -246,13 +258,6 @@ final class ActivationStore: ObservableObject {
         if sessionID == activeSessionID {
             transcriptionTask = nil
         }
-
-        // Only unload when auto-selection is on, since the next recording may
-        // need a different model. When auto-selection is off the model choice is
-        // fixed, so keeping it in memory avoids reload overhead.
-        if preferences.autoModelSelection {
-            await unloadWhisperModelIfNeeded()
-        }
     }
 
     private func invalidateActiveSession() {
@@ -267,6 +272,8 @@ final class ActivationStore: ObservableObject {
         dismissTask = nil
         feedbackClearTask?.cancel()
         feedbackClearTask = nil
+        maxDurationTask?.cancel()
+        maxDurationTask = nil
     }
 
     private func publishRecoveryFeedback(_ feedback: RecordingState.RecoveryFeedback) {
@@ -299,26 +306,15 @@ final class ActivationStore: ObservableObject {
         !Task.isCancelled && sessionID == activeSessionID
     }
 
-    private func prepareWhisperModelIfNeeded() async throws {
+    private func prepareWhisperModel(for duration: TimeInterval?) async throws {
         if let whisperService = whisperService as? WhisperService {
             let modelChoice: WhisperModelChoice
-            if preferences.autoModelSelection {
-                let duration = bufferAccumulator.duration
+            if preferences.autoModelSelection, let duration {
                 modelChoice = WhisperModelChoice.forDuration(duration)
             } else {
                 modelChoice = preferences.whisperModel
             }
-
-            if let modelPath = Bundle.main.path(forResource: modelChoice.rawValue, ofType: "bin") {
-                try await whisperService.loadModel(at: modelPath)
-            }
-        }
-    }
-
-    private func unloadWhisperModelIfNeeded() async {
-        if let whisperService = whisperService as? WhisperService {
-            await whisperService.unloadModel()
-            NSLog("WhisperService: model unloaded to free memory")
+            try await whisperService.prepare(model: modelChoice.rawValue)
         }
     }
 

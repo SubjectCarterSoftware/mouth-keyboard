@@ -130,14 +130,12 @@ final class AudioCaptureService {
         let engine = try ensureEngine()
 
         audioDeviceService.refresh()
-        let selectedDevice: AudioInputDevice? = if let selectedUID = preferences.micDeviceUID {
-            audioDeviceService.device(forUID: selectedUID)
-        } else {
-            nil
-        }
+        let selectedDevice = preferredInputDevice()
+        let defaultDevice = audioDeviceService.currentDefaultInputDevice()
+        let effectiveDevice = selectedDevice ?? defaultDevice
 
-        if preferences.micDeviceUID != nil, selectedDevice == nil {
-            throw AudioCaptureError.selectedInputUnavailable
+        guard let effectiveDevice else {
+            throw AudioCaptureError.noUsableInputDevice
         }
 
         self.levelMonitor = levelMonitor
@@ -146,13 +144,12 @@ final class AudioCaptureService {
         audioDeviceService.unregisterDisconnectListener()
         observedDeviceUID = nil
 
-        if preferences.micDeviceUID != nil {
-            try audioDeviceService.setInputDevice(selectedDevice, on: engine)
-            if let selectedDevice {
-                observedDeviceUID = selectedDevice.uid
-                audioDeviceService.registerDisconnectListener(for: selectedDevice.uid) { [weak self] in
-                    self?.handleSelectedDeviceDisconnect()
-                }
+        try audioDeviceService.setInputDevice(effectiveDevice, on: engine)
+        observedDeviceUID = effectiveDevice.uid
+
+        if selectedDevice != nil {
+            audioDeviceService.registerDisconnectListener(for: effectiveDevice.uid) { [weak self] in
+                self?.handleSelectedDeviceDisconnect()
             }
         }
 
@@ -238,5 +235,14 @@ final class AudioCaptureService {
     @MainActor
     func simulateSelectedDeviceDisconnectForTesting() {
         handleSelectedDeviceDisconnect()
+    }
+
+    @MainActor
+    private func preferredInputDevice() -> AudioInputDevice? {
+        guard let selectedUID = preferences.micDeviceUID else {
+            return nil
+        }
+
+        return audioDeviceService.device(forUID: selectedUID)
     }
 }

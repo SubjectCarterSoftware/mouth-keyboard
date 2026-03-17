@@ -1,24 +1,26 @@
 import Foundation
 
 enum WhisperModelChoice: String, CaseIterable, Identifiable {
-    case tinyEN = "ggml-tiny.en"
-    case baseEN = "ggml-base.en"
-    case smallEN = "ggml-small.en"
+    case baseEN = "base.en"
+    case smallEN = "small.en"
+    case mediumEN = "medium.en"
+    case largeTurbo = "large-v3-turbo"
 
     var id: String { rawValue }
 
     var displayName: String {
         switch self {
-        case .tinyEN:  return "Tiny (fastest, lowest quality)"
-        case .baseEN:  return "Base (balanced)"
-        case .smallEN: return "Small (best quality, slower)"
+        case .baseEN:     return "Base (fastest)"
+        case .smallEN:    return "Small (balanced)"
+        case .mediumEN:   return "Medium (high quality)"
+        case .largeTurbo: return "Large Turbo (best quality)"
         }
     }
 
     /// Selects the appropriate model based on recording duration.
     static func forDuration(_ seconds: TimeInterval) -> WhisperModelChoice {
-        if seconds < 60 { return .tinyEN }
-        if seconds < 300 { return .baseEN }
-        return .smallEN
+        if seconds < 60 { return .baseEN }
+        if seconds < 300 { return .smallEN }
+        return .mediumEN
     }
 }
