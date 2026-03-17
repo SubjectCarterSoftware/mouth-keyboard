@@ -8,6 +8,7 @@ struct RecordingPillView: View {
     var onFinish: (() -> Void)?
     var onCancel: (() -> Void)?
     var onRestart: (() -> Void)?
+    var onFinishAndPaste: (() -> Void)?
 
     private let barScales: [CGFloat]
 
@@ -20,7 +21,8 @@ struct RecordingPillView: View {
         silenceWarningActive: Bool = false,
         onFinish: (() -> Void)? = nil,
         onCancel: (() -> Void)? = nil,
-        onRestart: (() -> Void)? = nil
+        onRestart: (() -> Void)? = nil,
+        onFinishAndPaste: (() -> Void)? = nil
     ) {
         self.levelMonitor = levelMonitor
         self.recordingState = recordingState
@@ -29,6 +31,7 @@ struct RecordingPillView: View {
         self.onFinish = onFinish
         self.onCancel = onCancel
         self.onRestart = onRestart
+        self.onFinishAndPaste = onFinishAndPaste
         barScales = (0..<5).map { _ in CGFloat.random(in: 0.55...1.0) }
     }
 
@@ -41,8 +44,8 @@ struct RecordingPillView: View {
             recordingContent
         case .processing:
             processingContent
-        case .success:
-            successContent
+        case .success(_, let pasted):
+            successContent(pasted: pasted)
         case .failure(let reason):
             failureContent(reason: reason)
         case .idle:
@@ -56,7 +59,7 @@ struct RecordingPillView: View {
     private var recordingContent: some View {
         let barTint: Color = silenceWarningActive ? Color.orange : Color.white
 
-        return ZStack(alignment: .trailing) {
+        return ZStack {
             HStack(spacing: 12) {
                 Button(action: { onFinish?() }) {
                     Image(systemName: "checkmark.circle.fill")
@@ -89,14 +92,37 @@ struct RecordingPillView: View {
             }
             .frame(width: 220, height: 44)
 
-            Button(action: { onRestart?() }) {
-                Image(systemName: "arrow.clockwise.circle.fill")
-                    .font(.system(size: 18, weight: .semibold))
-                    .foregroundStyle(Color.orange)
+            // Finish & Paste — far left
+            HStack {
+                Button(action: { onFinishAndPaste?() }) {
+                    ZStack {
+                        Circle()
+                            .fill(Color.blue)
+                        Image(systemName: "clipboard.fill")
+                            .font(.system(size: 11, weight: .semibold))
+                            .blendMode(.destinationOut)
+                    }
+                    .compositingGroup()
+                    .frame(width: 20, height: 20)
+                }
+                .buttonStyle(.plain)
+                .accessibilityIdentifier("pill.finishAndPaste")
+                .padding(.leading, 10)
+                Spacer()
             }
-            .buttonStyle(.plain)
-            .accessibilityIdentifier("pill.restart")
-            .padding(.trailing, 10)
+
+            // Restart — far right
+            HStack {
+                Spacer()
+                Button(action: { onRestart?() }) {
+                    Image(systemName: "arrow.clockwise.circle.fill")
+                        .font(.system(size: 18, weight: .semibold))
+                        .foregroundStyle(Color.orange)
+                }
+                .buttonStyle(.plain)
+                .accessibilityIdentifier("pill.restart")
+                .padding(.trailing, 10)
+            }
         }
         .frame(width: 220, height: 44)
         .preferredColorScheme(.dark)
@@ -140,13 +166,25 @@ struct RecordingPillView: View {
 
     // MARK: - Success state
 
-    private var successContent: some View {
+    private func successContent(pasted: Bool) -> some View {
         HStack(spacing: 8) {
-            Image(systemName: "checkmark.circle.fill")
-                .font(.system(size: 16, weight: .semibold))
-                .foregroundStyle(Color.green)
+            if pasted {
+                ZStack {
+                    Circle()
+                        .fill(Color.blue)
+                    Image(systemName: "clipboard.fill")
+                        .font(.system(size: 10, weight: .semibold))
+                        .blendMode(.destinationOut)
+                }
+                .compositingGroup()
+                .frame(width: 18, height: 18)
+            } else {
+                Image(systemName: "checkmark.circle.fill")
+                    .font(.system(size: 16, weight: .semibold))
+                    .foregroundStyle(Color.green)
+            }
 
-            Text("Copied!")
+            Text(pasted ? "Pasted!" : "Copied!")
                 .font(.system(size: 13, weight: .semibold))
                 .foregroundStyle(.white)
         }
@@ -231,8 +269,12 @@ struct RecordingPillView: View {
     RecordingPillView(levelMonitor: AudioLevelMonitor(), recordingState: .processing)
 }
 
-#Preview("Success") {
-    RecordingPillView(levelMonitor: AudioLevelMonitor(), recordingState: .success(text: "Hello world"))
+#Preview("Success - Copied") {
+    RecordingPillView(levelMonitor: AudioLevelMonitor(), recordingState: .success(text: "Hello world", pasted: false))
+}
+
+#Preview("Success - Pasted") {
+    RecordingPillView(levelMonitor: AudioLevelMonitor(), recordingState: .success(text: "Hello world", pasted: true))
 }
 
 #Preview("Failure - No Speech") {

@@ -154,7 +154,8 @@ private struct RecordingPillViewWrapper: View {
             recoveryFeedback: activationStore.recoveryFeedback,
             onFinish: { activationStore.arm() },
             onCancel: { activationStore.cancelCurrentSession() },
-            onRestart: { activationStore.restartCurrentSession() }
+            onRestart: { activationStore.restartCurrentSession() },
+            onFinishAndPaste: { activationStore.finishAndPaste() }
         )
     }
 }

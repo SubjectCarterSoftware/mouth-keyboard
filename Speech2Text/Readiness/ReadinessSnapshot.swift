@@ -24,6 +24,7 @@ enum PermissionGrantState: String, CaseIterable, Equatable {
 enum PermissionKind: String, CaseIterable, Identifiable {
     case microphone
     case keyboardMonitoring
+    case postEvent
 
     var id: String {
         rawValue
@@ -35,6 +36,8 @@ enum PermissionKind: String, CaseIterable, Identifiable {
             return "Microphone Access"
         case .keyboardMonitoring:
             return "Keyboard Monitoring"
+        case .postEvent:
+            return "Auto Paste"
         }
     }
 
@@ -44,6 +47,8 @@ enum PermissionKind: String, CaseIterable, Identifiable {
             return "mic.fill"
         case .keyboardMonitoring:
             return "keyboard"
+        case .postEvent:
+            return "doc.on.clipboard.fill"
         }
     }
 
@@ -53,6 +58,8 @@ enum PermissionKind: String, CaseIterable, Identifiable {
             return URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Microphone")
         case .keyboardMonitoring:
             return URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_ListenEvent")
+        case .postEvent:
+            return URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility")
         }
     }
 
@@ -70,6 +77,12 @@ enum PermissionKind: String, CaseIterable, Identifiable {
             return "Allow keyboard monitoring so Speech2Text can catch background Escape while you stay in the current app."
         case (.keyboardMonitoring, .denied):
             return "Keyboard monitoring is blocked. Re-enable Input Monitoring in System Settings so background Escape is not a silent no-op."
+        case (.postEvent, .authorized):
+            return "Transcribe & Paste can inject text directly into any active text field."
+        case (.postEvent, .notDetermined):
+            return "Allow Accessibility access so the Transcribe & Paste feature can type text into other apps."
+        case (.postEvent, .denied):
+            return "Accessibility access is blocked. Re-enable it in System Settings to use Transcribe & Paste."
         }
     }
 }
@@ -84,6 +97,8 @@ struct PermissionChecklistItem: Identifiable, Equatable {
     let kind: PermissionKind
     let status: PermissionGrantState
     let message: String
+    /// When false, this permission is informational only and does not block recording.
+    let isRequired: Bool
 
     var id: String {
         kind.id
@@ -115,22 +130,33 @@ struct ReadinessSnapshot: Equatable {
     static func derive(
         isSetupComplete: Bool,
         microphoneStatus: PermissionGrantState,
-        keyboardStatus: PermissionGrantState
+        keyboardStatus: PermissionGrantState,
+        postEventStatus: PermissionGrantState
     ) -> Self {
         let permissions = [
             PermissionChecklistItem(
                 kind: .microphone,
                 status: microphoneStatus,
-                message: PermissionKind.microphone.message(for: microphoneStatus)
+                message: PermissionKind.microphone.message(for: microphoneStatus),
+                isRequired: true
             ),
             PermissionChecklistItem(
                 kind: .keyboardMonitoring,
                 status: keyboardStatus,
-                message: PermissionKind.keyboardMonitoring.message(for: keyboardStatus)
+                message: PermissionKind.keyboardMonitoring.message(for: keyboardStatus),
+                isRequired: true
+            ),
+            PermissionChecklistItem(
+                kind: .postEvent,
+                status: postEventStatus,
+                message: PermissionKind.postEvent.message(for: postEventStatus),
+                isRequired: false
             ),
         ]
 
-        if permissions.contains(where: { $0.status == .denied }) {
+        let requiredPermissions = permissions.filter(\.isRequired)
+
+        if requiredPermissions.contains(where: { $0.status == .denied }) {
             return Self(
                 state: .blocked,
                 title: "Setup Blocked",
@@ -140,8 +166,8 @@ struct ReadinessSnapshot: Equatable {
             )
         }
 
-        if !isSetupComplete || permissions.contains(where: { $0.status == .notDetermined }) {
-            let allPermissionsGranted = permissions.allSatisfy(\.isAuthorized)
+        if !isSetupComplete || requiredPermissions.contains(where: { $0.status == .notDetermined }) {
+            let allPermissionsGranted = requiredPermissions.allSatisfy(\.isAuthorized)
             return Self(
                 state: .needsSetup,
                 title: allPermissionsGranted ? "Finish Setup" : "Setup Needed",

@@ -6,7 +6,8 @@ final class ReadinessStore: ObservableObject {
     static let shared = ReadinessStore(
         preferences: .shared,
         microphoneService: .live,
-        keyboardService: .live
+        keyboardService: .live,
+        postEventService: .live
     )
 
     @Published private(set) var snapshot: ReadinessSnapshot
@@ -15,6 +16,7 @@ final class ReadinessStore: ObservableObject {
     private let preferences: ShellPreferences
     private let microphoneService: MicrophonePermissionService
     private let keyboardService: KeyboardPermissionService
+    private let postEventService: PostEventPermissionService
     private let recoveryActionPerformer: RecoveryActionPerformer
     private var previousState: ReadinessState
 
@@ -22,17 +24,20 @@ final class ReadinessStore: ObservableObject {
         preferences: ShellPreferences,
         microphoneService: MicrophonePermissionService,
         keyboardService: KeyboardPermissionService,
+        postEventService: PostEventPermissionService,
         recoveryActionPerformer: RecoveryActionPerformer = .live
     ) {
         self.preferences = preferences
         self.microphoneService = microphoneService
         self.keyboardService = keyboardService
+        self.postEventService = postEventService
         self.recoveryActionPerformer = recoveryActionPerformer
 
         let initialSnapshot = ReadinessSnapshot.derive(
             isSetupComplete: preferences.hasCompletedInitialSetup,
             microphoneStatus: microphoneService.currentStatus(),
-            keyboardStatus: keyboardService.currentStatus(hasPrompted: preferences.hasRequestedKeyboardPermission)
+            keyboardStatus: keyboardService.currentStatus(hasPrompted: preferences.hasRequestedKeyboardPermission),
+            postEventStatus: postEventService.currentStatus(hasPrompted: preferences.hasRequestedPostEventPermission)
         )
 
         snapshot = initialSnapshot
@@ -40,14 +45,15 @@ final class ReadinessStore: ObservableObject {
     }
 
     var canFinishSetup: Bool {
-        snapshot.permissions.allSatisfy(\.isAuthorized)
+        snapshot.permissions.filter(\.isRequired).allSatisfy(\.isAuthorized)
     }
 
     func refresh() {
         let newSnapshot = ReadinessSnapshot.derive(
             isSetupComplete: preferences.hasCompletedInitialSetup,
             microphoneStatus: microphoneService.currentStatus(),
-            keyboardStatus: keyboardService.currentStatus(hasPrompted: preferences.hasRequestedKeyboardPermission)
+            keyboardStatus: keyboardService.currentStatus(hasPrompted: preferences.hasRequestedKeyboardPermission),
+            postEventStatus: postEventService.currentStatus(hasPrompted: preferences.hasRequestedPostEventPermission)
         )
 
         if previousState != .ready, newSnapshot.state == .ready {
@@ -71,6 +77,10 @@ final class ReadinessStore: ObservableObject {
         case .keyboardMonitoring:
             preferences.recordKeyboardPermissionPrompt()
             _ = keyboardService.requestAccess()
+            refresh()
+        case .postEvent:
+            preferences.recordPostEventPermissionPrompt()
+            _ = postEventService.requestAccess()
             refresh()
         }
     }

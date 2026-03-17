@@ -1,4 +1,5 @@
 import AppKit
+import Combine
 import KeyboardShortcuts
 import SwiftUI
 
@@ -66,6 +67,7 @@ struct SetupWindowView: View {
                     .pickerStyle(.menu)
 
                     KeyboardShortcuts.Recorder("Start / Stop:", name: .activate)
+                    KeyboardShortcuts.Recorder("Stop & Auto Paste:", name: .activateAndPaste)
                 }
                 .formStyle(.columns)
 
@@ -100,7 +102,7 @@ struct SetupWindowView: View {
                     Spacer()
 
                     Button("Reset") {
-                        KeyboardShortcuts.reset(.activate)
+                        KeyboardShortcuts.reset(.activate, .activateAndPaste)
                         preferences.micDeviceUID = nil
                         preferences.whisperModel = .baseEN
                         preferences.autoModelSelection = false
@@ -120,12 +122,15 @@ struct SetupWindowView: View {
             }
             .padding(24)
         }
-        .frame(minWidth: 440, maxWidth: 440, minHeight: 420, maxHeight: 500)
+        .frame(minWidth: 560, maxWidth: 560, minHeight: 420, maxHeight: 500)
         .background(.regularMaterial)
         .onAppear {
             audioDeviceService.refresh()
             readinessStore.refresh()
             NSApp.activate(ignoringOtherApps: true)
+        }
+        .onReceive(Timer.publish(every: 3, on: .main, in: .common).autoconnect()) { _ in
+            readinessStore.refresh()
         }
     }
 }

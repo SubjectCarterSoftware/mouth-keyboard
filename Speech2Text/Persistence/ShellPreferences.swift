@@ -10,6 +10,7 @@ final class ShellPreferences: ObservableObject {
         static let showsMenuHints = "showsMenuHints"
         static let hasRequestedMicrophonePermission = "hasRequestedMicrophonePermission"
         static let hasRequestedKeyboardPermission = "hasRequestedKeyboardPermission"
+        static let hasRequestedPostEventPermission = "hasRequestedPostEventPermission"
         static let micDeviceUID = "micDeviceUID"
         static let whisperModel = "whisperModel"
         static let autoModelSelection = "autoModelSelection"
@@ -39,6 +40,12 @@ final class ShellPreferences: ObservableObject {
     @Published var hasRequestedKeyboardPermission: Bool {
         didSet {
             defaults.set(hasRequestedKeyboardPermission, forKey: Keys.hasRequestedKeyboardPermission)
+        }
+    }
+
+    @Published var hasRequestedPostEventPermission: Bool {
+        didSet {
+            defaults.set(hasRequestedPostEventPermission, forKey: Keys.hasRequestedPostEventPermission)
         }
     }
 
@@ -80,6 +87,7 @@ final class ShellPreferences: ObservableObject {
         hasCompletedInitialSetup = userDefaults.bool(forKey: Keys.hasCompletedInitialSetup)
         hasRequestedMicrophonePermission = userDefaults.bool(forKey: Keys.hasRequestedMicrophonePermission)
         hasRequestedKeyboardPermission = userDefaults.bool(forKey: Keys.hasRequestedKeyboardPermission)
+        hasRequestedPostEventPermission = userDefaults.bool(forKey: Keys.hasRequestedPostEventPermission)
         let storedMicDeviceUID = userDefaults.string(forKey: Keys.micDeviceUID)
         if let storedMicDeviceUID, !storedMicDeviceUID.isEmpty {
             micDeviceUID = storedMicDeviceUID
@@ -117,6 +125,10 @@ final class ShellPreferences: ObservableObject {
         hasRequestedKeyboardPermission = true
     }
 
+    func recordPostEventPermissionPrompt() {
+        hasRequestedPostEventPermission = true
+    }
+
     func setLaunchAtLogin(_ enabled: Bool) {
         do {
             if enabled {
@@ -136,6 +148,7 @@ final class ShellPreferences: ObservableObject {
             showsMenuHints = true
             hasRequestedMicrophonePermission = false
             hasRequestedKeyboardPermission = false
+            hasRequestedPostEventPermission = false
             micDeviceUID = nil
             whisperModel = .baseEN
             autoModelSelection = false
@@ -145,6 +158,7 @@ final class ShellPreferences: ObservableObject {
         defaults.removeObject(forKey: Keys.showsMenuHints)
         defaults.removeObject(forKey: Keys.hasRequestedMicrophonePermission)
         defaults.removeObject(forKey: Keys.hasRequestedKeyboardPermission)
+        defaults.removeObject(forKey: Keys.hasRequestedPostEventPermission)
         defaults.removeObject(forKey: Keys.micDeviceUID)
         defaults.removeObject(forKey: Keys.whisperModel)
         defaults.removeObject(forKey: Keys.autoModelSelection)

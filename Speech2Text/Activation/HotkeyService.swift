@@ -4,6 +4,7 @@ import KeyboardShortcuts
 extension KeyboardShortcuts.Name {
     static let activate = Self("activate", default: .init(.v, modifiers: [.control]))
     static let cancelSession = Self("cancelSession", default: .init(.v, modifiers: [.control, .shift]))
+    static let activateAndPaste = Self("activateAndPaste", default: .init(.b, modifiers: [.control]))
 }
 
 @MainActor
@@ -11,7 +12,8 @@ final class HotkeyService {
     static let shared = HotkeyService(
         currentState: { ActivationStore.shared.state },
         onArm: { ActivationStore.shared.arm() },
-        onCancel: { ActivationStore.shared.cancelCurrentSession() }
+        onCancel: { ActivationStore.shared.cancelCurrentSession() },
+        onArmAndPaste: { ActivationStore.shared.armAndPaste() }
     )
 
     let minimumActivationInterval: CFAbsoluteTime
@@ -20,6 +22,7 @@ final class HotkeyService {
     var now: () -> CFAbsoluteTime
     var onArm: () -> Void
     var onCancel: () -> Void
+    var onArmAndPaste: () -> Void
 
     private var isListening = false
     private var lastActivationTime: CFAbsoluteTime?
@@ -29,12 +32,14 @@ final class HotkeyService {
         currentState: @escaping () -> RecordingState,
         onArm: @escaping () -> Void,
         onCancel: @escaping () -> Void = {},
+        onArmAndPaste: @escaping () -> Void = {},
         now: @escaping () -> CFAbsoluteTime = CFAbsoluteTimeGetCurrent
     ) {
         self.minimumActivationInterval = minimumActivationInterval
         self.currentState = currentState
         self.onArm = onArm
         self.onCancel = onCancel
+        self.onArmAndPaste = onArmAndPaste
         self.now = now
     }
 
@@ -73,6 +78,13 @@ final class HotkeyService {
             }
         }
 
+        KeyboardShortcuts.onKeyDown(for: .activateAndPaste) { [weak self] in
+            Task { @MainActor [weak self] in
+                NSLog("HotkeyService: activateAndPaste shortcut fired via KeyboardShortcuts")
+                self?.onArmAndPaste()
+            }
+        }
+
         isListening = true
         NSLog("HotkeyService: listening via KeyboardShortcuts (Carbon hot key, no Accessibility required)")
     }
@@ -80,6 +92,7 @@ final class HotkeyService {
     func stop() {
         KeyboardShortcuts.disable(.activate)
         KeyboardShortcuts.disable(.cancelSession)
+        KeyboardShortcuts.disable(.activateAndPaste)
         lastActivationTime = nil
         isListening = false
     }

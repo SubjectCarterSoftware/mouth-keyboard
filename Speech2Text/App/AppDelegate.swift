@@ -41,7 +41,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         // Create the pill panel once — shown/hidden reactively via RecordingPillPanel's own state observer.
         pillPanel = RecordingPillPanel(levelMonitor: levelMonitor, activationStore: activationStore)
 
-        // Observe ActivationStore state to drive audio capture, spacebar, and menu bar icon.
+        // Observe ActivationStore state to drive audio capture and menu bar icon.
         stateObservation = activationStore.$state
             .receive(on: DispatchQueue.main)
             .dropFirst()
@@ -126,7 +126,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
 
     private func onTranscriptionSucceeded() {
         // Pill panel shows success briefly then dismisses (RecordingPillPanel handles this).
-        updateMenuBarIcon(state: .success(text: ""))
+        updateMenuBarIcon(state: .success(text: "", pasted: false))
     }
 
     private func onTranscriptionFailed() {
@@ -190,7 +190,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         }
 
         let window = NSWindow(
-            contentRect: NSRect(x: 0, y: 0, width: 440, height: 480),
+            contentRect: NSRect(x: 0, y: 0, width: 560, height: 480),
             styleMask: [.titled, .closable, .miniaturizable],
             backing: .buffered,
             defer: false

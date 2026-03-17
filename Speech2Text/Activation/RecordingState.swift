@@ -2,7 +2,7 @@ enum RecordingState: Equatable {
     case idle
     case recording
     case processing
-    case success(text: String)
+    case success(text: String, pasted: Bool)
     case failure(reason: FailureReason)
 
     enum RecoveryFeedback: Equatable {

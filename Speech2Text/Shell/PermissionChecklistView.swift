@@ -50,6 +50,9 @@ private struct PermissionTile: View {
                 Text(item.status.label)
                     .font(.caption.weight(.semibold))
                     .foregroundStyle(tintColor)
+                    .multilineTextAlignment(.trailing)
+                    .lineLimit(2)
+                    .fixedSize(horizontal: false, vertical: true)
                     .accessibilityIdentifier("permission.\(item.kind.rawValue).status")
             }
 

@@ -43,6 +43,7 @@ final class ActivationStore: ObservableObject {
         readinessProvider: ReadinessStore.shared,
         whisperService: WhisperService.shared,
         clipboardService: ClipboardService(),
+        pasteService: PasteService(),
         bufferAccumulator: AudioBufferAccumulator(),
         resetSessionMonitoring: {}
     )
@@ -55,12 +56,14 @@ final class ActivationStore: ObservableObject {
     private let readinessProvider: any ReadinessProviding
     private let whisperService: any WhisperTranscribing
     private let clipboardService: ClipboardService
+    private let pasteService: PasteService
     private let resetSessionMonitoring: @MainActor () -> Void
     let bufferAccumulator: AudioBufferAccumulator
     let voiceActivityDetector: VoiceActivityDetector
     var soundPlayer: ActivationSoundPlayer = .init()
     private static let maxRecordingDuration: UInt64 = 5 * 60 * 1_000_000_000 // 5 minutes
 
+    private var pasteOnCompletion = false
     private var activeSessionID = UUID()
     private var transcriptionTask: Task<Void, Never>?
     private var dismissTask: Task<Void, Never>?
@@ -73,6 +76,7 @@ final class ActivationStore: ObservableObject {
             readinessProvider: readinessStore,
             whisperService: WhisperService(),
             clipboardService: ClipboardService(),
+            pasteService: PasteService(),
             bufferAccumulator: AudioBufferAccumulator(),
             resetSessionMonitoring: {}
         )
@@ -83,6 +87,7 @@ final class ActivationStore: ObservableObject {
         readinessProvider: any ReadinessProviding,
         whisperService: any WhisperTranscribing = WhisperService(),
         clipboardService: ClipboardService = ClipboardService(),
+        pasteService: PasteService = PasteService(),
         bufferAccumulator: AudioBufferAccumulator = AudioBufferAccumulator(),
         resetSessionMonitoring: @escaping @MainActor () -> Void = {}
     ) {
@@ -90,6 +95,7 @@ final class ActivationStore: ObservableObject {
         self.readinessProvider = readinessProvider
         self.whisperService = whisperService
         self.clipboardService = clipboardService
+        self.pasteService = pasteService
         self.bufferAccumulator = bufferAccumulator
         self.voiceActivityDetector = VoiceActivityDetector(destination: bufferAccumulator)
         self.resetSessionMonitoring = resetSessionMonitoring
@@ -125,7 +131,7 @@ final class ActivationStore: ObservableObject {
         // work as soon as microphone and keyboard-monitoring permissions are
         // authorized, even if the user dismissed the setup window early.
         let snapshot = readinessProvider.snapshot
-        guard snapshot.permissions.allSatisfy(\.isAuthorized) else {
+        guard snapshot.permissions.filter(\.isRequired).allSatisfy(\.isAuthorized) else {
             return
         }
 
@@ -152,6 +158,18 @@ final class ActivationStore: ObservableObject {
                 try? await self?.prepareWhisperModel(for: nil)
             }
         }
+    }
+
+    /// Arm with paste intent: records then pastes the transcription to the active cursor position.
+    func armAndPaste() {
+        pasteOnCompletion = true
+        arm()
+    }
+
+    /// Finish recording and paste the transcription to the active cursor position.
+    func finishAndPaste() {
+        pasteOnCompletion = true
+        finish()
     }
 
     /// Hard stop — transitions directly to idle without transcribing. Used for cancel (Phase 4).
@@ -238,9 +256,15 @@ final class ActivationStore: ObservableObject {
                 throw TranscriptionError.noSpeechDetected
             }
 
-            state = .success(text: trimmed)
+            let didPaste = pasteOnCompletion
+            pasteOnCompletion = false
             lastTranscription = trimmed
-            clipboardService.writeToClipboard(trimmed)
+            if didPaste {
+                pasteService.paste(text: trimmed)
+            } else {
+                clipboardService.writeToClipboard(trimmed)
+            }
+            state = .success(text: trimmed, pasted: didPaste)
             soundPlayer.playSuccess()
             scheduleDismissToIdle(afterNanoseconds: 1_500_000_000, sessionID: sessionID)
         } catch TranscriptionError.noSpeechDetected {
@@ -261,6 +285,7 @@ final class ActivationStore: ObservableObject {
     }
 
     private func invalidateActiveSession() {
+        pasteOnCompletion = false
         activeSessionID = UUID()
         transcriptionTask?.cancel()
         transcriptionTask = nil
@@ -279,8 +304,9 @@ final class ActivationStore: ObservableObject {
     private func publishRecoveryFeedback(_ feedback: RecordingState.RecoveryFeedback) {
         feedbackClearTask?.cancel()
         recoveryFeedback = feedback
+        let delay: UInt64 = feedback == .restarted ? 250_000_000 : 1_500_000_000
         feedbackClearTask = Task { [weak self] in
-            try? await Task.sleep(nanoseconds: 1_500_000_000)
+            try? await Task.sleep(nanoseconds: delay)
             guard let self, !Task.isCancelled else { return }
             self.recoveryFeedback = nil
             self.feedbackClearTask = nil
