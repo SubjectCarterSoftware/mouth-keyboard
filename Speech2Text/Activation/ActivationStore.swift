@@ -63,6 +63,8 @@ final class ActivationStore: ObservableObject {
     var soundPlayer: ActivationSoundPlayer = .init()
     private static let maxRecordingDuration: UInt64 = 5 * 60 * 1_000_000_000 // 5 minutes
 
+    var onPastePermissionNeeded: () -> Void = {}
+
     private var pasteOnCompletion = false
     private var activeSessionID = UUID()
     private var transcriptionTask: Task<Void, Never>?
@@ -162,14 +164,27 @@ final class ActivationStore: ObservableObject {
 
     /// Arm with paste intent: records then pastes the transcription to the active cursor position.
     func armAndPaste() {
+        guard isPostEventPermissionGranted else {
+            onPastePermissionNeeded()
+            return
+        }
         pasteOnCompletion = true
         arm()
     }
 
     /// Finish recording and paste the transcription to the active cursor position.
     func finishAndPaste() {
-        pasteOnCompletion = true
+        if isPostEventPermissionGranted {
+            pasteOnCompletion = true
+        } else {
+            onPastePermissionNeeded()
+        }
         finish()
+    }
+
+    private var isPostEventPermissionGranted: Bool {
+        readinessProvider.snapshot.permissions
+            .first(where: { $0.kind == .postEvent })?.isAuthorized ?? false
     }
 
     /// Hard stop — transitions directly to idle without transcribing. Used for cancel (Phase 4).

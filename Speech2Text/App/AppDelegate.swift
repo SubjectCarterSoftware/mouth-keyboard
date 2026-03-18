@@ -36,6 +36,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             self?.activationStore.handleCaptureFailure(error)
         }
 
+        activationStore.onPastePermissionNeeded = { [weak self] in
+            self?.presentSetupWindow()
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                NotificationCenter.default.post(name: .postEventGuideRequested, object: nil)
+            }
+        }
+
 
 
         // Create the pill panel once — shown/hidden reactively via RecordingPillPanel's own state observer.
@@ -190,7 +197,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         }
 
         let window = NSWindow(
-            contentRect: NSRect(x: 0, y: 0, width: 560, height: 480),
+            contentRect: NSRect(x: 0, y: 0, width: 560, height: 620),
             styleMask: [.titled, .closable, .miniaturizable],
             backing: .buffered,
             defer: false

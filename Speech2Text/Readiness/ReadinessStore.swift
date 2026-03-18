@@ -6,7 +6,6 @@ final class ReadinessStore: ObservableObject {
     static let shared = ReadinessStore(
         preferences: .shared,
         microphoneService: .live,
-        keyboardService: .live,
         postEventService: .live
     )
 
@@ -15,7 +14,6 @@ final class ReadinessStore: ObservableObject {
 
     private let preferences: ShellPreferences
     private let microphoneService: MicrophonePermissionService
-    private let keyboardService: KeyboardPermissionService
     private let postEventService: PostEventPermissionService
     private let recoveryActionPerformer: RecoveryActionPerformer
     private var previousState: ReadinessState
@@ -23,20 +21,17 @@ final class ReadinessStore: ObservableObject {
     init(
         preferences: ShellPreferences,
         microphoneService: MicrophonePermissionService,
-        keyboardService: KeyboardPermissionService,
         postEventService: PostEventPermissionService,
         recoveryActionPerformer: RecoveryActionPerformer = .live
     ) {
         self.preferences = preferences
         self.microphoneService = microphoneService
-        self.keyboardService = keyboardService
         self.postEventService = postEventService
         self.recoveryActionPerformer = recoveryActionPerformer
 
         let initialSnapshot = ReadinessSnapshot.derive(
             isSetupComplete: preferences.hasCompletedInitialSetup,
             microphoneStatus: microphoneService.currentStatus(),
-            keyboardStatus: keyboardService.currentStatus(hasPrompted: preferences.hasRequestedKeyboardPermission),
             postEventStatus: postEventService.currentStatus(hasPrompted: preferences.hasRequestedPostEventPermission)
         )
 
@@ -52,7 +47,6 @@ final class ReadinessStore: ObservableObject {
         let newSnapshot = ReadinessSnapshot.derive(
             isSetupComplete: preferences.hasCompletedInitialSetup,
             microphoneStatus: microphoneService.currentStatus(),
-            keyboardStatus: keyboardService.currentStatus(hasPrompted: preferences.hasRequestedKeyboardPermission),
             postEventStatus: postEventService.currentStatus(hasPrompted: preferences.hasRequestedPostEventPermission)
         )
 
@@ -74,10 +68,6 @@ final class ReadinessStore: ObservableObject {
                 _ = await microphoneService.requestAccess()
                 refresh()
             }
-        case .keyboardMonitoring:
-            preferences.recordKeyboardPermissionPrompt()
-            _ = keyboardService.requestAccess()
-            refresh()
         case .postEvent:
             preferences.recordPostEventPermissionPrompt()
             _ = postEventService.requestAccess()

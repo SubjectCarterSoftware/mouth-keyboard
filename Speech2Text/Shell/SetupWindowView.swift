@@ -67,6 +67,7 @@ struct SetupWindowView: View {
                     .pickerStyle(.menu)
 
                     KeyboardShortcuts.Recorder("Start / Stop:", name: .activate)
+                    KeyboardShortcuts.Recorder("Stop Only:", name: .stopSession)
                     KeyboardShortcuts.Recorder("Stop & Auto Paste:", name: .activateAndPaste)
                 }
                 .formStyle(.columns)
@@ -99,10 +100,15 @@ struct SetupWindowView: View {
                 Divider()
 
                 HStack(spacing: 12) {
+                    Button("Shut Down App") {
+                        NSApp.terminate(nil)
+                    }
+                    .foregroundStyle(.red)
+
                     Spacer()
 
                     Button("Reset") {
-                        KeyboardShortcuts.reset(.activate, .activateAndPaste)
+                        KeyboardShortcuts.reset(.activate, .stopSession, .activateAndPaste)
                         preferences.micDeviceUID = nil
                         preferences.whisperModel = .baseEN
                         preferences.autoModelSelection = false
@@ -116,13 +122,11 @@ struct SetupWindowView: View {
                     }
                     .keyboardShortcut(.defaultAction)
                     .accessibilityIdentifier("setupWindow.primaryAction")
-
-                    Spacer()
                 }
             }
             .padding(24)
         }
-        .frame(minWidth: 560, maxWidth: 560, minHeight: 420, maxHeight: 500)
+        .frame(minWidth: 560, maxWidth: 560, minHeight: 560, maxHeight: 660)
         .background(.regularMaterial)
         .onAppear {
             audioDeviceService.refresh()

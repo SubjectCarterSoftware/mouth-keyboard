@@ -23,7 +23,6 @@ enum PermissionGrantState: String, CaseIterable, Equatable {
 
 enum PermissionKind: String, CaseIterable, Identifiable {
     case microphone
-    case keyboardMonitoring
     case postEvent
 
     var id: String {
@@ -34,8 +33,6 @@ enum PermissionKind: String, CaseIterable, Identifiable {
         switch self {
         case .microphone:
             return "Microphone Access"
-        case .keyboardMonitoring:
-            return "Keyboard Monitoring"
         case .postEvent:
             return "Auto Paste"
         }
@@ -45,8 +42,6 @@ enum PermissionKind: String, CaseIterable, Identifiable {
         switch self {
         case .microphone:
             return "mic.fill"
-        case .keyboardMonitoring:
-            return "keyboard"
         case .postEvent:
             return "doc.on.clipboard.fill"
         }
@@ -56,8 +51,6 @@ enum PermissionKind: String, CaseIterable, Identifiable {
         switch self {
         case .microphone:
             return URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Microphone")
-        case .keyboardMonitoring:
-            return URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_ListenEvent")
         case .postEvent:
             return URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility")
         }
@@ -71,18 +64,12 @@ enum PermissionKind: String, CaseIterable, Identifiable {
             return "Allow microphone access now so the first recording attempt does not surprise the user later."
         case (.microphone, .denied):
             return "Microphone access is denied. Re-enable it in System Settings to move past the blocked state."
-        case (.keyboardMonitoring, .authorized):
-            return "Keyboard monitoring is available, so background Escape can cancel an active session."
-        case (.keyboardMonitoring, .notDetermined):
-            return "Allow keyboard monitoring so Speech2Text can catch background Escape while you stay in the current app."
-        case (.keyboardMonitoring, .denied):
-            return "Keyboard monitoring is blocked. Re-enable Input Monitoring in System Settings so background Escape is not a silent no-op."
         case (.postEvent, .authorized):
-            return "Transcribe & Paste can inject text directly into any active text field."
+            return "Auto Paste can inject text directly into any active text field."
         case (.postEvent, .notDetermined):
-            return "Allow Accessibility access so the Transcribe & Paste feature can type text into other apps."
+            return "Allow Accessibility access so Auto Paste can type text into other apps."
         case (.postEvent, .denied):
-            return "Accessibility access is blocked. Re-enable it in System Settings to use Transcribe & Paste."
+            return "Accessibility access is blocked. Re-enable it in System Settings to use Auto Paste."
         }
     }
 }
@@ -130,7 +117,6 @@ struct ReadinessSnapshot: Equatable {
     static func derive(
         isSetupComplete: Bool,
         microphoneStatus: PermissionGrantState,
-        keyboardStatus: PermissionGrantState,
         postEventStatus: PermissionGrantState
     ) -> Self {
         let permissions = [
@@ -138,12 +124,6 @@ struct ReadinessSnapshot: Equatable {
                 kind: .microphone,
                 status: microphoneStatus,
                 message: PermissionKind.microphone.message(for: microphoneStatus),
-                isRequired: true
-            ),
-            PermissionChecklistItem(
-                kind: .keyboardMonitoring,
-                status: keyboardStatus,
-                message: PermissionKind.keyboardMonitoring.message(for: keyboardStatus),
                 isRequired: true
             ),
             PermissionChecklistItem(
