@@ -54,9 +54,13 @@
 		A0000001000000000000002C /* ShellPreferencesModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000020000000000000030 /* ShellPreferencesModelTests.swift */; };
 		A0000001000000000000002D /* VoiceActivityDetector.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000020000000000000031 /* VoiceActivityDetector.swift */; };
 		A0000001000000000000002E /* VoiceActivityDetectorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000020000000000000032 /* VoiceActivityDetectorTests.swift */; };
-		A0000001000000000000002F /* Resources/Sounds/Tink.aiff in Resources */ = {isa = PBXBuildFile; fileRef = A00000020000000000000033 /* Resources/Sounds/Tink.aiff */; };
-		A00000010000000000000030 /* Resources/Sounds/Glass.aiff in Resources */ = {isa = PBXBuildFile; fileRef = A00000020000000000000034 /* Resources/Sounds/Glass.aiff */; };
-		A00000010000000000000031 /* Resources/Sounds/Basso.aiff in Resources */ = {isa = PBXBuildFile; fileRef = A00000020000000000000035 /* Resources/Sounds/Basso.aiff */; };
+			A0000001000000000000002F /* Resources/Sounds/Tink.aiff in Resources */ = {isa = PBXBuildFile; fileRef = A00000020000000000000033 /* Resources/Sounds/Tink.aiff */; };
+			A00000010000000000000030 /* Resources/Sounds/Glass.aiff in Resources */ = {isa = PBXBuildFile; fileRef = A00000020000000000000034 /* Resources/Sounds/Glass.aiff */; };
+			A00000010000000000000031 /* Resources/Sounds/Basso.aiff in Resources */ = {isa = PBXBuildFile; fileRef = A00000020000000000000035 /* Resources/Sounds/Basso.aiff */; };
+			A00000010000000000000034 /* ConvertMode.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000020000000000000038 /* ConvertMode.swift */; };
+			A00000010000000000000035 /* ConvertIntent.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000020000000000000039 /* ConvertIntent.swift */; };
+			A00000010000000000000036 /* IntentDetector.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0000002000000000000003A /* IntentDetector.swift */; };
+			A00000010000000000000037 /* IntentDetectorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0000002000000000000003B /* IntentDetectorTests.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -127,9 +131,13 @@
 		A00000020000000000000031 /* VoiceActivityDetector.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VoiceActivityDetector.swift; sourceTree = "<group>"; };
 		A0000002000000000000002F /* WhisperModelChoice.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WhisperModelChoice.swift; sourceTree = "<group>"; };
 		A00000020000000000000032 /* VoiceActivityDetectorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VoiceActivityDetectorTests.swift; sourceTree = "<group>"; };
-		A00000020000000000000033 /* Resources/Sounds/Tink.aiff */ = {isa = PBXFileReference; lastKnownFileType = audio.aiff; path = Resources/Sounds/Tink.aiff; sourceTree = "<group>"; };
-		A00000020000000000000034 /* Resources/Sounds/Glass.aiff */ = {isa = PBXFileReference; lastKnownFileType = audio.aiff; path = Resources/Sounds/Glass.aiff; sourceTree = "<group>"; };
-		A00000020000000000000035 /* Resources/Sounds/Basso.aiff */ = {isa = PBXFileReference; lastKnownFileType = audio.aiff; path = Resources/Sounds/Basso.aiff; sourceTree = "<group>"; };
+			A00000020000000000000033 /* Resources/Sounds/Tink.aiff */ = {isa = PBXFileReference; lastKnownFileType = audio.aiff; path = Resources/Sounds/Tink.aiff; sourceTree = "<group>"; };
+			A00000020000000000000034 /* Resources/Sounds/Glass.aiff */ = {isa = PBXFileReference; lastKnownFileType = audio.aiff; path = Resources/Sounds/Glass.aiff; sourceTree = "<group>"; };
+			A00000020000000000000035 /* Resources/Sounds/Basso.aiff */ = {isa = PBXFileReference; lastKnownFileType = audio.aiff; path = Resources/Sounds/Basso.aiff; sourceTree = "<group>"; };
+			A00000020000000000000038 /* ConvertMode.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConvertMode.swift; sourceTree = "<group>"; };
+			A00000020000000000000039 /* ConvertIntent.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConvertIntent.swift; sourceTree = "<group>"; };
+			A0000002000000000000003A /* IntentDetector.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IntentDetector.swift; sourceTree = "<group>"; };
+			A0000002000000000000003B /* IntentDetectorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IntentDetectorTests.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -171,18 +179,19 @@
 			);
 			sourceTree = "<group>";
 		};
-		A00000040000000000000002 /* Speech2Text */ = {
-			isa = PBXGroup;
-			children = (
-				A00000020000000000000033 /* Resources/Sounds/Tink.aiff */,
-				A00000020000000000000034 /* Resources/Sounds/Glass.aiff */,
-				A00000020000000000000035 /* Resources/Sounds/Basso.aiff */,
-				A00000040000000000000004 /* App */,
-				A0000004000000000000000B /* Activation */,
-				A0000004000000000000000C /* Audio */,
-				A0000004000000000000000D /* Transcription */,
-				A0000004000000000000000E /* Clipboard */,
-				A00000040000000000000005 /* Shell */,
+			A00000040000000000000002 /* Speech2Text */ = {
+				isa = PBXGroup;
+				children = (
+					A00000020000000000000033 /* Resources/Sounds/Tink.aiff */,
+					A00000020000000000000034 /* Resources/Sounds/Glass.aiff */,
+					A00000020000000000000035 /* Resources/Sounds/Basso.aiff */,
+					A00000040000000000000004 /* App */,
+					A0000004000000000000000B /* Activation */,
+					A0000004000000000000000C /* Audio */,
+					A0000004000000000000000F /* Conversion */,
+					A0000004000000000000000D /* Transcription */,
+					A0000004000000000000000E /* Clipboard */,
+					A00000040000000000000005 /* Shell */,
 				A00000040000000000000006 /* Persistence */,
 				A00000040000000000000007 /* Permissions */,
 				A00000040000000000000008 /* Readiness */,
@@ -252,19 +261,20 @@
 			path = Readiness;
 			sourceTree = "<group>";
 		};
-		A00000040000000000000009 /* Speech2TextTests */ = {
-			isa = PBXGroup;
-			children = (
-				A00000020000000000000015 /* ActivationStoreTests.swift */,
-				A0000002000000000000001B /* AudioCaptureServiceTests.swift */,
-				A0000002000000000000002B /* AudioBufferAccumulatorTests.swift */,
-				A00000020000000000000032 /* VoiceActivityDetectorTests.swift */,
-				A0000002000000000000001E /* AudioDeviceServiceTests.swift */,
-				A0000002000000000000002C /* ClipboardServiceTests.swift */,
-				A00000020000000000000019 /* HotkeyServiceTests.swift */,
-				A0000002000000000000000F /* PermissionServiceTests.swift */,
-				A00000020000000000000010 /* ReadinessStateTests.swift */,
-				A00000020000000000000016 /* ShellPreferencesPhase2Tests.swift */,
+			A00000040000000000000009 /* Speech2TextTests */ = {
+				isa = PBXGroup;
+				children = (
+					A00000020000000000000015 /* ActivationStoreTests.swift */,
+					A0000002000000000000001B /* AudioCaptureServiceTests.swift */,
+					A0000002000000000000002B /* AudioBufferAccumulatorTests.swift */,
+					A00000020000000000000032 /* VoiceActivityDetectorTests.swift */,
+					A0000002000000000000001E /* AudioDeviceServiceTests.swift */,
+					A0000002000000000000002C /* ClipboardServiceTests.swift */,
+					A00000020000000000000019 /* HotkeyServiceTests.swift */,
+					A0000002000000000000003B /* IntentDetectorTests.swift */,
+					A0000002000000000000000F /* PermissionServiceTests.swift */,
+					A00000020000000000000010 /* ReadinessStateTests.swift */,
+					A00000020000000000000016 /* ShellPreferencesPhase2Tests.swift */,
 				A00000020000000000000030 /* ShellPreferencesModelTests.swift */,
 				A0000002000000000000002A /* WhisperServiceTests.swift */,
 			);
@@ -314,15 +324,25 @@
 			path = Transcription;
 			sourceTree = "<group>";
 		};
-		A0000004000000000000000E /* Clipboard */ = {
-			isa = PBXGroup;
-			children = (
-				A00000020000000000000028 /* ClipboardService.swift */,
-				A00000020000000000000036 /* PasteService.swift */,
-			);
-			path = Clipboard;
-			sourceTree = "<group>";
-		};
+			A0000004000000000000000E /* Clipboard */ = {
+				isa = PBXGroup;
+				children = (
+					A00000020000000000000028 /* ClipboardService.swift */,
+					A00000020000000000000036 /* PasteService.swift */,
+				);
+				path = Clipboard;
+				sourceTree = "<group>";
+			};
+			A0000004000000000000000F /* Conversion */ = {
+				isa = PBXGroup;
+				children = (
+					A00000020000000000000038 /* ConvertMode.swift */,
+					A00000020000000000000039 /* ConvertIntent.swift */,
+					A0000002000000000000003A /* IntentDetector.swift */,
+				);
+				path = Conversion;
+				sourceTree = "<group>";
+			};
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
@@ -465,18 +485,21 @@
 		A00000060000000000000001 /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
-			files = (
-				A00000010000000000000013 /* ActivationStore.swift in Sources */,
-				A00000010000000000000002 /* AppDelegate.swift in Sources */,
-				A00000010000000000000022 /* AudioBufferAccumulator.swift in Sources */,
-				A0000001000000000000002D /* VoiceActivityDetector.swift in Sources */,
-				A00000010000000000000019 /* AudioCaptureService.swift in Sources */,
-				A0000001000000000000001C /* AudioDeviceService.swift in Sources */,
-				A0000001000000000000001A /* AudioLevelMonitor.swift in Sources */,
-				A00000010000000000000023 /* ClipboardService.swift in Sources */,
-				A00000010000000000000032 /* PasteService.swift in Sources */,
-				A00000010000000000000017 /* HotkeyService.swift in Sources */,
-				A00000010000000000000006 /* KeyboardPermissionService.swift in Sources */,
+				files = (
+					A00000010000000000000013 /* ActivationStore.swift in Sources */,
+					A00000010000000000000002 /* AppDelegate.swift in Sources */,
+					A00000010000000000000022 /* AudioBufferAccumulator.swift in Sources */,
+					A0000001000000000000002D /* VoiceActivityDetector.swift in Sources */,
+					A00000010000000000000019 /* AudioCaptureService.swift in Sources */,
+					A0000001000000000000001C /* AudioDeviceService.swift in Sources */,
+					A0000001000000000000001A /* AudioLevelMonitor.swift in Sources */,
+					A00000010000000000000023 /* ClipboardService.swift in Sources */,
+					A00000010000000000000035 /* ConvertIntent.swift in Sources */,
+					A00000010000000000000034 /* ConvertMode.swift in Sources */,
+					A00000010000000000000036 /* IntentDetector.swift in Sources */,
+					A00000010000000000000032 /* PasteService.swift in Sources */,
+					A00000010000000000000017 /* HotkeyService.swift in Sources */,
+					A00000010000000000000006 /* KeyboardPermissionService.swift in Sources */,
 				A00000010000000000000007 /* MicrophonePermissionService.swift in Sources */,
 				A00000010000000000000033 /* PostEventPermissionService.swift in Sources */,
 				A0000001000000000000001F /* ObjCExceptionCatcher.m in Sources */,
@@ -501,17 +524,18 @@
 		A00000060000000000000003 /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
-			files = (
-				A00000010000000000000011 /* ActivationStoreTests.swift in Sources */,
-				A00000010000000000000026 /* AudioBufferAccumulatorTests.swift in Sources */,
-				A0000001000000000000002E /* VoiceActivityDetectorTests.swift in Sources */,
-				A00000010000000000000018 /* AudioCaptureServiceTests.swift in Sources */,
-				A0000001000000000000001B /* AudioDeviceServiceTests.swift in Sources */,
-				A00000010000000000000027 /* ClipboardServiceTests.swift in Sources */,
-				A00000010000000000000015 /* HotkeyServiceTests.swift in Sources */,
-				A0000001000000000000000D /* PermissionServiceTests.swift in Sources */,
-				A0000001000000000000000E /* ReadinessStateTests.swift in Sources */,
-				A00000010000000000000012 /* ShellPreferencesPhase2Tests.swift in Sources */,
+				files = (
+					A00000010000000000000011 /* ActivationStoreTests.swift in Sources */,
+					A00000010000000000000026 /* AudioBufferAccumulatorTests.swift in Sources */,
+					A0000001000000000000002E /* VoiceActivityDetectorTests.swift in Sources */,
+					A00000010000000000000018 /* AudioCaptureServiceTests.swift in Sources */,
+					A0000001000000000000001B /* AudioDeviceServiceTests.swift in Sources */,
+					A00000010000000000000027 /* ClipboardServiceTests.swift in Sources */,
+					A00000010000000000000015 /* HotkeyServiceTests.swift in Sources */,
+					A00000010000000000000037 /* IntentDetectorTests.swift in Sources */,
+					A0000001000000000000000D /* PermissionServiceTests.swift in Sources */,
+					A0000001000000000000000E /* ReadinessStateTests.swift in Sources */,
+					A00000010000000000000012 /* ShellPreferencesPhase2Tests.swift in Sources */,
 				A0000001000000000000002C /* ShellPreferencesModelTests.swift in Sources */,
 				A00000010000000000000025 /* WhisperServiceTests.swift in Sources */,
 			);
