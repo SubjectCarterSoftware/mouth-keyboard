@@ -4,14 +4,14 @@ milestone: v1.1
 milestone_name: Convert Modes
 current_plan: 2
 status: planning
-stopped_at: Completed 09-01-PLAN.md
-last_updated: "2026-03-19T20:40:11.298Z"
+stopped_at: Completed 09-02-PLAN.md
+last_updated: "2026-03-19T20:51:47.435Z"
 last_activity: 2026-03-19
 progress:
   total_phases: 10
   completed_phases: 8
   total_plans: 21
-  completed_plans: 19
+  completed_plans: 20
   percent: 100
 ---
 
@@ -55,6 +55,7 @@ Progress: [██████████] 100%
 | Phase 08 P01 | 5 min | 2 tasks | 3 files |
 | Phase 08 P02 | 30 min | 3 tasks | 6 files |
 | Phase 09-activationstore-integration-and-guards P09-01 | 25 | 3 tasks | 8 files |
+| Phase 09-activationstore-integration-and-guards P02 | 8 | 3 tasks | 4 files |
 
 ## Accumulated Context
 
@@ -82,6 +83,9 @@ Recent decisions affecting current work:
 - [Phase 09-01]: Word count gate (GUARD-01) measures strippedBody (trigger removed), not full trimmed transcript
 - [Phase 09-01]: LLM failure (GUARD-02) is silent: raw transcript to clipboard, state .success(converted: false) — no error surfaced to user
 - [Phase 09-01]: .converting is non-terminal so arm() is blocked but cancelCurrentSession() guard unchanged (.recording || .processing only)
+- [Phase 09-02]: convertingContent uses scale animation (scaleEffect toggled by pulseOpacity) while processingContent uses opacity — same @State var, different visual treatment for clear distinction
+- [Phase 09-02]: failureBackground(for:) helper isolates color-per-reason logic — easy to extend for future FailureReason types needing distinct colors
+- [Phase 09-02]: StatusMenuView 'Copy Last AI Converted Transcription' is always-present with .disabled modifier (not conditionally hidden) — consistent menu layout per CONTEXT.md spec
 
 ### Pending Todos
 
@@ -95,6 +99,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-19T20:40:11.296Z
-Stopped at: Completed 09-01-PLAN.md
+Last session: 2026-03-19T20:51:47.433Z
+Stopped at: Completed 09-02-PLAN.md
 Resume file: None
