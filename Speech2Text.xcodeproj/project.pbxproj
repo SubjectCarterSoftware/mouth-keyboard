@@ -62,6 +62,7 @@
 			A00000010000000000000036 /* IntentDetector.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0000002000000000000003A /* IntentDetector.swift */; };
 			A00000010000000000000037 /* IntentDetectorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0000002000000000000003B /* IntentDetectorTests.swift */; };
 			A0000001000000000000003C /* LLMRewriteService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0000002000000000000003C /* LLMRewriteService.swift */; };
+			A0000001000000000000003D /* LLMRewriteServiceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0000002000000000000003D /* LLMRewriteServiceTests.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -140,6 +141,7 @@
 			A0000002000000000000003A /* IntentDetector.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IntentDetector.swift; sourceTree = "<group>"; };
 			A0000002000000000000003B /* IntentDetectorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IntentDetectorTests.swift; sourceTree = "<group>"; };
 			A0000002000000000000003C /* LLMRewriteService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LLMRewriteService.swift; sourceTree = "<group>"; };
+			A0000002000000000000003D /* LLMRewriteServiceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LLMRewriteServiceTests.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -274,6 +276,7 @@
 					A0000002000000000000002C /* ClipboardServiceTests.swift */,
 					A00000020000000000000019 /* HotkeyServiceTests.swift */,
 					A0000002000000000000003B /* IntentDetectorTests.swift */,
+					A0000002000000000000003D /* LLMRewriteServiceTests.swift */,
 					A0000002000000000000000F /* PermissionServiceTests.swift */,
 					A00000020000000000000010 /* ReadinessStateTests.swift */,
 					A00000020000000000000016 /* ShellPreferencesPhase2Tests.swift */,
@@ -537,6 +540,7 @@
 					A00000010000000000000027 /* ClipboardServiceTests.swift in Sources */,
 					A00000010000000000000015 /* HotkeyServiceTests.swift in Sources */,
 					A00000010000000000000037 /* IntentDetectorTests.swift in Sources */,
+					A0000001000000000000003D /* LLMRewriteServiceTests.swift in Sources */,
 					A0000001000000000000000D /* PermissionServiceTests.swift in Sources */,
 					A0000001000000000000000E /* ReadinessStateTests.swift in Sources */,
 					A00000010000000000000012 /* ShellPreferencesPhase2Tests.swift in Sources */,

@@ -128,11 +128,6 @@ actor LLMRewriteService: LLMRewriting {
         }
 
         await rewriteExecutionGate.acquire()
-        defer {
-            Task {
-                await rewriteExecutionGate.release()
-            }
-        }
 
         do {
             let stream = try streamFactory(
@@ -171,12 +166,16 @@ actor LLMRewriteService: LLMRewriting {
             guard !trimmed.isEmpty else {
                 throw LLMRewriteError.emptyOutput
             }
+            await rewriteExecutionGate.release()
             return trimmed
         } catch let error as LLMRewriteError {
+            await rewriteExecutionGate.release()
             throw error
         } catch is CancellationError {
+            await rewriteExecutionGate.release()
             throw LLMRewriteError.cancelled
         } catch {
+            await rewriteExecutionGate.release()
             throw LLMRewriteError.generationFailed
         }
     }
