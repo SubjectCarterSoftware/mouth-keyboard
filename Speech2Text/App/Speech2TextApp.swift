@@ -35,6 +35,10 @@ struct Speech2TextApp: App {
                 copyLastTranscription: {
                     activationStore.copyLastTranscription()
                 },
+                lastConvertedTranscription: activationStore.lastConvertedTranscription,
+                copyLastConvertedTranscription: {
+                    activationStore.copyLastConvertedTranscription()
+                },
                 openSetup: {
                     appDelegate.presentSetupWindow()
                 },

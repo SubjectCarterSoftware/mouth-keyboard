@@ -10,6 +10,8 @@ struct StatusMenuView: View {
     let cancelSession: () -> Void
     let restartSession: () -> Void
     let copyLastTranscription: () -> Void
+    let lastConvertedTranscription: String?
+    let copyLastConvertedTranscription: () -> Void
     let openSetup: () -> Void
     let quitApp: () -> Void
 
@@ -138,6 +140,11 @@ struct StatusMenuView: View {
                 Button("Copy Last Transcription", action: copyLastTranscription)
                     .accessibilityIdentifier("statusMenu.copyLastTranscription")
             }
+
+            Button("Copy Last AI Converted Transcription",
+                   action: copyLastConvertedTranscription)
+                .disabled(lastConvertedTranscription == nil)
+                .accessibilityIdentifier("statusMenu.copyLastConvertedTranscription")
 
             Button("Quit Speech2Text", action: quitApp)
         }
