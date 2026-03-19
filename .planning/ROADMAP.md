@@ -96,8 +96,8 @@ Plans:
 **Plans**: 3 plans
 
 Plans:
-- [ ] 09-01-PLAN.md — TDD: test scaffold + RecordingState contracts + ActivationStore core wiring (intent branch, DI, lastConvertedTranscription)
-- [ ] 09-02-PLAN.md — UI layer: pill .converting animation + .wordLimitExceeded, AppDelegate, StatusMenuView + Speech2TextApp wiring
+- [x] 09-01-PLAN.md — TDD: test scaffold + RecordingState contracts + ActivationStore core wiring (intent branch, DI, lastConvertedTranscription)
+- [x] 09-02-PLAN.md — UI layer: pill .converting animation + .wordLimitExceeded, AppDelegate, StatusMenuView + Speech2TextApp wiring
 - [ ] 09-03-PLAN.md — Manual verification: .converting animation, 350-word guard, LLM fallback, passthrough regression, menu item
 
 ### Phase 10: Settings Panel and First-Run Download UX
