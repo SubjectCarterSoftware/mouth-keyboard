@@ -77,10 +77,11 @@ Plans:
   2. Any LLM inference error (model load failure, generation error, cancellation) causes `rewrite` to throw, returning no partial output
   3. The main thread is not blocked during inference — Instruments shows near-zero main-thread CPU while a rewrite is in progress
   4. The model is loaded once and reused across subsequent rewrite calls in the same session (no repeated disk reads)
-**Plans**: TBD
+**Plans**: 2 plans
 
 Plans:
-- [ ] 08-01: TBD
+- [ ] 08-01-PLAN.md — Build the `LLMRewriteService` actor, persistent model cache path, explicit inference serialization gate, and deterministic unit coverage
+- [ ] 08-02-PLAN.md — Add opt-in real-model integration tests, run the full regression gate, and complete manual profiling/cache-reuse verification
 
 ### Phase 9: ActivationStore Integration and Guards
 **Goal**: The intent detection branch is wired into the existing `finalizeSession()` flow so that trigger-phrase dictations are rewritten by the LLM and land in the clipboard, the 350-word gate fires before any model call with a visible pill alert, and every failure path silently falls back to the raw transcript.
@@ -123,9 +124,9 @@ Plans:
 | 5. Long-Dictation Reliability | v1.0 | 3/3 | Complete | 2026-03-08 |
 | 6. Dependency Integration and Build Gate | 1/1 | Complete   | 2026-03-19 | - |
 | 7. Core Types and Intent Detection | v1.1 | 2/2 | Complete | 2026-03-19 |
-| 8. LLM Rewrite Service | v1.1 | 0/TBD | Not started | - |
+| 8. LLM Rewrite Service | v1.1 | 0/2 | Planned | - |
 | 9. ActivationStore Integration and Guards | v1.1 | 0/TBD | Not started | - |
 | 10. Settings Panel and First-Run Download UX | v1.1 | 0/TBD | Not started | - |
 
 ---
-*Last updated: 2026-03-19 after Phase 7 Plan 02 completion*
+*Last updated: 2026-03-19 after Phase 8 planning*

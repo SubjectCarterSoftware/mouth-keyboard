@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v1.1
 milestone_name: Convert Modes
 current_plan: 2
-status: ready_for_verification
-stopped_at: Completed 07-02-PLAN.md
-last_updated: "2026-03-19T16:50:10.782Z"
+status: planning
+stopped_at: Completed 08-01-PLAN.md
+last_updated: "2026-03-19T17:36:44.966Z"
 last_activity: 2026-03-19
 progress:
   total_phases: 10
   completed_phases: 7
-  total_plans: 16
-  completed_plans: 16
+  total_plans: 18
+  completed_plans: 17
   percent: 100
 ---
 
@@ -52,6 +52,7 @@ Progress: [██████████] 100%
 | Phase 06-dependency-integration-and-build-gate P01 | 20 | 4 tasks | 4 files |
 | Phase 07-core-types-and-intent-detection P01 | 5 min | 2 tasks | 5 files |
 | Phase 07-core-types-and-intent-detection P02 | 4 min | 2 tasks | 2 files |
+| Phase 08 P01 | 5 min | 2 tasks | 3 files |
 
 ## Accumulated Context
 
@@ -70,6 +71,9 @@ Recent decisions affecting current work:
 - [Phase 07-core-types-and-intent-detection]: Plan 01 remains intentionally RED: IntentDetector.detect stays passthrough until Plan 02 turns the corpus green.
 - [Phase 07-core-types-and-intent-detection]: Verification retries redirect Swift and SwiftPM caches into the workspace before treating GitHub DNS failures as environment blockers.
 - [Phase 07-core-types-and-intent-detection]: Trailing matches strip any surviving leading trigger phrase from the returned body so end-wins transcripts resolve to clean content.
+- [Phase 08]: Use Application Support-backed Hub downloads at ~/Library/Application Support/Speech2Text/RewriteModel for rewrite models.
+- [Phase 08]: Serialize rewrite generation with an explicit async gate so concurrent calls cannot overlap MLX inference across suspension points.
+- [Phase 08]: Expose internal loader/stream seams in LLMRewriteService so deterministic offline tests can cover GUARD-02 failure contracts without model downloads.
 
 ### Pending Todos
 
@@ -83,6 +87,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-19T16:50:10.769Z
-Stopped at: Completed 07-02-PLAN.md
+Last session: 2026-03-19T17:36:44.963Z
+Stopped at: Completed 08-01-PLAN.md
 Resume file: None
