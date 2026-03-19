@@ -206,7 +206,7 @@ actor LLMRewriteService: LLMRewriting {
         }
     }
 
-    private static func defaultLoader(hub: HubApi) async throws -> RewriteModel {
+    static func defaultLoader(hub: HubApi) async throws -> RewriteModel {
         let container = try await LLMModelFactory.shared.loadContainer(
             hub: hub,
             configuration: LLMRegistry.qwen2_5_1_5b

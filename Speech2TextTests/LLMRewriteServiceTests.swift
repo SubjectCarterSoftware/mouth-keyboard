@@ -1,4 +1,5 @@
 import XCTest
+import Hub
 import MLXLMCommon
 @testable import Speech2Text
 
@@ -14,6 +15,11 @@ private actor CallCounter {
     func value() -> Int {
         count
     }
+}
+
+private final class SyncCounter: @unchecked Sendable {
+    private(set) var count = 0
+    func increment() { count += 1 }
 }
 
 private actor GenerationProbe {
@@ -87,7 +93,8 @@ final class LLMRewriteServiceTests: XCTestCase {
         _ = try await service.rewrite(body: "one", mode: .email)
         _ = try await service.rewrite(body: "two", mode: .email)
 
-        XCTAssertEqual(await loadCounter.value(), 1)
+        let loadCount = await loadCounter.value()
+        XCTAssertEqual(loadCount, 1)
     }
 
     func testConcurrentFirstRewritesShareInflightLoadTask() async throws {
@@ -107,15 +114,16 @@ final class LLMRewriteServiceTests: XCTestCase {
         async let second: String = service.rewrite(body: "two", mode: .slack)
         _ = try await (first, second)
 
-        XCTAssertEqual(await loadCounter.value(), 1)
+        let loadCount = await loadCounter.value()
+        XCTAssertEqual(loadCount, 1)
     }
 
     func testConcurrentRewritesDoNotOverlapGeneration() async throws {
         let probe = GenerationProbe()
         let service = makeService { _, _, _, _ in
-            let order = await probe.start()
-            return AsyncThrowingStream { continuation in
+            AsyncThrowingStream { continuation in
                 let task = Task {
+                    let order = await probe.start()
                     await probe.awaitFirstReleaseIfNeeded(order: order)
                     continuation.yield(.chunk("done \(order)"))
                     continuation.yield(.completion(.stop))
@@ -143,11 +151,11 @@ final class LLMRewriteServiceTests: XCTestCase {
     }
 
     func testEachRewriteCreatesFreshSessionEvenWithCachedModel() async throws {
-        let streamCounter = CallCounter()
+        let streamCounter = SyncCounter()
         let service = makeService(
             loader: { _ in .init() },
             streamFactory: { _, _, _, _ in
-                await streamCounter.increment()
+                streamCounter.increment()
                 return stream(events: [.chunk("ok"), .completion(.stop)])
             }
         )
@@ -155,7 +163,7 @@ final class LLMRewriteServiceTests: XCTestCase {
         _ = try await service.rewrite(body: "one", mode: .actionItems)
         _ = try await service.rewrite(body: "two", mode: .actionItems)
 
-        XCTAssertEqual(await streamCounter.value(), 2)
+        XCTAssertEqual(streamCounter.count, 2)
     }
 
     func testLoaderFailureThrowsModelLoadFailed() async throws {
@@ -168,7 +176,7 @@ final class LLMRewriteServiceTests: XCTestCase {
         )
 
         await assertRewriteError(.modelLoadFailed) {
-            _ = try await service.rewrite(body: "raw", mode: .cleanEnglish)
+            try await service.rewrite(body: "raw", mode: .cleanEnglish)
         }
     }
 
@@ -178,7 +186,7 @@ final class LLMRewriteServiceTests: XCTestCase {
         }
 
         await assertRewriteError(.generationFailed) {
-            _ = try await service.rewrite(body: "raw", mode: .cleanEnglish)
+            try await service.rewrite(body: "raw", mode: .cleanEnglish)
         }
     }
 
@@ -188,7 +196,7 @@ final class LLMRewriteServiceTests: XCTestCase {
         }
 
         await assertRewriteError(.cancelled) {
-            _ = try await service.rewrite(body: "raw", mode: .cleanEnglish)
+            try await service.rewrite(body: "raw", mode: .cleanEnglish)
         }
     }
 
@@ -212,7 +220,7 @@ final class LLMRewriteServiceTests: XCTestCase {
         rewriteTask.cancel()
 
         await assertRewriteError(.cancelled) {
-            _ = try await rewriteTask.value
+            try await rewriteTask.value
         }
     }
 
@@ -222,7 +230,7 @@ final class LLMRewriteServiceTests: XCTestCase {
         }
 
         await assertRewriteError(.outputTruncated) {
-            _ = try await service.rewrite(body: "raw", mode: .cleanEnglish)
+            try await service.rewrite(body: "raw", mode: .cleanEnglish)
         }
     }
 
@@ -232,7 +240,7 @@ final class LLMRewriteServiceTests: XCTestCase {
         }
 
         await assertRewriteError(.emptyOutput) {
-            _ = try await service.rewrite(body: "raw", mode: .cleanEnglish)
+            try await service.rewrite(body: "raw", mode: .cleanEnglish)
         }
     }
 
@@ -242,7 +250,7 @@ final class LLMRewriteServiceTests: XCTestCase {
         }
 
         await assertRewriteError(.generationFailed) {
-            _ = try await service.rewrite(body: "raw", mode: .cleanEnglish)
+            try await service.rewrite(body: "raw", mode: .cleanEnglish)
         }
     }
 
