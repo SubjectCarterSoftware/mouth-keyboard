@@ -2,17 +2,17 @@
 gsd_state_version: 1.0
 milestone: v1.1
 milestone_name: Convert Modes
-current_plan: —
-status: planning
-stopped_at: Completed 06-01-PLAN.md
-last_updated: "2026-03-19T15:33:13.003Z"
-last_activity: 2026-03-18 — v1.1 roadmap created, 19/19 requirements mapped across Phases 6-10
+current_plan: 07-02
+status: ready_to_execute
+stopped_at: Completed 07-01-PLAN.md
+last_updated: "2026-03-19T16:45:31.940Z"
+last_activity: 2026-03-19
 progress:
   total_phases: 10
   completed_phases: 6
-  total_plans: 14
-  completed_plans: 14
-  percent: 0
+  total_plans: 16
+  completed_plans: 15
+  percent: 94
 ---
 
 # Project State
@@ -22,16 +22,16 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-18)
 
 **Core value:** From a single hotkey, the user can dictate and get reliable text into the clipboard fast enough that it feels close to typing speed.
-**Current focus:** Phase 6 — Dependency Integration and Build Gate (not yet started)
+**Current focus:** Phase 7 — Core Types and Intent Detection
 
 ## Current Position
 
-Phase: 6 of 10 (Dependency Integration and Build Gate)
-Current plan: —
-Status: Roadmap defined — ready to plan Phase 6
-Last activity: 2026-03-18 — v1.1 roadmap created, 19/19 requirements mapped across Phases 6-10
-
-Progress: [░░░░░░░░░░] 0%
+Phase: 7 of 10 (Core Types and Intent Detection)
+Current Plan: 2
+Total Plans in Phase: 2
+Status: Ready to execute Plan 2
+Last Activity: 2026-03-19
+Progress: [█████████░] 94%
 
 ## Performance Metrics
 
@@ -50,6 +50,7 @@ Progress: [░░░░░░░░░░] 0%
 | 04 recovery-controls | 2 | ~5h | ~2.5h |
 | 05 long-dictation-reliability | 3 | ~63m | ~21m |
 | Phase 06-dependency-integration-and-build-gate P01 | 20 | 4 tasks | 4 files |
+| Phase 07-core-types-and-intent-detection P01 | 5 min | 2 tasks | 5 files |
 
 ## Accumulated Context
 
@@ -64,6 +65,8 @@ Recent decisions affecting current work:
 - [Research]: Metal shaders require xcodebuild; swift build will silently miss default.metallib — CI constraint must be documented in Phase 6
 - [Research]: LLM inference must never run on @MainActor — LLMRewriteService actor pattern mirrors WhisperService
 - [Phase 06-dependency-integration-and-build-gate]: mlx-swift-lm 2.30.6 uses upToNextMinorVersion; swift-transformers conflict did not materialize; Package.resolved committed for reproducible builds
+- [Phase 07-core-types-and-intent-detection]: ConvertMode owns activationPhraseCandidates so future detector callers can consume mode contracts directly.
+- [Phase 07-core-types-and-intent-detection]: Plan 01 remains intentionally RED: IntentDetector.detect stays passthrough until Plan 02 turns the corpus green.
 
 ### Pending Todos
 
@@ -77,6 +80,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-19T15:33:13.000Z
-Stopped at: Completed 06-01-PLAN.md
-Resume file: None
+Last session: 2026-03-19T16:45:31.929Z
+Stopped at: Completed 07-01-PLAN.md
+Resume file: .planning/phases/07-core-types-and-intent-detection/07-02-PLAN.md
