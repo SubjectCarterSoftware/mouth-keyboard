@@ -57,8 +57,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
                 switch newState {
                 case .recording:
                     self.onRecordingStarted()
-                case .processing, .converting:
+                case .processing:
                     self.onProcessingStarted()
+                case .converting:
+                    self.onConvertingStarted()
                 case .success:
                     self.onTranscriptionSucceeded()
                 case .failure:
@@ -129,6 +131,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
 
         // Pill panel stays visible during processing (RecordingPillPanel handles this).
         updateMenuBarIcon(state: .processing)
+    }
+
+    private func onConvertingStarted() {
+        // Audio is already stopped (conversion follows processing); only update the icon.
+        updateMenuBarIcon(state: .converting)
     }
 
     private func onTranscriptionSucceeded() {
