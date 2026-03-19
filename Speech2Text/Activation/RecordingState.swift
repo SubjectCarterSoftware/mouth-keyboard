@@ -2,7 +2,8 @@ enum RecordingState: Equatable {
     case idle
     case recording
     case processing
-    case success(text: String, pasted: Bool)
+    case converting                                           // NEW: non-terminal, blocks arm()
+    case success(text: String, pasted: Bool, converted: Bool) // EXTENDED: added converted
     case failure(reason: FailureReason)
 
     enum RecoveryFeedback: Equatable {
@@ -18,13 +19,14 @@ enum RecordingState: Equatable {
         case selectedMicrophoneDisconnected
         case modelError(String)
         case silenceTimeout
+        case wordLimitExceeded                               // NEW
     }
 
     var isTerminal: Bool {
         switch self {
         case .success, .failure:
             return true
-        case .idle, .recording, .processing:
+        case .idle, .recording, .processing, .converting:   // .converting is non-terminal
             return false
         }
     }

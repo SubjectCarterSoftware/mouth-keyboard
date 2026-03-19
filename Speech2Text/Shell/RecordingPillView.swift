@@ -44,7 +44,7 @@ struct RecordingPillView: View {
             recordingContent
         case .processing:
             processingContent
-        case .success(_, let pasted):
+        case .success(_, let pasted, _):
             successContent(pasted: pasted)
         case .failure(let reason):
             failureContent(reason: reason)
@@ -270,11 +270,11 @@ struct RecordingPillView: View {
 }
 
 #Preview("Success - Copied") {
-    RecordingPillView(levelMonitor: AudioLevelMonitor(), recordingState: .success(text: "Hello world", pasted: false))
+    RecordingPillView(levelMonitor: AudioLevelMonitor(), recordingState: .success(text: "Hello world", pasted: false, converted: false))
 }
 
 #Preview("Success - Pasted") {
-    RecordingPillView(levelMonitor: AudioLevelMonitor(), recordingState: .success(text: "Hello world", pasted: true))
+    RecordingPillView(levelMonitor: AudioLevelMonitor(), recordingState: .success(text: "Hello world", pasted: true, converted: false))
 }
 
 #Preview("Failure - No Speech") {

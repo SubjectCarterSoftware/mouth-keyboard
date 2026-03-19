@@ -279,7 +279,7 @@ final class ActivationStore: ObservableObject {
             } else {
                 clipboardService.writeToClipboard(trimmed)
             }
-            state = .success(text: trimmed, pasted: didPaste)
+            state = .success(text: trimmed, pasted: didPaste, converted: false)
             soundPlayer.playSuccess()
             scheduleDismissToIdle(afterNanoseconds: 1_500_000_000, sessionID: sessionID)
         } catch TranscriptionError.noSpeechDetected {
@@ -336,7 +336,7 @@ final class ActivationStore: ObservableObject {
             switch self.state {
             case .success, .failure:
                 self.state = .idle
-            case .idle, .recording, .processing:
+            case .idle, .recording, .processing, .converting:
                 break
             }
             self.dismissTask = nil

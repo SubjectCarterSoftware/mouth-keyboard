@@ -15,6 +15,7 @@ final class ShellPreferences: ObservableObject {
         static let whisperModel = "whisperModel"
         static let autoModelSelection = "autoModelSelection"
         static let launchAtLogin = "launchAtLogin"
+        static let convertModes = "convertModes"
     }
 
     static let shared = makeShared()
@@ -75,6 +76,15 @@ final class ShellPreferences: ObservableObject {
 
     @Published private(set) var launchAtLogin: Bool
 
+    @Published var convertModes: [ConvertMode] {
+        didSet {
+            persistIfNeeded {
+                let rawValues = self.convertModes.map(\.rawValue)
+                self.defaults.set(rawValues, forKey: Keys.convertModes)
+            }
+        }
+    }
+
     var shouldPresentSetupOnLaunch: Bool {
         !hasCompletedInitialSetup
     }
@@ -111,6 +121,13 @@ final class ShellPreferences: ObservableObject {
         autoModelSelection = userDefaults.object(forKey: Keys.autoModelSelection) as? Bool ?? false
 
         launchAtLogin = SMAppService.mainApp.status == .enabled
+
+        if let stored = userDefaults.stringArray(forKey: Keys.convertModes) {
+            let decoded = stored.compactMap(ConvertMode.init(rawValue:))
+            convertModes = decoded.isEmpty ? ConvertMode.allBuiltIns : decoded
+        } else {
+            convertModes = ConvertMode.allBuiltIns
+        }
     }
 
     func completeInitialSetup() {
@@ -152,6 +169,7 @@ final class ShellPreferences: ObservableObject {
             micDeviceUID = nil
             whisperModel = .baseEN
             autoModelSelection = false
+            convertModes = ConvertMode.allBuiltIns
         }
 
         defaults.removeObject(forKey: Keys.hasCompletedInitialSetup)
@@ -162,6 +180,7 @@ final class ShellPreferences: ObservableObject {
         defaults.removeObject(forKey: Keys.micDeviceUID)
         defaults.removeObject(forKey: Keys.whisperModel)
         defaults.removeObject(forKey: Keys.autoModelSelection)
+        defaults.removeObject(forKey: Keys.convertModes)
     }
 
     private static func makeShared() -> ShellPreferences {

@@ -40,6 +40,11 @@ enum ConvertMode: String, CaseIterable, Equatable {
         }
     }
 
+    static var allBuiltIns: [ConvertMode] {
+        [.cleanEnglish, .email, .slack, .teams, .actionItems, .aiPrompt]
+        // Explicitly excludes .passthrough
+    }
+
     var activationPhraseCandidates: [String] {
         switch self {
         case .cleanEnglish:

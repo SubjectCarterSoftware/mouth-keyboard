@@ -133,7 +133,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
 
     private func onTranscriptionSucceeded() {
         // Pill panel shows success briefly then dismisses (RecordingPillPanel handles this).
-        updateMenuBarIcon(state: .success(text: "", pasted: false))
+        updateMenuBarIcon(state: .success(text: "", pasted: false, converted: false))
     }
 
     private func onTranscriptionFailed() {
