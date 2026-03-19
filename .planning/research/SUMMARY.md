@@ -1,149 +1,219 @@
 # Project Research Summary
 
-**Project:** Speech2Test
-**Domain:** macOS system-wide clipboard-first dictation utility
-**Researched:** 2026-03-05
+**Project:** Speech2Test v1.1 — Local LLM transcript rewriting
+**Domain:** macOS menu bar dictation utility — adding on-device LLM post-processing to an existing Whisper pipeline
+**Researched:** 2026-03-18
 **Confidence:** HIGH
 
 ## Executive Summary
 
-This product is best built as a native macOS menu bar utility with a strict boundary: global hotkey in, microphone capture and local transcription in the middle, clipboard text out at the end. Research points toward a native Swift implementation with `AVAudioEngine`, Core Graphics/AppKit integrations, and Apple’s current Speech framework as the primary local-first path, with a fallback engine boundary only if later compatibility or accuracy testing demands it.
+Speech2Test v1.1 adds voice-triggered transcript rewriting to an already-shipping macOS dictation app. The integration is additive: a user speaks "convert to email [dictation]" or "[dictation] convert to email," Whisper transcribes it as usual, a pure string scan detects the intent and strips the trigger phrase, and a local Qwen2.5-1.5B-Instruct-4bit model (via mlx-swift-lm) rewrites the body and drops the result in the clipboard. The passthrough path for plain dictation is completely unchanged. All five rewriting modes (Clean English, Email, Slack/Teams, Action Items, Prompt) ship together as v1.1 — shipping a partial set would create documentation debt and user confusion.
 
-The strongest launch posture is narrower than many adjacent products. Table stakes are reliable hotkey activation, visible recording state, accurate transcription with punctuation, cancel/restart recovery, microphone/device handling, and fast clipboard delivery. The biggest risks are not “can speech-to-text work?” but whether the app feels instant on first use, whether global key handling remains reliable, and whether long dictation segmentation can avoid repeated or missing text.
+The recommended approach is surgical: one new Swift actor (`LLMRewriteService`) mirrors the existing `WhisperService` pattern, one new folder (`Rewrite/`) holds four new source files, and three existing files are minimally modified. The key dependency addition is `mlx-swift-lm` 2.30.6 (SPM), which already has an MLX runtime present transitively through WhisperKit — so the incremental footprint is the language model layer only. Model download (~880 MB) is deferred to first use via lazy loading with visible progress in the menu bar status item; model weights are cached in `~/Library/Application Support/` for persistence across reboots.
+
+The primary risk is a hard SPM version conflict: WhisperKit 0.17.0 pins `swift-transformers` at 1.1.x while mlx-swift-lm requires 1.2.0+. This must be resolved before any other work begins — it is a go/no-go gate for the entire v1.1 milestone. Secondary risks are LLM inference accidentally running on the `@MainActor` (freezing the pill UI), intent detection failing on real Whisper output due to casing and word-substitution artifacts, and the 869 MB model download providing no user feedback in a headless accessory app. All three have clear, documented prevention strategies that the architecture research explicitly addresses.
+
+---
 
 ## Key Findings
 
 ### Recommended Stack
 
-The most defensible stack is native Swift 6.2 on current Apple tooling, using SwiftUI plus AppKit for the shell, `AVAudioEngine` for capture, Speech framework APIs for on-device transcription, Core Graphics event taps for in-session key handling, and `NSPasteboard` for output. That keeps the entire hotkey-to-clipboard loop inside the macOS-native runtime and avoids the startup and integration penalties of cross-platform wrappers.
+The existing stack (Swift 6, AppKit/SwiftUI, AVFoundation, WhisperKit, KeyboardShortcuts) is unchanged. The single new SPM dependency is `mlx-swift-lm` 2.30.6, adding the `MLXLLM` and `MLXLMCommon` products. Because WhisperKit already brings the MLX Swift runtime as a transitive dependency, this adds only the language model layer — no new runtime, no additional system entitlements (the app is not sandboxed), and no change to the macOS 14 deployment target.
 
 **Core technologies:**
-- Swift 6.2: Native implementation language — best fit for low-latency macOS APIs and a small background utility.
-- `AVAudioEngine`: Microphone capture and buffering — standard streaming path for low-latency live audio on Apple platforms.
-- Speech framework: Local-first transcription and speech analysis — strongest current native path for on-device speech on recent macOS versions.
-- Core Graphics/AppKit: Global key handling and clipboard output — required for reliable system-wide controls and pasteboard writes.
+- `mlx-swift-lm` 2.30.6 (`MLXLLM` + `MLXLMCommon`): Local LLM inference — the only Swift-native MLX LLM library; Qwen2 architecture supported via `LLMTypeRegistry.shared`; SPM-only, no CMake or submodules
+- `mlx-community/Qwen2.5-1.5B-Instruct-4bit`: Chosen model — 869 MB, 4-bit quantized, `model_type: qwen2`, ~0.39s average inference on M-series hardware, 32k context
+- `ChatSession` high-level API (`MLXLMCommon`): Single-turn rewriting via `session.respond(to:)` — simpler than raw `generate()` streaming; appropriate for clipboard-output use case
+- `loadModel(id:)` free function (`MLXLMCommon`): Handles download, progress, caching, and resumption; writes to `~/Library/Caches/huggingface/` automatically
+
+**Critical version constraint:** `mlx-swift-lm` 2.30.6 requires `swift-transformers` 1.2.0+; WhisperKit 0.17.0 requires `swift-transformers` 1.1.x. These ranges are mutually exclusive. Check for a WhisperKit update that relaxes this bound as the very first step. See PITFALLS.md for fallback resolution paths.
 
 ### Expected Features
 
-Research and the supplied spec align closely: launch scope should stay centered on the speech-to-clipboard loop and not drift into direct insertion, voice assistant behavior, or transcript-management software.
+All five rewriting modes are P1 for v1.1 launch — they form a unified user-facing feature, not a menu of options to ship incrementally.
 
 **Must have (table stakes):**
-- Global hotkey activation with reliable in-session finish/cancel/restart controls — users expect the app to work without app switching.
-- Fast, accurate local transcription with punctuation — the product fails if output is slow or consistently messy.
-- Clear state feedback and microphone/device resilience — users must trust recording state and recover from device/permission issues.
-- Long-dictation segmentation and ordered reassembly — required to keep reliability acceptable beyond short utterances.
+- No-trigger passthrough path completely unchanged — any regression here destroys trust in the existing feature
+- Raw transcript as fallback on any LLM failure — silent fallback is correct for all failure modes except the 350-word limit breach
+- Trigger phrase stripped from content before passing to LLM — "convert to email\n[body]" must never reach the model
+- Case-insensitive intent detection — Whisper capitalises sentence-start words; "Convert to Email" and "convert to email" must both match
+- 350-word gate with a visible user alert — the only path where the clipboard is not written; user must know why
+- Atomic clipboard write — rewritten output replaces clipboard in one operation, never partial
 
-**Should have (competitive):**
-- Clipboard-first output — differentiates by reducing app-specific brittleness.
-- Restart-from-here during recording — preserves flow better than forcing full-session cancel/retry.
-- No disruption to system audio playback — important for real daily use alongside music, calls, or reference audio.
+**Should have (competitive advantage):**
+- Voice-triggered mode selection at dictation time (prefix or suffix) — competitors require UI interaction before recording
+- Fully local rewriting (~0.39s) — Wispr Flow is cloud-only; Superwhisper uses cloud for best quality
+- Prompt mode — no audited competitor has a dedicated "structure as an LLM prompt" mode; highest differentiation for the target audience
+- Structural output validation for Email (subject line present) and Action Items (bullet list start) with silent fallback to raw transcript on failure
 
 **Defer (v2+):**
-- Direct insertion into active apps — high fragility, weak fit for the chosen product boundary.
-- AI rewrite / formatting modes — useful later, but they dilute the speed-first proposition and add latency.
-- Meeting recording / transcript-management workflows — adjacent market, different architecture.
+- Per-mode prompt customisation in settings UI
+- Cloud LLM fallback (breaks privacy-first positioning)
+- Rewrite history or undo (the raw transcript fallback is the recovery path)
+- Fuzzy mode name matching (exact matching is safer; mode names are short and memorable)
+- Custom mode support beyond the 5 built-in modes
 
 ### Architecture Approach
 
-The best architecture is a small session coordinator at the center, with explicit boundaries for hotkey monitoring, audio capture, segmentation, speech engine adaptation, clipboard output, preferences, and feedback UI. The session coordinator should own the authoritative state machine so the app never guesses whether it is idle, recording, processing, canceled, or recovering from restart.
+The integration inserts a branch point into the existing `finalizeSession()` flow inside `ActivationStore`, after Whisper returns a transcript and before the clipboard write. Intent detection is a pure synchronous function that returns a `ConvertIntent` enum — either `.passthrough` (existing path, unchanged) or `.rewrite(mode:body:)`. On `.rewrite`, the 350-word guard runs on the trigger-stripped body, then `LLMRewriteService.rewrite(body:mode:)` is awaited across an actor boundary, and the result goes to `ClipboardService`. The actor pattern mirrors `WhisperService` exactly: all MLX calls are serialized inside a non-`@MainActor` actor, preventing main-thread blocking.
 
 **Major components:**
-1. Session coordinator — owns product state and orchestrates start/finish/cancel/restart behavior.
-2. Capture + segmentation pipeline — turns live mic input into ordered segments with silence-aware boundaries.
-3. Speech engine adapter — hides engine-specific details and returns normalized transcript results.
-4. Clipboard + feedback layer — writes final text and confirms state to the user without stealing focus.
+1. `IntentDetector` (new, pure function) — scans transcript for "convert to [mode]" prefix or suffix, case-insensitive, returns `ConvertIntent` with trigger-stripped body
+2. `LLMRewriteService` (new, actor) — lazy model load on first use; owns `ChatSession`; exposes `rewrite(body:mode:)` behind `LLMRewriting` protocol for testability
+3. `ConvertMode` (new, enum) — each case owns its `systemPrompt` and `userMessage(for:)`; prompt strings never appear in `ActivationStore`
+4. `ActivationStore` (modified) — adds intent branch and 350-word guard inside existing `finalizeSession()`; injects `LLMRewriting` alongside existing `WhisperTranscribing`
+5. `RecordingState` (modified) — adds `.conversionTooLong` to `FailureReason`
+
+**Recommended build order:** `ConvertMode` + `ConvertIntent` types → `IntentDetector` + unit tests → `RecordingState` failure case → `LLMRewriteService` + tests → `ActivationStore` integration → pill/menu UI copy.
 
 ### Critical Pitfalls
 
-1. **Event tap reliability drift** — keep callbacks tiny, verify permissions explicitly, and add tap health checks.
-2. **Cold-start latency** — warm audio and transcription paths before the first dictation and measure first-use separately from warm runs.
-3. **Segmentation corruption** — use immutable ordered segments and assemble by sequence, not callback timing.
-4. **Fake cancel/restart handling** — make these real state transitions that dispose of buffers and invalidate stale work.
-5. **Clipboard success assumptions** — treat pasteboard write as a discrete completion step and verify it in logs/tests.
+1. **swift-transformers version conflict (WhisperKit vs mlx-swift-lm)** — verify `xcodebuild -resolvePackageDependencies` succeeds on a clean machine before writing any LLM code; if it fails, check for a WhisperKit update that accepts 1.2.0+; if none exists, vendor MLXLLM/MLXLMCommon source files directly into the project as a local target
+2. **LLM inference on `@MainActor` starves the recording pipeline** — always call `llmService.rewrite()` from inside the existing `transcriptionTask` Task (already off-main); never from a `@MainActor` context directly; verify with Instruments that main thread CPU is near-zero during inference
+3. **Intent detection fails on real Whisper output** — normalise transcript (lowercase, collapse whitespace, strip Whisper artifacts) before matching; use an explicit alternatives map per mode; validate with a corpus of 10+ real microphone recordings per trigger phrase, not hand-typed strings
+4. **No model download feedback in a headless app** — update `NSStatusItem` title with "Downloading rewrite model X%..." during download; gate rewrite attempts with a clear alert if the model is not ready; store model in `~/Library/Application Support/Speech2Test/Models/` (not a purgeable temp path); verify file size after download
+5. **Metal shader bundle missing in CI** — always build via `xcodebuild`, never `swift build`; MLX requires Xcode's build system to compile and embed `default.metallib`; add this constraint to the CI config comment before writing any inference code
+
+---
 
 ## Implications for Roadmap
 
-Based on research, suggested phase structure:
+Based on research, the natural phase structure follows the dependency chain in the recommended build order, with the SPM conflict check as a mandatory gate before any other phase begins.
 
-### Phase 1: Foundation and Permissions
-**Rationale:** Nothing else matters if the app cannot live in the menu bar, hold settings, and reliably observe the required system input permissions.
-**Delivers:** Native app shell, menu bar utility, settings storage, first-run permission flow, and configurable activation hotkey.
-**Addresses:** Global activation, permission handling, and state visibility foundations.
-**Avoids:** Event-tap and onboarding failures.
+### Phase 1: Dependency Integration and Build Gate
 
-### Phase 2: Capture and Local Recognition Core
-**Rationale:** The core loop should prove immediate recording and local transcription before richer controls are layered on top.
-**Delivers:** Microphone capture, audio buffering, engine warmup, local transcription, and baseline latency instrumentation.
-**Uses:** `AVAudioEngine`, Speech framework, and structured metrics.
-**Implements:** Capture, engine, and coordinator boundaries.
+**Rationale:** The swift-transformers version conflict is a go/no-go check for the entire feature. If it cannot be resolved, the integration path changes before any other work begins. The Metal shader CI constraint must also be locked in before the first inference code is written, or it will silently break CI later. Both items are cheap to verify and expensive to discover mid-development.
 
-### Phase 3: Session Completion and Recovery Controls
-**Rationale:** Once the basic loop works, the app must become dependable under real mistakes and session endings.
-**Delivers:** Spacebar finish, Escape cancel, restart-from-here behavior, clipboard write confirmation, and failure states.
-**Uses:** Event monitoring, explicit state machine transitions, and clipboard isolation.
-**Implements:** Session state semantics and product-level recovery behavior.
+**Delivers:** A building Xcode project that includes `mlx-swift-lm` 2.30.6, passes clean dependency resolution on a machine with no Package.resolved, and builds successfully via `xcodebuild` in CI.
 
-### Phase 4: Long-Dictation Reliability
-**Rationale:** Segmentation and queueing introduce the highest correctness risk and should be isolated after the short-session loop is stable.
-**Delivers:** Silence-aware segmentation, ordered segment queue, partial-failure handling, and combined transcript assembly.
-**Uses:** Speech detection / silence heuristics and immutable segment modeling.
-**Implements:** Reliability features specific to longer sessions.
+**Addresses:** Confirms the no-trigger passthrough path remains completely unchanged.
 
-### Phase 5: Feedback, Settings Completion, and Ship Readiness
-**Rationale:** Polish should follow proof of the core loop, not precede it.
-**Delivers:** Final recording HUD/menu bar states, device selection, indicator preferences, diagnostics, packaging, signing, and notarization readiness.
-**Uses:** UI surfaces, preferences, and distribution tooling.
-**Implements:** User trust, hardware configurability, and shippable app behavior.
+**Avoids:** Pitfall 1 (version conflict) and Pitfall 2 (Metal shader missing in CI).
+
+**Research flag:** Check WhisperKit release notes for a version that accepts swift-transformers 1.2.0+ before Phase 1 begins. If no such version exists, research which MLXLLM/MLXLMCommon source files to vendor — a brief spike is needed before the phase plan is finalised.
+
+---
+
+### Phase 2: Core Types and Intent Detection
+
+**Rationale:** `ConvertMode`, `ConvertIntent`, and `IntentDetector` are pure value types with no external dependencies. They can be built and fully tested before touching `ActivationStore` or MLX. Validating intent detection against real Whisper output early prevents a class of production bugs that only manifest on actual microphone recordings.
+
+**Delivers:** Fully unit-tested intent detection validated against a corpus of real Whisper outputs (10+ recordings per mode trigger); `ConvertMode` enum with all five mode prompt templates; `ConvertIntent` return type that enforces trigger-phrase stripping at the type level.
+
+**Implements:** `IntentDetector`, `ConvertMode`, `ConvertIntent`.
+
+**Avoids:** Pitfall 5 (intent detection fragility on real Whisper output) and Pitfall 6 (trigger phrase preserved in LLM prompt).
+
+**Research flag:** No additional external research needed — pure string matching with fully specified requirements. Skip `$gsd-research-phase` for this phase.
+
+---
+
+### Phase 3: LLMRewriteService Actor
+
+**Rationale:** The LLM service can be developed and tested in isolation before being wired into `ActivationStore`. Separating it from the integration step makes actor boundary enforcement verifiable independently — a mock can stand in for `ChatSession` to test error paths, cancellation, and model-not-ready behavior without requiring the 880 MB model in CI.
+
+**Delivers:** A fully functional `LLMRewriteService` actor with lazy model loading, `prepare()` guard, `Task.checkCancellation()` inside the generate loop, and `LLMRewriting` protocol conformance for injection.
+
+**Uses:** `mlx-swift-lm` 2.30.6 (`MLXLLM` + `MLXLMCommon`), `ChatSession`, `loadModel(id:)`.
+
+**Implements:** `LLMRewriteService`, `LLMRewriting` protocol.
+
+**Avoids:** Pitfall 3 (main actor blocking) and the performance trap of re-loading the model from disk on every rewrite.
+
+**Research flag:** `ChatSession` context bleed across dictations (identified in ARCHITECTURE.md anti-patterns) needs validation. Confirm whether a fresh `ChatSession` per rewrite call or a single-turn `generate()` API call is the correct pattern for mlx-swift-lm 2.30.6 before implementation begins.
+
+---
+
+### Phase 4: ActivationStore Integration and Word-Count Gate
+
+**Rationale:** Integration is last among the core components because it depends on all prior phases. Adding the intent branch and LLM injection to `ActivationStore` is a small change once the types and services exist, but it is the highest-risk modification since it touches the shipping recording pipeline.
+
+**Delivers:** End-to-end rewriting for all five modes; 350-word gate running on trigger-stripped body (not full raw transcript); graceful fallback to raw transcript on any LLM failure; `.conversionTooLong` failure state wired to pill and menu copy.
+
+**Implements:** Modified `ActivationStore`, `RecordingState`, `RecordingPillView`, `StatusMenuView`.
+
+**Avoids:** The pitfall of the 350-word check being applied to the full raw transcript (including the trigger phrase) rather than the stripped body.
+
+**Research flag:** No additional research needed — integration follows directly from the architecture spec. Skip `$gsd-research-phase`.
+
+---
+
+### Phase 5: First-Run UX and Model Download Flow
+
+**Rationale:** The 869 MB model download in a headless accessory app is the highest UX risk in the feature and cannot be treated the same as the 75 MB WhisperKit model. This phase is fifth because it requires the LLM service (Phase 3) and the failure state infrastructure (Phase 4) to exist, but it must ship as part of v1.1 — not deferred.
+
+**Delivers:** Visible download progress via `NSStatusItem` title; model presence and file size verification before load attempts; model storage in `~/Library/Application Support/Speech2Test/Models/`; "Downloading rewrite model X%..." menu copy; clear alert when rewrite is attempted while model is downloading; warmup inference after download completes.
+
+**Avoids:** Pitfall 4 (no download feedback in headless app) and the technical debt of storing the model in a purgeable temp path.
+
+**Research flag:** The `swift-transformers` 1.2.0 download progress handler has a known issue (issue #335 in the swift-transformers repository). Verify whether this is fixed in the current release or requires a workaround before Phase 5 planning begins.
+
+---
 
 ### Phase Ordering Rationale
 
-- Permissions and hotkey reliability must land before capture because they gate every session.
-- Capture and transcription must be proven before cancel/restart and long-dictation behavior can be implemented safely.
-- Segmentation belongs after the short-session loop because it adds correctness risk and depends on stable capture/transcription boundaries.
-- Polishing and distribution should come last so UI effort is shaped by the working interaction rather than guesses.
+- Phase 1 is a gate, not optional: the dependency graph must build before any ML code is written.
+- Phase 2 before Phase 3: `ConvertMode` is a dependency of `LLMRewriteService` — it provides the system prompts and mode enum that the service uses.
+- Phase 3 before Phase 4: `ActivationStore` injects `LLMRewriting` — the protocol and actor must exist before the integration can be wired.
+- Phase 4 before Phase 5: the download UX gates rewrite attempts using the failure state infrastructure (`RecordingState.conversionTooLong` and the pill alert path) built in Phase 4.
+- This order means each phase produces independently verifiable code before the next phase begins, and the highest-risk change (ActivationStore integration) happens only after all components are proven in isolation.
 
 ### Research Flags
 
 Phases likely needing deeper research during planning:
-- **Phase 2:** Apple Speech API fit versus fallback-engine abstraction on the target macOS version and hardware.
-- **Phase 4:** Silence detection thresholds, segment lifecycle, and best-effort merge behavior under failure.
-- **Phase 5:** Distribution path details if the app will be shared beyond the original user.
+- **Phase 1:** swift-transformers conflict resolution — check WhisperKit release notes first; if unresolved, research which MLXLLM/MLXLMCommon source files to vendor into the project tree
+- **Phase 3:** `ChatSession` context management — confirm single-turn API behavior and correct pattern for isolated per-dictation rewrites in mlx-swift-lm 2.30.6
+- **Phase 5:** swift-transformers download progress handler — determine if issue #335 is resolved in 1.2.0 or if a custom progress polling approach is needed
 
-Phases with standard patterns (skip research-phase):
-- **Phase 1:** Menu bar shell, settings persistence, and permission flows are well-established macOS patterns.
-- **Phase 3:** Clipboard output and explicit session-state controls are mostly product logic, not ecosystem uncertainty.
+Phases with standard patterns (skip `$gsd-research-phase`):
+- **Phase 2:** Pure string matching with fully specified requirements and no external APIs
+- **Phase 4:** ActivationStore integration follows directly from architecture spec; all component APIs established in prior phases
+
+---
 
 ## Confidence Assessment
 
 | Area | Confidence | Notes |
 |------|------------|-------|
-| Stack | MEDIUM | Native macOS choices are strong; exact Speech-framework fit still depends on deployment target and language coverage. |
-| Features | HIGH | User spec and current dictation-tool landscape align closely on launch priorities. |
-| Architecture | HIGH | The boundary-driven session-coordinator model is a strong fit for this interaction pattern. |
-| Pitfalls | HIGH | The major failure modes are well-understood and directly relevant to this product category. |
+| Stack | HIGH | All API signatures verified against live mlx-swift-lm source; version numbers confirmed via GitHub API; model config.json inspected directly; project.pbxproj confirms no sandbox entitlements |
+| Features | HIGH (behavior) / MEDIUM (Slack alias edge cases) | Mode behavior and output contracts are well-specified; Whisper transcription variation of "Slack / Teams" is inferred from general Whisper behavior patterns, not a measured corpus |
+| Architecture | HIGH | Based on direct reading of existing codebase (ActivationStore.swift, WhisperService.swift, RecordingState.swift); integration points are concrete and verified against actual file structure |
+| Pitfalls | HIGH | swift-transformers conflict verified by reading both Package.swift files; Metal shader issue cited to official mlx-swift issue #349; MainActor risk confirmed by inspecting existing @MainActor ActivationStore constraint |
 
 **Overall confidence:** HIGH
 
 ### Gaps to Address
 
-- **Speech engine choice on the exact deployment target:** Validate Apple Speech APIs against the target macOS release and fallback needs during Phase 2 planning.
-- **Latency on real hardware:** Measure cold-start and warm-start timings on the intended machine before expanding scope.
-- **Language / locale scope:** Confirm which locales matter before hardening the engine abstraction.
+- **swift-transformers version conflict resolution:** The exact resolution path (WhisperKit upgrade vs. vendoring MLXLLM source) cannot be determined without checking whether WhisperKit has released a version that accepts swift-transformers 1.2.0+. Resolve at Phase 1 start before any other work begins.
+- **ChatSession per-call vs. per-session lifetime:** Whether reinitializing `ChatSession` per rewrite call has meaningful overhead versus using the single-turn `generate()` API needs validation against the actual mlx-swift-lm 2.30.6 runtime. Resolve at Phase 3 start.
+- **Real Whisper output corpus for intent detection:** The alternatives map in PITFALLS.md (e.g. `.email` matches "e-mail", "emails", "an email") is derived from expected Whisper behavior, not a measured corpus. A corpus of 10+ real recordings per trigger phrase is required before Phase 2 is considered complete.
+- **8 GB unified memory behavior:** Memory pressure behavior with both WhisperKit (tiny.en) and Qwen2.5-1.5B active has not been tested on 8 GB Apple Silicon machines. PITFALLS.md recommends `MLX.GPU.set(cacheLimit:)` as a mitigation — validate on minimum-spec hardware before shipping.
+
+---
 
 ## Sources
 
 ### Primary (HIGH confidence)
-- Apple Developer, Speech framework — https://developer.apple.com/documentation/speech
-- Apple Developer, "Recognizing speech in live audio" — https://developer.apple.com/documentation/speech/recognizing-speech-in-live-audio
-- Apple Developer, `CGEventTapCreate` — https://developer.apple.com/documentation/coregraphics/cgevent/tapcreate%28tap%3Aplace%3Aoptions%3Aeventsofinterest%3Acallback%3Auserinfo%3A%29
-- Apple Developer, `AVAudioNode` / audio taps — https://developer.apple.com/documentation/avfaudio/avaudionode
-- Apple Developer, `NSPasteboard.general` — https://developer.apple.com/documentation/appkit/nspasteboard/general
+- `mlx-swift-lm` repository and Package.swift — https://github.com/ml-explore/mlx-swift-lm — API signatures, products, platform targets, version 2.30.6
+- `MLXLMCommon` source files (`Evaluate.swift`, `ChatSession.swift`, `ModelFactory.swift`) — verified via WebFetch against live repository
+- `MLXLLM/LLMModelFactory.swift` — Qwen2 type registry entry confirmation
+- `mlx-community/Qwen2.5-1.5B-Instruct-4bit` config.json — model_type, weight size (869 MB) — https://huggingface.co/mlx-community/Qwen2.5-1.5B-Instruct-4bit
+- `mlx-swift` release 0.30.6 and `mlx-swift-lm` release 2.30.6 and `swift-transformers` release 1.2.0 — GitHub API
+- WhisperKit Package.swift — swift-transformers constraint `.upToNextMinor(from: "1.1.6")` — https://github.com/argmaxinc/WhisperKit/blob/main/Package.swift
+- Existing codebase (`ActivationStore.swift`, `WhisperService.swift`, `ClipboardService.swift`, `RecordingState.swift`, `project.pbxproj`) — read directly
+- `PROMPT_SPEC.md` — model selection rationale, latency benchmarks (~0.39s, ~130 tok/s on M4 Pro), 350-word limit rationale, mode prompt templates
 
 ### Secondary (MEDIUM confidence)
-- `ggml-org/whisper.cpp` — fallback local engine patterns and tradeoffs — https://github.com/ggml-org/whisper.cpp
-- Wispr Flow and Superwhisper product/docs — current feature expectations and scope boundaries
-- Apple Support Voice Control docs — user expectation baseline for macOS-wide speech utilities
+- Superwhisper modes documentation — https://superwhisper.com/docs/modes/ — pre-recording mode selection model, email and Slack output structure
+- Wispr Flow features — https://wisprflow.ai/features — confirms cloud-only rewriting, automatic context detection, no voice-prefix switching
+- OpenAI Whisper repository — https://github.com/openai/whisper — first-word capitalisation behavior informing case-normalisation requirement
+- mlx-swift issues #274, #349 and mlx-swift-examples issues #172, #227, #230, #237 — pitfall evidence from official issue trackers
+
+### Tertiary (LOW confidence)
+- swift-transformers issue #335 (download progress handler broken in 1.2.0) — needs validation against current 1.2.0 release before Phase 5
+- Slack/Teams alias set ("Slack Teams", "Slack or Teams") — inferred from Whisper transcription patterns, not measured; validate with real recordings in Phase 2
 
 ---
-*Research completed: 2026-03-05*
+*Research completed: 2026-03-18*
 *Ready for roadmap: yes*

@@ -27,10 +27,10 @@ From a single hotkey, the user can dictate and get reliable text into the clipbo
 
 ### Active
 
-- [ ] User can switch among transcription model profiles or engines to balance latency and quality on different machines.
-- [ ] User receives explicit feedback when clipboard writing fails after a successful transcription.
-- [ ] User can see long-session silence-risk feedback before the auto-stop window is reached.
-- [ ] The project has clean milestone-level verification and requirement traceability with no archive-blocking documentation drift.
+- [ ] User can trigger a rewriting mode by starting or ending their dictation with "convert to [mode name]"
+- [ ] User can rewrite a transcript as Clean English, Email, Slack / Teams message, Action Items list, or AI Prompt
+- [ ] User sees an alert when their recording exceeds the 350-word limit for conversion
+- [ ] User receives the rewritten output in the clipboard, replacing the raw transcript
 
 ### Out of Scope
 
@@ -46,12 +46,16 @@ The app operates system-wide as a background utility, integrates with macOS micr
 
 Performance expectations remain aggressive, but the biggest remaining product pressure is transcription latency. The model has been reduced to `tiny.en` for the current shipped build because the speed gain outweighed the quality tradeoff on the target machine.
 
-## Next Milestone Goals
+## Current Milestone: v1.1 Convert Modes
 
-- Add model-profile or engine selection so latency/quality tradeoffs are adjustable without code changes.
-- Clean up milestone verification traceability and missing verification artifacts so future closeouts are clean.
-- Close feedback gaps around silence-warning UI and clipboard-write failure visibility.
-- Decide whether richer output modes or history belong in the next milestone or remain deferred.
+**Goal:** Add 5 transcript rewriting modes powered by a local LLM, activated when the user's dictation starts or ends with "convert to [mode name]".
+
+**Target features:**
+- Intent detection: transcript starts or ends with "convert to X" (exact mode name match)
+- 5 modes: Clean English, Email, Slack / Teams, Action Items, Prompt
+- Local LLM rewriting via Qwen2.5-1.5B-Instruct (MLX, 4-bit)
+- 350-word hard limit: skip model call and alert user if exceeded
+- No-trigger path unchanged: existing clipboard-copy behavior preserved
 
 ## Constraints
 
@@ -76,4 +80,4 @@ Performance expectations remain aggressive, but the biggest remaining product pr
 | `tiny.en` is the active bundled model at v1.0 closeout | Lower latency mattered more than the accuracy delta on the target machine | — Revisit |
 
 ---
-*Last updated: 2026-03-09 after v1.0 milestone closeout*
+*Last updated: 2026-03-18 after v1.1 milestone started*

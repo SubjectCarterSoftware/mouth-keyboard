@@ -1,160 +1,352 @@
 # Feature Research
 
-**Domain:** macOS system-wide clipboard-first dictation utility
-**Researched:** 2026-03-05
-**Confidence:** HIGH
+**Domain:** Transcript rewriting modes — macOS local-LLM post-processing for a clipboard-first dictation utility
+**Researched:** 2026-03-18
+**Confidence:** HIGH (mode behavior and output expectations) / MEDIUM (intent detection edge cases — no public documentation found for voice-prefix matching specifics; derived from Whisper transcription behavior and LLM output patterns)
+
+---
+
+## Scope Note
+
+This file replaces the v1.0 version for the v1.1 milestone. It is scoped entirely to the five rewriting modes being added: Clean English, Email, Slack/Teams, Action Items, and Prompt. The existing table-stakes features (hotkey, Whisper pipeline, clipboard output) are already shipped. The downstream consumer of this file is roadmap phase planning.
+
+---
 
 ## Feature Landscape
 
 ### Table Stakes (Users Expect These)
 
-Features users assume exist. Missing these = product feels incomplete.
+Features users assume exist once a "convert to X" capability is announced. Missing these = the feature feels broken or unsafe.
 
 | Feature | Why Expected | Complexity | Notes |
 |---------|--------------|------------|-------|
-| Global hotkey activation | System-wide dictation tools must be summonable without switching apps | MEDIUM | Depends on accessibility permissions, event tap reliability, and hotkey conflict handling |
-| Immediate recording state feedback | Users need confidence that capture actually started and is still live | LOW | Menu bar state plus a minimal floating indicator is usually enough; waveform is optional for v1 |
-| Accurate transcription with punctuation | Competing dictation tools already infer punctuation and basic formatting | HIGH | Depends on model choice, buffering strategy, and post-processing defaults |
-| Fast output path from speech to usable text | The product fails if users wait long enough to lose flow | HIGH | Core metric is hotkey-to-clipboard speed, not generic transcription throughput |
-| Input device selection and stable microphone capture | macOS users expect control over which mic is active and immediate failure visibility | MEDIUM | Must handle permission prompts, missing devices, and external mic changes gracefully |
-| Cancel / retry controls during recording | Dictation mistakes are common, and users expect a lightweight recovery path | LOW | Escape to cancel is table stakes; restart-in-place is slightly richer but still expected for serious daily use |
-| Works while other apps stay focused | Users adopt these tools to avoid context switching, not add more of it | MEDIUM | Requires the app to stay in the background and avoid active-app specific insertion logic |
+| No-trigger path is completely unchanged | Users who never say "convert to" must receive the same clipboard behavior as before. Any regression here destroys trust. | LOW | Requires gate: intent detection returns null → existing path runs unchanged. |
+| The raw transcript is still what lands in the clipboard when the LLM call fails or times out | Users expect a result even when the model behaves badly. Silent data loss is unacceptable. | LOW | Fallback path: LLM error or empty output → copy raw transcript, skip alert. |
+| Exact mode names map to modes without case sensitivity | Whisper frequently capitalises sentence-start words. "Convert to email" and "Convert to Email" must both match. | LOW | Normalise both the transcript prefix/suffix and the mode name list to lowercase before comparison. |
+| The "convert to X" phrase is stripped from the output | Users expect only the rewritten content, not their command phrase, in the clipboard. | LOW | Strip occurs before passing the body to the LLM. Confirmed by all competitor tools inspected (Superwhisper, Wispr Flow). |
+| 350-word limit is surfaced as a human-readable alert, not a silent failure | Users need to know why no rewrite happened so they can shorten the recording. | LOW | Alert copy already specified in PROMPT_SPEC.md: "Recording too long for conversion — max ~350 words". |
+| Rewrite replaces the clipboard atomically | If the rewrite produces output, that output is in the clipboard. The raw transcript must not be in the clipboard at the same time or linger from a prior write. | LOW | Single clipboard write at the end of the rewrite path. |
+| Output for Email includes a subject line and sign-off | Users across Superwhisper Email mode and Wispr Flow context-aware email output consistently receive subject + sign-off. Missing these = email mode feels half-finished. | MEDIUM | The PROMPT_SPEC.md prompt produces this. The LLM must be instructed to include "[Your Name]" as a placeholder if the user does not supply a name. |
+| Output for Action Items is a bullet list with imperative verbs | Meeting-tool users (Notion AI, Superwhisper Meeting mode) are conditioned to expect imperative-phrased bullets with owner/deadline when mentioned. A numbered list or prose output fails this expectation. | MEDIUM | PROMPT_SPEC.md specifies bullet list. Validate output starts with a bullet character; fall back to raw transcript if output is prose-only. |
+| Output for Slack/Teams contains no greeting or sign-off | Users of Slack and Teams have strong norms against formal greetings. An output that starts with "Hi [Name]," signals a broken mode. | LOW | PROMPT_SPEC.md prohibits greetings. Output validation: if output starts with "Hi " or "Dear " treat as mode failure and fall back to raw transcript. |
 
 ### Differentiators (Competitive Advantage)
 
-Features that set the product apart. Not required, but valuable.
+Features that set this implementation apart from competitors, aligned with the project's local-first, speed-first positioning.
 
 | Feature | Value Proposition | Complexity | Notes |
 |---------|-------------------|------------|-------|
-| Clipboard-first output instead of direct insertion | Keeps the product universal across apps while removing fragile typing simulation and DOM quirks | LOW | This is the clearest product wedge versus tools that depend on accessibility text insertion everywhere |
-| Spacebar-to-finish interaction | A single, memorable finish gesture can be faster than waiting for silence or reaching for the mouse | LOW | Needs careful conflict handling so finish is deterministic and never leaks a literal space into the session |
-| Restart-from-here during the same live session | Lets users recover from a bad segment without abandoning the overall dictation flow | MEDIUM | Strong UX differentiator for fast iteration; requires buffer discard semantics and visible confirmation |
-| Long-dictation auto-segmentation with ordered reassembly | Makes local-first transcription practical for longer voice input without catastrophic single-session failure | HIGH | Depends on silence detection, queue orchestration, partial failure handling, and deterministic merge ordering |
-| No interruption to system audio playback | Important for users dictating while music, calls, or reference audio continues | MEDIUM | Differentiates from brittle audio-session setups that pause or degrade other audio unexpectedly |
-| Local-first privacy with aggressive latency goals | Combines speed and privacy rather than forcing a cloud tradeoff at launch | HIGH | Hard because model load time, warm starts, and device constraints all affect perceived performance |
+| Voice-activated mode selection (prefix or suffix) | Superwhisper requires mode selection before recording via UI. This product lets users decide mode at dictation time by speaking the trigger. Zero UI interaction required. | MEDIUM | Requires post-transcription intent parsing, not pre-recording UI state. |
+| Both prefix and suffix detection | "Convert to email, please send this to the team tomorrow" and "Please send this to the team tomorrow, convert to email" are both valid. Competitors with pre-recording mode selection cannot support this pattern. | LOW | Suffix detection catches the natural habit of appending instructions at the end of thought. |
+| Fully local rewrite (Qwen2.5-1.5B via MLX) | Wispr Flow's rewriting is cloud-only. Superwhisper's AI modes require cloud models for best results. This product rewrites on-device, ~0.39s average latency. | HIGH | Evaluated against 5 models; Qwen2.5-1.5B-Instruct-4bit selected. See PROMPT_SPEC.md. |
+| Prompt mode for AI-ready structured output | No competitor audited offers a dedicated "structure this as an LLM prompt" rewrite mode. This directly serves the product's power-user audience who dictate prompts into AI tools. | LOW | Lowest-complexity mode to build; highest differentiation signal for the target user. |
+| Single interaction model across all modes | All 5 modes share the same trigger pattern ("convert to X"), the same 350-word gate, and the same clipboard output path. Users learn one pattern. | LOW | Reduces surface area for bugs and user confusion. |
 
 ### Anti-Features (Commonly Requested, Often Problematic)
 
-Features that seem good but create problems.
-
 | Feature | Why Requested | Why Problematic | Alternative |
 |---------|---------------|-----------------|-------------|
-| Automatic insertion into the active app | Feels magical because users skip paste | Increases fragility across browsers, Electron apps, native apps, and secure text fields; turns a clipboard utility into an accessibility automation product | Keep clipboard-first output and make paste the deliberate handoff |
-| Full voice-command / desktop control layer | Users see Apple Voice Control and assume navigation commands should be bundled in | Blurs the product into a general accessibility assistant, expands permissions surface, and competes with Apple's built-in system | Stay focused on dictation capture only |
-| AI rewriting modes, tone transforms, and context-aware editing in v1 | Competitors like Wispr Flow and Superwhisper offer polished message/email modes | Adds model orchestration, prompt UX, and output unpredictability; weakens the speed-first positioning | Ship faithful transcription first, then add optional post-processing later if usage proves demand |
-| Meeting recorder / system audio transcription | Sounds adjacent and expands market appeal | Changes the product from quick dictation into long-form recording software with storage, history, consent, and speaker handling complexity | Keep v1 on live microphone dictation only |
-| Rich history, transcript editor, and export suite | Common request from transcription apps like MacWhisper | Pulls scope toward document management instead of instant clipboard delivery | If needed later, add a minimal retry/history view only for failed or recent dictations |
+| Fuzzy / partial mode name matching (e.g., "convert to mail" matches Email) | Reduces friction if user says a near-synonym | Introduces ambiguous matches and unpredictable mode selection. Whisper transcription of "email" is reliable; fuzzy matching rewards sloppiness while introducing new failure modes. | Require exact mode name match (case-insensitive). Document the 5 exact names in the UI tooltip. |
+| Auto-detect intent without explicit "convert to" trigger | Feels magical — the app "just knows" to reformat | Creates silent mode activations. Users who say "send this as an email" while meaning dictation get an unexpected rewrite. The explicit trigger is the safety contract. | Keep the explicit "convert to [mode name]" contract. It is predictable and easy to learn. |
+| LLM quality scoring or retry on poor output | Users assume the app "knows" if the output is bad | Quality is subjective and hard to detect reliably with a 1.5B model. Retry adds latency and can produce a worse second attempt. Adds significant complexity. | Use output heuristics for structural validation only (does Email output contain a subject line? does Action Items start with a bullet?). Fall back to raw transcript on structural failure, not quality failure. |
+| Per-mode temperature or style configuration | Power users want control | Requires a settings surface that doesn't exist in this product. Adds UX and code surface for marginal gain. The PROMPT_SPEC.md prompts are already tuned per mode. | Defer. If per-mode customisation is needed, implement it as a future Custom Mode concept. |
+| Streaming output to clipboard while LLM generates | Feels faster | At ~0.39s average latency, streaming adds implementation complexity with no perceptible benefit. Streaming partial text to clipboard creates a garbage intermediate state. | Write clipboard once at completion. |
+| Rewrite history / undo | Users want to recover from a bad rewrite | Adds storage and UI complexity. The raw transcript exists in the transcription pipeline until the session closes — it is not persisted separately. | The fallback path (raw transcript on failure) is the undo. Document this clearly to users. |
+| Cloud LLM fallback for longer inputs or better quality | Power users know cloud models are stronger | Breaks the privacy-first positioning. The 350-word limit already manages quality degradation. | Keep local-only. Raise the word limit in a future version if on-device model quality improves. |
+
+---
+
+## Per-Mode Behavior Specification
+
+### Clean English
+
+**What users expect:** Dictation cleaned up to match written prose. Filler words gone. Sentences grammatically correct. The speaker's meaning and register preserved — not polished into something they wouldn't say. Output length approximately equal to input length minus filler.
+
+**Output format:** One or more paragraphs of flowing prose. No headers, no bullets, no subject line.
+
+**What good looks like:** "So um I was thinking that maybe we could uh try the new approach" → "I was thinking we could try the new approach."
+
+**Structural validation:** Output is non-empty prose. Any output from the LLM that is non-empty passes. No structural failure mode exists for this mode — the fallback to raw transcript fires only on empty or error output.
+
+**Edge case — transcript is already clean:** LLM will return it nearly unchanged. This is correct and expected.
+
+**Whisper pipeline dependency:** tiny.en produces adequate output for Clean English rewriting. The LLM is correcting Whisper errors as a side effect.
+
+---
+
+### Email
+
+**What users expect:** A complete, sendable email. Subject line on its own line. Professional greeting. Body with paragraphs. Sign-off with "[Your Name]" placeholder. Length: concise — the email should be shorter than the raw dictation, not longer.
+
+**Output format (required structural elements):**
+```
+Subject: [generated subject]
+
+[Greeting],
+
+[Body paragraphs]
+
+[Sign-off],
+[Your Name]
+```
+
+**What good looks like:** A 60-word dictation becomes a 5-line email with subject, 2-sentence body, and sign-off.
+
+**Structural validation:** Output must contain "Subject:" on the first line. If absent, treat as structural failure and fall back to raw transcript with an alert. This is the one mode where structural validation is most valuable — an email without a subject line is a clear LLM output failure.
+
+**Edge case — no clear recipient or topic:** The LLM will generate a plausible subject from the content. This is acceptable. Do not attempt to detect this case.
+
+**Edge case — transcript is a reply, not a new email:** The LLM will format it as a reply body. Subject line may be "Re: [inferred topic]". Acceptable.
+
+---
+
+### Slack / Teams
+
+**What users expect:** A short, casual message that looks like something a colleague would send. No "Hi team," no "Best regards." Optionally uses line breaks to separate distinct thoughts. Shorter than the input dictation by a significant margin.
+
+**Output format:** 1–4 lines of plain text. No markdown formatting expected (bold, bullets) unless the content naturally calls for a list. No greeting. No sign-off.
+
+**What good looks like:** "So yeah I was going to ask, um, if anyone has looked at the deploy issue from this morning, it seems like it might be affecting the staging environment" → "Has anyone looked at the deploy issue from this morning? Might be hitting staging too."
+
+**Structural validation:** If output starts with "Hi ", "Dear ", "Hello ", or "Hey [Name]," treat as structural failure and fall back to raw transcript. Wispr Flow's context-aware email detection shows this is the most common LLM confusion for this mode.
+
+**Edge case — transcript is already short (under 20 words):** LLM will return it nearly unchanged. This is correct and expected — Clean English mode and Slack mode converge for very short inputs.
+
+---
+
+### Action Items
+
+**What users expect:** A bullet list where each item is an imperative task. If the speaker mentioned a person's name before a task ("Sarah needs to check the logs"), the bullet attributes it ("Sarah: Check the logs"). If a deadline was mentioned, it is included inline. Items that are observations, not tasks, are omitted.
+
+**Output format:**
+```
+- [Imperative task] (owner if named) (deadline if stated)
+- [Imperative task]
+```
+
+**What good looks like:**
+"So we need to update the readme, and um Sarah said she'd handle the deploy by Friday, and I think we should also probably review the PR queue before the end of the week"
+→
+```
+- Update the readme
+- Sarah: Deploy by Friday
+- Review the PR queue before end of week
+```
+
+**Structural validation:** Output must start with "- " or "• ". If output is prose-only (no bullet characters), treat as structural failure and fall back to raw transcript. This is the most failure-prone mode for a 1.5B model — the bullet constraint must be enforced in output validation.
+
+**Edge case — transcript contains no actionable tasks (pure narration or question):** The LLM may return an empty list or a single bullet that reads "No action items identified." Both are acceptable. An empty output falls back to raw transcript. A single-bullet "none" output is passed through to clipboard — it is technically valid.
+
+**Edge case — ambiguous ownership:** "We should do X" → the LLM will omit owner attribution. This is correct — do not attribute to a generic "Team:" prefix.
+
+---
+
+### Prompt
+
+**What users expect:** A clean, structured prompt ready to paste into an AI tool (ChatGPT, Claude, etc.). The three-part structure (context → ask → output requirements) is exactly what power users know makes prompts effective. Filler and rambling removed. No information added that was not in the dictation.
+
+**Output format:** 2–4 sentences or a short structured block. No "Subject:" line. No greeting. Output should read as if it were typed directly by an experienced prompt writer.
+
+**What good looks like:**
+"Um so I want to ask the AI to help me write a blog post about, you know, the benefits of local LLMs for privacy, and I want it to be kind of casual, maybe 500 words or so"
+→
+"Write a casual, 500-word blog post about the privacy benefits of running LLMs locally on-device. Focus on practical user benefits rather than technical internals. Output plain prose with no headers."
+
+**Structural validation:** Output is non-empty prose. No structural failure mode — same as Clean English. Falls back only on empty or error output.
+
+**Edge case — transcript is already a well-formed prompt:** LLM will make minor improvements or return it nearly unchanged. This is correct.
+
+**Edge case — transcript is very short (under 15 words):** LLM may expand it slightly to produce a complete prompt. This is acceptable as long as no information was added that was not implied. The system prompt already prohibits adding information not in the transcript.
+
+---
+
+## Intent Detection Specification
+
+### Core Contract
+
+The detection rule is: transcript starts with "convert to [mode name]" OR ends with "convert to [mode name]". Matching is case-insensitive. The mode name must be an exact string match to one of the five supported names after normalisation.
+
+**Supported mode name strings (case-insensitive):**
+- `clean english`
+- `email`
+- `slack` or `slack teams` or `slack / teams` (see note below)
+- `action items`
+- `prompt`
+
+**Note on Slack/Teams:** Whisper may transcribe "Slack / Teams" as "Slack Teams", "Slack or Teams", or just "Slack". All three should map to the Slack/Teams mode. This is the only mode that warrants a small set of recognised aliases (3–4 strings). All other modes have unambiguous single names.
+
+### Prefix detection
+
+Strip leading whitespace. Convert to lowercase. Check if the normalised transcript starts with `"convert to "` followed immediately by a recognised mode name. If yes, the body is everything after the mode name trigger (with leading whitespace stripped).
+
+### Suffix detection
+
+Strip trailing whitespace and terminal punctuation (`.`, `,`, `!`, `?`). Convert to lowercase. Check if the normalised transcript ends with `"convert to "` followed by a recognised mode name. If yes, the body is everything before the trigger (with trailing whitespace and punctuation stripped).
+
+### Both prefix and suffix match
+
+If both the start and end of the transcript contain a "convert to X" trigger (e.g., user accidentally said it twice), use the prefix match and ignore the suffix. This is a deterministic tiebreaker, not an error.
+
+### No match
+
+If neither prefix nor suffix matches any recognised mode name, the transcript is treated as a plain dictation. The existing clipboard-copy path runs unchanged. No alert is shown.
+
+### Partial / near-match (no fuzzy matching)
+
+"Convert to mail", "Convert to emails", "Convert to slack message" — none of these match. The user is shown no output transformation, and the raw transcript lands in the clipboard. This is intentional: the cost of a missed conversion is lower than the cost of a surprise conversion. Users learn the exact names quickly.
+
+### Case sensitivity
+
+Whisper with `tiny.en` frequently capitalises the first word of a transcription. "Convert to Email" must match. All comparisons are lowercase after normalisation.
+
+### Whitespace variation
+
+Whisper may insert extra spaces. Normalise runs of whitespace to a single space before comparison.
+
+### What the body is
+
+The "body" passed to the LLM is the transcript with the trigger phrase stripped. The body must be at least 3 words after stripping. If the body is fewer than 3 words, skip the LLM call and fall back to raw transcript (with the trigger included, since the full transcript is too short to rewrite meaningfully).
+
+---
+
+## Graceful Degradation Path
+
+Priority order: rewritten output > raw transcript > nothing.
+
+| Condition | Result | User-visible signal |
+|-----------|--------|---------------------|
+| LLM returns well-formed output | Rewritten text in clipboard | None (normal path) |
+| LLM returns empty string | Raw transcript in clipboard | No alert — silent fallback |
+| LLM call throws exception / timeout | Raw transcript in clipboard | No alert — silent fallback |
+| Structural validation fails (mode-specific) | Raw transcript in clipboard | No alert — silent fallback |
+| Body too short after trigger strip (< 3 words) | Full raw transcript in clipboard | No alert |
+| Word count exceeds 350 words | No LLM call; no clipboard write | Alert: "Recording too long for conversion — max ~350 words" |
+| Mode name not recognised | Full raw transcript in clipboard | No alert (treated as plain dictation) |
+
+**Design rationale:** Silent fallback to raw transcript is the correct default for all failure modes except the word-limit case. The word-limit case is the only failure where the user receives nothing in the clipboard — it is the only case that warrants an alert to explain why.
+
+---
 
 ## Feature Dependencies
 
-```text
-[Clipboard-ready transcription]
-    └──requires──> [Speech recognition pipeline]
-                       └──requires──> [Microphone capture + buffering]
-                                             └──requires──> [Permissions + input device handling]
+```
+[Rewriting modes]
+    └──requires──> [Intent detection]
+                       └──requires──> [Raw transcript from Whisper pipeline]
+                                          └──requires──> [Existing v1.0 transcription pipeline] (already shipped)
 
-[Global hotkey activation]
-    └──requires──> [Accessibility permission + event monitoring]
-                       └──enables──> [Start / finish / cancel / restart controls]
+[Intent detection]
+    └──enables──> [Body extraction]
+                      └──enables──> [LLM rewrite call]
+                                        └──enables──> [Clipboard write (rewritten output)]
 
-[Long-dictation segmentation]
-    └──requires──> [Silence detection]
-                       └──requires──> [Session queue orchestration]
-                                             └──enables──> [Partial failure recovery]
+[Word count gate]
+    └──requires──> [Raw transcript]
+    └──blocks──> [LLM rewrite call] (if > 350 words)
 
-[Visual recording indicator] ──enhances──> [User trust in hotkey activation]
+[Structural validation]
+    └──requires──> [LLM output]
+    └──enables──> [Graceful fallback to raw transcript]
 
-[Direct insertion] ──conflicts──> [Clipboard-first simplicity]
-[AI rewrite modes] ──conflicts──> [Speed-first faithful transcription]
+[LLM fallback path]
+    └──requires──> [Raw transcript preserved through rewrite pipeline]
+    └──conflicts_with──> [Discarding raw transcript before LLM call completes]
 ```
 
 ### Dependency Notes
 
-- **Clipboard-ready transcription requires the speech recognition pipeline:** Clipboard output is only useful if capture, buffering, transcription, and final copy succeed as one deterministic chain.
-- **Speech recognition pipeline requires microphone capture and buffering:** Model quality cannot compensate for dropped frames, late start, or unstable audio buffers.
-- **Global hotkey activation requires accessibility permission and event monitoring:** Without reliable key event capture, the app cannot behave as a system-wide utility.
-- **Long-dictation segmentation requires silence detection and queue orchestration:** Segmenting safely means deciding when to cut, how to reassemble, and how to surface partial failures.
-- **Visual recording indicator enhances user trust in hotkey activation:** Users need immediate confirmation that the app heard the shortcut and is actively capturing.
-- **Direct insertion conflicts with clipboard-first simplicity:** Supporting both from day one dilutes product boundaries and multiplies failure modes.
-- **AI rewrite modes conflict with speed-first faithful transcription:** Post-processing can be valuable, but it increases latency and makes output less predictable.
+- **Rewriting modes require the existing v1.0 Whisper pipeline:** The transcript that enters intent detection is the same assembled string that v1.0 already produces. No changes to the transcription pipeline are required.
+- **Raw transcript must be preserved through the rewrite pipeline:** The graceful degradation path requires the original transcript to be available as a fallback at every failure point. It must not be discarded after the LLM call starts.
+- **Word count gate blocks the LLM call, not the clipboard write:** The gate fires before the LLM call. If the gate fires, the raw transcript is not written to the clipboard — only the alert is shown. This is the only path where the clipboard is not written.
+- **Structural validation is mode-specific:** Email and Action Items have structural checks. Clean English, Slack/Teams, and Prompt do not.
+
+---
 
 ## MVP Definition
 
-### Launch With (v1)
+This is a subsequent milestone. The MVP for v1.1 is the full set of 5 modes — partial mode sets create user confusion and documentation debt.
 
-Minimum viable product — what's needed to validate the concept.
+### Launch With (v1.1)
 
-- [ ] Global configurable hotkey with single-tap or double-tap activation — core entry point for system-wide use
-- [ ] Immediate recording, spacebar finish, and clipboard copy on completion — the essential speech-to-clipboard loop
-- [ ] Escape cancel and restart-from-here control — needed to keep interaction recoverable without leaving the session
-- [ ] Local microphone capture with device selection and permission flow — required for real-world macOS usage
-- [ ] Visible idle / recording / processing / canceled / restarted states — prevents ambiguity during fast capture
-- [ ] Local-first transcription with punctuation and aggressive latency targets — validates the core speed/privacy promise
-- [ ] Long-dictation segmentation and ordered merge — required to keep longer sessions reliable enough for daily use
+- [x] Intent detection: case-insensitive prefix and suffix matching, exact mode names only — foundational gate for all modes
+- [x] Body extraction: strip trigger phrase, validate body length >= 3 words — prevents degenerate LLM calls
+- [x] Word count gate: skip LLM, alert user if > 350 words — protects output quality and performance
+- [x] Clean English mode — simplest mode, validates the basic LLM pipeline
+- [x] Email mode with subject line + sign-off structural validation — most recognisable output contract
+- [x] Slack/Teams mode with greeting-detection fallback — tests negative structural validation
+- [x] Action Items mode with bullet-start structural validation — highest LLM failure risk; needs explicit gate
+- [x] Prompt mode — lowest complexity, highest differentiator for target user
+- [x] LLM failure fallback: raw transcript on exception, timeout, empty output, or structural failure
+- [x] No-trigger path unchanged: plain dictation continues to work identically
 
 ### Add After Validation (v1.x)
 
-Features to add once core is working.
-
-- [ ] Optional waveform and richer recording HUD — add if users need more confidence than simple state indicators provide
-- [ ] Personal vocabulary / custom terms — add when correction patterns show repeated domain-specific errors
-- [ ] Minimal recent-history retry for failed sessions — add if segmentation or model failures still create recovery friction
-- [ ] Optional cloud engine fallback — add only if local accuracy or hardware variability blocks broader adoption
+- [ ] Slack/Teams alias expansion — add if users report missed triggers for "Slack Teams" vs "Slack / Teams"
+- [ ] Custom mode support — add if power users want to define their own rewrite prompts beyond the 5 built-in modes
+- [ ] Word limit increase — revisit if Qwen2.5-1.5B quality at 350-500 words proves acceptable in practice
 
 ### Future Consideration (v2+)
 
-Features to defer until product-market fit is established.
+- [ ] Per-mode prompt customisation in settings UI — defer; the built-in prompts serve the majority of use cases
+- [ ] Cloud LLM fallback — defer; breaks privacy-first positioning
+- [ ] Rewrite history / undo — defer; the fallback path covers the core recovery need
+- [ ] Fuzzy mode name matching — defer; exact matching is safer and the mode names are short and memorable
 
-- [ ] Direct insertion into active applications — defer because it changes the product boundary and adds brittle app-specific behavior
-- [ ] AI formatting / rewrite modes — defer until faithful transcription speed is proven and users ask for refinement
-- [ ] Context-aware app-specific dictation — defer because it depends on more invasive accessibility reads and more complex UX
-- [ ] Meeting capture / system audio transcription — defer because it shifts the product toward a different market and architecture
-- [ ] Cross-device sync and multi-platform clients — defer until the macOS loop is proven indispensable
+---
 
 ## Feature Prioritization Matrix
 
 | Feature | User Value | Implementation Cost | Priority |
 |---------|------------|---------------------|----------|
-| Global hotkey activation | HIGH | MEDIUM | P1 |
-| Speech-to-clipboard loop | HIGH | HIGH | P1 |
-| Cancel / restart controls | HIGH | LOW | P1 |
-| Visual state feedback | HIGH | LOW | P1 |
-| Input device selection and permissions | HIGH | MEDIUM | P1 |
-| Long-dictation segmentation | HIGH | HIGH | P1 |
-| Personal vocabulary | MEDIUM | MEDIUM | P2 |
-| Minimal recent-history retry | MEDIUM | MEDIUM | P2 |
-| Cloud fallback | MEDIUM | HIGH | P2 |
-| AI rewrite modes | MEDIUM | HIGH | P3 |
-| Direct insertion | MEDIUM | HIGH | P3 |
-| Meeting recorder / system audio transcription | LOW | HIGH | P3 |
+| Intent detection (prefix + suffix, exact match) | HIGH | LOW | P1 |
+| Body extraction + trigger stripping | HIGH | LOW | P1 |
+| Word count gate + alert | HIGH | LOW | P1 |
+| Clean English mode | HIGH | LOW | P1 |
+| Email mode | HIGH | MEDIUM | P1 |
+| Slack/Teams mode | HIGH | LOW | P1 |
+| Action Items mode | HIGH | MEDIUM | P1 |
+| Prompt mode | HIGH | LOW | P1 |
+| Graceful fallback to raw transcript | HIGH | LOW | P1 |
+| Structural output validation (Email, Action Items) | MEDIUM | LOW | P1 |
+| Slack alias set ("Slack Teams", "Slack / Teams") | MEDIUM | LOW | P1 |
+| Custom mode support | MEDIUM | HIGH | P3 |
+| Per-mode prompt customisation in settings | LOW | HIGH | P3 |
 
 **Priority key:**
-- P1: Must have for launch
+- P1: Must have for v1.1 launch
 - P2: Should have, add when possible
 - P3: Nice to have, future consideration
 
+---
+
 ## Competitor Feature Analysis
 
-| Feature | Competitor A | Competitor B | Our Approach |
-|---------|--------------|--------------|--------------|
-| System-wide dictation activation | Apple Voice Control offers always-on voice interaction and dictation tied to broader voice-command workflows | Superwhisper uses shortcuts and recording modes for fast capture in any app | Keep a narrower global hotkey model focused only on capture, finish, cancel, and restart |
-| Output behavior | Apple Voice Control dictates directly into text fields and mixes commands with dictation | Wispr Flow and Superwhisper emphasize direct insertion/paste-ready polished text | Keep output clipboard-first to reduce app-specific brittleness and preserve universal compatibility |
-| Local privacy | Apple states Voice Control audio processing happens on device | MacWhisper and Superwhisper both market local/offline transcription options | Make local-first the default product posture, not an upsell or secondary mode |
-| Advanced post-processing | Wispr Flow and Superwhisper offer filler removal, formatting, and context-aware rewrite modes | MacWhisper focuses more on transcript handling and downstream export/editing | Defer rewriting and formatting modes until the core faithful-transcription loop is proven |
-| Long-form transcription support | MacWhisper is strong at file transcription, editing, export, and large transcript workflows | Superwhisper offers history and model selection for longer recordings | Support long dictation only to preserve reliability of live capture, not to become a transcript-management app |
+| Feature | Superwhisper | Wispr Flow | Speech2Test v1.1 Approach |
+|---------|--------------|------------|---------------------------|
+| Mode selection method | UI-based before recording (keyboard shortcut or click) | Automatic context detection (active app) | Voice trigger at dictation time — no pre-recording UI required |
+| Email mode output | Subject + greeting + body + sign-off (confirmed) | Context-detected professional tone; structure inferred | Explicit subject + body + "[Your Name]" sign-off as structural contract |
+| Slack/message mode | Casual tone, no greeting (confirmed) | App-context-aware casual tone | Explicit no-greeting rule with output validation to detect failures |
+| Action items | Meeting mode generates action items (Superwhisper) | Not a dedicated mode | Dedicated mode; bullet list enforced with structural validation |
+| Prompt structuring | Not a dedicated mode (Custom Mode approximates it) | Not a dedicated mode | Dedicated Prompt mode — unique differentiator |
+| On-device rewriting | Cloud-dependent for AI modes (confirmed) | Cloud-only | Fully local, ~0.39s average (Qwen2.5-1.5B MLX 4-bit) |
+| Graceful fallback | Not publicly documented | Not publicly documented | Explicit: raw transcript on any LLM failure, alert only on word-limit breach |
+| Word/length limit | Not publicly documented | Not publicly documented | 350-word hard limit with user-visible alert copy |
+
+---
 
 ## Sources
 
-- Apple Support, "Use Voice Control on your Mac" — https://support.apple.com/en-us/HT202584
-- Apple Support, "Use Voice Control commands to interact with your Mac" — https://support.apple.com/en-mide/guide/accessibility-mac/mh40719/mac
-- Wispr Flow features — https://wisprflow.ai/features
-- Wispr Flow docs, "What is Flow?" — https://docs.wisprflow.ai/articles/1478024203
-- Superwhisper product site — https://superwhisper.com/
-- Superwhisper docs, "Voice to Text" — https://superwhisper.com/docs/modes/voice
-- Superwhisper docs, "Message" — https://superwhisper.com/docs/modes/message
-- Superwhisper docs, "Recording Window" — https://superwhisper.com/docs/get-started/interface-rec-window
-- MacWhisper product page — https://goodsnooze.gumroad.com/l/macwhisper?a=941854643
+- Superwhisper modes documentation — https://superwhisper.com/docs/modes/ (MEDIUM confidence — describes mode categories; mode-switching specifics confirmed)
+- Superwhisper email mode — https://superwhisper.com/docs/modes/email (MEDIUM confidence — structural output confirmed: subject + greeting + sign-off)
+- Superwhisper recording window — https://superwhisper.com/docs/get-started/interface-rec-window (HIGH confidence — confirms mode is selected before recording, not by voice)
+- Superwhisper review, "I Dictated This Email (And It Didn't Suck)" — https://tinyblocks.kit.com/posts/superwhisper-review (MEDIUM confidence — user review, confirms practical email output quality)
+- Wispr Flow features — https://wisprflow.ai/features (MEDIUM confidence — confirms automatic context detection model, no voice-prefix mode switching)
+- Wispr Flow vs Superwhisper comparison — https://clickup.com/blog/wispr-flow-vs-superwhisper/ (MEDIUM confidence — confirms key architectural difference: deliberate mode setup vs transparent context detection)
+- Superwhisper llms.txt — https://superwhisper.com/docs/llms.txt (MEDIUM confidence — lists 7 modes; confirms keyboard shortcut and auto-activation rule switching, no voice prefix)
+- OpenAI Whisper — https://github.com/openai/whisper (HIGH confidence — confirms transcription capitalises first word of utterance; informs case-normalisation requirement)
+- PROMPT_SPEC.md (project file, HIGH confidence — mode prompts and word limit already specified and evaluated against 5 candidate models)
 
 ---
-*Feature research for: macOS system-wide clipboard-first dictation utility*
-*Researched: 2026-03-05*
+
+*Feature research for: transcript rewriting modes — macOS local-LLM post-processing (v1.1 milestone)*
+*Researched: 2026-03-18*
