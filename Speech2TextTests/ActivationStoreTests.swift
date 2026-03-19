@@ -83,7 +83,7 @@ final class ActivationStoreTests: XCTestCase {
 
         XCTAssertEqual(mockClipboard.lastWrittenText, "Hello world")
         XCTAssertEqual(store.lastTranscription, "Hello world")
-        if case .success(let text, _) = store.state {
+        if case .success(let text, _, _) = store.state {
             XCTAssertEqual(text, "Hello world")
         } else {
             XCTFail("Expected .success state, got \(store.state)")
@@ -302,14 +302,14 @@ final class ActivationStoreTests: XCTestCase {
 
         try await Task.sleep(nanoseconds: 200_000_000)
 
-        if case .success(let text, _) = store.state {
+        if case .success(let text, _, _) = store.state {
             XCTAssertEqual(text, "ready")
         } else {
             XCTFail("Expected .success state, got \(store.state)")
         }
 
         XCTAssertTrue(hotkeyService.handleKeyDown()) // stale repeat should be ignored
-        if case .success(let text, _) = store.state {
+        if case .success(let text, _, _) = store.state {
             XCTAssertEqual(text, "ready")
         } else {
             XCTFail("Expected .success state after ignored repeat, got \(store.state)")
@@ -335,7 +335,7 @@ final class ActivationStoreTests: XCTestCase {
 
         try await Task.sleep(nanoseconds: 200_000_000)
 
-        if case .success(let text, _) = store.state {
+        if case .success(let text, _, _) = store.state {
             XCTAssertEqual(text, "first")
         } else {
             XCTFail("Expected .success state, got \(store.state)")
@@ -383,11 +383,56 @@ final class ActivationStoreTests: XCTestCase {
         }
     }
 
+    func test_trigger_dictation_produces_converted_clipboard_output() async throws {
+        let mockTranscriber = ActivationStoreMockTranscriber(
+            result: .success("convert to email Please schedule a meeting for Friday")
+        )
+        let mockRewriter = MockLLMRewriter(result: .success("Subject: Meeting Request\n\nPlease schedule..."))
+        let mockClipboard = ActivationStoreMockClipboard()
+        let store = makeStore(
+            permissionsAuthorized: true,
+            transcriber: mockTranscriber,
+            llmRewriter: mockRewriter,
+            clipboard: mockClipboard
+        )
+        store.arm()
+        store.finish()
+        try await Task.sleep(nanoseconds: 300_000_000)
+        XCTAssertEqual(mockClipboard.lastWrittenText, "Subject: Meeting Request\n\nPlease schedule...")
+        XCTAssertEqual(store.lastConvertedTranscription, "Subject: Meeting Request\n\nPlease schedule...")
+        if case .success(_, _, let converted) = store.state {
+            XCTAssertTrue(converted)
+        } else {
+            XCTFail("Expected .success state, got \(store.state)")
+        }
+    }
+
+    func test_passthrough_dictation_is_completely_unchanged() async throws {
+        let mockTranscriber = ActivationStoreMockTranscriber(result: .success("Hello world"))
+        let mockClipboard = ActivationStoreMockClipboard()
+        let store = makeStore(
+            permissionsAuthorized: true,
+            transcriber: mockTranscriber,
+            clipboard: mockClipboard
+        )
+        store.arm()
+        store.finish()
+        try await Task.sleep(nanoseconds: 200_000_000)
+        XCTAssertEqual(mockClipboard.lastWrittenText, "Hello world")
+        XCTAssertNil(store.lastConvertedTranscription)
+        if case .success(_, _, let converted) = store.state {
+            XCTAssertFalse(converted)
+        } else {
+            XCTFail("Expected .success state, got \(store.state)")
+        }
+    }
+
     // MARK: - Helpers
 
     private func makeStore(
         permissionsAuthorized: Bool,
         transcriber: (any WhisperTranscribing)? = nil,
+        llmRewriter: (any LLMRewriting)? = nil,
         clipboard: ClipboardService? = nil,
         bufferAccumulator: AudioBufferAccumulator? = nil,
         resetSessionMonitoring: (@MainActor () -> Void)? = nil
@@ -400,6 +445,7 @@ final class ActivationStoreTests: XCTestCase {
             preferences: ShellPreferences(userDefaults: defaults),
             readinessProvider: StubReadinessProvider(permissionsAuthorized: permissionsAuthorized),
             whisperService: transcriber ?? ActivationStoreMockTranscriber(result: .success("")),
+            llmRewriteService: llmRewriter ?? MockLLMRewriter(result: .failure(LLMRewriteError.cancelled)),
             clipboardService: clipboard ?? ActivationStoreMockClipboard(),
             bufferAccumulator: bufferAccumulator ?? StubBufferAccumulator(),
             resetSessionMonitoring: resetSessionMonitoring ?? {}
@@ -515,4 +561,16 @@ class TrackingBufferAccumulator: StubBufferAccumulator {
 
 final class ResetHookTracker {
     var callCount = 0
+}
+
+final class MockLLMRewriter: LLMRewriting, @unchecked Sendable {
+    enum MockResult { case success(String); case failure(Error) }
+    private let result: MockResult
+    init(result: MockResult) { self.result = result }
+    func rewrite(body: String, mode: ConvertMode) async throws -> String {
+        switch result {
+        case .success(let text): return text
+        case .failure(let error): throw error
+        }
+    }
 }

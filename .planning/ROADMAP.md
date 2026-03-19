@@ -93,10 +93,12 @@ Plans:
   3. When the conversion body exceeds 350 words, the pill flashes orange with "Input exceeds AI limit" and the raw transcript is copied to clipboard
   4. When the LLM call fails for any reason, the raw transcript is silently copied to clipboard with no partial or error output visible
   5. The pill displays a distinct loading indicator while LLM conversion is in progress (visually different from the normal transcription processing state)
-**Plans**: TBD
+**Plans**: 3 plans
 
 Plans:
-- [ ] 09-01: TBD
+- [ ] 09-01-PLAN.md — TDD: test scaffold + RecordingState contracts + ActivationStore core wiring (intent branch, DI, lastConvertedTranscription)
+- [ ] 09-02-PLAN.md — UI layer: pill .converting animation + .wordLimitExceeded, AppDelegate, StatusMenuView + Speech2TextApp wiring
+- [ ] 09-03-PLAN.md — Manual verification: .converting animation, 350-word guard, LLM fallback, passthrough regression, menu item
 
 ### Phase 10: Settings Panel and First-Run Download UX
 **Goal**: Users can view, edit, and extend conversion modes in the settings panel, and the 869 MB model download on first use shows visible progress in the menu bar status item so users know the app is working.
