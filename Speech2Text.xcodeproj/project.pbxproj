@@ -61,6 +61,7 @@
 			A00000010000000000000035 /* ConvertIntent.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000020000000000000039 /* ConvertIntent.swift */; };
 			A00000010000000000000036 /* IntentDetector.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0000002000000000000003A /* IntentDetector.swift */; };
 			A00000010000000000000037 /* IntentDetectorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0000002000000000000003B /* IntentDetectorTests.swift */; };
+			A0000001000000000000003C /* LLMRewriteService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0000002000000000000003C /* LLMRewriteService.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -138,6 +139,7 @@
 			A00000020000000000000039 /* ConvertIntent.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConvertIntent.swift; sourceTree = "<group>"; };
 			A0000002000000000000003A /* IntentDetector.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IntentDetector.swift; sourceTree = "<group>"; };
 			A0000002000000000000003B /* IntentDetectorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IntentDetectorTests.swift; sourceTree = "<group>"; };
+			A0000002000000000000003C /* LLMRewriteService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LLMRewriteService.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -339,6 +341,7 @@
 					A00000020000000000000038 /* ConvertMode.swift */,
 					A00000020000000000000039 /* ConvertIntent.swift */,
 					A0000002000000000000003A /* IntentDetector.swift */,
+					A0000002000000000000003C /* LLMRewriteService.swift */,
 				);
 				path = Conversion;
 				sourceTree = "<group>";
@@ -497,6 +500,7 @@
 					A00000010000000000000035 /* ConvertIntent.swift in Sources */,
 					A00000010000000000000034 /* ConvertMode.swift in Sources */,
 					A00000010000000000000036 /* IntentDetector.swift in Sources */,
+					A0000001000000000000003C /* LLMRewriteService.swift in Sources */,
 					A00000010000000000000032 /* PasteService.swift in Sources */,
 					A00000010000000000000017 /* HotkeyService.swift in Sources */,
 					A00000010000000000000006 /* KeyboardPermissionService.swift in Sources */,
