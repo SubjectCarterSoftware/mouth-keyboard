@@ -48,6 +48,8 @@
 		A00000010000000000000026 /* AudioBufferAccumulatorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0000002000000000000002B /* AudioBufferAccumulatorTests.swift */; };
 		A00000010000000000000027 /* ClipboardServiceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0000002000000000000002C /* ClipboardServiceTests.swift */; };
 		A0000001000000000000002A /* WhisperKit in Frameworks */ = {isa = PBXBuildFile; productRef = A00000130000000000000002 /* WhisperKit */; };
+		A0000001000000000000002B /* MLXLLM in Frameworks */ = {isa = PBXBuildFile; productRef = A00000130000000000000003 /* MLXLLM */; };
+		A0000001000000000000002C /* MLXLMCommon in Frameworks */ = {isa = PBXBuildFile; productRef = A00000130000000000000004 /* MLXLMCommon */; };
 		A0000001000000000000002B /* WhisperModelChoice.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0000002000000000000002F /* WhisperModelChoice.swift */; };
 		A0000001000000000000002C /* ShellPreferencesModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000020000000000000030 /* ShellPreferencesModelTests.swift */; };
 		A0000001000000000000002D /* VoiceActivityDetector.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000020000000000000031 /* VoiceActivityDetector.swift */; };
@@ -137,6 +139,8 @@
 			files = (
 				A00000010000000000000016 /* KeyboardShortcuts in Frameworks */,
 				A0000001000000000000002A /* WhisperKit in Frameworks */,
+				A0000001000000000000002B /* MLXLLM in Frameworks */,
+				A0000001000000000000002C /* MLXLMCommon in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -338,6 +342,8 @@
 			packageProductDependencies = (
 				A00000130000000000000001 /* KeyboardShortcuts */,
 				A00000130000000000000002 /* WhisperKit */,
+				A00000130000000000000003 /* MLXLLM */,
+				A00000130000000000000004 /* MLXLMCommon */,
 			);
 			productName = Speech2Text;
 			productReference = A00000020000000000000004 /* Speech2Text.app */;
@@ -415,6 +421,7 @@
 			packageReferences = (
 				A00000140000000000000001 /* XCRemoteSwiftPackageReference "KeyboardShortcuts" */,
 				A00000140000000000000002 /* XCRemoteSwiftPackageReference "whisper" */,
+				A00000140000000000000003 /* XCRemoteSwiftPackageReference "mlx-swift-lm" */,
 			);
 			productRefGroup = A00000040000000000000003 /* Products */;
 			projectDirPath = "";
@@ -761,6 +768,14 @@
 				minimumVersion = 0.17.0;
 			};
 		};
+		A00000140000000000000003 /* XCRemoteSwiftPackageReference "mlx-swift-lm" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/ml-explore/mlx-swift-lm";
+			requirement = {
+				kind = upToNextMinorVersion;
+				minimumVersion = 2.30.6;
+			};
+		};
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
@@ -773,6 +788,16 @@
 			isa = XCSwiftPackageProductDependency;
 			package = A00000140000000000000002 /* XCRemoteSwiftPackageReference "WhisperKit" */;
 			productName = WhisperKit;
+		};
+		A00000130000000000000003 /* MLXLLM */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = A00000140000000000000003 /* XCRemoteSwiftPackageReference "mlx-swift-lm" */;
+			productName = MLXLLM;
+		};
+		A00000130000000000000004 /* MLXLMCommon */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = A00000140000000000000003 /* XCRemoteSwiftPackageReference "mlx-swift-lm" */;
+			productName = MLXLMCommon;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};

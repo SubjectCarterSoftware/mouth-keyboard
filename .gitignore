@@ -21,6 +21,8 @@ xcuserdata/
 .build/
 Packages/
 Package.resolved
+# Track the Xcode-managed Package.resolved for reproducible builds
+!Speech2Text.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved
 
 # macOS
 .DS_Store
