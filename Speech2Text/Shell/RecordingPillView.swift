@@ -44,10 +44,10 @@ struct RecordingPillView: View {
             recordingContent
         case .processing:
             processingContent
-        case .success(_, let pasted, _):
-            successContent(pasted: pasted)
+        case .success(_, let pasted, let converted):
+            successContent(pasted: pasted, converted: converted)
         case .converting:
-            processingContent
+            convertingContent
         case .failure(let reason):
             failureContent(reason: reason)
         case .idle:
@@ -166,10 +166,40 @@ struct RecordingPillView: View {
         }
     }
 
+    // MARK: - Converting state
+
+    private var convertingContent: some View {
+        HStack(spacing: 6) {
+            ForEach(0..<3, id: \.self) { index in
+                Circle()
+                    .fill(Color.blue.opacity(0.85))
+                    .frame(width: 8, height: 8)
+                    .scaleEffect(pulseOpacity > 0.5 ? 1.15 : 0.85)
+                    .animation(
+                        Animation.easeInOut(duration: 0.6)
+                            .repeatForever(autoreverses: true)
+                            .delay(Double(index) * 0.2),
+                        value: pulseOpacity
+                    )
+            }
+        }
+        .frame(width: 160, height: 44)
+        .preferredColorScheme(.dark)
+        .onAppear { pulseOpacity = 1.0 }
+    }
+
     // MARK: - Success state
 
-    private func successContent(pasted: Bool) -> some View {
-        HStack(spacing: 8) {
+    private func successContent(pasted: Bool, converted: Bool) -> some View {
+        let label: String
+        switch (converted, pasted) {
+        case (true, true):   label = "Converted & Pasted"
+        case (true, false):  label = "Converted"
+        case (false, true):  label = "Pasted"
+        case (false, false): label = "Copied"
+        }
+
+        return HStack(spacing: 8) {
             if pasted {
                 ZStack {
                     Circle()
@@ -186,7 +216,7 @@ struct RecordingPillView: View {
                     .foregroundStyle(Color.green)
             }
 
-            Text(pasted ? "Pasted!" : "Copied!")
+            Text(label)
                 .font(.system(size: 13, weight: .semibold))
                 .foregroundStyle(.white)
         }
@@ -225,6 +255,11 @@ struct RecordingPillView: View {
 
     // MARK: - Failure state
 
+    private func failureBackground(for reason: RecordingState.FailureReason) -> Color {
+        if case .wordLimitExceeded = reason { return Color.orange.opacity(0.85) }
+        return Color.red.opacity(0.8)
+    }
+
     private func failureContent(reason: RecordingState.FailureReason) -> some View {
         HStack(spacing: 8) {
             Image(systemName: "exclamationmark.triangle.fill")
@@ -238,7 +273,7 @@ struct RecordingPillView: View {
         }
         .padding(.horizontal, 12)
         .frame(width: 220, height: 44)
-        .background(Color.red.opacity(0.8))
+        .background(failureBackground(for: reason))
         .clipShape(Capsule())
         .preferredColorScheme(.dark)
     }
@@ -260,7 +295,7 @@ struct RecordingPillView: View {
         case .silenceTimeout:
             return "Silence timeout"
         case .wordLimitExceeded:
-            return "Too long to convert"
+            return "Input exceeds AI limit"
         }
     }
 }
