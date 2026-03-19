@@ -62,10 +62,11 @@ Plans:
   3. Detection is case-insensitive: "Convert to EMAIL", "convert to email", "CONVERT TO EMAIL" all match the same mode
   4. A transcript with no trigger phrase returns `.passthrough` and the body is unchanged
   5. All 6 ConvertMode cases (Clean English, Email, Slack, Teams, Action Items, AI Prompt) are present with their system prompt and activation phrase defaults
-**Plans**: TBD
+**Plans**: 2 plans
 
 Plans:
-- [ ] 07-01: TBD
+- [ ] 07-01-PLAN.md — Define ConvertMode/ConvertIntent/IntentDetector stubs, add Conversion/ group to Xcode project, write full failing test corpus (RED)
+- [ ] 07-02-PLAN.md — Implement IntentDetector.detect() real algorithm, turn all 28 tests GREEN, regression-check full suite
 
 ### Phase 8: LLM Rewrite Service
 **Goal**: LLMRewriteService is a fully functional Swift actor that lazy-loads the Qwen2.5-1.5B-Instruct-4bit model on first use, exposes a `rewrite(body:mode:)` method behind an `LLMRewriting` protocol, and serializes all MLX inference off the main thread.
