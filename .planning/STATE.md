@@ -4,14 +4,14 @@ milestone: v1.1
 milestone_name: Convert Modes
 current_plan: 2
 status: planning
-stopped_at: Completed 08-01-PLAN.md
-last_updated: "2026-03-19T17:36:44.966Z"
+stopped_at: Completed 09-01-PLAN.md
+last_updated: "2026-03-19T20:40:11.298Z"
 last_activity: 2026-03-19
 progress:
   total_phases: 10
-  completed_phases: 7
-  total_plans: 18
-  completed_plans: 17
+  completed_phases: 8
+  total_plans: 21
+  completed_plans: 19
   percent: 100
 ---
 
@@ -22,14 +22,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-18)
 
 **Core value:** From a single hotkey, the user can dictate and get reliable text into the clipboard fast enough that it feels close to typing speed.
-**Current focus:** Phase 8 — LLM Rewrite Service planning and implementation
+**Current focus:** Phase 8 complete — LLM Rewrite Service production actor + offline unit coverage + opt-in integration tests; ready for Phase 9 planning
 
 ## Current Position
 
-Phase: 7 of 10 (Core Types and Intent Detection)
+Phase: 8 of 10 (LLM Rewrite Service)
 Current Plan: 2
 Total Plans in Phase: 2
-Status: Phase complete; ready for verification or Phase 8 planning
+Status: Phase complete; ready for Phase 9 planning (ActivationStore integration)
 Last Activity: 2026-03-19
 Progress: [██████████] 100%
 
@@ -53,6 +53,8 @@ Progress: [██████████] 100%
 | Phase 07-core-types-and-intent-detection P01 | 5 min | 2 tasks | 5 files |
 | Phase 07-core-types-and-intent-detection P02 | 4 min | 2 tasks | 2 files |
 | Phase 08 P01 | 5 min | 2 tasks | 3 files |
+| Phase 08 P02 | 30 min | 3 tasks | 6 files |
+| Phase 09-activationstore-integration-and-guards P09-01 | 25 | 3 tasks | 8 files |
 
 ## Accumulated Context
 
@@ -74,6 +76,12 @@ Recent decisions affecting current work:
 - [Phase 08]: Use Application Support-backed Hub downloads at ~/Library/Application Support/Speech2Text/RewriteModel for rewrite models.
 - [Phase 08]: Serialize rewrite generation with an explicit async gate so concurrent calls cannot overlap MLX inference across suspension points.
 - [Phase 08]: Expose internal loader/stream seams in LLMRewriteService so deterministic offline tests can cover GUARD-02 failure contracts without model downloads.
+- [Phase 08-02]: AsyncThrowingStream terminates via nil (not CancellationError) when consumer task is cancelled — must check Task.isCancelled after the for-try-await loop.
+- [Phase 08-02]: Opt-in integration test pattern: guard ENABLE_LLM_INTEGRATION_TESTS=1 + XCTSkip; use defaultLoader (internal) as loader seam for counting proxy without importing MLXLLM types.
+- [Phase 09-01]: Passthrough path in finalizeSession() is completely unchanged (LLM-02): pasteOnCompletion honored, raw text to clipboard, converted: false
+- [Phase 09-01]: Word count gate (GUARD-01) measures strippedBody (trigger removed), not full trimmed transcript
+- [Phase 09-01]: LLM failure (GUARD-02) is silent: raw transcript to clipboard, state .success(converted: false) — no error surfaced to user
+- [Phase 09-01]: .converting is non-terminal so arm() is blocked but cancelCurrentSession() guard unchanged (.recording || .processing only)
 
 ### Pending Todos
 
@@ -81,12 +89,12 @@ None yet.
 
 ### Blockers/Concerns
 
-- [Phase 6 gate]: swift-transformers version conflict between WhisperKit 0.17.0 and mlx-swift-lm 2.30.6 must be resolved before any LLM code is written. Check WhisperKit release notes first; fallback is vendoring MLXLLM/MLXLMCommon source.
-- [Phase 8 flag]: ChatSession per-call vs. per-session lifetime needs validation against mlx-swift-lm 2.30.6 before Phase 8 implementation begins.
 - [Phase 10 flag]: swift-transformers issue #335 (download progress handler) needs validation against current 1.2.0 release before Phase 10 planning begins.
+- [Unresolved pre-existing failures]: HotkeyServiceTests.testDefaultActivationShortcutIsControlV (default shortcut changed from ⌃ to ⌥) and ShellPreferencesModelTests.testLaunchAtLoginDefaultsToFalse (state leak between test runs) — both out of scope, need separate attention.
+- [Uncommitted project.pbxproj changes]: Xcode reformatted project.pbxproj (UUID reassignment for MLXLLM/MLXLMCommon framework refs, whitespace normalization). Needs review and commit before Phase 9.
 
 ## Session Continuity
 
-Last session: 2026-03-19T17:36:44.963Z
-Stopped at: Completed 08-01-PLAN.md
+Last session: 2026-03-19T20:40:11.296Z
+Stopped at: Completed 09-01-PLAN.md
 Resume file: None

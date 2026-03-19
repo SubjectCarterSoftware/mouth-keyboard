@@ -28,8 +28,8 @@
 
 ### Guards & UX
 
-- [ ] **UX-01**: User sees a loading indicator in the pill while LLM conversion is in progress (distinct from the normal transcription processing state)
-- [ ] **GUARD-01**: When a conversion body exceeds 350 words, the pill flashes an orange alert ("Input exceeds AI limit") before copying the raw transcript to clipboard
+- [x] **UX-01**: User sees a loading indicator in the pill while LLM conversion is in progress (distinct from the normal transcription processing state)
+- [x] **GUARD-01**: When a conversion body exceeds 350 words, the pill flashes an orange alert ("Input exceeds AI limit") before copying the raw transcript to clipboard
 - [x] **GUARD-02**: On any LLM failure, the raw transcript is copied to clipboard silently (no failed partial output)
 
 ### Settings
@@ -73,8 +73,8 @@
 | LLM-01 | Phase 6 | Complete |
 | LLM-02 | Phase 9 | Complete |
 | LLM-03 | Phase 10 | Pending |
-| UX-01 | Phase 9 | Pending |
-| GUARD-01 | Phase 9 | Pending |
+| UX-01 | Phase 9 | Complete |
+| GUARD-01 | Phase 9 | Complete |
 | GUARD-02 | Phase 8 | Complete |
 | SETT-01 | Phase 10 | Pending |
 | SETT-02 | Phase 10 | Pending |
