@@ -120,7 +120,7 @@ Plans:
 | 3. Recognition and Clipboard Loop | v1.0 | 3/3 | Complete | 2026-03-08 |
 | 4. Recovery Controls | v1.0 | 2/2 | Complete | 2026-03-08 |
 | 5. Long-Dictation Reliability | v1.0 | 3/3 | Complete | 2026-03-08 |
-| 6. Dependency Integration and Build Gate | v1.1 | 0/TBD | Not started | - |
+| 6. Dependency Integration and Build Gate | 1/1 | Complete   | 2026-03-19 | - |
 | 7. Core Types and Intent Detection | v1.1 | 0/TBD | Not started | - |
 | 8. LLM Rewrite Service | v1.1 | 0/TBD | Not started | - |
 | 9. ActivationStore Integration and Guards | v1.1 | 0/TBD | Not started | - |
