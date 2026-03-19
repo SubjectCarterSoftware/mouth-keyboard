@@ -57,7 +57,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
                 switch newState {
                 case .recording:
                     self.onRecordingStarted()
-                case .processing:
+                case .processing, .converting:
                     self.onProcessingStarted()
                 case .success:
                     self.onTranscriptionSucceeded()
@@ -166,6 +166,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         case .processing:
             symbolName = "ellipsis.circle"
             description = "Processing"
+        case .converting:
+            symbolName = "ellipsis.circle"
+            description = "Converting"
         case .success:
             symbolName = "checkmark.circle.fill"
             description = "Transcribed"

@@ -42,6 +42,7 @@ final class ActivationStore: ObservableObject {
         preferences: .shared,
         readinessProvider: ReadinessStore.shared,
         whisperService: WhisperService.shared,
+        llmRewriteService: LLMRewriteService.shared,
         clipboardService: ClipboardService(),
         pasteService: PasteService(),
         bufferAccumulator: AudioBufferAccumulator(),
@@ -51,10 +52,12 @@ final class ActivationStore: ObservableObject {
     @Published private(set) var state: RecordingState = .idle
     @Published private(set) var recoveryFeedback: RecordingState.RecoveryFeedback?
     @Published private(set) var lastTranscription: String?
+    @Published private(set) var lastConvertedTranscription: String?
 
     private let preferences: ShellPreferences
     private let readinessProvider: any ReadinessProviding
     private let whisperService: any WhisperTranscribing
+    private let llmRewriteService: any LLMRewriting
     private let clipboardService: ClipboardService
     private let pasteService: PasteService
     private let resetSessionMonitoring: @MainActor () -> Void
@@ -88,6 +91,7 @@ final class ActivationStore: ObservableObject {
         preferences: ShellPreferences,
         readinessProvider: any ReadinessProviding,
         whisperService: any WhisperTranscribing = WhisperService(),
+        llmRewriteService: any LLMRewriting = LLMRewriteService.shared,
         clipboardService: ClipboardService = ClipboardService(),
         pasteService: PasteService = PasteService(),
         bufferAccumulator: AudioBufferAccumulator = AudioBufferAccumulator(),
@@ -96,6 +100,7 @@ final class ActivationStore: ObservableObject {
         self.preferences = preferences
         self.readinessProvider = readinessProvider
         self.whisperService = whisperService
+        self.llmRewriteService = llmRewriteService
         self.clipboardService = clipboardService
         self.pasteService = pasteService
         self.bufferAccumulator = bufferAccumulator
@@ -218,6 +223,13 @@ final class ActivationStore: ObservableObject {
         }
     }
 
+    /// Copies the last converted transcription to the clipboard.
+    func copyLastConvertedTranscription() {
+        if let text = lastConvertedTranscription {
+            clipboardService.writeToClipboard(text)
+        }
+    }
+
     /// Finish recording: stops capture and runs the transcription -> clipboard -> dismiss flow.
     func finish() {
         guard state == .recording else { return }
@@ -271,17 +283,68 @@ final class ActivationStore: ObservableObject {
                 throw TranscriptionError.noSpeechDetected
             }
 
-            let didPaste = pasteOnCompletion
-            pasteOnCompletion = false
-            lastTranscription = trimmed
-            if didPaste {
-                pasteService.paste(text: trimmed)
+            let intent = IntentDetector.detect(transcript: trimmed, modes: preferences.convertModes)
+
+            if intent.mode == .passthrough {
+                // LLM-02: passthrough path completely unchanged
+                let didPaste = pasteOnCompletion
+                pasteOnCompletion = false
+                lastTranscription = trimmed
+                if didPaste {
+                    pasteService.paste(text: trimmed)
+                } else {
+                    clipboardService.writeToClipboard(trimmed)
+                }
+                state = .success(text: trimmed, pasted: didPaste, converted: false)
+                soundPlayer.playSuccess()
+                scheduleDismissToIdle(afterNanoseconds: 1_500_000_000, sessionID: sessionID)
             } else {
-                clipboardService.writeToClipboard(trimmed)
+                // Conversion path — paste is not supported for LLM output
+                pasteOnCompletion = false
+
+                // GUARD-01: 350-word gate (count on strippedBody, NOT trimmed)
+                let wordCount = intent.strippedBody
+                    .split(separator: " ", omittingEmptySubsequences: true).count
+                guard wordCount <= 350 else {
+                    guard isCurrentSession(sessionID) else { return }
+                    clipboardService.writeToClipboard(trimmed)  // raw transcript to clipboard first
+                    lastTranscription = trimmed
+                    let failureSessionID = activeSessionID
+                    state = .failure(reason: .wordLimitExceeded)
+                    soundPlayer.playFailure()
+                    scheduleDismissToIdle(afterNanoseconds: 2_000_000_000, sessionID: failureSessionID)
+                    return
+                }
+
+                guard isCurrentSession(sessionID) else { return }
+                state = .converting
+
+                // LLM call — rewrite() hops to LLMRewriteService actor automatically
+                let rewritten: String
+                do {
+                    rewritten = try await llmRewriteService.rewrite(
+                        body: intent.strippedBody,
+                        mode: intent.mode
+                    )
+                } catch {
+                    // GUARD-02 fallback: silent — raw transcript to clipboard
+                    guard isCurrentSession(sessionID) else { return }
+                    clipboardService.writeToClipboard(trimmed)
+                    lastTranscription = trimmed
+                    state = .success(text: trimmed, pasted: false, converted: false)
+                    soundPlayer.playSuccess()
+                    scheduleDismissToIdle(afterNanoseconds: 1_500_000_000, sessionID: sessionID)
+                    return
+                }
+
+                guard isCurrentSession(sessionID) else { return }
+                clipboardService.writeToClipboard(rewritten)
+                lastTranscription = trimmed          // raw always stored
+                lastConvertedTranscription = rewritten
+                state = .success(text: rewritten, pasted: false, converted: true)
+                soundPlayer.playSuccess()
+                scheduleDismissToIdle(afterNanoseconds: 1_500_000_000, sessionID: sessionID)
             }
-            state = .success(text: trimmed, pasted: didPaste, converted: false)
-            soundPlayer.playSuccess()
-            scheduleDismissToIdle(afterNanoseconds: 1_500_000_000, sessionID: sessionID)
         } catch TranscriptionError.noSpeechDetected {
             guard isCurrentSession(sessionID) else { return }
             state = .failure(reason: .noSpeechDetected)

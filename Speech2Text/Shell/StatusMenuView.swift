@@ -39,7 +39,7 @@ struct StatusMenuView: View {
             return "Processing is active. Cancel stops the session and preserves the existing clipboard."
         case .failure(let reason):
             return failureMessage(for: reason)
-        case .idle, .success:
+        case .idle, .success, .converting:
             return nil
         }
     }
@@ -58,7 +58,8 @@ struct StatusMenuView: View {
              .selectedMicrophoneUnavailable,
              .selectedMicrophoneDisconnected,
              .modelError,
-             .silenceTimeout:
+             .silenceTimeout,
+             .wordLimitExceeded:
             return false
         }
     }
@@ -74,7 +75,7 @@ struct StatusMenuView: View {
              .selectedMicrophoneUnavailable,
              .selectedMicrophoneDisconnected:
             return true
-        case .noSpeechDetected, .modelError, .silenceTimeout:
+        case .noSpeechDetected, .modelError, .silenceTimeout, .wordLimitExceeded:
             return false
         }
     }
@@ -163,6 +164,8 @@ struct StatusMenuView: View {
             return "Transcription failed. Try the session again after recovery."
         case .silenceTimeout:
             return "The session timed out after extended silence."
+        case .wordLimitExceeded:
+            return "Dictation is too long to convert. Raw text copied to clipboard."
         }
     }
 

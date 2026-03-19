@@ -46,6 +46,8 @@ struct RecordingPillView: View {
             processingContent
         case .success(_, let pasted, _):
             successContent(pasted: pasted)
+        case .converting:
+            processingContent
         case .failure(let reason):
             failureContent(reason: reason)
         case .idle:
@@ -257,6 +259,8 @@ struct RecordingPillView: View {
             return "Model error"
         case .silenceTimeout:
             return "Silence timeout"
+        case .wordLimitExceeded:
+            return "Too long to convert"
         }
     }
 }
