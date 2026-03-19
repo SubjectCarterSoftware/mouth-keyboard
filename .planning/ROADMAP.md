@@ -127,7 +127,7 @@ Plans:
 | 6. Dependency Integration and Build Gate | 1/1 | Complete   | 2026-03-19 | - |
 | 7. Core Types and Intent Detection | v1.1 | 2/2 | Complete | 2026-03-19 |
 | 8. LLM Rewrite Service | v1.1 | 0/2 | Planned | - |
-| 9. ActivationStore Integration and Guards | 1/3 | In Progress|  | - |
+| 9. ActivationStore Integration and Guards | 3/3 | Complete   | 2026-03-19 | - |
 | 10. Settings Panel and First-Run Download UX | v1.1 | 0/TBD | Not started | - |
 
 ---
