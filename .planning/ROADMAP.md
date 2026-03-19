@@ -66,7 +66,7 @@ Plans:
 
 Plans:
 - [x] 07-01-PLAN.md — Define ConvertMode/ConvertIntent/IntentDetector stubs, add Conversion/ group to Xcode project, write full failing test corpus (RED)
-- [ ] 07-02-PLAN.md — Implement IntentDetector.detect() real algorithm, turn all 39 tests GREEN, regression-check full suite
+- [x] 07-02-PLAN.md — Implement IntentDetector.detect() real algorithm, turn all 39 tests GREEN, regression-check full suite
 
 ### Phase 8: LLM Rewrite Service
 **Goal**: LLMRewriteService is a fully functional Swift actor that lazy-loads the Qwen2.5-1.5B-Instruct-4bit model on first use, exposes a `rewrite(body:mode:)` method behind an `LLMRewriting` protocol, and serializes all MLX inference off the main thread.
@@ -122,10 +122,10 @@ Plans:
 | 4. Recovery Controls | v1.0 | 2/2 | Complete | 2026-03-08 |
 | 5. Long-Dictation Reliability | v1.0 | 3/3 | Complete | 2026-03-08 |
 | 6. Dependency Integration and Build Gate | 1/1 | Complete   | 2026-03-19 | - |
-| 7. Core Types and Intent Detection | v1.1 | 1/2 | In Progress | 2026-03-19 |
+| 7. Core Types and Intent Detection | v1.1 | 2/2 | Complete | 2026-03-19 |
 | 8. LLM Rewrite Service | v1.1 | 0/TBD | Not started | - |
 | 9. ActivationStore Integration and Guards | v1.1 | 0/TBD | Not started | - |
 | 10. Settings Panel and First-Run Download UX | v1.1 | 0/TBD | Not started | - |
 
 ---
-*Last updated: 2026-03-19 after Phase 7 Plan 01 completion*
+*Last updated: 2026-03-19 after Phase 7 Plan 02 completion*

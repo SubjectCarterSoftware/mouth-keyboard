@@ -2,17 +2,17 @@
 gsd_state_version: 1.0
 milestone: v1.1
 milestone_name: Convert Modes
-current_plan: 07-02
-status: ready_to_execute
-stopped_at: Completed 07-01-PLAN.md
-last_updated: "2026-03-19T16:45:31.940Z"
+current_plan: 2
+status: ready_for_verification
+stopped_at: Completed 07-02-PLAN.md
+last_updated: "2026-03-19T16:50:10.782Z"
 last_activity: 2026-03-19
 progress:
   total_phases: 10
-  completed_phases: 6
+  completed_phases: 7
   total_plans: 16
-  completed_plans: 15
-  percent: 94
+  completed_plans: 16
+  percent: 100
 ---
 
 # Project State
@@ -22,16 +22,16 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-18)
 
 **Core value:** From a single hotkey, the user can dictate and get reliable text into the clipboard fast enough that it feels close to typing speed.
-**Current focus:** Phase 7 — Core Types and Intent Detection
+**Current focus:** Phase 8 — LLM Rewrite Service planning and implementation
 
 ## Current Position
 
 Phase: 7 of 10 (Core Types and Intent Detection)
 Current Plan: 2
 Total Plans in Phase: 2
-Status: Ready to execute Plan 2
+Status: Phase complete; ready for verification or Phase 8 planning
 Last Activity: 2026-03-19
-Progress: [█████████░] 94%
+Progress: [██████████] 100%
 
 ## Performance Metrics
 
@@ -51,6 +51,7 @@ Progress: [█████████░] 94%
 | 05 long-dictation-reliability | 3 | ~63m | ~21m |
 | Phase 06-dependency-integration-and-build-gate P01 | 20 | 4 tasks | 4 files |
 | Phase 07-core-types-and-intent-detection P01 | 5 min | 2 tasks | 5 files |
+| Phase 07-core-types-and-intent-detection P02 | 4 min | 2 tasks | 2 files |
 
 ## Accumulated Context
 
@@ -67,6 +68,8 @@ Recent decisions affecting current work:
 - [Phase 06-dependency-integration-and-build-gate]: mlx-swift-lm 2.30.6 uses upToNextMinorVersion; swift-transformers conflict did not materialize; Package.resolved committed for reproducible builds
 - [Phase 07-core-types-and-intent-detection]: ConvertMode owns activationPhraseCandidates so future detector callers can consume mode contracts directly.
 - [Phase 07-core-types-and-intent-detection]: Plan 01 remains intentionally RED: IntentDetector.detect stays passthrough until Plan 02 turns the corpus green.
+- [Phase 07-core-types-and-intent-detection]: Verification retries redirect Swift and SwiftPM caches into the workspace before treating GitHub DNS failures as environment blockers.
+- [Phase 07-core-types-and-intent-detection]: Trailing matches strip any surviving leading trigger phrase from the returned body so end-wins transcripts resolve to clean content.
 
 ### Pending Todos
 
@@ -80,6 +83,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-19T16:45:31.929Z
-Stopped at: Completed 07-01-PLAN.md
-Resume file: .planning/phases/07-core-types-and-intent-detection/07-02-PLAN.md
+Last session: 2026-03-19T16:50:10.769Z
+Stopped at: Completed 07-02-PLAN.md
+Resume file: None
