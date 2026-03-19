@@ -149,6 +149,10 @@ actor LLMRewriteService: LLMRewriting {
                 }
             }
 
+            if Task.isCancelled {
+                throw LLMRewriteError.cancelled
+            }
+
             guard let completion else {
                 throw LLMRewriteError.generationFailed
             }

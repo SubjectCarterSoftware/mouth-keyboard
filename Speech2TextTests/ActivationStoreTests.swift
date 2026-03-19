@@ -83,7 +83,7 @@ final class ActivationStoreTests: XCTestCase {
 
         XCTAssertEqual(mockClipboard.lastWrittenText, "Hello world")
         XCTAssertEqual(store.lastTranscription, "Hello world")
-        if case .success(let text) = store.state {
+        if case .success(let text, _) = store.state {
             XCTAssertEqual(text, "Hello world")
         } else {
             XCTFail("Expected .success state, got \(store.state)")
@@ -302,14 +302,14 @@ final class ActivationStoreTests: XCTestCase {
 
         try await Task.sleep(nanoseconds: 200_000_000)
 
-        if case .success(let text) = store.state {
+        if case .success(let text, _) = store.state {
             XCTAssertEqual(text, "ready")
         } else {
             XCTFail("Expected .success state, got \(store.state)")
         }
 
         XCTAssertTrue(hotkeyService.handleKeyDown()) // stale repeat should be ignored
-        if case .success(let text) = store.state {
+        if case .success(let text, _) = store.state {
             XCTAssertEqual(text, "ready")
         } else {
             XCTFail("Expected .success state after ignored repeat, got \(store.state)")
@@ -335,7 +335,7 @@ final class ActivationStoreTests: XCTestCase {
 
         try await Task.sleep(nanoseconds: 200_000_000)
 
-        if case .success(let text) = store.state {
+        if case .success(let text, _) = store.state {
             XCTAssertEqual(text, "first")
         } else {
             XCTFail("Expected .success state, got \(store.state)")
@@ -416,7 +416,7 @@ private struct StubReadinessProvider: ReadinessProviding {
     var snapshot: ReadinessSnapshot {
         let status: PermissionGrantState = permissionsAuthorized ? .authorized : .denied
         let permissions = PermissionKind.allCases.map {
-            PermissionChecklistItem(kind: $0, status: status, message: "")
+            PermissionChecklistItem(kind: $0, status: status, message: "", isRequired: true)
         }
         // state is derived from permission statuses; supply a plausible value.
         let state: ReadinessState = permissionsAuthorized ? .ready : .blocked

@@ -7,7 +7,7 @@ final class ReadinessStateTests: XCTestCase {
         let snapshot = ReadinessSnapshot.derive(
             isSetupComplete: false,
             microphoneStatus: .notDetermined,
-            keyboardStatus: .notDetermined
+            postEventStatus: .notDetermined
         )
 
         XCTAssertEqual(snapshot.state, .needsSetup)
@@ -24,7 +24,7 @@ final class ReadinessStateTests: XCTestCase {
                 statusProvider: { .denied },
                 requestHandler: { .denied }
             ),
-            keyboardService: KeyboardPermissionService(
+            postEventService: PostEventPermissionService(
                 adapter: .init(
                     isAuthorized: { true },
                     requestAccess: { true }
@@ -43,7 +43,7 @@ final class ReadinessStateTests: XCTestCase {
         let snapshot = ReadinessSnapshot.derive(
             isSetupComplete: true,
             microphoneStatus: .authorized,
-            keyboardStatus: .authorized
+            postEventStatus: .authorized
         )
 
         XCTAssertEqual(snapshot.state, .ready)
@@ -62,7 +62,7 @@ final class ReadinessStateTests: XCTestCase {
                 statusProvider: { microphoneStatus },
                 requestHandler: { microphoneStatus }
             ),
-            keyboardService: KeyboardPermissionService(
+            postEventService: PostEventPermissionService(
                 adapter: .init(
                     isAuthorized: { true },
                     requestAccess: { true }
