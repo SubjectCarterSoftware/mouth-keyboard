@@ -82,11 +82,11 @@ final class IntentDetectorTests: XCTestCase {
         XCTAssertEqual(intent.originalTranscript, "convert to email hello")
     }
 
-    func testDetectStubReturnsConvertIntent() {
+    func testDetectReturnsMatchedIntent() {
         let intent = IntentDetector.detect(transcript: "convert to email hello", modes: allModes)
 
-        XCTAssertEqual(intent.mode, .passthrough)
-        XCTAssertEqual(intent.strippedBody, "convert to email hello")
+        XCTAssertEqual(intent.mode, .email)
+        XCTAssertEqual(intent.strippedBody, "hello")
         XCTAssertEqual(intent.originalTranscript, "convert to email hello")
     }
 
