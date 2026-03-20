@@ -3,7 +3,7 @@
 ## Milestones
 
 - ✅ **v1.0** - Phases 1-5 (shipped 2026-03-08) — See `.planning/milestones/v1.0-ROADMAP.md`
-- 🚧 **v1.1 Convert Modes** - Phases 6-10 (in progress)
+- 🚧 **v1.1 Convert Modes** - Phases 6-11 (in progress)
 
 ## Archived Milestones
 
@@ -129,7 +129,27 @@ Plans:
 | 7. Core Types and Intent Detection | v1.1 | 2/2 | Complete | 2026-03-19 |
 | 8. LLM Rewrite Service | v1.1 | 0/2 | Planned | - |
 | 9. ActivationStore Integration and Guards | 3/3 | Complete    | 2026-03-19 | - |
-| 10. Fuzzy Intent Detection | 2/2 | Complete   | 2026-03-20 | - |
+| 10. Fuzzy Intent Detection | 2/2 | Complete    | 2026-03-20 | - |
+| 11. Intent Configuration UI | v1.1 | 0/5 | Planned | - |
+
+### Phase 11: Intent Configuration UI
+**Goal**: Settings panel for managing conversion modes — users define intent by writing a system prompt; phrase patterns are generated automatically by the local LLM and stored invisibly. Built-in modes are editable with reset. Custom modes are fully user-created.
+**Depends on**: Phase 10
+**Requirements**: CONFIG-01, CONFIG-02, CONFIG-03
+**Success Criteria** (what must be TRUE):
+  1. User can view and edit the system prompt for any built-in mode; resetting restores the hardcoded default
+  2. User can create a custom mode by providing only a name and system prompt — phrase patterns are generated silently in the background
+  3. Phrase patterns are never exposed in the UI; they are generated and stored as an internal implementation detail
+  4. Live preview panel shows LLM output for editable example input using the current system prompt
+  5. Mode name is auto-suggested as ghost text while the user types their system prompt
+**Plans**: 5 plans
+
+Plans:
+- [ ] 11-01-PLAN.md — TDD: UserIntentEntry + UserIntentStore JSON persistence (RED/GREEN)
+- [ ] 11-02-PLAN.md — TDD: LLMRewriting instructions overload + IntentCatalog.effective() merge + detect(definitions:) overload (RED/GREEN)
+- [ ] 11-03-PLAN.md — Wire ActivationStore to UserIntentStore for effective prompt resolution + routing
+- [ ] 11-04-PLAN.md — SwiftUI: IntentListView + IntentEditView (split pane, live preview, ghost text, phrase tester)
+- [ ] 11-05-PLAN.md — Manual verification: intent list, edit/reset, custom mode creation, end-to-end dictation rewrite
 
 ---
-*Last updated: 2026-03-19 after Phase 10 planned — 2 plans, TDD RED/GREEN pattern*
+*Last updated: 2026-03-19 after Phase 11 planned — 5 plans, Wave 1 parallel (01+02) / Wave 2 (03) / Wave 3 (04) / Wave 4 (05)*
