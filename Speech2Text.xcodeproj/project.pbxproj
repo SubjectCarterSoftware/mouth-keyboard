@@ -91,6 +91,7 @@
 		A00000010000000000000054 /* AssistantCalibrationRunnerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000020000000000000054 /* AssistantCalibrationRunnerTests.swift */; };
 		A00000010000000000000055 /* AIAssistantSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000020000000000000055 /* AIAssistantSettingsView.swift */; };
 		A00000010000000000000056 /* AssistantCalibrationRunner.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000020000000000000056 /* AssistantCalibrationRunner.swift */; };
+		A00000010000000000000058 /* LiveCalibrationSampleCapturer.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000020000000000000058 /* LiveCalibrationSampleCapturer.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -195,6 +196,7 @@
 		A00000020000000000000054 /* AssistantCalibrationRunnerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AssistantCalibrationRunnerTests.swift; sourceTree = "<group>"; };
 		A00000020000000000000055 /* AIAssistantSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AIAssistantSettingsView.swift; sourceTree = "<group>"; };
 		A00000020000000000000056 /* AssistantCalibrationRunner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AssistantCalibrationRunner.swift; sourceTree = "<group>"; };
+		A00000020000000000000058 /* LiveCalibrationSampleCapturer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LiveCalibrationSampleCapturer.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -389,6 +391,7 @@
 				A0000002000000000000001D /* AudioLevelMonitor.swift */,
 				A00000020000000000000027 /* AudioBufferAccumulator.swift */,
 				A00000020000000000000031 /* VoiceActivityDetector.swift */,
+				A00000020000000000000058 /* LiveCalibrationSampleCapturer.swift */,
 				A00000020000000000000022 /* ObjCExceptionCatcher.h */,
 				A00000020000000000000023 /* ObjCExceptionCatcher.m */,
 			);
@@ -612,6 +615,7 @@
 				A00000010000000000000005 /* ShellPreferences.swift in Sources */,
 				A00000010000000000000055 /* AIAssistantSettingsView.swift in Sources */,
 				A00000010000000000000056 /* AssistantCalibrationRunner.swift in Sources */,
+				A00000010000000000000058 /* LiveCalibrationSampleCapturer.swift in Sources */,
 				A00000010000000000000047 /* IntentEditView.swift in Sources */,
 				A00000010000000000000048 /* IntentListView.swift in Sources */,
 				A00000010000000000000004 /* SetupWindowView.swift in Sources */,
