@@ -136,9 +136,9 @@ final class LLMRewriteServiceTests: XCTestCase {
             }
         }
 
-        let firstTask = Task { try await service.rewrite(body: "first", mode: .aiPrompt) }
+        let firstTask = Task { try await service.rewrite(body: "first", mode: .slack) }
         try await Task.sleep(nanoseconds: 20_000_000)
-        let secondTask = Task { try await service.rewrite(body: "second", mode: .aiPrompt) }
+        let secondTask = Task { try await service.rewrite(body: "second", mode: .slack) }
         try await Task.sleep(nanoseconds: 20_000_000)
         await probe.releaseFirst()
 
@@ -160,8 +160,8 @@ final class LLMRewriteServiceTests: XCTestCase {
             }
         )
 
-        _ = try await service.rewrite(body: "one", mode: .actionItems)
-        _ = try await service.rewrite(body: "two", mode: .actionItems)
+        _ = try await service.rewrite(body: "one", mode: .teams)
+        _ = try await service.rewrite(body: "two", mode: .teams)
 
         XCTAssertEqual(streamCounter.count, 2)
     }

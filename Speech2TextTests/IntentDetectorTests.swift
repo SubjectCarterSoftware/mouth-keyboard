@@ -38,29 +38,13 @@ final class IntentDetectorTests: XCTestCase {
         XCTAssertEqual(ConvertMode.teams.defaultSystemPrompt, "You are a Microsoft Teams message writer. Convert the user's raw dictated text into a concise Teams message: casual tone, short and scannable, no greeting or sign-off, use line breaks for readability on longer messages. Return only the message text, no commentary.")
     }
 
-    func testActionItemsHasActivationPhrase() {
-        XCTAssertEqual(ConvertMode.actionItems.defaultActivationPhrase, "convert to action items")
-    }
-
-    func testActionItemsHasSystemPrompt() {
-        XCTAssertEqual(ConvertMode.actionItems.defaultSystemPrompt, "You are an action item extractor. Extract all action items from the user's raw dictated text as a bullet list. For each item include the owner (if mentioned) and deadline (if mentioned), formatted as \"• [Action] — [Owner] by [Deadline]\" (omit fields not mentioned). Return only the bullet list, no commentary.")
-    }
-
-    func testAiPromptHasActivationPhrase() {
-        XCTAssertEqual(ConvertMode.aiPrompt.defaultActivationPhrase, "convert to ai prompt")
-    }
-
-    func testAiPromptHasSystemPrompt() {
-        XCTAssertEqual(ConvertMode.aiPrompt.defaultSystemPrompt, "You are an AI prompt writer. Structure the user's raw dictated text as a well-formed AI prompt with three sections: 1) Context (background the AI needs), 2) Task (the specific ask), 3) Output format (how the response should look). Return only the structured prompt, no commentary.")
-    }
-
     func testPassthroughHasEmptyPhraseAndPrompt() {
         XCTAssertEqual(ConvertMode.passthrough.defaultActivationPhrase, "")
         XCTAssertEqual(ConvertMode.passthrough.defaultSystemPrompt, "")
     }
 
-    func testAllCasesHasSevenCases() {
-        XCTAssertEqual(ConvertMode.allCases.count, 7)
+    func testAllCasesHasFiveCases() {
+        XCTAssertEqual(ConvertMode.allCases.count, 5)
     }
 
     func testConvertIntentStoresAllFields() {
@@ -72,8 +56,8 @@ final class IntentDetectorTests: XCTestCase {
 
     // MARK: - IntentCatalog Structure
 
-    func testIntentCatalogHasSixEntries() {
-        XCTAssertEqual(IntentCatalog.all.count, 6)
+    func testIntentCatalogHasFourEntries() {
+        XCTAssertEqual(IntentCatalog.all.count, 4)
     }
 
     func testIntentCatalogContainsEmailEntry() {
@@ -98,12 +82,6 @@ final class IntentDetectorTests: XCTestCase {
         let emailDef = IntentCatalog.all.first(where: { $0.mode == .email })
         XCTAssertNotNil(emailDef)
         XCTAssertEqual(emailDef!.confidenceThreshold, 0.82, accuracy: 0.001)
-    }
-
-    func testActionItemsConfidenceThreshold() {
-        let def = IntentCatalog.all.first(where: { $0.mode == .actionItems })
-        XCTAssertNotNil(def)
-        XCTAssertEqual(def!.confidenceThreshold, 0.80, accuracy: 0.001)
     }
 
     // MARK: - INTENT-01: Leading Zone Detection
@@ -160,15 +138,6 @@ final class IntentDetectorTests: XCTestCase {
         XCTAssertEqual(intent.strippedBody, "send this to the team")
     }
 
-    func testLeadingActionItems() {
-        // "Extract action items" — new paraphrase, not in old candidates
-        let intent = IntentDetector.detect(
-            transcript: "Extract action items call bob tomorrow and fix the bug",
-            modes: allModes
-        )
-        XCTAssertEqual(intent.mode, .actionItems)
-    }
-
     func testLeadingTurnIntoSlack() {
         // "Turn into slack" — new paraphrase
         let intent = IntentDetector.detect(
@@ -176,15 +145,6 @@ final class IntentDetectorTests: XCTestCase {
             modes: allModes
         )
         XCTAssertEqual(intent.mode, .slack)
-    }
-
-    func testLeadingAiPrompt() {
-        // "Make this an ai prompt" — new paraphrase
-        let intent = IntentDetector.detect(
-            transcript: "Make this an ai prompt write a story about the sea",
-            modes: allModes
-        )
-        XCTAssertEqual(intent.mode, .aiPrompt)
     }
 
     func testLeadingCleanEnglish() {
@@ -203,15 +163,6 @@ final class IntentDetectorTests: XCTestCase {
             modes: allModes
         )
         XCTAssertEqual(intent.mode, .teams)
-    }
-
-    func testLeadingFillerPlusActionItems() {
-        // "Um can you" filler before "action items"
-        let intent = IntentDetector.detect(
-            transcript: "Um can you action items please call bob tomorrow",
-            modes: allModes
-        )
-        XCTAssertEqual(intent.mode, .actionItems)
     }
 
     func testLeadingWhisperLeadingSpacePreserved() {
@@ -243,15 +194,6 @@ final class IntentDetectorTests: XCTestCase {
         XCTAssertEqual(intent.mode, .slack)
     }
 
-    func testLeadingNaturalVariantActionItems() {
-        // "Pull out action items" — not in catalog; requires fuzzy matching
-        let intent = IntentDetector.detect(
-            transcript: "Pull out action items from this meeting notes call bob",
-            modes: allModes
-        )
-        XCTAssertEqual(intent.mode, .actionItems)
-    }
-
     func testLeadingNormalizationEMailVariant() {
         // "E mail mode" with space — requires normalization: "e mail" → "email"
         let intent = IntentDetector.detect(
@@ -259,15 +201,6 @@ final class IntentDetectorTests: XCTestCase {
             modes: allModes
         )
         XCTAssertEqual(intent.mode, .email)
-    }
-
-    func testLeadingNormalizationActionItemSingular() {
-        // "Action item" singular → requires normalization to "action items"
-        let intent = IntentDetector.detect(
-            transcript: "Action item call bob tomorrow",
-            modes: allModes
-        )
-        XCTAssertEqual(intent.mode, .actionItems)
     }
 
     // MARK: - INTENT-02: Trailing Zone Detection
@@ -282,15 +215,6 @@ final class IntentDetectorTests: XCTestCase {
         )
         XCTAssertEqual(intent.mode, .email)
         XCTAssertEqual(intent.strippedBody, "Send this to the team")
-    }
-
-    func testTrailingActionItemsPlease() {
-        // "action items please" trailing — new paraphrase
-        let intent = IntentDetector.detect(
-            transcript: "Call bob tomorrow and fix the bug action items please",
-            modes: allModes
-        )
-        XCTAssertEqual(intent.mode, .actionItems)
     }
 
     func testTrailingEmailModeWithPeriod() {
@@ -340,15 +264,6 @@ final class IntentDetectorTests: XCTestCase {
         XCTAssertEqual(intent.mode, .cleanEnglish)
     }
 
-    func testTrailingAsAnAiPrompt() {
-        // "as an ai prompt" trailing — new paraphrase
-        let intent = IntentDetector.detect(
-            transcript: "Write a story about the sea as an ai prompt",
-            modes: allModes
-        )
-        XCTAssertEqual(intent.mode, .aiPrompt)
-    }
-
     func testTrailingFillerAfterEmailMode() {
         // "email mode please" trailing with filler word
         let intent = IntentDetector.detect(
@@ -357,15 +272,6 @@ final class IntentDetectorTests: XCTestCase {
         )
         XCTAssertEqual(intent.mode, .email)
         XCTAssertEqual(intent.strippedBody, "Send this to the team")
-    }
-
-    func testTrailingFillerUhAfterActionItems() {
-        // "action items uh" — filler after command; Plan 02 strips "uh" then matches "action items"
-        let intent = IntentDetector.detect(
-            transcript: "Call bob tomorrow action items uh",
-            modes: allModes
-        )
-        XCTAssertEqual(intent.mode, .actionItems)
     }
 
     // --- Fuzzy trailing paraphrase tests (require real Jaro-Winkler in Plan 02) ---
@@ -377,15 +283,6 @@ final class IntentDetectorTests: XCTestCase {
             modes: allModes
         )
         XCTAssertEqual(intent.mode, .email)
-    }
-
-    func testTrailingNormalizationActionItemSingular() {
-        // "action item" singular trailing — requires normalization
-        let intent = IntentDetector.detect(
-            transcript: "Call bob fix the pipeline action item",
-            modes: allModes
-        )
-        XCTAssertEqual(intent.mode, .actionItems)
     }
 
     func testTrailingNormalizationEMailSpace() {

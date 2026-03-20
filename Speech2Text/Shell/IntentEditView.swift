@@ -246,8 +246,6 @@ final class IntentEditViewModel: ObservableObject {
         case .email: return "Email"
         case .slack: return "Slack"
         case .teams: return "Teams"
-        case .actionItems: return "Action Items"
-        case .aiPrompt: return "AI Prompt"
         case .passthrough: return "Passthrough"
         }
     }

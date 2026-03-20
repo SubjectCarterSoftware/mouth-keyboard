@@ -20,8 +20,6 @@ final class LLMRewriteServiceIntegrationTests: XCTestCase {
             .email: "I want to follow up on the meeting we had yesterday about the roadmap",
             .slack: "hey can we sync tomorrow morning on the project status and blockers",
             .teams: "need to discuss the deployment timeline with the team before end of week",
-            .actionItems: "John needs to review the PR by Friday and Sarah should update the docs",
-            .aiPrompt: "I need an AI to help me write unit tests for a Swift actor class",
         ]
 
         for (mode, input) in inputs {

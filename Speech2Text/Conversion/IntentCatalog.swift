@@ -8,8 +8,6 @@ enum IntentCatalog {
         emailDefinition,
         slackDefinition,
         teamsDefinition,
-        actionItemsDefinition,
-        aiPromptDefinition,
         cleanEnglishDefinition,
     ]
 
@@ -134,61 +132,6 @@ enum IntentCatalog {
         ],
         keywordSignal: "teams",
         confidenceThreshold: 0.82
-    )
-
-    private static let actionItemsDefinition = IntentDefinition(
-        mode: .actionItems,
-        aliases: ["Action Items", "Action Item List"],
-        phrasePatterns: [
-            // Natural paraphrase patterns
-            "action items",
-            "extract action items",
-            "list action items",
-            "as action items",
-            "make action items",
-            "turn into action items",
-            "format as action items",
-            "get action items",
-            "pull action items",
-            "give me action items",
-            "action item list",
-            "action items please",
-            "find action items",
-            // Legacy exact-phrase backward compatibility
-            "convert to action items",
-            "format to action items",
-            "convert action items",
-            "format action items",
-        ],
-        keywordSignal: "action",
-        confidenceThreshold: 0.80
-    )
-
-    private static let aiPromptDefinition = IntentDefinition(
-        mode: .aiPrompt,
-        aliases: ["AI Prompt", "Prompt Mode"],
-        phrasePatterns: [
-            // Natural paraphrase patterns
-            "ai prompt",
-            "as an ai prompt",
-            "make this an ai prompt",
-            "turn into an ai prompt",
-            "format as ai prompt",
-            "write as ai prompt",
-            "rewrite as ai prompt",
-            "structure as ai prompt",
-            "ai prompt format",
-            "prompt mode",
-            "make it a prompt",
-            "as a prompt",
-            // Legacy exact-phrase backward compatibility
-            "convert to ai prompt",
-            "format to ai prompt",
-            "convert ai prompt",
-            "format ai prompt",
-        ],
-        keywordSignal: "prompt",
-        confidenceThreshold: 0.80
     )
 
     private static let cleanEnglishDefinition = IntentDefinition(

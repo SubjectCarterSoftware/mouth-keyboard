@@ -101,14 +101,22 @@ completed: 2026-03-20
 - **Verification:** Build succeeded; 920px comfortably fits sidebar + both HSplitView panes
 - **Committed in:** 035ccf1
 
+**3. [Rule 1 - Bug] Manage Modes sheet had no close/dismiss button**
+- **Found during:** Post-plan bug report
+- **Issue:** `IntentListView` presented as a sheet from `SetupWindowView` had no toolbar dismiss button, so the user had no way to close the sheet without pressing Escape.
+- **Fix:** Added `@Environment(\.dismiss) private var dismiss` to `IntentListView` and a `ToolbarItem(placement: .cancellationAction)` containing `Button("Done") { dismiss() }` alongside the existing Add Mode toolbar item in the sidebar toolbar.
+- **Files modified:** `Speech2Text/Shell/IntentListView.swift`
+- **Verification:** BUILD SUCCEEDED; standard macOS SwiftUI `.cancellationAction` placement renders a leading "Done" button in the sheet toolbar
+- **Committed in:** ba1143a
+
 ---
 
-**Total deviations:** 2 auto-fixed (both Rule 1 — bugs found during manual verification)
-**Impact on plan:** Both fixes required for the UI to be usable. No scope creep.
+**Total deviations:** 3 auto-fixed (all Rule 1 — bugs found during and after manual verification)
+**Impact on plan:** All fixes required for the UI to be usable. No scope creep.
 
 ## Issues Encountered
 
-None beyond the two bugs reported by the user and fixed above.
+None beyond the three bugs reported by the user and fixed above.
 
 ## User Setup Required
 

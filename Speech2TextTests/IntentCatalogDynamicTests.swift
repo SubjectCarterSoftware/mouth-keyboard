@@ -7,9 +7,9 @@ final class IntentCatalogDynamicTests: XCTestCase {
 
     // MARK: - effective(store:) — no overrides
 
-    func testEffectiveWithEmptyStoreReturnsSixDefinitions() {
+    func testEffectiveWithEmptyStoreReturnsFourDefinitions() {
         let result = IntentCatalog.effective(store: [])
-        XCTAssertEqual(result.count, 6, "Should match IntentCatalog.all count")
+        XCTAssertEqual(result.count, 4, "Should match IntentCatalog.all count")
     }
 
     func testEffectiveWithEmptyStoreMatchesAll() {
@@ -52,7 +52,7 @@ final class IntentCatalogDynamicTests: XCTestCase {
         let result = IntentCatalog.effective(store: [emailOverride])
         let original = IntentCatalog.all
 
-        // All other 5 definitions should be unchanged
+        // All other 3 definitions should be unchanged
         for def in original where def.mode != .email {
             let resultDef = result.first(where: { $0.mode == def.mode })
             XCTAssertNotNil(resultDef, "Definition for \(def.mode) should exist")
@@ -65,7 +65,7 @@ final class IntentCatalogDynamicTests: XCTestCase {
 
     // MARK: - effective(store:) — custom (non-built-in) entries appended
 
-    func testEffectiveCustomEntryAppendsSeventhDefinition() {
+    func testEffectiveCustomEntryAppendsFifthDefinition() {
         let customEntry = UserIntentEntry(
             id: "my-custom-mode",
             modeName: "My Custom Mode",
@@ -75,7 +75,7 @@ final class IntentCatalogDynamicTests: XCTestCase {
             isBuiltIn: false
         )
         let result = IntentCatalog.effective(store: [customEntry])
-        XCTAssertEqual(result.count, 7, "Custom entry should be appended making total 7")
+        XCTAssertEqual(result.count, 5, "Custom entry should be appended making total 5")
     }
 
     func testEffectiveCustomEntryIsLast() {

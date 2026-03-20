@@ -5,8 +5,6 @@ enum ConvertMode: String, CaseIterable, Equatable {
     case email
     case slack
     case teams
-    case actionItems
-    case aiPrompt
     case passthrough
 
     var defaultActivationPhrase: String {
@@ -15,8 +13,6 @@ enum ConvertMode: String, CaseIterable, Equatable {
         case .email: return "convert to email"
         case .slack: return "convert to slack"
         case .teams: return "convert to teams"
-        case .actionItems: return "convert to action items"
-        case .aiPrompt: return "convert to ai prompt"
         case .passthrough: return ""
         }
     }
@@ -31,17 +27,13 @@ enum ConvertMode: String, CaseIterable, Equatable {
             return "You are a Slack message writer. Convert the user's raw dictated text into a concise Slack message: casual tone, short and scannable, no greeting or sign-off, use line breaks for readability on longer messages. Return only the message text, no commentary."
         case .teams:
             return "You are a Microsoft Teams message writer. Convert the user's raw dictated text into a concise Teams message: casual tone, short and scannable, no greeting or sign-off, use line breaks for readability on longer messages. Return only the message text, no commentary."
-        case .actionItems:
-            return "You are an action item extractor. Extract all action items from the user's raw dictated text as a bullet list. For each item include the owner (if mentioned) and deadline (if mentioned), formatted as \"• [Action] — [Owner] by [Deadline]\" (omit fields not mentioned). Return only the bullet list, no commentary."
-        case .aiPrompt:
-            return "You are an AI prompt writer. Structure the user's raw dictated text as a well-formed AI prompt with three sections: 1) Context (background the AI needs), 2) Task (the specific ask), 3) Output format (how the response should look). Return only the structured prompt, no commentary."
         case .passthrough:
             return ""
         }
     }
 
     static var allBuiltIns: [ConvertMode] {
-        [.cleanEnglish, .email, .slack, .teams, .actionItems, .aiPrompt]
+        [.cleanEnglish, .email, .slack, .teams]
         // Explicitly excludes .passthrough
     }
 
