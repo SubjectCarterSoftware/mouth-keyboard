@@ -76,6 +76,9 @@
 		A00000010000000000000046 /* IntentCatalogDynamicTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000020000000000000046 /* IntentCatalogDynamicTests.swift */; };
 		A00000010000000000000047 /* IntentEditView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000020000000000000047 /* IntentEditView.swift */; };
 		A00000010000000000000048 /* IntentListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000020000000000000048 /* IntentListView.swift */; };
+		A00000010000000000000049 /* TriggerProfile.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000020000000000000049 /* TriggerProfile.swift */; };
+		A0000001000000000000004A /* TriggerProfileStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0000002000000000000004A /* TriggerProfileStore.swift */; };
+		A0000001000000000000004B /* TriggerProfileStoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0000002000000000000004B /* TriggerProfileStoreTests.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -165,6 +168,9 @@
 		A00000020000000000000046 /* IntentCatalogDynamicTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IntentCatalogDynamicTests.swift; sourceTree = "<group>"; };
 		A00000020000000000000047 /* IntentEditView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IntentEditView.swift; sourceTree = "<group>"; };
 		A00000020000000000000048 /* IntentListView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IntentListView.swift; sourceTree = "<group>"; };
+		A00000020000000000000049 /* TriggerProfile.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TriggerProfile.swift; sourceTree = "<group>"; };
+		A0000002000000000000004A /* TriggerProfileStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TriggerProfileStore.swift; sourceTree = "<group>"; };
+		A0000002000000000000004B /* TriggerProfileStoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TriggerProfileStoreTests.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -313,6 +319,7 @@
 				A0000002000000000000002A /* WhisperServiceTests.swift */,
 				A00000020000000000000045 /* UserIntentStoreTests.swift */,
 				A00000020000000000000046 /* IntentCatalogDynamicTests.swift */,
+				A0000002000000000000004B /* TriggerProfileStoreTests.swift */,
 			);
 			path = Speech2TextTests;
 			sourceTree = "<group>";
@@ -332,6 +339,8 @@
 				A00000020000000000000017 /* ActivationStore.swift */,
 				A0000002000000000000001A /* HotkeyService.swift */,
 				A00000020000000000000018 /* RecordingState.swift */,
+				A00000020000000000000049 /* TriggerProfile.swift */,
+				A0000002000000000000004A /* TriggerProfileStore.swift */,
 			);
 			path = Activation;
 			sourceTree = "<group>";
@@ -557,6 +566,8 @@
 				A0000001000000000000001E /* RecordingPillPanel.swift in Sources */,
 				A0000001000000000000001D /* RecordingPillView.swift in Sources */,
 				A00000010000000000000014 /* RecordingState.swift in Sources */,
+				A00000010000000000000049 /* TriggerProfile.swift in Sources */,
+				A0000001000000000000004A /* TriggerProfileStore.swift in Sources */,
 				A0000001000000000000000B /* RecoveryActions.swift in Sources */,
 				A00000010000000000000005 /* ShellPreferences.swift in Sources */,
 				A00000010000000000000047 /* IntentEditView.swift in Sources */,
@@ -593,6 +604,7 @@
 				933C00442F6C862500B5BB12 /* ShellPreferencesModelTests.swift in Sources */,
 				A00000010000000000000025 /* WhisperServiceTests.swift in Sources */,
 				A00000010000000000000046 /* IntentCatalogDynamicTests.swift in Sources */,
+				A0000001000000000000004B /* TriggerProfileStoreTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
