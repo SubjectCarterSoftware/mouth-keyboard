@@ -85,7 +85,7 @@ struct SetupWindowView: View {
                 }
                 .sheet(isPresented: $showingModesSheet) {
                     IntentListView()
-                        .frame(minWidth: 700, minHeight: 500)
+                        .frame(minWidth: 920, idealWidth: 960, minHeight: 560, idealHeight: 600)
                 }
 
                 Divider()

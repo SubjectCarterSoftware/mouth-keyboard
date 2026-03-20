@@ -78,30 +78,25 @@ final class IntentListViewModel: ObservableObject {
 
 struct IntentListView: View {
     @StateObject private var vm = IntentListViewModel()
+    @State private var selectedRowID: String?
     @State private var showingAddMode = false
+
+    private var selectedRow: IntentRow? {
+        vm.rows.first(where: { $0.id == selectedRowID })
+    }
 
     var body: some View {
         NavigationSplitView {
-            List(vm.rows) { row in
-                NavigationLink(
-                    destination: IntentEditView(
-                        entryID: row.id,
-                        isBuiltIn: row.isBuiltIn,
-                        originalMode: row.originalMode
-                    )
-                    .onDisappear {
-                        Task { await vm.loadRows() }
-                    }
-                ) {
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text(row.name)
-                            .fontWeight(.medium)
-                        Text(row.promptPreview)
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                            .lineLimit(2)
-                    }
+            List(vm.rows, id: \.id, selection: $selectedRowID) { row in
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(row.name)
+                        .fontWeight(.medium)
+                    Text(row.promptPreview)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(2)
                 }
+                .tag(row.id)
             }
             .navigationTitle("Conversion Modes")
             .toolbar {
@@ -122,8 +117,20 @@ struct IntentListView: View {
                 await vm.loadRows()
             }
         } detail: {
-            Text("Select a mode to edit")
-                .foregroundStyle(.secondary)
+            if let row = selectedRow {
+                IntentEditView(
+                    entryID: row.id,
+                    isBuiltIn: row.isBuiltIn,
+                    originalMode: row.originalMode
+                )
+                .onDisappear {
+                    Task { await vm.loadRows() }
+                }
+                .id(row.id)
+            } else {
+                Text("Select a mode to edit")
+                    .foregroundStyle(.secondary)
+            }
         }
     }
 }
