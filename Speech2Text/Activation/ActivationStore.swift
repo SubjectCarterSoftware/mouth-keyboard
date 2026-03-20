@@ -298,7 +298,7 @@ final class ActivationStore: ObservableObject {
                 intent = ConvertIntent(mode: .passthrough, strippedBody: trimmed, originalTranscript: trimmed)
             case .invalidTrigger:
                 intent = ConvertIntent(mode: .passthrough, strippedBody: trimmed, originalTranscript: trimmed)
-            case .validTrigger(_, let instruction, _):
+            case .validTrigger(let content, let instruction, _):
                 let builtInDefinitions = effectiveDefinitions.filter { $0.mode != .passthrough }
                 let customDefinitions = effectiveDefinitions.filter { $0.mode == .passthrough }
                 let builtInIntent = IntentDetector.detectPredefinedShortcut(
@@ -312,14 +312,32 @@ final class ActivationStore: ObservableObject {
                         transcript: instruction,
                         definitions: customDefinitions
                     )
-                    customIntent.hadCandidates = customIntent.hadCandidates || builtInIntent.hadCandidates
-                    intent = customIntent
+                    if customIntent.customIntentID != nil {
+                        customIntent.hadCandidates = customIntent.hadCandidates || builtInIntent.hadCandidates
+                        intent = customIntent
+                    } else {
+                        var fallbackIntent = ConvertIntent(
+                            mode: .passthrough,
+                            strippedBody: content.trimmingCharacters(in: .whitespacesAndNewlines),
+                            originalTranscript: trimmed,
+                            effectiveSystemPrompt: instruction.trimmingCharacters(in: .whitespacesAndNewlines)
+                        )
+                        fallbackIntent.hadCandidates = customIntent.hadCandidates || builtInIntent.hadCandidates
+                        intent = fallbackIntent
+                    }
                 } else {
-                    intent = builtInIntent
+                    var fallbackIntent = ConvertIntent(
+                        mode: .passthrough,
+                        strippedBody: content.trimmingCharacters(in: .whitespacesAndNewlines),
+                        originalTranscript: trimmed,
+                        effectiveSystemPrompt: instruction.trimmingCharacters(in: .whitespacesAndNewlines)
+                    )
+                    fallbackIntent.hadCandidates = builtInIntent.hadCandidates
+                    intent = fallbackIntent
                 }
             }
 
-            if intent.mode == .passthrough && intent.customIntentID == nil {
+            if intent.mode == .passthrough && intent.customIntentID == nil && intent.effectiveSystemPrompt == nil {
                 // LLM-02: passthrough path completely unchanged
                 let didPaste = pasteOnCompletion
                 pasteOnCompletion = false
@@ -355,7 +373,9 @@ final class ActivationStore: ObservableObject {
 
                 // Resolve effective system prompt from matched entry
                 let resolvedInstructions: String?
-                if let customID = intent.customIntentID {
+                if let prompt = intent.effectiveSystemPrompt {
+                    resolvedInstructions = prompt
+                } else if let customID = intent.customIntentID {
                     // Custom mode: look up entry by modeName match
                     resolvedInstructions = storeEntries.first { !$0.isBuiltIn && $0.modeName == customID }?.systemPrompt
                 } else if intent.mode != .passthrough {
