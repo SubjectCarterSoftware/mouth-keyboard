@@ -58,7 +58,7 @@ Plans:
 **Plans**: 2 plans
 
 Plans:
-- [ ] 13-01-PLAN.md — Introduce trigger-aware split types and RED corpus for boundary rules
+- [x] 13-01-PLAN.md — Introduce trigger-aware split types and RED corpus for boundary rules
 - [ ] 13-02-PLAN.md — Implement parser + ActivationStore integration for split outputs and gates
 
 ### Phase 14: Instruction Routing via Existing Intents
@@ -106,8 +106,8 @@ Plans:
 | 9. ActivationStore Integration and Guards | v1.1 | 3/3 | Complete | 2026-03-19 |
 | 10. Fuzzy Intent Detection | v1.1 | 2/2 | Complete | 2026-03-20 |
 | 11. Intent Configuration UI | v1.1 | 5/5 | Complete | 2026-03-20 |
-| 12. Trigger Identity and Persistence | 2/2 | Complete   | 2026-03-20 | - |
-| 13. Last-Name-Wins Parser Integration | v1.2 | 0/2 | Planned | - |
+| 12. Trigger Identity and Persistence | 2/2 | Complete    | 2026-03-20 | - |
+| 13. Last-Name-Wins Parser Integration | 1/2 | In Progress|  | - |
 | 14. Instruction Routing via Existing Intents | v1.2 | 0/2 | Planned | - |
 | 15. Settings UX for AI Assistant Name | v1.2 | 0/2 | Planned | - |
 

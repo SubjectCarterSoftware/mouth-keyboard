@@ -17,15 +17,15 @@
 
 - [x] **CAL-01**: User can run a calibration flow that captures multiple spoken samples for the active trigger name
 - [x] **CAL-02**: System stores a normalized primary trigger plus accepted alias transcriptions from calibration
-- [ ] **CAL-03**: Detection uses both primary trigger and aliases (case-insensitive)
+- [x] **CAL-03**: Detection uses both primary trigger and aliases (case-insensitive)
 
 ### Transcript Split and Parsing
 
-- [ ] **PARSE-01**: Transcript is split at the last occurrence of any trigger alias (`last-name-wins`)
-- [ ] **PARSE-02**: All text before the split is treated as content; only text after the split is treated as instruction
-- [ ] **PARSE-03**: If no trigger alias is detected, behavior is passthrough (existing no-trigger path unchanged)
-- [ ] **PARSE-04**: If instruction segment is empty or below minimum token threshold, AI mode is not activated
-- [ ] **PARSE-05**: Mentions of trigger names in content do not activate AI mode unless a valid post-trigger instruction exists
+- [x] **PARSE-01**: Transcript is split at the last occurrence of any trigger alias (`last-name-wins`)
+- [x] **PARSE-02**: All text before the split is treated as content; only text after the split is treated as instruction
+- [x] **PARSE-03**: If no trigger alias is detected, behavior is passthrough (existing no-trigger path unchanged)
+- [x] **PARSE-04**: If instruction segment is empty or below minimum token threshold, AI mode is not activated
+- [x] **PARSE-05**: Mentions of trigger names in content do not activate AI mode unless a valid post-trigger instruction exists
 
 ### Instruction Interpretation and Routing
 
