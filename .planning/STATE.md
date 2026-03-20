@@ -4,14 +4,14 @@ milestone: v1.1
 milestone_name: Convert Modes
 current_plan: 2
 status: planning
-stopped_at: Completed 10-02-PLAN.md
-last_updated: "2026-03-20T01:33:46.582Z"
+stopped_at: Completed 11-01-PLAN.md
+last_updated: "2026-03-20T10:57:15.277Z"
 last_activity: 2026-03-20
 progress:
-  total_phases: 10
+  total_phases: 11
   completed_phases: 10
-  total_plans: 23
-  completed_plans: 23
+  total_plans: 28
+  completed_plans: 24
   percent: 100
 ---
 
@@ -59,6 +59,7 @@ Progress: [██████████] 100%
 | Phase 09-activationstore-integration-and-guards P03 | 10 | 2 tasks | 0 files |
 | Phase 10-fuzzy-intent-detection P01 | 8 | 2 tasks | 8 files |
 | Phase 10-fuzzy-intent-detection P02 | 525757 | 2 tasks | 3 files |
+| Phase 11-intent-configuration-ui P01 | 15 | 2 tasks | 5 files |
 
 ## Accumulated Context
 
@@ -96,6 +97,9 @@ Recent decisions affecting current work:
 - [Phase 10-fuzzy-intent-detection]: Windowed token JW (not full-string JW) aligns individual tokens; 3-token minimum prevents 2-token pattern false positives; exact-match priority in scoreAllZone discards fuzzy competitors when exact wins exist
 - [Phase 10-fuzzy-intent-detection]: rangeInOriginal with normalized fallback: body extraction works when normalization changes string length by mapping prefix offset and clamping upperBound
 - [Phase 10-fuzzy-intent-detection]: Catalog additions 'as a mail' and 'send as an email': natural paraphrases belong in catalog as explicit patterns rather than relying on fuzzy edge cases
+- [Phase 11-01]: UserIntentStore uses actor isolation; all mutation serialized via Swift concurrency
+- [Phase 11-01]: storeURL init parameter enables hermetic tests using FileManager.temporaryDirectory UUIDs — no App Support pollution
+- [Phase 11-01]: Silent degradation on JSON corruption: store starts fresh, never propagates decode errors to callers
 
 ### Pending Todos
 
@@ -109,6 +113,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-20T01:27:10.064Z
-Stopped at: Completed 10-02-PLAN.md
+Last session: 2026-03-20T10:57:15.274Z
+Stopped at: Completed 11-01-PLAN.md
 Resume file: None
