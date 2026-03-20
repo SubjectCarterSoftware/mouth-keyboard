@@ -299,7 +299,24 @@ final class ActivationStore: ObservableObject {
             case .invalidTrigger:
                 intent = ConvertIntent(mode: .passthrough, strippedBody: trimmed, originalTranscript: trimmed)
             case .validTrigger(_, let instruction, _):
-                intent = IntentDetector.detect(transcript: instruction, definitions: effectiveDefinitions)
+                let builtInDefinitions = effectiveDefinitions.filter { $0.mode != .passthrough }
+                let customDefinitions = effectiveDefinitions.filter { $0.mode == .passthrough }
+                let builtInIntent = IntentDetector.detectPredefinedShortcut(
+                    transcript: instruction,
+                    definitions: builtInDefinitions
+                )
+                if builtInIntent.mode != .passthrough {
+                    intent = builtInIntent
+                } else if !customDefinitions.isEmpty {
+                    var customIntent = IntentDetector.detect(
+                        transcript: instruction,
+                        definitions: customDefinitions
+                    )
+                    customIntent.hadCandidates = customIntent.hadCandidates || builtInIntent.hadCandidates
+                    intent = customIntent
+                } else {
+                    intent = builtInIntent
+                }
             }
 
             if intent.mode == .passthrough && intent.customIntentID == nil {

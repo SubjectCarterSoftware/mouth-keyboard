@@ -5,6 +5,57 @@ enum IntentDetector {
     static let commandWindowTokens = 10
     static let minimumMargin = 0.15
 
+    /// Conservative routing for post-trigger instruction segments.
+    /// Detects built-in shortcuts only when a clear, high-confidence winner
+    /// appears at the end of the instruction.
+    static func detectPredefinedShortcut(transcript: String, definitions: [IntentDefinition]) -> ConvertIntent {
+        let trimmedOriginal = transcript.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedOriginal.isEmpty else {
+            return ConvertIntent(mode: .passthrough, strippedBody: "", originalTranscript: transcript)
+        }
+
+        let builtIns = definitions.filter { $0.mode != .passthrough }
+        guard !builtIns.isEmpty else {
+            return ConvertIntent(mode: .passthrough, strippedBody: trimmedOriginal, originalTranscript: transcript)
+        }
+
+        let normalized = normalize(trimmedOriginal)
+        let tokens = normalized.split(separator: " ", omittingEmptySubsequences: true).map(String.init)
+        let trailingZone = tokens.suffix(commandWindowTokens).joined(separator: " ")
+        let candidates = scoreTrailingPredefinedShortcutCandidates(trailingZone, defs: builtIns)
+
+        guard !candidates.isEmpty else {
+            return ConvertIntent(mode: .passthrough, strippedBody: trimmedOriginal, originalTranscript: transcript)
+        }
+
+        // If multiple exact built-in commands are present, treat as ambiguous.
+        if candidates.filter({ $0.isExact }).count >= 2 {
+            var passthrough = ConvertIntent(mode: .passthrough, strippedBody: trimmedOriginal, originalTranscript: transcript)
+            passthrough.hadCandidates = true
+            return passthrough
+        }
+
+        let endQualifiedCandidates = candidates.filter {
+            isEndQualifiedShortcut(pattern: $0.pattern, normalized: normalized)
+        }
+        guard !endQualifiedCandidates.isEmpty else {
+            var passthrough = ConvertIntent(mode: .passthrough, strippedBody: trimmedOriginal, originalTranscript: transcript)
+            passthrough.hadCandidates = true
+            return passthrough
+        }
+
+        let sorted = endQualifiedCandidates.sorted { $0.score > $1.score }
+        let winner = sorted[0]
+        guard let range = rangeInOriginal(pattern: winner.pattern, original: trimmedOriginal, normalized: normalized, options: [.caseInsensitive, .backwards]) else {
+            var passthrough = ConvertIntent(mode: .passthrough, strippedBody: trimmedOriginal, originalTranscript: transcript)
+            passthrough.hadCandidates = true
+            return passthrough
+        }
+
+        let body = extractBodyTrailing(from: trimmedOriginal, matchedRange: range)
+        return ConvertIntent(mode: winner.definition.mode, strippedBody: body, originalTranscript: transcript)
+    }
+
     /// New overload: accepts [IntentDefinition] directly, bypassing IntentCatalog.all.
     /// For custom entries (mode == .passthrough), sets customIntentID = aliases.first.
     static func detect(transcript: String, definitions: [IntentDefinition]) -> ConvertIntent {
@@ -478,6 +529,66 @@ enum IntentDetector {
         let hasExact = results.contains { $0.3 }
         let filtered = hasExact ? results.filter { $0.3 } : results
         return filtered.map { ($0.0, $0.1, $0.2) }
+    }
+
+    // MARK: - Predefined Shortcut Scoring (conservative post-trigger routing)
+
+    private struct ShortcutCandidate {
+        let definition: IntentDefinition
+        let score: Double
+        let pattern: String
+        let isExact: Bool
+    }
+
+    private static func scoreTrailingPredefinedShortcutCandidates(
+        _ zone: String,
+        defs: [IntentDefinition]
+    ) -> [ShortcutCandidate] {
+        guard !zone.isEmpty else { return [] }
+        let candidate = stripFillers(zone)
+        guard !candidate.isEmpty else { return [] }
+        let candidateTokens = candidate.split(separator: " ", omittingEmptySubsequences: true).map(String.init)
+        guard candidateTokens.count >= 2 else { return [] }
+
+        var results: [ShortcutCandidate] = []
+        for def in defs {
+            var bestScore: Double = 0
+            var bestPattern = ""
+            var isExact = false
+
+            for pattern in def.phrasePatterns {
+                if candidate.contains(pattern) {
+                    bestScore = 1.0
+                    bestPattern = pattern
+                    isExact = true
+                    break
+                }
+
+                let patternTokens = pattern.split(separator: " ", omittingEmptySubsequences: true).map(String.init)
+                guard candidateTokens.count >= patternTokens.count else { continue }
+                let (wscore, wstring) = windowedSimilarity(candidateTokens: candidateTokens, patternTokens: patternTokens)
+                if wscore > bestScore {
+                    bestScore = wscore
+                    bestPattern = wstring.isEmpty ? pattern : wstring
+                }
+            }
+
+            let keywordBonus: Double = (!isExact && bestScore >= 0.80 && candidate.contains(def.keywordSignal)) ? 0.15 : 0
+            let composite = min(1.0, bestScore + keywordBonus)
+            if !isExact && !candidate.contains(def.keywordSignal) { continue }
+            guard composite >= def.confidenceThreshold, !bestPattern.isEmpty else { continue }
+            results.append(ShortcutCandidate(definition: def, score: composite, pattern: bestPattern, isExact: isExact))
+        }
+
+        return results
+    }
+
+    private static func isEndQualifiedShortcut(pattern: String, normalized: String) -> Bool {
+        guard let range = normalized.range(of: pattern, options: [.caseInsensitive, .backwards]) else {
+            return false
+        }
+        let suffix = normalized[range.upperBound...].trimmingCharacters(in: .whitespacesAndNewlines)
+        return suffix.isEmpty
     }
 
     // MARK: - Body Extraction
