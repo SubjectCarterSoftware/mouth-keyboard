@@ -97,10 +97,6 @@ struct AIAssistantTileView: View {
     @ObservedObject var preferences: ShellPreferences
     let onChangeTapped: () -> Void
 
-    private var viewModel: AIAssistantSettingsViewModel {
-        AIAssistantSettingsViewModel(preferences: preferences)
-    }
-
     var body: some View {
         let vm = AIAssistantSettingsViewModel(preferences: preferences)
         HStack {
