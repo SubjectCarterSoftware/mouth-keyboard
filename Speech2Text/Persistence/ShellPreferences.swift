@@ -196,6 +196,20 @@ final class ShellPreferences: ObservableObject {
         }
     }
 
+    func applyCalibrationAliases(_ aliases: [String]) {
+        let normalizedAliases = TriggerAliasNormalizer.normalize(aliases)
+        Task { [weak self, triggerProfileStore] in
+            do {
+                let updated = try await triggerProfileStore.replaceAliasesForActiveProfile(normalizedAliases)
+                await MainActor.run {
+                    self?.activeTriggerProfile = updated
+                }
+            } catch {
+                NSLog("Speech2Text: failed to persist calibration aliases: \(error.localizedDescription)")
+            }
+        }
+    }
+
     func reset() {
         withPersistenceSuspended {
             hasCompletedInitialSetup = false

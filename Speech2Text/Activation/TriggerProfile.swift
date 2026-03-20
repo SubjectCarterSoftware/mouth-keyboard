@@ -15,13 +15,12 @@ enum TriggerNamePreset: String, CaseIterable, Codable, Equatable {
         }
     }
 
+    var canonicalAlias: String {
+        rawValue
+    }
+
     var canonicalAliases: [String] {
-        switch self {
-        case .zeus: return ["zeus"]
-        case .atlas: return ["atlas"]
-        case .gaia: return ["gaia"]
-        case .custom: return []
-        }
+        [canonicalAlias]
     }
 }
 
@@ -29,13 +28,35 @@ struct TriggerProfile: Equatable, Codable {
     var activeProfile: TriggerNamePreset
     var customPrimary: String
     var customAliases: [String]
+    var zeusAliases: [String]
+    var atlasAliases: [String]
+    var gaiaAliases: [String]
 
     static let defaultCustomPrimary = "Custom"
     static let defaultProfile = TriggerProfile(
         activeProfile: .zeus,
         customPrimary: defaultCustomPrimary,
-        customAliases: []
+        customAliases: [],
+        zeusAliases: TriggerNamePreset.zeus.canonicalAliases,
+        atlasAliases: TriggerNamePreset.atlas.canonicalAliases,
+        gaiaAliases: TriggerNamePreset.gaia.canonicalAliases
     )
+
+    init(
+        activeProfile: TriggerNamePreset,
+        customPrimary: String,
+        customAliases: [String],
+        zeusAliases: [String] = TriggerNamePreset.zeus.canonicalAliases,
+        atlasAliases: [String] = TriggerNamePreset.atlas.canonicalAliases,
+        gaiaAliases: [String] = TriggerNamePreset.gaia.canonicalAliases
+    ) {
+        self.activeProfile = activeProfile
+        self.customPrimary = customPrimary
+        self.customAliases = customAliases
+        self.zeusAliases = zeusAliases
+        self.atlasAliases = atlasAliases
+        self.gaiaAliases = gaiaAliases
+    }
 
     var activePrimary: String {
         switch activeProfile {
@@ -48,22 +69,34 @@ struct TriggerProfile: Equatable, Codable {
     }
 
     var activeAliases: [String] {
-        switch activeProfile {
+        aliases(for: activeProfile)
+    }
+
+    func aliases(for preset: TriggerNamePreset) -> [String] {
+        switch preset {
+        case .zeus:
+            return Self.normalizedPresetAliases(canonical: TriggerNamePreset.zeus.canonicalAlias, stored: zeusAliases)
+        case .atlas:
+            return Self.normalizedPresetAliases(canonical: TriggerNamePreset.atlas.canonicalAlias, stored: atlasAliases)
+        case .gaia:
+            return Self.normalizedPresetAliases(canonical: TriggerNamePreset.gaia.canonicalAlias, stored: gaiaAliases)
         case .custom:
             return Self.normalizeAliases([customPrimary] + customAliases)
-        case .zeus, .atlas, .gaia:
-            return activeProfile.canonicalAliases
         }
     }
 
     func normalized() -> TriggerProfile {
         let normalizedCustomAliases = Self.normalizeAliases([customPrimary] + customAliases)
         let normalizedCustomPrimary = normalizedCustomAliases.first.map(Self.titleCaseWords) ?? Self.defaultCustomPrimary
-        let normalizedAdditionalAliases = Array(normalizedCustomAliases.dropFirst())
+        let normalizedAdditionalCustomAliases = Array(normalizedCustomAliases.dropFirst())
+
         return TriggerProfile(
             activeProfile: activeProfile,
             customPrimary: normalizedCustomPrimary,
-            customAliases: normalizedAdditionalAliases
+            customAliases: normalizedAdditionalCustomAliases,
+            zeusAliases: aliases(for: .zeus),
+            atlasAliases: aliases(for: .atlas),
+            gaiaAliases: aliases(for: .gaia)
         )
     }
 
@@ -82,23 +115,37 @@ struct TriggerProfile: Equatable, Codable {
         return copy
     }
 
+    func replacingAliasesForActiveProfile(_ aliases: [String]) -> TriggerProfile {
+        replacingAliases(for: activeProfile, aliases: aliases)
+    }
+
+    func replacingAliases(for preset: TriggerNamePreset, aliases: [String]) -> TriggerProfile {
+        var copy = normalized()
+        switch preset {
+        case .zeus:
+            copy.zeusAliases = Self.normalizedPresetAliases(canonical: TriggerNamePreset.zeus.canonicalAlias, stored: aliases)
+        case .atlas:
+            copy.atlasAliases = Self.normalizedPresetAliases(canonical: TriggerNamePreset.atlas.canonicalAlias, stored: aliases)
+        case .gaia:
+            copy.gaiaAliases = Self.normalizedPresetAliases(canonical: TriggerNamePreset.gaia.canonicalAlias, stored: aliases)
+        case .custom:
+            let custom = Self.normalizeAliases([copy.customPrimary] + aliases)
+            copy.customPrimary = custom.first.map(Self.titleCaseWords) ?? Self.defaultCustomPrimary
+            copy.customAliases = Array(custom.dropFirst())
+        }
+        return copy.normalized()
+    }
+
     static func normalizeAlias(_ alias: String) -> String {
-        let trimmed = alias.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
-        return trimmed.replacingOccurrences(of: "\\s+", with: " ", options: .regularExpression)
+        TriggerAliasNormalizer.normalize([alias]).first ?? ""
     }
 
     static func normalizeAliases(_ aliases: [String]) -> [String] {
-        var seen = Set<String>()
-        var normalized = [String]()
+        TriggerAliasNormalizer.normalize(aliases)
+    }
 
-        for alias in aliases {
-            let normalizedAlias = normalizeAlias(alias)
-            guard normalizedAlias.count >= 2, !seen.contains(normalizedAlias) else { continue }
-            normalized.append(normalizedAlias)
-            seen.insert(normalizedAlias)
-        }
-
-        return normalized
+    private static func normalizedPresetAliases(canonical: String, stored: [String]) -> [String] {
+        normalizeAliases([canonical] + stored)
     }
 
     private static func titleCaseWords(_ value: String) -> String {
@@ -110,12 +157,46 @@ struct TriggerProfile: Equatable, Codable {
             }
             .joined(separator: " ")
     }
+
+    private enum CodingKeys: String, CodingKey {
+        case activeProfile
+        case customPrimary
+        case customAliases
+        case zeusAliases
+        case atlasAliases
+        case gaiaAliases
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        activeProfile = try container.decode(TriggerNamePreset.self, forKey: .activeProfile)
+        customPrimary = try container.decodeIfPresent(String.self, forKey: .customPrimary) ?? Self.defaultCustomPrimary
+        customAliases = try container.decodeIfPresent([String].self, forKey: .customAliases) ?? []
+        zeusAliases = try container.decodeIfPresent([String].self, forKey: .zeusAliases) ?? TriggerNamePreset.zeus.canonicalAliases
+        atlasAliases = try container.decodeIfPresent([String].self, forKey: .atlasAliases) ?? TriggerNamePreset.atlas.canonicalAliases
+        gaiaAliases = try container.decodeIfPresent([String].self, forKey: .gaiaAliases) ?? TriggerNamePreset.gaia.canonicalAliases
+        self = normalized()
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        let normalized = normalized()
+        try container.encode(normalized.activeProfile, forKey: .activeProfile)
+        try container.encode(normalized.customPrimary, forKey: .customPrimary)
+        try container.encode(normalized.customAliases, forKey: .customAliases)
+        try container.encode(normalized.zeusAliases, forKey: .zeusAliases)
+        try container.encode(normalized.atlasAliases, forKey: .atlasAliases)
+        try container.encode(normalized.gaiaAliases, forKey: .gaiaAliases)
+    }
 }
 
 struct StoredTriggerProfiles: Equatable, Codable {
     var activeProfile: TriggerNamePreset
     var customPrimary: String
     var customAliases: [String]
+    var zeusAliases: [String]
+    var atlasAliases: [String]
+    var gaiaAliases: [String]
 
     static let `default` = StoredTriggerProfiles(profile: .defaultProfile)
 
@@ -124,13 +205,19 @@ struct StoredTriggerProfiles: Equatable, Codable {
         activeProfile = normalized.activeProfile
         customPrimary = normalized.customPrimary
         customAliases = normalized.customAliases
+        zeusAliases = normalized.zeusAliases
+        atlasAliases = normalized.atlasAliases
+        gaiaAliases = normalized.gaiaAliases
     }
 
     var triggerProfile: TriggerProfile {
         TriggerProfile(
             activeProfile: activeProfile,
             customPrimary: customPrimary,
-            customAliases: customAliases
+            customAliases: customAliases,
+            zeusAliases: zeusAliases,
+            atlasAliases: atlasAliases,
+            gaiaAliases: gaiaAliases
         ).normalized()
     }
 }

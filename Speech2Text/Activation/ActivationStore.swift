@@ -281,7 +281,7 @@ final class ActivationStore: ObservableObject {
             let samples = try bufferAccumulator.convertToWhisperFormat()
             let text = try await whisperService.transcribe(samples: samples)
             let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
-            let triggerAliases = preferences.activeTriggerProfile.activeAliases
+            let triggerAliases = TriggerAliasNormalizer.normalize(preferences.activeTriggerProfile.activeAliases)
 
             guard isCurrentSession(sessionID) else { return }
             guard !trimmed.isEmpty else {
@@ -292,7 +292,7 @@ final class ActivationStore: ObservableObject {
             let storeEntries = await userIntentStore.allEntries()
             let effectiveDefinitions = IntentCatalog.effective(store: storeEntries)
             let intent = IntentDetector.detect(transcript: trimmed, definitions: effectiveDefinitions)
-            _ = triggerAliases
+            _ = triggerAliases.count
 
             if intent.mode == .passthrough && intent.customIntentID == nil {
                 // LLM-02: passthrough path completely unchanged

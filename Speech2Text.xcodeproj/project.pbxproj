@@ -81,6 +81,8 @@
 		A0000001000000000000004B /* TriggerProfileStoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0000002000000000000004B /* TriggerProfileStoreTests.swift */; };
 		A0000001000000000000004C /* TriggerAliasNormalizerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0000002000000000000004C /* TriggerAliasNormalizerTests.swift */; };
 		A0000001000000000000004D /* TriggerCalibrationSessionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0000002000000000000004D /* TriggerCalibrationSessionTests.swift */; };
+		A0000001000000000000004E /* TriggerAliasNormalizer.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0000002000000000000004E /* TriggerAliasNormalizer.swift */; };
+		A0000001000000000000004F /* TriggerCalibrationSession.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0000002000000000000004F /* TriggerCalibrationSession.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -175,6 +177,8 @@
 		A0000002000000000000004B /* TriggerProfileStoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TriggerProfileStoreTests.swift; sourceTree = "<group>"; };
 		A0000002000000000000004C /* TriggerAliasNormalizerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TriggerAliasNormalizerTests.swift; sourceTree = "<group>"; };
 		A0000002000000000000004D /* TriggerCalibrationSessionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TriggerCalibrationSessionTests.swift; sourceTree = "<group>"; };
+		A0000002000000000000004E /* TriggerAliasNormalizer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TriggerAliasNormalizer.swift; sourceTree = "<group>"; };
+		A0000002000000000000004F /* TriggerCalibrationSession.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TriggerCalibrationSession.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -347,6 +351,8 @@
 				A00000020000000000000018 /* RecordingState.swift */,
 				A00000020000000000000049 /* TriggerProfile.swift */,
 				A0000002000000000000004A /* TriggerProfileStore.swift */,
+				A0000002000000000000004E /* TriggerAliasNormalizer.swift */,
+				A0000002000000000000004F /* TriggerCalibrationSession.swift */,
 			);
 			path = Activation;
 			sourceTree = "<group>";
@@ -574,6 +580,8 @@
 				A00000010000000000000014 /* RecordingState.swift in Sources */,
 				A00000010000000000000049 /* TriggerProfile.swift in Sources */,
 				A0000001000000000000004A /* TriggerProfileStore.swift in Sources */,
+				A0000001000000000000004E /* TriggerAliasNormalizer.swift in Sources */,
+				A0000001000000000000004F /* TriggerCalibrationSession.swift in Sources */,
 				A0000001000000000000000B /* RecoveryActions.swift in Sources */,
 				A00000010000000000000005 /* ShellPreferences.swift in Sources */,
 				A00000010000000000000047 /* IntentEditView.swift in Sources */,

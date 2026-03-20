@@ -50,19 +50,15 @@ actor TriggerProfileStore {
 
     func save(_ profile: TriggerProfile) async throws {
         await ensureLoaded()
+        try persist(profile.normalized())
+    }
 
-        let normalized = profile.normalized()
-        let dir = storeURL.deletingLastPathComponent()
-        try FileManager.default.createDirectory(
-            at: dir,
-            withIntermediateDirectories: true,
-            attributes: nil
-        )
-
-        let payload = StoredTriggerProfiles(profile: normalized)
-        let data = try JSONEncoder().encode(payload)
-        try data.write(to: storeURL, options: .atomic)
-        cachedProfile = normalized
+    func replaceAliasesForActiveProfile(_ aliases: [String]) async throws -> TriggerProfile {
+        await ensureLoaded()
+        let current = cachedProfile ?? TriggerProfile.defaultProfile
+        let updated = current.replacingAliasesForActiveProfile(aliases)
+        try persist(updated)
+        return updated
     }
 
     private func ensureLoaded() async {
@@ -77,5 +73,19 @@ actor TriggerProfileStore {
 
     private func fallbackToDefault() -> TriggerProfile {
         TriggerProfile.defaultProfile
+    }
+
+    private func persist(_ profile: TriggerProfile) throws {
+        let dir = storeURL.deletingLastPathComponent()
+        try FileManager.default.createDirectory(
+            at: dir,
+            withIntermediateDirectories: true,
+            attributes: nil
+        )
+
+        let payload = StoredTriggerProfiles(profile: profile)
+        let data = try JSONEncoder().encode(payload)
+        try data.write(to: storeURL, options: .atomic)
+        cachedProfile = profile
     }
 }
