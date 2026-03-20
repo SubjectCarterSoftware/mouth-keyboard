@@ -86,6 +86,10 @@
 		A00000010000000000000050 /* TriggerTranscriptParserTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000020000000000000050 /* TriggerTranscriptParserTests.swift */; };
 		A00000010000000000000051 /* TriggerTranscriptParser.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000020000000000000051 /* TriggerTranscriptParser.swift */; };
 		A00000010000000000000052 /* TriggerTranscriptSplit.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000020000000000000052 /* TriggerTranscriptSplit.swift */; };
+		A00000010000000000000053 /* AIAssistantSettingsViewModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000020000000000000053 /* AIAssistantSettingsViewModelTests.swift */; };
+		A00000010000000000000054 /* AssistantCalibrationRunnerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000020000000000000054 /* AssistantCalibrationRunnerTests.swift */; };
+		A00000010000000000000055 /* AIAssistantSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000020000000000000055 /* AIAssistantSettingsView.swift */; };
+		A00000010000000000000056 /* AssistantCalibrationRunner.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000020000000000000056 /* AssistantCalibrationRunner.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -185,6 +189,10 @@
 		A00000020000000000000050 /* TriggerTranscriptParserTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TriggerTranscriptParserTests.swift; sourceTree = "<group>"; };
 		A00000020000000000000051 /* TriggerTranscriptParser.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TriggerTranscriptParser.swift; sourceTree = "<group>"; };
 		A00000020000000000000052 /* TriggerTranscriptSplit.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TriggerTranscriptSplit.swift; sourceTree = "<group>"; };
+		A00000020000000000000053 /* AIAssistantSettingsViewModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AIAssistantSettingsViewModelTests.swift; sourceTree = "<group>"; };
+		A00000020000000000000054 /* AssistantCalibrationRunnerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AssistantCalibrationRunnerTests.swift; sourceTree = "<group>"; };
+		A00000020000000000000055 /* AIAssistantSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AIAssistantSettingsView.swift; sourceTree = "<group>"; };
+		A00000020000000000000056 /* AssistantCalibrationRunner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AssistantCalibrationRunner.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -281,6 +289,8 @@
 				A00000020000000000000006 /* SetupWindowView.swift */,
 				A0000002000000000000000E /* StatusCardView.swift */,
 				A00000020000000000000005 /* StatusMenuView.swift */,
+				A00000020000000000000055 /* AIAssistantSettingsView.swift */,
+				A00000020000000000000056 /* AssistantCalibrationRunner.swift */,
 			);
 			path = Shell;
 			sourceTree = "<group>";
@@ -337,6 +347,8 @@
 				A0000002000000000000004C /* TriggerAliasNormalizerTests.swift */,
 				A0000002000000000000004D /* TriggerCalibrationSessionTests.swift */,
 				A00000020000000000000050 /* TriggerTranscriptParserTests.swift */,
+				A00000020000000000000053 /* AIAssistantSettingsViewModelTests.swift */,
+				A00000020000000000000054 /* AssistantCalibrationRunnerTests.swift */,
 			);
 			path = Speech2TextTests;
 			sourceTree = "<group>";
@@ -595,6 +607,8 @@
 				A00000010000000000000052 /* TriggerTranscriptSplit.swift in Sources */,
 				A0000001000000000000000B /* RecoveryActions.swift in Sources */,
 				A00000010000000000000005 /* ShellPreferences.swift in Sources */,
+				A00000010000000000000055 /* AIAssistantSettingsView.swift in Sources */,
+				A00000010000000000000056 /* AssistantCalibrationRunner.swift in Sources */,
 				A00000010000000000000047 /* IntentEditView.swift in Sources */,
 				A00000010000000000000048 /* IntentListView.swift in Sources */,
 				A00000010000000000000004 /* SetupWindowView.swift in Sources */,
@@ -633,6 +647,8 @@
 				A0000001000000000000004C /* TriggerAliasNormalizerTests.swift in Sources */,
 				A0000001000000000000004D /* TriggerCalibrationSessionTests.swift in Sources */,
 				A00000010000000000000050 /* TriggerTranscriptParserTests.swift in Sources */,
+				A00000010000000000000053 /* AIAssistantSettingsViewModelTests.swift in Sources */,
+				A00000010000000000000054 /* AssistantCalibrationRunnerTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
