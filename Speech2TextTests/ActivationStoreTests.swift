@@ -727,6 +727,94 @@ final class ActivationStoreTests: XCTestCase {
         XCTAssertEqual(mockRewriter.lastBody, "final update")
     }
 
+    // MARK: - Phase 14 shortcut routing behavior (RED for 14-01 Task 1)
+
+    func test_finalize_validTrigger_leadingShortcut_instruction_keepsNonShortcutPath() async throws {
+        let preferences = makePreferencesWithTriggerStore()
+        preferences.setTriggerPreset(.atlas)
+        try await Task.sleep(nanoseconds: 80_000_000)
+
+        let transcript = "atlas convert to email send this update to the team"
+        let mockTranscriber = ActivationStoreMockTranscriber(result: .success(transcript))
+        let mockRewriter = MockLLMRewriter(result: .success("Should not be called"))
+        let mockClipboard = ActivationStoreMockClipboard()
+        let store = makeStore(
+            permissionsAuthorized: true,
+            transcriber: mockTranscriber,
+            llmRewriter: mockRewriter,
+            clipboard: mockClipboard,
+            preferences: preferences
+        )
+
+        store.arm()
+        store.finish()
+        try await Task.sleep(nanoseconds: 300_000_000)
+
+        XCTAssertNil(mockRewriter.lastCalledOverload)
+        XCTAssertEqual(mockClipboard.lastWrittenText, transcript)
+        if case .success(_, _, let converted, _) = store.state {
+            XCTAssertFalse(converted)
+        } else {
+            XCTFail("Expected .success state, got \(store.state)")
+        }
+    }
+
+    func test_finalize_validTrigger_ambiguousBuiltInInstruction_keepsNonShortcutPath() async throws {
+        let preferences = makePreferencesWithTriggerStore()
+        preferences.setTriggerPreset(.atlas)
+        try await Task.sleep(nanoseconds: 80_000_000)
+
+        let transcript = "atlas convert to email or convert to slack"
+        let mockTranscriber = ActivationStoreMockTranscriber(result: .success(transcript))
+        let mockRewriter = MockLLMRewriter(result: .success("Should not be called"))
+        let mockClipboard = ActivationStoreMockClipboard()
+        let store = makeStore(
+            permissionsAuthorized: true,
+            transcriber: mockTranscriber,
+            llmRewriter: mockRewriter,
+            clipboard: mockClipboard,
+            preferences: preferences
+        )
+
+        store.arm()
+        store.finish()
+        try await Task.sleep(nanoseconds: 300_000_000)
+
+        XCTAssertNil(mockRewriter.lastCalledOverload)
+        XCTAssertEqual(mockClipboard.lastWrittenText, transcript)
+        if case .success(_, _, let converted, _) = store.state {
+            XCTAssertFalse(converted)
+        } else {
+            XCTFail("Expected .success state, got \(store.state)")
+        }
+    }
+
+    func test_finalize_validTrigger_clearTrailingShortcut_usesBuiltInModePipeline() async throws {
+        let preferences = makePreferencesWithTriggerStore()
+        preferences.setTriggerPreset(.atlas)
+        try await Task.sleep(nanoseconds: 80_000_000)
+
+        let transcript = "atlas please send this update to the team convert to slack"
+        let mockTranscriber = ActivationStoreMockTranscriber(result: .success(transcript))
+        let mockRewriter = MockLLMRewriter(result: .success("Slack output"))
+        let mockClipboard = ActivationStoreMockClipboard()
+        let store = makeStore(
+            permissionsAuthorized: true,
+            transcriber: mockTranscriber,
+            llmRewriter: mockRewriter,
+            clipboard: mockClipboard,
+            preferences: preferences
+        )
+
+        store.arm()
+        store.finish()
+        try await Task.sleep(nanoseconds: 300_000_000)
+
+        XCTAssertEqual(mockRewriter.lastCalledOverload, .modeOverload)
+        XCTAssertEqual(mockRewriter.lastMode, .slack)
+        XCTAssertEqual(mockRewriter.lastBody, "please send this update to the team")
+    }
+
     // MARK: - Helpers
 
     private func makeStore(

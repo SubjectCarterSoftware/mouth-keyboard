@@ -434,4 +434,43 @@ final class IntentDetectorTests: XCTestCase {
         )
         XCTAssertEqual(intent.mode, .passthrough)
     }
+
+    // MARK: - Phase 14 post-trigger shortcut policy (RED for 14-01 Task 1)
+
+    func testTriggerInstructionLeadingShortcutFallsBackToPassthrough() {
+        let intent = IntentDetector.detect(
+            transcript: "convert to email send this update to the team",
+            definitions: IntentCatalog.all
+        )
+
+        XCTAssertEqual(intent.mode, .passthrough)
+    }
+
+    func testTriggerInstructionMixedIntentStyleDirectiveFallsBackToPassthrough() {
+        let intent = IntentDetector.detect(
+            transcript: "make this an email but keep it casual and short",
+            definitions: IntentCatalog.all
+        )
+
+        XCTAssertEqual(intent.mode, .passthrough)
+    }
+
+    func testTriggerInstructionAmbiguousBuiltInTieFallsBackToPassthrough() {
+        let intent = IntentDetector.detect(
+            transcript: "convert to email or convert to slack",
+            definitions: IntentCatalog.all
+        )
+
+        XCTAssertEqual(intent.mode, .passthrough)
+    }
+
+    func testTriggerInstructionClearTrailingShortcutResolvesToBuiltIn() {
+        let intent = IntentDetector.detect(
+            transcript: "please send this update to the team convert to slack",
+            definitions: IntentCatalog.all
+        )
+
+        XCTAssertEqual(intent.mode, .slack)
+        XCTAssertEqual(intent.strippedBody, "please send this update to the team")
+    }
 }
