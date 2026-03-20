@@ -1,6 +1,8 @@
 import Foundation
 
 actor UserIntentStore {
+    static let shared = UserIntentStore()
+
     private let storeURL: URL
     private var entries: [UserIntentEntry] = []
     private var loaded = false

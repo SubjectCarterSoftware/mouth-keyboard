@@ -43,6 +43,7 @@ final class ActivationStore: ObservableObject {
         readinessProvider: ReadinessStore.shared,
         whisperService: WhisperService.shared,
         llmRewriteService: LLMRewriteService.shared,
+        userIntentStore: UserIntentStore.shared,
         clipboardService: ClipboardService(),
         pasteService: PasteService(),
         bufferAccumulator: AudioBufferAccumulator(),
@@ -58,6 +59,7 @@ final class ActivationStore: ObservableObject {
     private let readinessProvider: any ReadinessProviding
     private let whisperService: any WhisperTranscribing
     private let llmRewriteService: any LLMRewriting
+    private let userIntentStore: UserIntentStore
     private let clipboardService: ClipboardService
     private let pasteService: PasteService
     private let resetSessionMonitoring: @MainActor () -> Void
@@ -92,6 +94,7 @@ final class ActivationStore: ObservableObject {
         readinessProvider: any ReadinessProviding,
         whisperService: any WhisperTranscribing = WhisperService(),
         llmRewriteService: any LLMRewriting = LLMRewriteService.shared,
+        userIntentStore: UserIntentStore = UserIntentStore.shared,
         clipboardService: ClipboardService = ClipboardService(),
         pasteService: PasteService = PasteService(),
         bufferAccumulator: AudioBufferAccumulator = AudioBufferAccumulator(),
@@ -101,6 +104,7 @@ final class ActivationStore: ObservableObject {
         self.readinessProvider = readinessProvider
         self.whisperService = whisperService
         self.llmRewriteService = llmRewriteService
+        self.userIntentStore = userIntentStore
         self.clipboardService = clipboardService
         self.pasteService = pasteService
         self.bufferAccumulator = bufferAccumulator

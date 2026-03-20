@@ -427,12 +427,151 @@ final class ActivationStoreTests: XCTestCase {
         }
     }
 
+    // MARK: - UserIntentStore override + custom intent routing tests (11-03)
+
+    /// Built-in mode with a store override: finalizeSession must resolve override's systemPrompt
+    /// and call rewrite(body:instructions:) with that prompt, not the default mode prompt.
+    func test_builtin_override_calls_instructions_overload() async throws {
+        let overridePrompt = "My custom email instructions for testing"
+        let emailOverride = UserIntentEntry(
+            id: ConvertMode.email.rawValue,
+            modeName: "Email",
+            systemPrompt: overridePrompt,
+            phrasePatterns: [],
+            keywordSignal: "",
+            isBuiltIn: true
+        )
+        let tmpURL = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString + ".json")
+        let intentStore = UserIntentStore(storeURL: tmpURL)
+        try await intentStore.addOrUpdateBuiltInOverride(emailOverride)
+
+        let mockTranscriber = ActivationStoreMockTranscriber(
+            result: .success("convert to email Please schedule a meeting for Friday")
+        )
+        let mockRewriter = MockLLMRewriter(result: .success("Rewritten email output"))
+        let mockClipboard = ActivationStoreMockClipboard()
+        let store = makeStore(
+            permissionsAuthorized: true,
+            transcriber: mockTranscriber,
+            llmRewriter: mockRewriter,
+            userIntentStore: intentStore,
+            clipboard: mockClipboard
+        )
+        store.arm()
+        store.finish()
+        try await Task.sleep(nanoseconds: 300_000_000)
+
+        XCTAssertEqual(mockRewriter.lastCalledOverload, .instructionsOverload,
+                       "Built-in override should use rewrite(body:instructions:) not rewrite(body:mode:)")
+        XCTAssertEqual(mockRewriter.lastInstructions, overridePrompt,
+                       "instructions should be the override's systemPrompt")
+        XCTAssertEqual(mockClipboard.lastWrittenText, "Rewritten email output")
+    }
+
+    /// Custom mode match (customIntentID non-nil): finalizeSession calls rewrite(body:instructions:)
+    /// with the custom entry's systemPrompt.
+    func test_custom_mode_calls_instructions_overload() async throws {
+        let customPrompt = "Format this as a JIRA ticket with summary and description"
+        let customEntry = UserIntentEntry(
+            id: UUID().uuidString,
+            modeName: "JIRA Ticket",
+            systemPrompt: customPrompt,
+            phrasePatterns: ["convert to jira", "jira ticket"],
+            keywordSignal: "jira",
+            isBuiltIn: false
+        )
+        let tmpURL = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString + ".json")
+        let intentStore = UserIntentStore(storeURL: tmpURL)
+        try await intentStore.addOrUpdateCustomMode(customEntry)
+
+        let mockTranscriber = ActivationStoreMockTranscriber(
+            result: .success("convert to jira We need to fix the login bug")
+        )
+        let mockRewriter = MockLLMRewriter(result: .success("JIRA: Fix login bug"))
+        let mockClipboard = ActivationStoreMockClipboard()
+        let store = makeStore(
+            permissionsAuthorized: true,
+            transcriber: mockTranscriber,
+            llmRewriter: mockRewriter,
+            userIntentStore: intentStore,
+            clipboard: mockClipboard
+        )
+        store.arm()
+        store.finish()
+        try await Task.sleep(nanoseconds: 300_000_000)
+
+        XCTAssertEqual(mockRewriter.lastCalledOverload, .instructionsOverload,
+                       "Custom mode should use rewrite(body:instructions:)")
+        XCTAssertEqual(mockRewriter.lastInstructions, customPrompt,
+                       "instructions should be the custom entry's systemPrompt")
+        XCTAssertEqual(mockClipboard.lastWrittenText, "JIRA: Fix login bug")
+    }
+
+    /// Built-in mode with NO store override: finalizeSession still calls rewrite(body:mode:)
+    /// (existing path unchanged — no regression for standard users).
+    func test_builtin_no_override_uses_mode_overload() async throws {
+        // Empty store — no overrides
+        let tmpURL = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString + ".json")
+        let intentStore = UserIntentStore(storeURL: tmpURL)
+
+        let mockTranscriber = ActivationStoreMockTranscriber(
+            result: .success("convert to email Please schedule a meeting")
+        )
+        let mockRewriter = MockLLMRewriter(result: .success("Email output"))
+        let mockClipboard = ActivationStoreMockClipboard()
+        let store = makeStore(
+            permissionsAuthorized: true,
+            transcriber: mockTranscriber,
+            llmRewriter: mockRewriter,
+            userIntentStore: intentStore,
+            clipboard: mockClipboard
+        )
+        store.arm()
+        store.finish()
+        try await Task.sleep(nanoseconds: 300_000_000)
+
+        XCTAssertEqual(mockRewriter.lastCalledOverload, .modeOverload,
+                       "Built-in with no override should use rewrite(body:mode:)")
+        XCTAssertEqual(mockRewriter.lastMode, .email)
+    }
+
+    /// Passthrough intent: store lookup never called; raw transcript to clipboard.
+    /// (This is the existing passthrough path test but with an explicit userIntentStore to confirm isolation.)
+    func test_passthrough_with_intent_store_still_bypasses_llm() async throws {
+        let tmpURL = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString + ".json")
+        let intentStore = UserIntentStore(storeURL: tmpURL)
+
+        let mockTranscriber = ActivationStoreMockTranscriber(result: .success("Hello world"))
+        let mockRewriter = MockLLMRewriter(result: .success("Should never be called"))
+        let mockClipboard = ActivationStoreMockClipboard()
+        let store = makeStore(
+            permissionsAuthorized: true,
+            transcriber: mockTranscriber,
+            llmRewriter: mockRewriter,
+            userIntentStore: intentStore,
+            clipboard: mockClipboard
+        )
+        store.arm()
+        store.finish()
+        try await Task.sleep(nanoseconds: 200_000_000)
+
+        XCTAssertNil(mockRewriter.lastCalledOverload,
+                     "Passthrough path must not call LLM rewriter at all")
+        XCTAssertEqual(mockClipboard.lastWrittenText, "Hello world")
+        if case .success(_, _, let converted) = store.state {
+            XCTAssertFalse(converted)
+        } else {
+            XCTFail("Expected .success state, got \(store.state)")
+        }
+    }
+
     // MARK: - Helpers
 
     private func makeStore(
         permissionsAuthorized: Bool,
         transcriber: (any WhisperTranscribing)? = nil,
         llmRewriter: (any LLMRewriting)? = nil,
+        userIntentStore: UserIntentStore? = nil,
         clipboard: ClipboardService? = nil,
         bufferAccumulator: AudioBufferAccumulator? = nil,
         resetSessionMonitoring: (@MainActor () -> Void)? = nil
@@ -446,6 +585,7 @@ final class ActivationStoreTests: XCTestCase {
             readinessProvider: StubReadinessProvider(permissionsAuthorized: permissionsAuthorized),
             whisperService: transcriber ?? ActivationStoreMockTranscriber(result: .success("")),
             llmRewriteService: llmRewriter ?? MockLLMRewriter(result: .failure(LLMRewriteError.cancelled)),
+            userIntentStore: userIntentStore ?? UserIntentStore(storeURL: FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString + ".json")),
             clipboardService: clipboard ?? ActivationStoreMockClipboard(),
             bufferAccumulator: bufferAccumulator ?? StubBufferAccumulator(),
             resetSessionMonitoring: resetSessionMonitoring ?? {}
@@ -565,15 +705,23 @@ final class ResetHookTracker {
 
 final class MockLLMRewriter: LLMRewriting, @unchecked Sendable {
     enum MockResult { case success(String); case failure(Error) }
+    enum CalledOverload { case modeOverload; case instructionsOverload }
     private let result: MockResult
+    private(set) var lastCalledOverload: CalledOverload?
+    private(set) var lastInstructions: String?
+    private(set) var lastMode: ConvertMode?
     init(result: MockResult) { self.result = result }
     func rewrite(body: String, mode: ConvertMode) async throws -> String {
+        lastCalledOverload = .modeOverload
+        lastMode = mode
         switch result {
         case .success(let text): return text
         case .failure(let error): throw error
         }
     }
     func rewrite(body: String, instructions: String) async throws -> String {
+        lastCalledOverload = .instructionsOverload
+        lastInstructions = instructions
         switch result {
         case .success(let text): return text
         case .failure(let error): throw error
