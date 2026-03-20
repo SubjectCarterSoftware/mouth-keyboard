@@ -133,6 +133,12 @@ struct AIAssistantSettingsView: View {
     @ObservedObject var preferences: ShellPreferences
     @Environment(\.dismiss) private var dismiss
 
+    @State private var isCalibrating: Bool = false
+    @State private var calibrationAccepted: Int = 0
+    @State private var showRetryMessage: Bool = false
+    @State private var calibrationComplete: Bool = false
+    @State private var runner: AssistantCalibrationRunner? = nil
+
     @ViewBuilder
     private func presetRow(for preset: TriggerNamePreset) -> some View {
         Button {
@@ -201,6 +207,56 @@ struct AIAssistantSettingsView: View {
                 }
             }
 
+            Divider()
+
+            // Calibration section
+            VStack(alignment: .leading, spacing: 8) {
+                Text("Calibration")
+                    .font(.headline)
+
+                if calibrationComplete {
+                    Text("Calibration complete.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .accessibilityIdentifier("assistantSettings.calibrationComplete")
+                } else if isCalibrating {
+                    Text("Say \"\(viewModel.activeName)\" clearly...")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    ProgressView(value: Double(calibrationAccepted), total: 3)
+                        .accessibilityIdentifier("assistantSettings.calibrationProgress")
+                    if showRetryMessage {
+                        Text("Didn't catch that — try again.")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                            .accessibilityIdentifier("assistantSettings.calibrationRetry")
+                    }
+                    Button("Cancel") {
+                        isCalibrating = false
+                        calibrationAccepted = 0
+                        showRetryMessage = false
+                        runner = nil
+                    }
+                    .accessibilityIdentifier("assistantSettings.calibrationCancel")
+                } else {
+                    Text("Calibrate to improve name recognition accuracy.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    HStack {
+                        Button(viewModel.isCalibrationRequired ? "Start Calibration (Recommended)" : "Start Calibration") {
+                            startCalibration()
+                        }
+                        .accessibilityIdentifier("assistantSettings.startCalibration")
+                        Button("Skip") {
+                            // No-op — user can dismiss via Done
+                        }
+                        .buttonStyle(.plain)
+                        .foregroundStyle(.secondary)
+                        .accessibilityIdentifier("assistantSettings.skipCalibration")
+                    }
+                }
+            }
+
             Spacer()
 
             HStack {
@@ -213,6 +269,36 @@ struct AIAssistantSettingsView: View {
             }
         }
         .padding(24)
-        .frame(minWidth: 400, idealWidth: 440, minHeight: 380, idealHeight: 420)
+        .frame(minWidth: 400, idealWidth: 440, minHeight: 460, idealHeight: 500)
+    }
+
+    private func startCalibration() {
+        let capturer = LiveCalibrationSampleCapturer()
+        let r = AssistantCalibrationRunner(
+            primaryName: viewModel.activeName,
+            preferences: preferences,
+            capturer: capturer
+        )
+        r.onRetry = {
+            showRetryMessage = true
+        }
+        r.onSampleAccepted = { _ in
+            calibrationAccepted += 1
+            showRetryMessage = false
+        }
+        r.onComplete = {
+            isCalibrating = false
+            calibrationComplete = true
+        }
+        runner = r
+        isCalibrating = true
+        calibrationAccepted = 0
+        showRetryMessage = false
+        calibrationComplete = false
+        Task {
+            await r.runSession()
+            // If runner was cancelled (runner = nil path), isCalibrating is already false.
+            // If it completed normally, onComplete already set calibrationComplete = true.
+        }
     }
 }
