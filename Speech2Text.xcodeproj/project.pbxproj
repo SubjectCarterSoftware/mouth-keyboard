@@ -83,6 +83,7 @@
 		A0000001000000000000004D /* TriggerCalibrationSessionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0000002000000000000004D /* TriggerCalibrationSessionTests.swift */; };
 		A0000001000000000000004E /* TriggerAliasNormalizer.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0000002000000000000004E /* TriggerAliasNormalizer.swift */; };
 		A0000001000000000000004F /* TriggerCalibrationSession.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0000002000000000000004F /* TriggerCalibrationSession.swift */; };
+		A00000010000000000000050 /* TriggerTranscriptParserTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000020000000000000050 /* TriggerTranscriptParserTests.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -179,6 +180,7 @@
 		A0000002000000000000004D /* TriggerCalibrationSessionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TriggerCalibrationSessionTests.swift; sourceTree = "<group>"; };
 		A0000002000000000000004E /* TriggerAliasNormalizer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TriggerAliasNormalizer.swift; sourceTree = "<group>"; };
 		A0000002000000000000004F /* TriggerCalibrationSession.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TriggerCalibrationSession.swift; sourceTree = "<group>"; };
+		A00000020000000000000050 /* TriggerTranscriptParserTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TriggerTranscriptParserTests.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -330,6 +332,7 @@
 				A0000002000000000000004B /* TriggerProfileStoreTests.swift */,
 				A0000002000000000000004C /* TriggerAliasNormalizerTests.swift */,
 				A0000002000000000000004D /* TriggerCalibrationSessionTests.swift */,
+				A00000020000000000000050 /* TriggerTranscriptParserTests.swift */,
 			);
 			path = Speech2TextTests;
 			sourceTree = "<group>";
@@ -621,6 +624,7 @@
 				A0000001000000000000004B /* TriggerProfileStoreTests.swift in Sources */,
 				A0000001000000000000004C /* TriggerAliasNormalizerTests.swift in Sources */,
 				A0000001000000000000004D /* TriggerCalibrationSessionTests.swift in Sources */,
+				A00000010000000000000050 /* TriggerTranscriptParserTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
