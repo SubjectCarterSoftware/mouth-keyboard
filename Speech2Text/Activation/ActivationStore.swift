@@ -287,9 +287,12 @@ final class ActivationStore: ObservableObject {
                 throw TranscriptionError.noSpeechDetected
             }
 
-            let intent = IntentDetector.detect(transcript: trimmed, modes: preferences.convertModes)
+            // Snapshot merged catalog from UserIntentStore for detection
+            let storeEntries = await userIntentStore.allEntries()
+            let effectiveDefinitions = IntentCatalog.effective(store: storeEntries)
+            let intent = IntentDetector.detect(transcript: trimmed, definitions: effectiveDefinitions)
 
-            if intent.mode == .passthrough {
+            if intent.mode == .passthrough && intent.customIntentID == nil {
                 // LLM-02: passthrough path completely unchanged
                 let didPaste = pasteOnCompletion
                 pasteOnCompletion = false
@@ -323,13 +326,32 @@ final class ActivationStore: ObservableObject {
                 guard isCurrentSession(sessionID) else { return }
                 state = .converting
 
+                // Resolve effective system prompt from matched entry
+                let resolvedInstructions: String?
+                if let customID = intent.customIntentID {
+                    // Custom mode: look up entry by modeName match
+                    resolvedInstructions = storeEntries.first { !$0.isBuiltIn && $0.modeName == customID }?.systemPrompt
+                } else if intent.mode != .passthrough {
+                    // Built-in: check for store override
+                    resolvedInstructions = storeEntries.first { $0.id == intent.mode.rawValue && $0.isBuiltIn }?.systemPrompt
+                } else {
+                    resolvedInstructions = nil
+                }
+
                 // LLM call — rewrite() hops to LLMRewriteService actor automatically
                 let rewritten: String
                 do {
-                    rewritten = try await llmRewriteService.rewrite(
-                        body: intent.strippedBody,
-                        mode: intent.mode
-                    )
+                    if let instructions = resolvedInstructions {
+                        rewritten = try await llmRewriteService.rewrite(
+                            body: intent.strippedBody,
+                            instructions: instructions
+                        )
+                    } else {
+                        rewritten = try await llmRewriteService.rewrite(
+                            body: intent.strippedBody,
+                            mode: intent.mode
+                        )
+                    }
                 } catch {
                     // GUARD-02 fallback: silent — raw transcript to clipboard
                     guard isCurrentSession(sessionID) else { return }
