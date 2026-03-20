@@ -29,10 +29,10 @@
 
 ### Instruction Interpretation and Routing
 
-- [ ] **ROUTE-01**: Post-trigger instruction is fuzzy-matched against existing predefined intents (Email, Slack, Teams, Clean English)
-- [ ] **ROUTE-02**: If predefined match succeeds, matching intent mode is executed with existing prompt pipeline
-- [ ] **ROUTE-03**: If no predefined match succeeds, instruction is passed as custom rewrite instructions to LLM
-- [ ] **ROUTE-04**: Existing guards still apply (word-limit gate and silent raw fallback on LLM failure)
+- [x] **ROUTE-01**: Post-trigger instruction is fuzzy-matched against existing predefined intents (Email, Slack, Teams, Clean English)
+- [x] **ROUTE-02**: If predefined match succeeds, matching intent mode is executed with existing prompt pipeline
+- [x] **ROUTE-03**: If no predefined match succeeds, instruction is passed as custom rewrite instructions to LLM
+- [x] **ROUTE-04**: Existing guards still apply (word-limit gate and silent raw fallback on LLM failure)
 
 ### Settings UX
 

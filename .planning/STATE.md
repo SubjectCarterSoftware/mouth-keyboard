@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.2
 milestone_name: AI Trigger Name
 status: Ready
-stopped_at: Phase 14 context gathered
-last_updated: "2026-03-20T16:29:17.742Z"
-last_activity: 2026-03-20 — completed 13-02 parser-gated ActivationStore integration plan
+stopped_at: Completed 14-01-PLAN.md
+last_updated: "2026-03-20T16:51:50.142Z"
+last_activity: 2026-03-20 — completed 14-01 conservative predefined shortcut routing plan
 progress:
   total_phases: 4
   completed_phases: 2
-  total_plans: 4
-  completed_plans: 4
+  total_plans: 6
+  completed_plans: 5
 ---
 
 # Project State
@@ -20,14 +20,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-20)
 
 **Core value:** From a single hotkey, the user can dictate and get reliable text into the clipboard fast enough that it feels close to typing speed.
-**Current focus:** Begin v1.2 Phase 14 instruction routing work (14-01 next).
+**Current focus:** Continue v1.2 Phase 14 instruction routing work (14-02 next).
 
 ## Current Position
 
 Phase: 14 of 15 (Instruction Routing via Existing Intents)
-Plan: 01 of 02 (14-01-PLAN.md next)
+Plan: 02 of 02 (14-02-PLAN.md next)
 Status: Ready
-Last activity: 2026-03-20 — completed 13-02 parser-gated ActivationStore integration plan
+Last activity: 2026-03-20 — completed 14-01 conservative predefined shortcut routing plan
 
 ## Performance Metrics
 
@@ -60,6 +60,7 @@ Last activity: 2026-03-20 — completed 13-02 parser-gated ActivationStore integ
 | Phase 12 P02 | 5 min | 2 tasks | 10 files |
 | Phase 13 P01 | 6 min | 2 tasks | 4 files |
 | Phase 13 P02 | 9 min | 2 tasks | 4 files |
+| Phase 14 P01 | 8m | 2 tasks | 4 files |
 
 ## Accumulated Context
 
@@ -83,6 +84,9 @@ Recent decisions affecting current work:
 - [Phase 13]: Trigger boundaries use whole-word matching so alias substrings do not activate parsing.
 - [Phase 13]: ActivationStore now routes intent detection only from TriggerTranscriptParser validTrigger instruction segments.
 - [Phase 13]: IntentDetector trailing-position heuristics now use matched range lower bounds to avoid false trailing classification.
+- [Phase 14]: Use a dedicated detectPredefinedShortcut path for valid-trigger built-ins instead of changing general detector semantics.
+- [Phase 14]: Reject ambiguous built-in routing when multiple exact built-in commands are present in the post-trigger instruction.
+- [Phase 14]: Preserve custom-intent detection as fallback when no predefined built-in shortcut is selected.
 
 ### Pending Todos
 
@@ -94,6 +98,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-20T16:29:17.740Z
-Stopped at: Phase 14 context gathered
-Resume file: .planning/phases/14-instruction-routing-via-existing-intents/14-CONTEXT.md
+Last session: 2026-03-20T16:51:50.140Z
+Stopped at: Completed 14-01-PLAN.md
+Resume file: None
