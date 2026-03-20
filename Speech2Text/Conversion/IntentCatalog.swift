@@ -13,6 +13,12 @@ enum IntentCatalog {
         cleanEnglishDefinition,
     ]
 
+    /// Returns the effective definitions by merging store overrides into built-ins and appending custom entries.
+    /// Stub implementation — returns all unchanged until GREEN phase.
+    static func effective(store: [UserIntentEntry]) -> [IntentDefinition] {
+        return all
+    }
+
     // MARK: - Private Definitions
 
     private static let emailDefinition = IntentDefinition(

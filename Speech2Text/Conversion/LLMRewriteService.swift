@@ -28,6 +28,7 @@ enum LLMRewriteError: LocalizedError, Equatable {
 
 protocol LLMRewriting: Sendable {
     func rewrite(body: String, mode: ConvertMode) async throws -> String
+    func rewrite(body: String, instructions: String) async throws -> String
 }
 
 private actor RewriteExecutionGate {
@@ -111,6 +112,11 @@ actor LLMRewriteService: LLMRewriting {
         self.streamFactory = streamFactory
         self.generationParameters = generationParameters
         self.hubFactory = hubFactory
+    }
+
+    func rewrite(body: String, instructions: String) async throws -> String {
+        // Stub — throws until GREEN phase implements this
+        throw LLMRewriteError.modelLoadFailed
     }
 
     func rewrite(body: String, mode: ConvertMode) async throws -> String {

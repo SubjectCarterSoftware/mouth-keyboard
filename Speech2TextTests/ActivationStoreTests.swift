@@ -573,4 +573,10 @@ final class MockLLMRewriter: LLMRewriting, @unchecked Sendable {
         case .failure(let error): throw error
         }
     }
+    func rewrite(body: String, instructions: String) async throws -> String {
+        switch result {
+        case .success(let text): return text
+        case .failure(let error): throw error
+        }
+    }
 }

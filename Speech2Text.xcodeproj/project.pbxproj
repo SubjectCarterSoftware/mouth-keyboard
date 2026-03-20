@@ -73,6 +73,7 @@
 		A00000010000000000000043 /* UserIntentEntry.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000020000000000000043 /* UserIntentEntry.swift */; };
 		A00000010000000000000044 /* UserIntentStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000020000000000000044 /* UserIntentStore.swift */; };
 		A00000010000000000000045 /* UserIntentStoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000020000000000000045 /* UserIntentStoreTests.swift */; };
+		A00000010000000000000046 /* IntentCatalogDynamicTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000020000000000000046 /* IntentCatalogDynamicTests.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -159,6 +160,7 @@
 		A00000020000000000000043 /* UserIntentEntry.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UserIntentEntry.swift; sourceTree = "<group>"; };
 		A00000020000000000000044 /* UserIntentStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UserIntentStore.swift; sourceTree = "<group>"; };
 		A00000020000000000000045 /* UserIntentStoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UserIntentStoreTests.swift; sourceTree = "<group>"; };
+		A00000020000000000000046 /* IntentCatalogDynamicTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IntentCatalogDynamicTests.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -304,6 +306,7 @@
 				A00000020000000000000030 /* ShellPreferencesModelTests.swift */,
 				A0000002000000000000002A /* WhisperServiceTests.swift */,
 				A00000020000000000000045 /* UserIntentStoreTests.swift */,
+				A00000020000000000000046 /* IntentCatalogDynamicTests.swift */,
 			);
 			path = Speech2TextTests;
 			sourceTree = "<group>";
@@ -581,6 +584,7 @@
 				A00000010000000000000012 /* ShellPreferencesPhase2Tests.swift in Sources */,
 				933C00442F6C862500B5BB12 /* ShellPreferencesModelTests.swift in Sources */,
 				A00000010000000000000025 /* WhisperServiceTests.swift in Sources */,
+				A00000010000000000000046 /* IntentCatalogDynamicTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

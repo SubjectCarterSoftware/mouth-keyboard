@@ -5,6 +5,12 @@ enum IntentDetector {
     static let commandWindowTokens = 10
     static let minimumMargin = 0.15
 
+    /// New overload: accepts [IntentDefinition] directly, bypassing IntentCatalog.all.
+    /// Stub — returns passthrough until GREEN phase implements full algorithm.
+    static func detect(transcript: String, definitions: [IntentDefinition]) -> ConvertIntent {
+        return ConvertIntent(mode: .passthrough, strippedBody: transcript, originalTranscript: transcript)
+    }
+
     static func detect(transcript: String, modes: [ConvertMode]) -> ConvertIntent {
         let trimmedOriginal = transcript.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmedOriginal.isEmpty else {

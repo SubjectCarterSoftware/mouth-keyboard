@@ -254,6 +254,28 @@ final class LLMRewriteServiceTests: XCTestCase {
         }
     }
 
+    // MARK: - rewrite(body:instructions:) overload tests (Phase 11-02)
+
+    func testRewriteWithInstructionsOverloadExists() async throws {
+        // Verifies the overload compiles and is callable.
+        // Stub throws .modelLoadFailed; this test expects that failure.
+        let service = makeService { _, _, _, _ in
+            stream(events: [.chunk("ok"), .completion(.stop)])
+        }
+        await assertRewriteError(.modelLoadFailed) {
+            try await service.rewrite(body: "raw", instructions: "Be brief.")
+        }
+    }
+
+    func testRewriteWithModeStillCompiles() async throws {
+        // Regression: existing rewrite(body:mode:) must still work
+        let service = makeService { _, _, _, _ in
+            stream(events: [.chunk("ok"), .completion(.stop)])
+        }
+        let result = try await service.rewrite(body: "raw", mode: .cleanEnglish)
+        XCTAssertEqual(result, "ok")
+    }
+
     private func makeService(
         loader: @escaping LLMRewriteService.Loader = { _ in .init() },
         streamFactory: @escaping LLMRewriteService.StreamFactory
