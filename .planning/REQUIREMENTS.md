@@ -15,7 +15,7 @@
 
 ### Voice Calibration
 
-- [ ] **CAL-01**: User can run a calibration flow that captures multiple spoken samples for the active trigger name
+- [x] **CAL-01**: User can run a calibration flow that captures multiple spoken samples for the active trigger name
 - [x] **CAL-02**: System stores a normalized primary trigger plus accepted alias transcriptions from calibration
 - [ ] **CAL-03**: Detection uses both primary trigger and aliases (case-insensitive)
 

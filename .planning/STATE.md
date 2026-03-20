@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.2
 milestone_name: AI Trigger Name
 status: executing
-stopped_at: Completed 12-01-PLAN.md
-last_updated: "2026-03-20T15:18:15.443Z"
-last_activity: 2026-03-20 — v1.2 requirements + roadmap drafted
+stopped_at: Completed 12-02-PLAN.md
+last_updated: "2026-03-20T15:30:13.289Z"
+last_activity: 2026-03-20 — completed 12-02 calibration alias normalization plan
 progress:
   total_phases: 4
-  completed_phases: 0
+  completed_phases: 1
   total_plans: 2
-  completed_plans: 1
+  completed_plans: 2
 ---
 
 # Project State
@@ -20,14 +20,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-20)
 
 **Core value:** From a single hotkey, the user can dictate and get reliable text into the clipboard fast enough that it feels close to typing speed.
-**Current focus:** Execute remaining v1.2 Phase 12 plans.
+**Current focus:** Begin v1.2 Phase 13 parser integration planning/execution.
 
 ## Current Position
 
-Phase: 12 of 15 (Trigger Identity and Persistence)
-Plan: 02 of 02 (12-02-PLAN.md next)
-Status: In progress
-Last activity: 2026-03-20 — completed 12-01 trigger profile persistence plan
+Phase: 13 of 15 (Last-Name-Wins Parser Integration)
+Plan: 01 of 02 (13-01-PLAN.md next)
+Status: Ready
+Last activity: 2026-03-20 — completed 12-02 calibration alias normalization plan
 
 ## Performance Metrics
 
@@ -57,6 +57,7 @@ Last activity: 2026-03-20 — completed 12-01 trigger profile persistence plan
 | 10-fuzzy-intent-detection | 2 | ~16m | 4 | 11 |
 | 11-intent-configuration-ui | 5 | ~63m | 10 | 21 |
 | Phase 12 P01 | 9 min | 2 tasks | 7 files |
+| Phase 12 P02 | 5 min | 2 tasks | 10 files |
 
 ## Accumulated Context
 
@@ -74,6 +75,8 @@ Recent decisions affecting current work:
 - [Phase 11-03]: Dual-path LLM routing: instructions overload for user-configured intents, mode overload for defaults.
 - [Phase 12]: Trigger identity persistence is isolated in a dedicated file-backed store separate from convert-mode UserDefaults keys.
 - [Phase 12]: ShellPreferences applies trigger profile mutations only after store writes succeed to prevent half-applied runtime state.
+- [Phase 12]: Centralized alias normalization in TriggerAliasNormalizer and routed TriggerProfile normalization through it.
+- [Phase 12]: Calibration aliases apply in ShellPreferences only after TriggerProfileStore write succeeds to avoid half-applied runtime state.
 
 ### Pending Todos
 
@@ -85,6 +88,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-20T15:18:15.441Z
-Stopped at: Completed 12-01-PLAN.md
+Last session: 2026-03-20T15:30:13.288Z
+Stopped at: Completed 12-02-PLAN.md
 Resume file: None
