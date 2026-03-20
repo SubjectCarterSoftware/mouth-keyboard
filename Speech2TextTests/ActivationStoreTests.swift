@@ -729,14 +729,14 @@ final class ActivationStoreTests: XCTestCase {
 
     // MARK: - Phase 14 shortcut routing behavior (RED for 14-01 Task 1)
 
-    func test_finalize_validTrigger_leadingShortcut_instruction_keepsNonShortcutPath() async throws {
+    func test_finalize_validTrigger_leadingShortcut_instruction_routesToCustomInstructionFallback() async throws {
         let preferences = makePreferencesWithTriggerStore()
         preferences.setTriggerPreset(.atlas)
         try await Task.sleep(nanoseconds: 80_000_000)
 
-        let transcript = "atlas convert to email send this update to the team"
+        let transcript = "weekly team update atlas convert to email send this update to the team"
         let mockTranscriber = ActivationStoreMockTranscriber(result: .success(transcript))
-        let mockRewriter = MockLLMRewriter(result: .success("Should not be called"))
+        let mockRewriter = MockLLMRewriter(result: .success("Custom rewrite output"))
         let mockClipboard = ActivationStoreMockClipboard()
         let store = makeStore(
             permissionsAuthorized: true,
@@ -750,23 +750,26 @@ final class ActivationStoreTests: XCTestCase {
         store.finish()
         try await Task.sleep(nanoseconds: 300_000_000)
 
-        XCTAssertNil(mockRewriter.lastCalledOverload)
-        XCTAssertEqual(mockClipboard.lastWrittenText, transcript)
-        if case .success(_, _, let converted, _) = store.state {
-            XCTAssertFalse(converted)
+        XCTAssertEqual(mockRewriter.lastCalledOverload, .instructionsOverload)
+        XCTAssertEqual(mockRewriter.lastBody, "weekly team update")
+        XCTAssertEqual(mockRewriter.lastInstructions, "convert to email send this update to the team")
+        XCTAssertEqual(mockClipboard.lastWrittenText, "Custom rewrite output")
+        if case .success(let text, _, let converted, _) = store.state {
+            XCTAssertEqual(text, "Custom rewrite output")
+            XCTAssertTrue(converted)
         } else {
             XCTFail("Expected .success state, got \(store.state)")
         }
     }
 
-    func test_finalize_validTrigger_ambiguousBuiltInInstruction_keepsNonShortcutPath() async throws {
+    func test_finalize_validTrigger_ambiguousBuiltInInstruction_routesToCustomInstructionFallback() async throws {
         let preferences = makePreferencesWithTriggerStore()
         preferences.setTriggerPreset(.atlas)
         try await Task.sleep(nanoseconds: 80_000_000)
 
-        let transcript = "atlas convert to email or convert to slack"
+        let transcript = "status update for engineering atlas convert to email or convert to slack"
         let mockTranscriber = ActivationStoreMockTranscriber(result: .success(transcript))
-        let mockRewriter = MockLLMRewriter(result: .success("Should not be called"))
+        let mockRewriter = MockLLMRewriter(result: .success("Ambiguous custom rewrite output"))
         let mockClipboard = ActivationStoreMockClipboard()
         let store = makeStore(
             permissionsAuthorized: true,
@@ -780,10 +783,13 @@ final class ActivationStoreTests: XCTestCase {
         store.finish()
         try await Task.sleep(nanoseconds: 300_000_000)
 
-        XCTAssertNil(mockRewriter.lastCalledOverload)
-        XCTAssertEqual(mockClipboard.lastWrittenText, transcript)
-        if case .success(_, _, let converted, _) = store.state {
-            XCTAssertFalse(converted)
+        XCTAssertEqual(mockRewriter.lastCalledOverload, .instructionsOverload)
+        XCTAssertEqual(mockRewriter.lastBody, "status update for engineering")
+        XCTAssertEqual(mockRewriter.lastInstructions, "convert to email or convert to slack")
+        XCTAssertEqual(mockClipboard.lastWrittenText, "Ambiguous custom rewrite output")
+        if case .success(let text, _, let converted, _) = store.state {
+            XCTAssertEqual(text, "Ambiguous custom rewrite output")
+            XCTAssertTrue(converted)
         } else {
             XCTFail("Expected .success state, got \(store.state)")
         }
@@ -813,6 +819,97 @@ final class ActivationStoreTests: XCTestCase {
         XCTAssertEqual(mockRewriter.lastCalledOverload, .modeOverload)
         XCTAssertEqual(mockRewriter.lastMode, .slack)
         XCTAssertEqual(mockRewriter.lastBody, "please send this update to the team")
+    }
+
+    func test_finalize_validTrigger_customFallback_preserves350WordGate() async throws {
+        let preferences = makePreferencesWithTriggerStore()
+        preferences.setTriggerPreset(.atlas)
+        try await Task.sleep(nanoseconds: 80_000_000)
+
+        let longBody = Array(repeating: "word", count: 351).joined(separator: " ")
+        let transcript = "\(longBody) atlas rewrite this as a concise executive update"
+        let mockTranscriber = ActivationStoreMockTranscriber(result: .success(transcript))
+        let mockRewriter = MockLLMRewriter(result: .success("Should not be called"))
+        let mockClipboard = ActivationStoreMockClipboard()
+        let store = makeStore(
+            permissionsAuthorized: true,
+            transcriber: mockTranscriber,
+            llmRewriter: mockRewriter,
+            clipboard: mockClipboard,
+            preferences: preferences
+        )
+
+        store.arm()
+        store.finish()
+        try await Task.sleep(nanoseconds: 300_000_000)
+
+        XCTAssertEqual(store.state, .failure(reason: .wordLimitExceeded))
+        XCTAssertEqual(mockClipboard.lastWrittenText, transcript)
+        XCTAssertNil(mockRewriter.lastCalledOverload)
+    }
+
+    func test_finalize_validTrigger_builtInShortcut_llmFailure_silentlyFallsBackToRawClipboard() async throws {
+        let preferences = makePreferencesWithTriggerStore()
+        preferences.setTriggerPreset(.atlas)
+        try await Task.sleep(nanoseconds: 80_000_000)
+
+        let transcript = "atlas please send this update to the team convert to slack"
+        let mockTranscriber = ActivationStoreMockTranscriber(result: .success(transcript))
+        let mockRewriter = MockLLMRewriter(result: .failure(LLMRewriteError.generationFailed))
+        let mockClipboard = ActivationStoreMockClipboard()
+        let store = makeStore(
+            permissionsAuthorized: true,
+            transcriber: mockTranscriber,
+            llmRewriter: mockRewriter,
+            clipboard: mockClipboard,
+            preferences: preferences
+        )
+
+        store.arm()
+        store.finish()
+        try await Task.sleep(nanoseconds: 300_000_000)
+
+        XCTAssertEqual(mockRewriter.lastCalledOverload, MockLLMRewriter.CalledOverload.modeOverload)
+        XCTAssertEqual(mockClipboard.lastWrittenText, transcript)
+        if case .success(let text, _, let converted, _) = store.state {
+            XCTAssertEqual(text, transcript)
+            XCTAssertFalse(converted)
+        } else {
+            XCTFail("Expected .success state, got \(store.state)")
+        }
+    }
+
+    func test_finalize_validTrigger_customFallback_llmFailure_silentlyFallsBackToRawClipboard() async throws {
+        let preferences = makePreferencesWithTriggerStore()
+        preferences.setTriggerPreset(.atlas)
+        try await Task.sleep(nanoseconds: 80_000_000)
+
+        let transcript = "weekly update on launch metrics atlas make this casual and concise"
+        let mockTranscriber = ActivationStoreMockTranscriber(result: .success(transcript))
+        let mockRewriter = MockLLMRewriter(result: .failure(LLMRewriteError.generationFailed))
+        let mockClipboard = ActivationStoreMockClipboard()
+        let store = makeStore(
+            permissionsAuthorized: true,
+            transcriber: mockTranscriber,
+            llmRewriter: mockRewriter,
+            clipboard: mockClipboard,
+            preferences: preferences
+        )
+
+        store.arm()
+        store.finish()
+        try await Task.sleep(nanoseconds: 300_000_000)
+
+        XCTAssertEqual(mockRewriter.lastCalledOverload, MockLLMRewriter.CalledOverload.instructionsOverload)
+        XCTAssertEqual(mockRewriter.lastBody, "weekly update on launch metrics")
+        XCTAssertEqual(mockRewriter.lastInstructions, "make this casual and concise")
+        XCTAssertEqual(mockClipboard.lastWrittenText, transcript)
+        if case .success(let text, _, let converted, _) = store.state {
+            XCTAssertEqual(text, transcript)
+            XCTAssertFalse(converted)
+        } else {
+            XCTFail("Expected .success state, got \(store.state)")
+        }
     }
 
     // MARK: - Helpers

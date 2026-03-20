@@ -444,6 +444,8 @@ final class IntentDetectorTests: XCTestCase {
         )
 
         XCTAssertEqual(intent.mode, .passthrough)
+        XCTAssertEqual(intent.strippedBody, "convert to email send this update to the team")
+        XCTAssertTrue(intent.hadCandidates)
     }
 
     func testTriggerInstructionMixedIntentStyleDirectiveFallsBackToPassthrough() {
@@ -453,6 +455,8 @@ final class IntentDetectorTests: XCTestCase {
         )
 
         XCTAssertEqual(intent.mode, .passthrough)
+        XCTAssertEqual(intent.strippedBody, "make this an email but keep it casual and short")
+        XCTAssertTrue(intent.hadCandidates)
     }
 
     func testTriggerInstructionAmbiguousBuiltInTieFallsBackToPassthrough() {
@@ -462,6 +466,8 @@ final class IntentDetectorTests: XCTestCase {
         )
 
         XCTAssertEqual(intent.mode, .passthrough)
+        XCTAssertEqual(intent.strippedBody, "convert to email or convert to slack")
+        XCTAssertTrue(intent.hadCandidates)
     }
 
     func testTriggerInstructionClearTrailingShortcutResolvesToBuiltIn() {
