@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.2
 milestone_name: AI Trigger Name
 status: Ready
-stopped_at: Completed 15-02-PLAN.md (Phase 15 complete)
-last_updated: "2026-03-20T18:28:18.385Z"
+stopped_at: Completed 15-03-PLAN.md
+last_updated: "2026-03-20T18:49:43.996Z"
 last_activity: 2026-03-20 — completed 14-02 trigger instruction fallback routing plan
 progress:
   total_phases: 4
   completed_phases: 4
-  total_plans: 8
-  completed_plans: 8
+  total_plans: 9
+  completed_plans: 9
 ---
 
 # Project State
@@ -99,6 +99,8 @@ Recent decisions affecting current work:
 - [Phase 15]: -seed-trigger-preset and -seed-trigger-profile-calibrated launch args seed isolated trigger-profile state for UI tests without touching production storage
 - [Phase 15-settings-ux-for-ai-assistant-name]: UI tests use temporary /tmp/Speech2Text.UITests/ store (deleted on each launch) to isolate trigger-profile state from real Application Support store
 - [Phase 15-settings-ux-for-ai-assistant-name]: -seed-trigger-preset and -seed-trigger-profile-calibrated launch args seed isolated trigger-profile state for UI tests without touching production storage
+- [Phase 15-settings-ux-for-ai-assistant-name]: LiveCalibrationSampleCapturer uses @MainActor final class; captureSample returns nil on most errors, throws CalibrationCapturingDone.exhausted only on microphonePermissionDenied
+- [Phase 15-settings-ux-for-ai-assistant-name]: isCalibrationRequired consumed in AIAssistantSettingsView button label as (Recommended) hint to close dead-state anti-pattern
 
 ### Pending Todos
 
@@ -110,6 +112,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-20T18:28:18.383Z
-Stopped at: Completed 15-02-PLAN.md (Phase 15 complete)
+Last session: 2026-03-20T18:49:36.641Z
+Stopped at: Completed 15-03-PLAN.md
 Resume file: None
