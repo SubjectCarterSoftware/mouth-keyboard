@@ -85,6 +85,22 @@ final class TriggerProfileStoreTests: XCTestCase {
         XCTAssertEqual(reloaded.activeAliases, ["athena", "assistant athena"])
     }
 
+    func testReplaceAliasesForActiveProfileDoesNotMutateNonActiveProfiles() async throws {
+        let storeURL = makeStoreURL().appendingPathComponent("TriggerProfileStore.json")
+        let store = TriggerProfileStore(storeURL: storeURL)
+        let seed = TriggerProfile.defaultProfile
+            .updatingCustom(primary: "Helios", aliases: ["assistant helios"])
+            .settingActiveProfile(.atlas)
+        try await store.save(seed)
+
+        let replaced = try await store.replaceAliasesForActiveProfile(["captain atlas", "  ATLAS  "])
+        XCTAssertEqual(replaced.activeProfile, .atlas)
+        XCTAssertEqual(replaced.activeAliases, ["atlas", "captain atlas"])
+        XCTAssertEqual(replaced.aliases(for: .zeus), ["zeus"])
+        XCTAssertEqual(replaced.aliases(for: .gaia), ["gaia"])
+        XCTAssertEqual(replaced.aliases(for: .custom), ["helios", "assistant helios"])
+    }
+
     private func makeStoreURL() -> URL {
         let directory = FileManager.default.temporaryDirectory
             .appendingPathComponent("TriggerProfileStoreTests")

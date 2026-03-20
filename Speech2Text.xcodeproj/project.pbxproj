@@ -79,6 +79,8 @@
 		A00000010000000000000049 /* TriggerProfile.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000020000000000000049 /* TriggerProfile.swift */; };
 		A0000001000000000000004A /* TriggerProfileStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0000002000000000000004A /* TriggerProfileStore.swift */; };
 		A0000001000000000000004B /* TriggerProfileStoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0000002000000000000004B /* TriggerProfileStoreTests.swift */; };
+		A0000001000000000000004C /* TriggerAliasNormalizerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0000002000000000000004C /* TriggerAliasNormalizerTests.swift */; };
+		A0000001000000000000004D /* TriggerCalibrationSessionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0000002000000000000004D /* TriggerCalibrationSessionTests.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -171,6 +173,8 @@
 		A00000020000000000000049 /* TriggerProfile.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TriggerProfile.swift; sourceTree = "<group>"; };
 		A0000002000000000000004A /* TriggerProfileStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TriggerProfileStore.swift; sourceTree = "<group>"; };
 		A0000002000000000000004B /* TriggerProfileStoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TriggerProfileStoreTests.swift; sourceTree = "<group>"; };
+		A0000002000000000000004C /* TriggerAliasNormalizerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TriggerAliasNormalizerTests.swift; sourceTree = "<group>"; };
+		A0000002000000000000004D /* TriggerCalibrationSessionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TriggerCalibrationSessionTests.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -320,6 +324,8 @@
 				A00000020000000000000045 /* UserIntentStoreTests.swift */,
 				A00000020000000000000046 /* IntentCatalogDynamicTests.swift */,
 				A0000002000000000000004B /* TriggerProfileStoreTests.swift */,
+				A0000002000000000000004C /* TriggerAliasNormalizerTests.swift */,
+				A0000002000000000000004D /* TriggerCalibrationSessionTests.swift */,
 			);
 			path = Speech2TextTests;
 			sourceTree = "<group>";
@@ -605,6 +611,8 @@
 				A00000010000000000000025 /* WhisperServiceTests.swift in Sources */,
 				A00000010000000000000046 /* IntentCatalogDynamicTests.swift in Sources */,
 				A0000001000000000000004B /* TriggerProfileStoreTests.swift in Sources */,
+				A0000001000000000000004C /* TriggerAliasNormalizerTests.swift in Sources */,
+				A0000001000000000000004D /* TriggerCalibrationSessionTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
