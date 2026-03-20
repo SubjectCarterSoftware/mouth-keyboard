@@ -109,7 +109,7 @@ Plans:
 | 12. Trigger Identity and Persistence | 2/2 | Complete    | 2026-03-20 | - |
 | 13. Last-Name-Wins Parser Integration | 2/2 | Complete    | 2026-03-20 | - |
 | 14. Instruction Routing via Existing Intents | 2/2 | Complete    | 2026-03-20 | - |
-| 15. Settings UX for AI Assistant Name | 1/2 | In Progress|  | - |
+| 15. Settings UX for AI Assistant Name | 2/2 | Complete   | 2026-03-20 | - |
 
 ---
 *Last updated: 2026-03-20 after completing Phase 14 plan execution*

@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.2
 milestone_name: AI Trigger Name
 status: Ready
-stopped_at: Completed 15-01-PLAN.md
-last_updated: "2026-03-20T18:04:48.266Z"
+stopped_at: Paused at Task 3 checkpoint (human-verify) in 15-02-PLAN.md
+last_updated: "2026-03-20T18:21:25.262Z"
 last_activity: 2026-03-20 — completed 14-02 trigger instruction fallback routing plan
 progress:
   total_phases: 4
-  completed_phases: 3
+  completed_phases: 4
   total_plans: 8
-  completed_plans: 7
+  completed_plans: 8
 ---
 
 # Project State
@@ -63,6 +63,7 @@ Last activity: 2026-03-20 — completed 14-02 trigger instruction fallback routi
 | Phase 14 P01 | 8m | 2 tasks | 4 files |
 | Phase 14-instruction-routing-via-existing-intents P02 | 7 min | 2 tasks | 3 files |
 | Phase 15 P01 | 33m | 2 tasks | 6 files |
+| Phase 15 P02 | 12m | 2 tasks | 5 files |
 
 ## Accumulated Context
 
@@ -93,6 +94,8 @@ Recent decisions affecting current work:
 - [Phase 14-instruction-routing-via-existing-intents]: Preserved existing custom-intent definition routing when matched; unresolved valid-trigger cases use instruction-text fallback.
 - [Phase 15]: CalibrationCapturingDone error type used as exit sentinel so runSession() terminates cleanly when capturer exhausts samples
 - [Phase 15]: AIAssistantSettingsViewModel pendingSelection tracks sheet state separately from activeTriggerProfile; preset rows show selection without triggering store write
+- [Phase 15]: UI tests use temporary /tmp/Speech2Text.UITests/ store (deleted on each launch) to isolate trigger-profile state from real Application Support store
+- [Phase 15]: -seed-trigger-preset and -seed-trigger-profile-calibrated launch args seed isolated trigger-profile state for UI tests without touching production storage
 
 ### Pending Todos
 
@@ -104,6 +107,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-20T18:04:48.264Z
-Stopped at: Completed 15-01-PLAN.md
+Last session: 2026-03-20T18:21:25.259Z
+Stopped at: Paused at Task 3 checkpoint (human-verify) in 15-02-PLAN.md
 Resume file: None

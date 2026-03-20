@@ -69,9 +69,9 @@
 | ROUTE-02 | Phase 14 | Complete |
 | ROUTE-03 | Phase 14 | Complete |
 | ROUTE-04 | Phase 14 | Complete |
-| SETT-01 | Phase 15 | Planned |
-| SETT-02 | Phase 15 | Planned |
-| SETT-03 | Phase 15 | Planned |
+| SETT-01 | Phase 15 | Complete |
+| SETT-02 | Phase 15 | Complete |
+| SETT-03 | Phase 15 | Complete |
 
 **Coverage:**
 - v1.2 requirements: 19 total
