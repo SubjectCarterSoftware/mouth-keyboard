@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.2
 milestone_name: AI Trigger Name
 status: Ready
-stopped_at: Phase 15 context gathered
-last_updated: "2026-03-20T17:18:39.535Z"
+stopped_at: Completed 15-01-PLAN.md
+last_updated: "2026-03-20T18:04:48.266Z"
 last_activity: 2026-03-20 — completed 14-02 trigger instruction fallback routing plan
 progress:
   total_phases: 4
   completed_phases: 3
-  total_plans: 6
-  completed_plans: 6
+  total_plans: 8
+  completed_plans: 7
 ---
 
 # Project State
@@ -62,6 +62,7 @@ Last activity: 2026-03-20 — completed 14-02 trigger instruction fallback routi
 | Phase 13 P02 | 9 min | 2 tasks | 4 files |
 | Phase 14 P01 | 8m | 2 tasks | 4 files |
 | Phase 14-instruction-routing-via-existing-intents P02 | 7 min | 2 tasks | 3 files |
+| Phase 15 P01 | 33m | 2 tasks | 6 files |
 
 ## Accumulated Context
 
@@ -90,6 +91,8 @@ Recent decisions affecting current work:
 - [Phase 14]: Preserve custom-intent detection as fallback when no predefined built-in shortcut is selected.
 - [Phase 14-instruction-routing-via-existing-intents]: Used ConvertIntent.effectiveSystemPrompt to carry post-trigger instruction text into rewrite(body:instructions:) fallback.
 - [Phase 14-instruction-routing-via-existing-intents]: Preserved existing custom-intent definition routing when matched; unresolved valid-trigger cases use instruction-text fallback.
+- [Phase 15]: CalibrationCapturingDone error type used as exit sentinel so runSession() terminates cleanly when capturer exhausts samples
+- [Phase 15]: AIAssistantSettingsViewModel pendingSelection tracks sheet state separately from activeTriggerProfile; preset rows show selection without triggering store write
 
 ### Pending Todos
 
@@ -101,6 +104,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-20T17:18:39.533Z
-Stopped at: Phase 15 context gathered
-Resume file: .planning/phases/15-settings-ux-for-ai-assistant-name/15-CONTEXT.md
+Last session: 2026-03-20T18:04:48.264Z
+Stopped at: Completed 15-01-PLAN.md
+Resume file: None

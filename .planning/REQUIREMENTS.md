@@ -36,9 +36,9 @@
 
 ### Settings UX
 
-- [ ] **SETT-01**: Settings shows an AI Assistant tile indicating current active assistant name
-- [ ] **SETT-02**: User can open an assistant configuration flow from settings and change predefined or custom name
-- [ ] **SETT-03**: Calibration entry point is available from the same assistant configuration flow
+- [x] **SETT-01**: Settings shows an AI Assistant tile indicating current active assistant name
+- [x] **SETT-02**: User can open an assistant configuration flow from settings and change predefined or custom name
+- [x] **SETT-03**: Calibration entry point is available from the same assistant configuration flow
 
 ## Out of Scope (v1.2)
 
