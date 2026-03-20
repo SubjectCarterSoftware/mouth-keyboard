@@ -73,8 +73,8 @@ Plans:
 **Plans**: 2 plans
 
 Plans:
-- [ ] 14-01-PLAN.md — Wire split instruction into intent shortcut resolver with deterministic tests
-- [ ] 14-02-PLAN.md — Add custom instruction fallback path and regression tests for guards
+- [x] 14-01-PLAN.md — Wire split instruction into intent shortcut resolver with deterministic tests
+- [x] 14-02-PLAN.md — Add custom instruction fallback path and regression tests for guards
 
 ### Phase 15: Settings UX for AI Assistant Name
 **Goal**: Ship settings tile + change flow for assistant name selection and calibration entry point, with end-to-end verification.
@@ -108,8 +108,8 @@ Plans:
 | 11. Intent Configuration UI | v1.1 | 5/5 | Complete | 2026-03-20 |
 | 12. Trigger Identity and Persistence | 2/2 | Complete    | 2026-03-20 | - |
 | 13. Last-Name-Wins Parser Integration | 2/2 | Complete    | 2026-03-20 | - |
-| 14. Instruction Routing via Existing Intents | 1/2 | In Progress|  | - |
+| 14. Instruction Routing via Existing Intents | 2/2 | Complete   | 2026-03-20 | - |
 | 15. Settings UX for AI Assistant Name | v1.2 | 0/2 | Planned | - |
 
 ---
-*Last updated: 2026-03-20 after v1.2 requirements and roadmap draft*
+*Last updated: 2026-03-20 after completing Phase 14 plan execution*

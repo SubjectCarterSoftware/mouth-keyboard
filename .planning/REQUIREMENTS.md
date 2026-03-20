@@ -65,10 +65,10 @@
 | PARSE-03 | Phase 13 | Complete |
 | PARSE-04 | Phase 13 | Complete |
 | PARSE-05 | Phase 13 | Complete |
-| ROUTE-01 | Phase 14 | Planned |
-| ROUTE-02 | Phase 14 | Planned |
-| ROUTE-03 | Phase 14 | Planned |
-| ROUTE-04 | Phase 14 | Planned |
+| ROUTE-01 | Phase 14 | Complete |
+| ROUTE-02 | Phase 14 | Complete |
+| ROUTE-03 | Phase 14 | Complete |
+| ROUTE-04 | Phase 14 | Complete |
 | SETT-01 | Phase 15 | Planned |
 | SETT-02 | Phase 15 | Planned |
 | SETT-03 | Phase 15 | Planned |
@@ -80,4 +80,4 @@
 
 ---
 *Requirements defined: 2026-03-20*
-*Last updated: 2026-03-20 — v1.2 AI Trigger Name scope established*
+*Last updated: 2026-03-20 — Phase 14 routing requirements completed*

@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.2
 milestone_name: AI Trigger Name
 status: Ready
-stopped_at: Completed 14-01-PLAN.md
-last_updated: "2026-03-20T16:51:50.142Z"
-last_activity: 2026-03-20 — completed 14-01 conservative predefined shortcut routing plan
+stopped_at: Completed 14-02-PLAN.md
+last_updated: "2026-03-20T17:00:08.521Z"
+last_activity: 2026-03-20 — completed 14-02 trigger instruction fallback routing plan
 progress:
   total_phases: 4
-  completed_phases: 2
+  completed_phases: 3
   total_plans: 6
-  completed_plans: 5
+  completed_plans: 6
 ---
 
 # Project State
@@ -20,14 +20,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-20)
 
 **Core value:** From a single hotkey, the user can dictate and get reliable text into the clipboard fast enough that it feels close to typing speed.
-**Current focus:** Continue v1.2 Phase 14 instruction routing work (14-02 next).
+**Current focus:** Begin v1.2 Phase 15 settings UX work (15-01 next).
 
 ## Current Position
 
-Phase: 14 of 15 (Instruction Routing via Existing Intents)
-Plan: 02 of 02 (14-02-PLAN.md next)
+Phase: 15 of 15 (Settings UX for AI Assistant Name)
+Plan: 01 of 02 (15-01-PLAN.md next)
 Status: Ready
-Last activity: 2026-03-20 — completed 14-01 conservative predefined shortcut routing plan
+Last activity: 2026-03-20 — completed 14-02 trigger instruction fallback routing plan
 
 ## Performance Metrics
 
@@ -61,6 +61,7 @@ Last activity: 2026-03-20 — completed 14-01 conservative predefined shortcut r
 | Phase 13 P01 | 6 min | 2 tasks | 4 files |
 | Phase 13 P02 | 9 min | 2 tasks | 4 files |
 | Phase 14 P01 | 8m | 2 tasks | 4 files |
+| Phase 14-instruction-routing-via-existing-intents P02 | 7 min | 2 tasks | 3 files |
 
 ## Accumulated Context
 
@@ -87,6 +88,8 @@ Recent decisions affecting current work:
 - [Phase 14]: Use a dedicated detectPredefinedShortcut path for valid-trigger built-ins instead of changing general detector semantics.
 - [Phase 14]: Reject ambiguous built-in routing when multiple exact built-in commands are present in the post-trigger instruction.
 - [Phase 14]: Preserve custom-intent detection as fallback when no predefined built-in shortcut is selected.
+- [Phase 14-instruction-routing-via-existing-intents]: Used ConvertIntent.effectiveSystemPrompt to carry post-trigger instruction text into rewrite(body:instructions:) fallback.
+- [Phase 14-instruction-routing-via-existing-intents]: Preserved existing custom-intent definition routing when matched; unresolved valid-trigger cases use instruction-text fallback.
 
 ### Pending Todos
 
@@ -98,6 +101,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-20T16:51:50.140Z
-Stopped at: Completed 14-01-PLAN.md
+Last session: 2026-03-20T17:00:08.519Z
+Stopped at: Completed 14-02-PLAN.md
 Resume file: None
