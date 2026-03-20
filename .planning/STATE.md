@@ -4,14 +4,14 @@ milestone: v1.1
 milestone_name: Convert Modes
 current_plan: 2
 status: planning
-stopped_at: Completed 11-04-PLAN.md
-last_updated: "2026-03-20T11:21:49.671Z"
+stopped_at: Completed 11-05-PLAN.md
+last_updated: "2026-03-20T11:45:05.116Z"
 last_activity: 2026-03-20
 progress:
   total_phases: 11
-  completed_phases: 10
+  completed_phases: 11
   total_plans: 28
-  completed_plans: 27
+  completed_plans: 28
   percent: 100
 ---
 
@@ -63,6 +63,7 @@ Progress: [██████████] 100%
 | Phase 11-intent-configuration-ui P02 | 11 | 2 tasks | 7 files |
 | Phase 11-intent-configuration-ui P03 | 12 | 2 tasks | 3 files |
 | Phase 11-intent-configuration-ui P04 | 5 | 2 tasks | 4 files |
+| Phase 11-intent-configuration-ui P05 | 20 | 2 tasks | 2 files |
 
 ## Accumulated Context
 
@@ -112,6 +113,9 @@ Recent decisions affecting current work:
 - [Phase Phase 11-03]: UserIntentStore.shared singleton added alongside existing init(storeURL:) injection pattern for tests
 - [Phase 11-04]: SetupWindowView uses sheet (not TabView) for Modes — existing view is a ScrollView form; sheet is consistent and minimal
 - [Phase 11-04]: Phrase pattern generation updates store entry only if it already exists — avoids orphan entries before user saves a new custom mode
+- [Phase 11-05]: NavigationSplitView on macOS requires List(selection:) binding to drive detail column — NavigationLink inside sidebar is a no-op
+- [Phase 11-05]: Use .id(row.id) on detail IntentEditView to force StateObject recreation when sidebar selection changes
+- [Phase 11-05]: Manage Modes sheet minWidth set to 920 to fit sidebar + HSplitView left+right panes without clipping
 
 ### Pending Todos
 
@@ -125,6 +129,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-20T11:21:49.668Z
-Stopped at: Completed 11-04-PLAN.md
+Last session: 2026-03-20T11:45:05.114Z
+Stopped at: Completed 11-05-PLAN.md
 Resume file: None

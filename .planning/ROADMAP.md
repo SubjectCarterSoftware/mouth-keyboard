@@ -130,7 +130,7 @@ Plans:
 | 8. LLM Rewrite Service | v1.1 | 0/2 | Planned | - |
 | 9. ActivationStore Integration and Guards | 3/3 | Complete    | 2026-03-19 | - |
 | 10. Fuzzy Intent Detection | 2/2 | Complete    | 2026-03-20 | - |
-| 11. Intent Configuration UI | 4/5 | In Progress|  | - |
+| 11. Intent Configuration UI | 5/5 | Complete   | 2026-03-20 | - |
 
 ### Phase 11: Intent Configuration UI
 **Goal**: Settings panel for managing conversion modes — users define intent by writing a system prompt; phrase patterns are generated automatically by the local LLM and stored invisibly. Built-in modes are editable with reset. Custom modes are fully user-created.
