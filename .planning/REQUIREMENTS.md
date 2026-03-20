@@ -8,15 +8,15 @@
 
 ### Trigger Identity
 
-- [ ] **TRIG-01**: AI mode works out of the box with default assistant name `Zeus` (no setup required)
-- [ ] **TRIG-02**: User can switch assistant name to one of 3 predefined choices: `Zeus`, `Atlas`, `Gaia`
-- [ ] **TRIG-03**: User can configure a custom assistant name and save it as the active trigger
-- [ ] **TRIG-04**: Trigger configuration persists across app relaunches and is available at session finalize time
+- [x] **TRIG-01**: AI mode works out of the box with default assistant name `Zeus` (no setup required)
+- [x] **TRIG-02**: User can switch assistant name to one of 3 predefined choices: `Zeus`, `Atlas`, `Gaia`
+- [x] **TRIG-03**: User can configure a custom assistant name and save it as the active trigger
+- [x] **TRIG-04**: Trigger configuration persists across app relaunches and is available at session finalize time
 
 ### Voice Calibration
 
 - [ ] **CAL-01**: User can run a calibration flow that captures multiple spoken samples for the active trigger name
-- [ ] **CAL-02**: System stores a normalized primary trigger plus accepted alias transcriptions from calibration
+- [x] **CAL-02**: System stores a normalized primary trigger plus accepted alias transcriptions from calibration
 - [ ] **CAL-03**: Detection uses both primary trigger and aliases (case-insensitive)
 
 ### Transcript Split and Parsing

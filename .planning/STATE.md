@@ -2,15 +2,15 @@
 gsd_state_version: 1.0
 milestone: v1.2
 milestone_name: AI Trigger Name
-status: planning
-stopped_at: Phase 12 context gathered
-last_updated: "2026-03-20T14:52:51.880Z"
+status: executing
+stopped_at: Completed 12-01-PLAN.md
+last_updated: "2026-03-20T15:18:15.443Z"
 last_activity: 2026-03-20 — v1.2 requirements + roadmap drafted
 progress:
   total_phases: 4
   completed_phases: 0
-  total_plans: 0
-  completed_plans: 0
+  total_plans: 2
+  completed_plans: 1
 ---
 
 # Project State
@@ -20,14 +20,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-20)
 
 **Core value:** From a single hotkey, the user can dictate and get reliable text into the clipboard fast enough that it feels close to typing speed.
-**Current focus:** Milestone v1.2 planning complete; begin Phase 12 execution planning.
+**Current focus:** Execute remaining v1.2 Phase 12 plans.
 
 ## Current Position
 
 Phase: 12 of 15 (Trigger Identity and Persistence)
-Plan: Not started
-Status: Ready for phase planning
-Last activity: 2026-03-20 — v1.2 requirements + roadmap drafted
+Plan: 02 of 02 (12-02-PLAN.md next)
+Status: In progress
+Last activity: 2026-03-20 — completed 12-01 trigger profile persistence plan
 
 ## Performance Metrics
 
@@ -56,6 +56,7 @@ Last activity: 2026-03-20 — v1.2 requirements + roadmap drafted
 | 09-activationstore-integration-and-guards | 3 | 43m | 8 | 12 |
 | 10-fuzzy-intent-detection | 2 | ~16m | 4 | 11 |
 | 11-intent-configuration-ui | 5 | ~63m | 10 | 21 |
+| Phase 12 P01 | 9 min | 2 tasks | 7 files |
 
 ## Accumulated Context
 
@@ -71,6 +72,8 @@ Recent decisions affecting current work:
 - [Phase 11-01]: UserIntentStore uses actor isolation; all mutation serialized via Swift concurrency.
 - [Phase 11-03]: allEntries() snapshot taken once at session-start; passthrough check updated for custom intents.
 - [Phase 11-03]: Dual-path LLM routing: instructions overload for user-configured intents, mode overload for defaults.
+- [Phase 12]: Trigger identity persistence is isolated in a dedicated file-backed store separate from convert-mode UserDefaults keys.
+- [Phase 12]: ShellPreferences applies trigger profile mutations only after store writes succeed to prevent half-applied runtime state.
 
 ### Pending Todos
 
@@ -82,6 +85,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-20T14:52:51.878Z
-Stopped at: Phase 12 context gathered
-Resume file: .planning/phases/12-trigger-identity-and-persistence/12-CONTEXT.md
+Last session: 2026-03-20T15:18:15.441Z
+Stopped at: Completed 12-01-PLAN.md
+Resume file: None
