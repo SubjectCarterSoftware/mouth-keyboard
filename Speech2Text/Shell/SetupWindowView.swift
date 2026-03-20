@@ -92,9 +92,15 @@ struct SetupWindowView: View {
                 Divider()
 
                 HStack {
-                    Text("Conversion Modes")
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Assistant Shortcuts")
+                            .font(.body)
+                        Text("Store a set of instructions invoked by a single name")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
                     Spacer()
-                    Button("Manage Modes") {
+                    Button("Manage Shortcuts") {
                         showingModesSheet = true
                     }
                 }

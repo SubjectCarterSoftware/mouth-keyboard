@@ -97,7 +97,7 @@ struct IntentListView: View {
                 }
                 .tag(row.id)
             }
-            .navigationTitle("Conversion Modes")
+            .navigationTitle("Assistant Shortcuts")
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Done") { dismiss() }
