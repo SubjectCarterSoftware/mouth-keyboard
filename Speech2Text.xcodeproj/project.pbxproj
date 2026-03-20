@@ -27,6 +27,7 @@
 		A0000001000000000000000E /* ReadinessStateTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000020000000000000010 /* ReadinessStateTests.swift */; };
 		A0000001000000000000000F /* MenuBarShellSmokeTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000020000000000000011 /* MenuBarShellSmokeTests.swift */; };
 		A00000010000000000000010 /* PermissionRecoveryFlowTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000020000000000000012 /* PermissionRecoveryFlowTests.swift */; };
+		A00000010000000000000057 /* AIAssistantSettingsFlowTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000020000000000000057 /* AIAssistantSettingsFlowTests.swift */; };
 		A00000010000000000000011 /* ActivationStoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000020000000000000015 /* ActivationStoreTests.swift */; };
 		A00000010000000000000012 /* ShellPreferencesPhase2Tests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000020000000000000016 /* ShellPreferencesPhase2Tests.swift */; };
 		A00000010000000000000013 /* ActivationStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000020000000000000017 /* ActivationStore.swift */; };
@@ -128,6 +129,7 @@
 		A00000020000000000000010 /* ReadinessStateTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReadinessStateTests.swift; sourceTree = "<group>"; };
 		A00000020000000000000011 /* MenuBarShellSmokeTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MenuBarShellSmokeTests.swift; sourceTree = "<group>"; };
 		A00000020000000000000012 /* PermissionRecoveryFlowTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PermissionRecoveryFlowTests.swift; sourceTree = "<group>"; };
+		A00000020000000000000057 /* AIAssistantSettingsFlowTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AIAssistantSettingsFlowTests.swift; sourceTree = "<group>"; };
 		A00000020000000000000013 /* Speech2TextTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = Speech2TextTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		A00000020000000000000014 /* Speech2TextUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = Speech2TextUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		A00000020000000000000015 /* ActivationStoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ActivationStoreTests.swift; sourceTree = "<group>"; };
@@ -358,6 +360,7 @@
 			children = (
 				A00000020000000000000011 /* MenuBarShellSmokeTests.swift */,
 				A00000020000000000000012 /* PermissionRecoveryFlowTests.swift */,
+				A00000020000000000000057 /* AIAssistantSettingsFlowTests.swift */,
 			);
 			path = Speech2TextUITests;
 			sourceTree = "<group>";
@@ -658,6 +661,7 @@
 			files = (
 				A0000001000000000000000F /* MenuBarShellSmokeTests.swift in Sources */,
 				A00000010000000000000010 /* PermissionRecoveryFlowTests.swift in Sources */,
+				A00000010000000000000057 /* AIAssistantSettingsFlowTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

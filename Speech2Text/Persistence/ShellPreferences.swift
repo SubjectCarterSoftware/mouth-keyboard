@@ -268,8 +268,44 @@ final class ShellPreferences: ObservableObject {
             userDefaults.set(true, forKey: Keys.hasRequestedKeyboardPermission)
         }
 
-        let triggerStore = TriggerProfileStore.shared
-        let initialTriggerProfile = TriggerProfileStore.loadSynchronously()
+        let triggerStore: TriggerProfileStore
+        let initialTriggerProfile: TriggerProfile
+
+        if arguments.contains("-ui-testing") {
+            // Use an isolated, temporary trigger-profile store for UI tests so
+            // they never read or mutate the developer's real Application Support store.
+            let tempDir = FileManager.default.temporaryDirectory
+                .appendingPathComponent("Speech2Text.UITests", isDirectory: true)
+            try? FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
+            let testStoreURL = tempDir.appendingPathComponent("TriggerProfileStore.json")
+            // Remove leftover file from a previous test run so each launch is clean.
+            try? FileManager.default.removeItem(at: testStoreURL)
+            triggerStore = TriggerProfileStore(storeURL: testStoreURL)
+
+            // Optionally seed a specific preset via '-seed-trigger-preset <preset>'
+            var seedProfile = TriggerProfile.defaultProfile
+            if let presetIndex = arguments.firstIndex(of: "-seed-trigger-preset"),
+               arguments.indices.contains(arguments.index(after: presetIndex)),
+               let preset = TriggerNamePreset(rawValue: arguments[arguments.index(after: presetIndex)]) {
+                seedProfile = seedProfile.settingActiveProfile(preset)
+            }
+
+            // Optionally seed calibrated aliases via '-seed-trigger-profile-calibrated'
+            if arguments.contains("-seed-trigger-profile-calibrated") {
+                let activePreset = seedProfile.activeProfile
+                let canonicalName = activePreset == .custom
+                    ? seedProfile.customPrimary.lowercased()
+                    : activePreset.canonicalAlias
+                let calibratedAliases = [canonicalName, "hey \(canonicalName)", "assistant \(canonicalName)"]
+                seedProfile = seedProfile.replacingAliasesForActiveProfile(calibratedAliases)
+            }
+
+            initialTriggerProfile = seedProfile
+        } else {
+            triggerStore = TriggerProfileStore.shared
+            initialTriggerProfile = TriggerProfileStore.loadSynchronously()
+        }
+
         return ShellPreferences(
             userDefaults: userDefaults,
             triggerProfileStore: triggerStore,

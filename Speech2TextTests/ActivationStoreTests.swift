@@ -912,6 +912,148 @@ final class ActivationStoreTests: XCTestCase {
         }
     }
 
+    // MARK: - Phase 15 — no-restart trigger alias update regressions
+
+    /// After applyCalibrationAliases adds a new alias variant, the very next
+    /// finalize session must recognize that variant as a valid trigger WITHOUT
+    /// restarting the app.
+    func test_finalize_applyCalibrationAliases_newAliasActivatesNextSession() async throws {
+        let preferences = makePreferencesWithTriggerStore()
+        preferences.setTriggerPreset(.zeus)
+        try await Task.sleep(nanoseconds: 80_000_000)
+
+        // Calibrate a new alias variant for zeus
+        preferences.applyCalibrationAliases(["zeus", "hey zeus"])
+        try await Task.sleep(nanoseconds: 80_000_000)
+
+        // Use the newly calibrated alias with a clean trailing shortcut so the
+        // built-in mode overload path is selected (no ambiguous leading command).
+        let transcript = "please draft a quick update hey zeus convert to slack"
+        let mockTranscriber = ActivationStoreMockTranscriber(result: .success(transcript))
+        let mockRewriter = MockLLMRewriter(result: .success("Slack output"))
+        let mockClipboard = ActivationStoreMockClipboard()
+        let store = makeStore(
+            permissionsAuthorized: true,
+            transcriber: mockTranscriber,
+            llmRewriter: mockRewriter,
+            clipboard: mockClipboard,
+            preferences: preferences
+        )
+
+        store.arm()
+        store.finish()
+        try await Task.sleep(nanoseconds: 300_000_000)
+
+        XCTAssertEqual(mockRewriter.lastCalledOverload, .modeOverload,
+                       "Calibrated alias 'hey zeus' must activate trigger parsing in the next session")
+        XCTAssertEqual(mockRewriter.lastMode, .slack)
+    }
+
+    /// After applyCalibrationAliases replaces aliases, the old aliases that are
+    /// no longer active should not activate conversion routing on the next session.
+    func test_finalize_applyCalibrationAliases_replacementOverridesPriorAliases() async throws {
+        let preferences = makePreferencesWithTriggerStore()
+        preferences.setTriggerPreset(.zeus)
+        try await Task.sleep(nanoseconds: 80_000_000)
+
+        // First calibration: adds "assistant zeus"
+        preferences.applyCalibrationAliases(["zeus", "assistant zeus"])
+        try await Task.sleep(nanoseconds: 80_000_000)
+
+        // Second calibration with a different variant — replaces, not merges
+        preferences.applyCalibrationAliases(["zeus", "hey zeus"])
+        try await Task.sleep(nanoseconds: 80_000_000)
+
+        // "assistant zeus" is no longer an alias — transcript without canonical should passthrough
+        let transcript = "convert to email hello world zeus hey zeus rewrite this"
+        let mockTranscriber = ActivationStoreMockTranscriber(result: .success(transcript))
+        let mockRewriter = MockLLMRewriter(result: .success("Rewrite output"))
+        let mockClipboard = ActivationStoreMockClipboard()
+        let store = makeStore(
+            permissionsAuthorized: true,
+            transcriber: mockTranscriber,
+            llmRewriter: mockRewriter,
+            clipboard: mockClipboard,
+            preferences: preferences
+        )
+
+        store.arm()
+        store.finish()
+        try await Task.sleep(nanoseconds: 300_000_000)
+
+        // "hey zeus" is the last occurrence; it should trigger parsing
+        XCTAssertNotNil(mockRewriter.lastCalledOverload,
+                        "Last-occurrence trigger 'hey zeus' must route to conversion")
+    }
+
+    /// After setTriggerPreset changes to atlas, the new preset alias activates
+    /// trigger parsing in the very next session without restarting the app.
+    func test_finalize_setTriggerPreset_updatesAliasesUsedInNextSession() async throws {
+        let preferences = makePreferencesWithTriggerStore()
+        // Start on zeus
+        preferences.setTriggerPreset(.zeus)
+        try await Task.sleep(nanoseconds: 80_000_000)
+
+        // Switch to atlas — no restart
+        preferences.setTriggerPreset(.atlas)
+        try await Task.sleep(nanoseconds: 80_000_000)
+
+        // "atlas" must now be the active trigger
+        let transcript = "please draft a message atlas convert to slack"
+        let mockTranscriber = ActivationStoreMockTranscriber(result: .success(transcript))
+        let mockRewriter = MockLLMRewriter(result: .success("Slack output"))
+        let mockClipboard = ActivationStoreMockClipboard()
+        let store = makeStore(
+            permissionsAuthorized: true,
+            transcriber: mockTranscriber,
+            llmRewriter: mockRewriter,
+            clipboard: mockClipboard,
+            preferences: preferences
+        )
+
+        store.arm()
+        store.finish()
+        try await Task.sleep(nanoseconds: 300_000_000)
+
+        XCTAssertEqual(mockRewriter.lastCalledOverload, .modeOverload,
+                       "'atlas' must activate trigger parsing after setTriggerPreset without restart")
+        XCTAssertEqual(mockRewriter.lastMode, .slack)
+    }
+
+    /// After setCustomTrigger, the new custom primary activates trigger parsing
+    /// in the next session without restarting the app.
+    func test_finalize_setCustomTrigger_updatesAliasesUsedInNextSession() async throws {
+        let preferences = makePreferencesWithTriggerStore()
+        preferences.setTriggerPreset(.zeus)
+        try await Task.sleep(nanoseconds: 80_000_000)
+
+        // Switch to custom name "Helios"
+        preferences.setCustomTrigger(primary: "Helios", aliases: [])
+        try await Task.sleep(nanoseconds: 80_000_000)
+
+        // "helios" must now be the active trigger — use a clean trailing shortcut
+        // so the built-in mode overload path is selected unambiguously.
+        let transcript = "project update helios convert to slack"
+        let mockTranscriber = ActivationStoreMockTranscriber(result: .success(transcript))
+        let mockRewriter = MockLLMRewriter(result: .success("Slack output"))
+        let mockClipboard = ActivationStoreMockClipboard()
+        let store = makeStore(
+            permissionsAuthorized: true,
+            transcriber: mockTranscriber,
+            llmRewriter: mockRewriter,
+            clipboard: mockClipboard,
+            preferences: preferences
+        )
+
+        store.arm()
+        store.finish()
+        try await Task.sleep(nanoseconds: 300_000_000)
+
+        XCTAssertEqual(mockRewriter.lastCalledOverload, .modeOverload,
+                       "Custom trigger 'helios' must activate parsing after setCustomTrigger without restart")
+        XCTAssertEqual(mockRewriter.lastMode, .slack)
+    }
+
     // MARK: - Helpers
 
     private func makeStore(
