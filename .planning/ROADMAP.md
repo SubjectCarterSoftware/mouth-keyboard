@@ -108,7 +108,7 @@ Plans:
 | 11. Intent Configuration UI | v1.1 | 5/5 | Complete | 2026-03-20 |
 | 12. Trigger Identity and Persistence | 2/2 | Complete    | 2026-03-20 | - |
 | 13. Last-Name-Wins Parser Integration | 2/2 | Complete    | 2026-03-20 | - |
-| 14. Instruction Routing via Existing Intents | 2/2 | Complete   | 2026-03-20 | - |
+| 14. Instruction Routing via Existing Intents | 2/2 | Complete    | 2026-03-20 | - |
 | 15. Settings UX for AI Assistant Name | v1.2 | 0/2 | Planned | - |
 
 ---
