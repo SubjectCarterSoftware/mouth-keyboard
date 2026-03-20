@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.2
 milestone_name: AI Trigger Name
 status: Ready
-stopped_at: Completed 13-01-PLAN.md
-last_updated: "2026-03-20T15:54:46.935Z"
-last_activity: 2026-03-20 — completed 13-01 trigger transcript parser contract plan
+stopped_at: Completed 13-02-PLAN.md
+last_updated: "2026-03-20T16:07:33.621Z"
+last_activity: 2026-03-20 — completed 13-02 parser-gated ActivationStore integration plan
 progress:
   total_phases: 4
-  completed_phases: 1
+  completed_phases: 2
   total_plans: 4
-  completed_plans: 3
+  completed_plans: 4
 ---
 
 # Project State
@@ -20,14 +20,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-20)
 
 **Core value:** From a single hotkey, the user can dictate and get reliable text into the clipboard fast enough that it feels close to typing speed.
-**Current focus:** Continue v1.2 Phase 13 integration (13-02 next).
+**Current focus:** Begin v1.2 Phase 14 instruction routing work (14-01 next).
 
 ## Current Position
 
-Phase: 13 of 15 (Last-Name-Wins Parser Integration)
-Plan: 02 of 02 (13-02-PLAN.md next)
+Phase: 14 of 15 (Instruction Routing via Existing Intents)
+Plan: 01 of 02 (14-01-PLAN.md next)
 Status: Ready
-Last activity: 2026-03-20 — completed 13-01 trigger transcript parser contract plan
+Last activity: 2026-03-20 — completed 13-02 parser-gated ActivationStore integration plan
 
 ## Performance Metrics
 
@@ -59,6 +59,7 @@ Last activity: 2026-03-20 — completed 13-01 trigger transcript parser contract
 | Phase 12 P01 | 9 min | 2 tasks | 7 files |
 | Phase 12 P02 | 5 min | 2 tasks | 10 files |
 | Phase 13 P01 | 6 min | 2 tasks | 4 files |
+| Phase 13 P02 | 9 min | 2 tasks | 4 files |
 
 ## Accumulated Context
 
@@ -80,6 +81,8 @@ Recent decisions affecting current work:
 - [Phase 12]: Calibration aliases apply in ShellPreferences only after TriggerProfileStore write succeeds to avoid half-applied runtime state.
 - [Phase 13]: Parser normalizes active aliases and uses case-insensitive matching before boundary selection.
 - [Phase 13]: Trigger boundaries use whole-word matching so alias substrings do not activate parsing.
+- [Phase 13]: ActivationStore now routes intent detection only from TriggerTranscriptParser validTrigger instruction segments.
+- [Phase 13]: IntentDetector trailing-position heuristics now use matched range lower bounds to avoid false trailing classification.
 
 ### Pending Todos
 
@@ -91,6 +94,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-20T15:54:46.934Z
-Stopped at: Completed 13-01-PLAN.md
+Last session: 2026-03-20T16:07:33.619Z
+Stopped at: Completed 13-02-PLAN.md
 Resume file: None
