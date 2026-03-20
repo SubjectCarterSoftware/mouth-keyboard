@@ -2,18 +2,31 @@
 
 ## What This Is
 
-Speech2Test is a lightweight macOS background dictation utility that runs from the menu bar, starts from a global hotkey, records immediately, transcribes locally, and copies the result to the clipboard. The shipped v1.0 release supports cancel/restart recovery, microphone failure handling, indicator visibility control, and long-dictation segmentation with best-effort final assembly.
+Speech2Test is a lightweight macOS background dictation utility that runs from the menu bar, starts from a global hotkey, records immediately, transcribes locally, and copies the result to the clipboard. It supports cancel/restart recovery, long-dictation segmentation, and a local-LLM rewriting pipeline that converts dictated text to formatted output (Email, Slack, Teams, Clean English) when triggered by natural language at the start or end of dictation. Built-in modes are editable; custom modes can be created by writing a system prompt.
 
 ## Core Value
 
 From a single hotkey, the user can dictate and get reliable text into the clipboard fast enough that it feels close to typing speed.
 
+## Current Milestone: v1.2 AI Trigger Name
+
+**Goal:** Replace fuzzy transcript scanning with a named AI trigger system where the user says a trigger name (e.g. "Zeus") to separate dictated content from AI instructions.
+
+**Target features:**
+- Named AI trigger detection (Zeus/Atlas/Gaia or custom)
+- Trigger-based content/instruction splitting
+- Instruction interpretation: predefined mode shortcuts + custom LLM passthrough
+- Voice calibration for custom trigger names
+- Settings UI for AI assistant name configuration
+- Safety rules (last-name-wins, minimum instruction length)
+
 ## Current State
 
-- v1.0 shipped on 2026-03-08.
-- Current shipped interaction: single-tap global hotkey start/finish, clipboard-only output, menu-bar-first shell, local transcription, and long-dictation reliability support.
-- Current local model setting: `ggml-tiny.en.bin` for improved latency on the target machine.
-- Milestone audit debt accepted at closeout: missing Phase 2 and Phase 5 verification reports, stale traceability around some v1 requirements, and planning docs that still mention removed activation behavior.
+- v1.1 shipped on 2026-03-20.
+- Current shipped interaction: single-tap global hotkey start/finish, clipboard-only output with optional LLM rewriting, menu-bar-first shell, local transcription, long-dictation reliability, and a settings UI for managing conversion modes.
+- Local models: `ggml-tiny.en.bin` for transcription; `Qwen2.5-1.5B-Instruct-4bit` (MLX) for rewriting.
+- 4 built-in modes: Clean English, Email, Slack, Teams. Custom modes are user-created via the settings UI.
+- Orange "No match · Copied/Pasted" pill shown when fuzzy intent detection fires but no mode matches.
 
 ## Requirements
 
@@ -24,13 +37,23 @@ From a single hotkey, the user can dictate and get reliable text into the clipbo
 - ✓ User can cancel or restart an in-progress recording session without quitting or reconfiguring the app — v1.0
 - ✓ User receives visible state feedback and recovery feedback while the app remains lightweight in the background — v1.0
 - ✓ User can complete short and long dictation sessions with local-first transcription and ordered best-effort output — v1.0
+- ✓ User can trigger a rewriting mode by natural language at the start or end of dictation (fuzzy-matched) — v1.1
+- ✓ User can rewrite a transcript as Clean English, Email, Slack, or Teams message via local LLM — v1.1
+- ✓ User sees an orange "Input exceeds AI limit" alert when recording exceeds the 350-word conversion limit — v1.1
+- ✓ User receives rewritten output in the clipboard, replacing the raw transcript — v1.1
+- ✓ User can view, edit, and reset built-in modes; create and delete custom modes via the settings UI — v1.1
 
 ### Active
 
-- [ ] User can trigger a rewriting mode by starting or ending their dictation with "convert to [mode name]"
-- [ ] User can rewrite a transcript as Clean English, Email, Slack / Teams message, Action Items list, or AI Prompt
-- [ ] User sees an alert when their recording exceeds the 350-word limit for conversion
-- [ ] User receives the rewritten output in the clipboard, replacing the raw transcript
+<!-- v1.2 AI Trigger Name — requirements defined in REQUIREMENTS.md -->
+
+- [ ] Named AI trigger system replaces fuzzy transcript scanning
+- [ ] Predefined trigger names (Zeus default, Atlas, Gaia) selectable in settings
+- [ ] Custom trigger name with voice calibration for transcription aliases
+- [ ] Last-occurrence trigger detection splits transcript into content + instruction
+- [ ] Instruction fuzzy-matches predefined modes as shortcuts; unmatched instructions pass to LLM as custom
+- [ ] Settings UI tile for AI assistant name configuration
+- [ ] Safety rules: command only after name, last occurrence wins, minimum instruction length
 
 ### Out of Scope
 
@@ -46,16 +69,6 @@ The app operates system-wide as a background utility, integrates with macOS micr
 
 Performance expectations remain aggressive, but the biggest remaining product pressure is transcription latency. The model has been reduced to `tiny.en` for the current shipped build because the speed gain outweighed the quality tradeoff on the target machine.
 
-## Current Milestone: v1.1 Convert Modes
-
-**Goal:** Add 5 transcript rewriting modes powered by a local LLM, activated when the user's dictation starts or ends with "convert to [mode name]".
-
-**Target features:**
-- Intent detection: transcript starts or ends with "convert to X" (exact mode name match)
-- 5 modes: Clean English, Email, Slack / Teams, Action Items, Prompt
-- Local LLM rewriting via Qwen2.5-1.5B-Instruct (MLX, 4-bit)
-- 350-word hard limit: skip model call and alert user if exceeded
-- No-trigger path unchanged: existing clipboard-copy behavior preserved
 
 ## Constraints
 
@@ -78,6 +91,10 @@ Performance expectations remain aggressive, but the biggest remaining product pr
 | Long sessions transcribe sealed segments progressively, but clipboard writes remain gated behind final assembly | Preserves clipboard safety while reducing long-session loss risk | ✓ Shipped |
 | Re-arming is allowed from terminal success/failure feedback but not during active processing | Prevents the post-success freeze while keeping in-flight transcription non-interruptible | ✓ Shipped |
 | `tiny.en` is the active bundled model at v1.0 closeout | Lower latency mattered more than the accuracy delta on the target machine | — Revisit |
+| Fuzzy intent matching (Jaro-Winkler + zone pipeline) instead of exact phrase matching | Natural speech variation makes exact matching too brittle in practice | ✓ Shipped v1.1 |
+| Action Items and AI Prompt modes removed from built-ins | Product direction narrowed; these modes added noise without clear user value | ✓ Shipped v1.1 |
+| Phrase patterns generated invisibly by LLM; never exposed in UI | Reduces cognitive load — user writes a system prompt, app handles detection config | ✓ Shipped v1.1 |
+| Orange "no match" pill when fuzzy detection fires but finds no mode | Distinguishes "passthrough by design" from "tried and failed" — better feedback | ✓ Shipped v1.1 |
 
 ---
-*Last updated: 2026-03-18 after v1.1 milestone started*
+*Last updated: 2026-03-20 after v1.2 milestone started*

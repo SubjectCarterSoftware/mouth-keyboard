@@ -1,91 +1,83 @@
 # Requirements: Speech2Test
 
-**Defined:** 2026-03-18
+**Defined:** 2026-03-20
+**Milestone:** v1.2 AI Trigger Name
 **Core Value:** From a single hotkey, the user can dictate and get reliable text into the clipboard fast enough that it feels close to typing speed.
 
-## v1.1 Requirements
+## v1.2 Requirements
 
-### Intent Detection
+### Trigger Identity
 
-- [x] **INTENT-01**: User can trigger a rewriting mode by starting their dictation with the mode's activation phrase
-- [x] **INTENT-02**: User can trigger a rewriting mode by ending their dictation with the mode's activation phrase
-- [x] **INTENT-03**: Intent detection is case-insensitive and strips the trigger phrase before passing content to the LLM
+- [ ] **TRIG-01**: AI mode works out of the box with default assistant name `Zeus` (no setup required)
+- [ ] **TRIG-02**: User can switch assistant name to one of 3 predefined choices: `Zeus`, `Atlas`, `Gaia`
+- [ ] **TRIG-03**: User can configure a custom assistant name and save it as the active trigger
+- [ ] **TRIG-04**: Trigger configuration persists across app relaunches and is available at session finalize time
 
-### Rewriting Modes
+### Voice Calibration
 
-- [x] **MODE-01**: User can rewrite a transcript as Clean English (filler words removed, grammar fixed, voice preserved)
-- [x] **MODE-02**: User can rewrite a transcript as an Email (subject line, professional body, sign-off)
-- [x] **MODE-03**: User can rewrite a transcript as a Slack message (casual, short, scannable, no greeting)
-- [x] **MODE-04**: User can rewrite a transcript as a Teams message (casual, short, scannable, no greeting)
-- [x] **MODE-05**: User can extract Action Items from a transcript as a bullet list (with owner and deadline if mentioned)
-- [x] **MODE-06**: User can structure a transcript as a well-formed AI Prompt (context → ask → output requirements)
+- [ ] **CAL-01**: User can run a calibration flow that captures multiple spoken samples for the active trigger name
+- [ ] **CAL-02**: System stores a normalized primary trigger plus accepted alias transcriptions from calibration
+- [ ] **CAL-03**: Detection uses both primary trigger and aliases (case-insensitive)
 
-### LLM Pipeline
+### Transcript Split and Parsing
 
-- [x] **LLM-01**: Rewriting runs locally via Qwen2.5-1.5B-Instruct-4bit (MLX), with the model downloaded on first use and cached persistently
-- [x] **LLM-02**: The no-trigger dictation path is completely unchanged — plain transcriptions still copy raw text to clipboard
-- ~~**LLM-03**: User sees download progress in the menu bar when the rewrite model is downloading for the first time~~ *(dropped — Phase 10 redefined)*
+- [ ] **PARSE-01**: Transcript is split at the last occurrence of any trigger alias (`last-name-wins`)
+- [ ] **PARSE-02**: All text before the split is treated as content; only text after the split is treated as instruction
+- [ ] **PARSE-03**: If no trigger alias is detected, behavior is passthrough (existing no-trigger path unchanged)
+- [ ] **PARSE-04**: If instruction segment is empty or below minimum token threshold, AI mode is not activated
+- [ ] **PARSE-05**: Mentions of trigger names in content do not activate AI mode unless a valid post-trigger instruction exists
 
-### Guards & UX
+### Instruction Interpretation and Routing
 
-- [x] **UX-01**: User sees a loading indicator in the pill while LLM conversion is in progress (distinct from the normal transcription processing state)
-- [x] **GUARD-01**: When a conversion body exceeds 350 words, the pill flashes an orange alert ("Input exceeds AI limit") before copying the raw transcript to clipboard
-- [x] **GUARD-02**: On any LLM failure, the raw transcript is copied to clipboard silently (no failed partial output)
+- [ ] **ROUTE-01**: Post-trigger instruction is fuzzy-matched against existing predefined intents (Email, Slack, Teams, Clean English)
+- [ ] **ROUTE-02**: If predefined match succeeds, matching intent mode is executed with existing prompt pipeline
+- [ ] **ROUTE-03**: If no predefined match succeeds, instruction is passed as custom rewrite instructions to LLM
+- [ ] **ROUTE-04**: Existing guards still apply (word-limit gate and silent raw fallback on LLM failure)
 
-### Settings
+### Settings UX
 
-- ~~**SETT-01**: User can view all 6 built-in modes in the settings panel, including their activation phrase and read-only system prompt~~ *(dropped — Phase 10 redefined)*
-- ~~**SETT-02**: User can edit the activation phrase for any built-in mode (defaults to "convert to [mode name]")~~ *(dropped)*
-- ~~**SETT-03**: User can add a custom mode with a custom activation phrase and a system prompt (max 280 characters)~~ *(dropped)*
-- ~~**SETT-04**: User can delete a custom mode they previously created~~ *(dropped)*
+- [ ] **SETT-01**: Settings shows an AI Assistant tile indicating current active assistant name
+- [ ] **SETT-02**: User can open an assistant configuration flow from settings and change predefined or custom name
+- [ ] **SETT-03**: Calibration entry point is available from the same assistant configuration flow
 
-## Future Requirements
-
-### Polish & Extensibility
-
-- **FUTURE-01**: Per-mode prompt customisation for built-in modes (edit the system prompt, not just the activation phrase)
-- **FUTURE-02**: Rewrite history or undo (the raw transcript fallback is the recovery path for v1.1)
-- **FUTURE-03**: Cloud LLM fallback option
-- **FUTURE-04**: Custom mode import/export
-
-## Out of Scope
+## Out of Scope (v1.2)
 
 | Feature | Reason |
 |---------|--------|
-| Fuzzy mode name matching | Exact matching is safer; mode names are short and memorable; fuzzy matching introduces ambiguous activations |
-| Editing built-in mode system prompts | Read-only in v1.1; built-in prompts are spec-validated; custom modes cover the extensibility need |
-| Cloud transcription or rewriting | Local-first is a core product constraint |
-| Rewrite history | Clipboard is the output path; raw transcript fallback is the recovery path |
+| Multi-assistant profiles with per-profile prompts | Adds profile management complexity beyond this milestone |
+| Wake-word audio detection before transcription | Current architecture is transcript-level parsing after Whisper |
+| Cloud profile sync for trigger settings | Local-first configuration remains the product default |
+| Replacing existing convert-mode editor UX | v1.2 adds trigger-name controls; mode editing stays as shipped |
 
 ## Traceability
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| INTENT-01 | Phase 7 | Complete |
-| INTENT-02 | Phase 7 | Complete |
-| INTENT-03 | Phase 7 | Complete |
-| MODE-01 | Phase 7 | Complete |
-| MODE-02 | Phase 7 | Complete |
-| MODE-03 | Phase 7 | Complete |
-| MODE-04 | Phase 7 | Complete |
-| MODE-05 | Phase 7 | Complete |
-| MODE-06 | Phase 7 | Complete |
-| LLM-01 | Phase 6 | Complete |
-| LLM-02 | Phase 9 | Complete |
-| LLM-03 | — | Dropped |
-| UX-01 | Phase 9 | Complete |
-| GUARD-01 | Phase 9 | Complete |
-| GUARD-02 | Phase 8 | Complete |
-| SETT-01 | — | Dropped |
-| SETT-02 | — | Dropped |
-| SETT-03 | — | Dropped |
-| SETT-04 | — | Dropped |
+| TRIG-01 | Phase 12 | Planned |
+| TRIG-02 | Phase 12 | Planned |
+| TRIG-03 | Phase 12 | Planned |
+| TRIG-04 | Phase 12 | Planned |
+| CAL-01 | Phase 12 | Planned |
+| CAL-02 | Phase 12 | Planned |
+| CAL-03 | Phase 13 | Planned |
+| PARSE-01 | Phase 13 | Planned |
+| PARSE-02 | Phase 13 | Planned |
+| PARSE-03 | Phase 13 | Planned |
+| PARSE-04 | Phase 13 | Planned |
+| PARSE-05 | Phase 13 | Planned |
+| ROUTE-01 | Phase 14 | Planned |
+| ROUTE-02 | Phase 14 | Planned |
+| ROUTE-03 | Phase 14 | Planned |
+| ROUTE-04 | Phase 14 | Planned |
+| SETT-01 | Phase 15 | Planned |
+| SETT-02 | Phase 15 | Planned |
+| SETT-03 | Phase 15 | Planned |
 
 **Coverage:**
-- v1.1 requirements: 19 total
+- v1.2 requirements: 19 total
 - Mapped to phases: 19
 - Unmapped: 0 ✓
 
 ---
-*Requirements defined: 2026-03-18*
-*Last updated: 2026-03-19 — SETT-01–04 and LLM-03 dropped; Phase 10 redefined as Fuzzy Intent Detection*
+*Requirements defined: 2026-03-20*
+*Last updated: 2026-03-20 — v1.2 AI Trigger Name scope established*
