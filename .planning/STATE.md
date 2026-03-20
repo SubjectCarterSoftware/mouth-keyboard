@@ -4,14 +4,14 @@ milestone: v1.1
 milestone_name: Convert Modes
 current_plan: 2
 status: planning
-stopped_at: Completed 10-01-PLAN.md
-last_updated: "2026-03-20T00:22:22.129Z"
+stopped_at: Completed 10-02-PLAN.md
+last_updated: "2026-03-20T01:27:10.066Z"
 last_activity: 2026-03-20
 progress:
   total_phases: 10
-  completed_phases: 9
+  completed_phases: 10
   total_plans: 23
-  completed_plans: 22
+  completed_plans: 23
   percent: 100
 ---
 
@@ -58,6 +58,7 @@ Progress: [██████████] 100%
 | Phase 09-activationstore-integration-and-guards P02 | 8 | 3 tasks | 4 files |
 | Phase 09-activationstore-integration-and-guards P03 | 10 | 2 tasks | 0 files |
 | Phase 10-fuzzy-intent-detection P01 | 8 | 2 tasks | 8 files |
+| Phase 10-fuzzy-intent-detection P02 | 525757 | 2 tasks | 3 files |
 
 ## Accumulated Context
 
@@ -92,6 +93,9 @@ Recent decisions affecting current work:
 - [Phase 10-fuzzy-intent-detection]: IntentCatalog now drives IntentDetector phrase matching; activationPhraseCandidates removed from ConvertMode
 - [Phase 10-fuzzy-intent-detection]: StringSimilarity stub returns 0.0; Plan 02 provides real Jaro-Winkler implementation
 - [Phase 10-fuzzy-intent-detection]: confidenceThreshold: 0.82 for email/slack/teams; 0.85 for cleanEnglish; 0.80 for actionItems/aiPrompt
+- [Phase 10-fuzzy-intent-detection]: Windowed token JW (not full-string JW) aligns individual tokens; 3-token minimum prevents 2-token pattern false positives; exact-match priority in scoreAllZone discards fuzzy competitors when exact wins exist
+- [Phase 10-fuzzy-intent-detection]: rangeInOriginal with normalized fallback: body extraction works when normalization changes string length by mapping prefix offset and clamping upperBound
+- [Phase 10-fuzzy-intent-detection]: Catalog additions 'as a mail' and 'send as an email': natural paraphrases belong in catalog as explicit patterns rather than relying on fuzzy edge cases
 
 ### Pending Todos
 
@@ -105,6 +109,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-20T00:22:22.126Z
-Stopped at: Completed 10-01-PLAN.md
+Last session: 2026-03-20T01:27:10.064Z
+Stopped at: Completed 10-02-PLAN.md
 Resume file: None
