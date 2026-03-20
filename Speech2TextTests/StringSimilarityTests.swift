@@ -52,9 +52,9 @@ final class StringSimilarityTests: XCTestCase {
     }
 
     func testCompletelyUnrelatedStrings() {
-        // "hello" vs "xylophone" — low similarity
+        // "hello" vs "xylophone" — low similarity; standard Jaro-Winkler gives ~0.54 (two chars in common: l, o)
         let score = StringSimilarity.jaroWinkler("hello", "xylophone")
-        XCTAssertLessThan(score, 0.5,
-            "Expected jaroWinkler('hello', 'xylophone') < 0.5, got \(score)")
+        XCTAssertLessThan(score, 0.6,
+            "Expected jaroWinkler('hello', 'xylophone') < 0.6, got \(score)")
     }
 }
