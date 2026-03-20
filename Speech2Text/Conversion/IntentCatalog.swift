@@ -27,6 +27,8 @@ enum IntentCatalog {
             "as email",
             "email mode",
             "send as email",
+            "send as an email",
+            "as a mail",
             "convert this to email",
             "turn into email",
             "write this as an email",
