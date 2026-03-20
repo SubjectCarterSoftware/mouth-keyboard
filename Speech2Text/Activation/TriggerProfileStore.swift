@@ -23,6 +23,26 @@ actor TriggerProfileStore {
         self.storeURL = storeURL
     }
 
+    static func loadSynchronously(storeURL: URL = TriggerProfileStore.defaultStoreURL) -> TriggerProfile {
+        guard FileManager.default.fileExists(atPath: storeURL.path) else {
+            return TriggerProfile.defaultProfile
+        }
+
+        do {
+            let data = try Data(contentsOf: storeURL)
+            if let payload = try? JSONDecoder().decode(StoredTriggerProfiles.self, from: data) {
+                return payload.triggerProfile
+            }
+            if let legacyProfile = try? JSONDecoder().decode(TriggerProfile.self, from: data) {
+                return legacyProfile.normalized()
+            }
+        } catch {
+            return TriggerProfile.defaultProfile
+        }
+
+        return TriggerProfile.defaultProfile
+    }
+
     func load() async -> TriggerProfile {
         await ensureLoaded()
         return cachedProfile ?? .defaultProfile
@@ -52,23 +72,7 @@ actor TriggerProfileStore {
     }
 
     private func readFromDisk() -> TriggerProfile {
-        guard FileManager.default.fileExists(atPath: storeURL.path) else {
-            return fallbackToDefault()
-        }
-
-        do {
-            let data = try Data(contentsOf: storeURL)
-            if let payload = try? JSONDecoder().decode(StoredTriggerProfiles.self, from: data) {
-                return payload.triggerProfile
-            }
-            if let legacyProfile = try? JSONDecoder().decode(TriggerProfile.self, from: data) {
-                return legacyProfile.normalized()
-            }
-        } catch {
-            return fallbackToDefault()
-        }
-
-        return fallbackToDefault()
+        Self.loadSynchronously(storeURL: storeURL)
     }
 
     private func fallbackToDefault() -> TriggerProfile {

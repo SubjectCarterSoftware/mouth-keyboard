@@ -565,6 +565,54 @@ final class ActivationStoreTests: XCTestCase {
         }
     }
 
+    func test_trigger_preset_mutation_does_not_change_passthrough_finalize_behavior() async throws {
+        let preferences = makePreferencesWithTriggerStore()
+        preferences.setTriggerPreset(.atlas)
+        try await Task.sleep(nanoseconds: 80_000_000)
+
+        let mockClipboard = ActivationStoreMockClipboard()
+        let store = makeStore(
+            permissionsAuthorized: true,
+            transcriber: ActivationStoreMockTranscriber(result: .success("Hello world")),
+            clipboard: mockClipboard,
+            preferences: preferences
+        )
+        store.arm()
+        store.finish()
+        try await Task.sleep(nanoseconds: 200_000_000)
+
+        XCTAssertEqual(mockClipboard.lastWrittenText, "Hello world")
+        if case .success(_, _, let converted, _) = store.state {
+            XCTAssertFalse(converted)
+        } else {
+            XCTFail("Expected .success state, got \(store.state)")
+        }
+    }
+
+    func test_custom_trigger_mutation_does_not_change_convert_mode_finalize_behavior() async throws {
+        let preferences = makePreferencesWithTriggerStore()
+        preferences.setCustomTrigger(primary: "Helios", aliases: ["assistant helios"])
+        try await Task.sleep(nanoseconds: 80_000_000)
+
+        let mockTranscriber = ActivationStoreMockTranscriber(
+            result: .success("convert to email Please schedule a meeting")
+        )
+        let mockRewriter = MockLLMRewriter(result: .success("Email output"))
+        let store = makeStore(
+            permissionsAuthorized: true,
+            transcriber: mockTranscriber,
+            llmRewriter: mockRewriter,
+            clipboard: ActivationStoreMockClipboard(),
+            preferences: preferences
+        )
+        store.arm()
+        store.finish()
+        try await Task.sleep(nanoseconds: 300_000_000)
+
+        XCTAssertEqual(mockRewriter.lastCalledOverload, .modeOverload)
+        XCTAssertEqual(mockRewriter.lastMode, .email)
+    }
+
     // MARK: - Helpers
 
     private func makeStore(
@@ -574,14 +622,16 @@ final class ActivationStoreTests: XCTestCase {
         userIntentStore: UserIntentStore? = nil,
         clipboard: ClipboardService? = nil,
         bufferAccumulator: AudioBufferAccumulator? = nil,
-        resetSessionMonitoring: (@MainActor () -> Void)? = nil
+        resetSessionMonitoring: (@MainActor () -> Void)? = nil,
+        preferences: ShellPreferences? = nil
     ) -> ActivationStore {
         let suiteName = "ActivationStoreTests.\(UUID().uuidString)"
         let defaults = UserDefaults(suiteName: suiteName) ?? .standard
         defaults.removePersistentDomain(forName: suiteName)
+        let resolvedPreferences = preferences ?? ShellPreferences(userDefaults: defaults)
 
         return ActivationStore(
-            preferences: ShellPreferences(userDefaults: defaults),
+            preferences: resolvedPreferences,
             readinessProvider: StubReadinessProvider(permissionsAuthorized: permissionsAuthorized),
             whisperService: transcriber ?? ActivationStoreMockTranscriber(result: .success("")),
             llmRewriteService: llmRewriter ?? MockLLMRewriter(result: .failure(LLMRewriteError.cancelled)),
@@ -589,6 +639,23 @@ final class ActivationStoreTests: XCTestCase {
             clipboardService: clipboard ?? ActivationStoreMockClipboard(),
             bufferAccumulator: bufferAccumulator ?? StubBufferAccumulator(),
             resetSessionMonitoring: resetSessionMonitoring ?? {}
+        )
+    }
+
+    private func makePreferencesWithTriggerStore() -> ShellPreferences {
+        let suiteName = "ActivationStoreTests.TriggerProfile.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suiteName) ?? .standard
+        defaults.removePersistentDomain(forName: suiteName)
+
+        let storeURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent("ActivationStoreTests.TriggerProfile")
+            .appendingPathComponent(UUID().uuidString)
+            .appendingPathComponent("TriggerProfileStore.json")
+        let triggerStore = TriggerProfileStore(storeURL: storeURL)
+        return ShellPreferences(
+            userDefaults: defaults,
+            triggerProfileStore: triggerStore,
+            initialTriggerProfile: .defaultProfile
         )
     }
 }

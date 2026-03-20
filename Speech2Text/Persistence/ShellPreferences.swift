@@ -75,6 +75,7 @@ final class ShellPreferences: ObservableObject {
     }
 
     @Published private(set) var launchAtLogin: Bool
+    @Published private(set) var activeTriggerProfile: TriggerProfile
 
     @Published var convertModes: [ConvertMode] {
         didSet {
@@ -90,10 +91,16 @@ final class ShellPreferences: ObservableObject {
     }
 
     private let defaults: UserDefaults
+    private let triggerProfileStore: TriggerProfileStore
     private var isPersistenceSuspended = false
 
-    init(userDefaults: UserDefaults) {
+    init(
+        userDefaults: UserDefaults,
+        triggerProfileStore: TriggerProfileStore = .shared,
+        initialTriggerProfile: TriggerProfile? = nil
+    ) {
         defaults = userDefaults
+        self.triggerProfileStore = triggerProfileStore
         hasCompletedInitialSetup = userDefaults.bool(forKey: Keys.hasCompletedInitialSetup)
         hasRequestedMicrophonePermission = userDefaults.bool(forKey: Keys.hasRequestedMicrophonePermission)
         hasRequestedKeyboardPermission = userDefaults.bool(forKey: Keys.hasRequestedKeyboardPermission)
@@ -128,6 +135,8 @@ final class ShellPreferences: ObservableObject {
         } else {
             convertModes = ConvertMode.allBuiltIns
         }
+
+        activeTriggerProfile = (initialTriggerProfile ?? TriggerProfileStore.loadSynchronously()).normalized()
     }
 
     func completeInitialSetup() {
@@ -159,6 +168,34 @@ final class ShellPreferences: ObservableObject {
         launchAtLogin = SMAppService.mainApp.status == .enabled
     }
 
+    func setTriggerPreset(_ preset: TriggerNamePreset) {
+        let nextProfile = activeTriggerProfile.settingActiveProfile(preset)
+        Task { [weak self, triggerProfileStore] in
+            do {
+                try await triggerProfileStore.save(nextProfile)
+                await MainActor.run {
+                    self?.activeTriggerProfile = nextProfile
+                }
+            } catch {
+                NSLog("Speech2Text: failed to persist trigger preset: \(error.localizedDescription)")
+            }
+        }
+    }
+
+    func setCustomTrigger(primary: String, aliases: [String]) {
+        let nextProfile = activeTriggerProfile.updatingCustom(primary: primary, aliases: aliases)
+        Task { [weak self, triggerProfileStore] in
+            do {
+                try await triggerProfileStore.save(nextProfile)
+                await MainActor.run {
+                    self?.activeTriggerProfile = nextProfile
+                }
+            } catch {
+                NSLog("Speech2Text: failed to persist custom trigger profile: \(error.localizedDescription)")
+            }
+        }
+    }
+
     func reset() {
         withPersistenceSuspended {
             hasCompletedInitialSetup = false
@@ -170,6 +207,7 @@ final class ShellPreferences: ObservableObject {
             whisperModel = .baseEN
             autoModelSelection = false
             convertModes = ConvertMode.allBuiltIns
+            activeTriggerProfile = .defaultProfile
         }
 
         defaults.removeObject(forKey: Keys.hasCompletedInitialSetup)
@@ -181,6 +219,14 @@ final class ShellPreferences: ObservableObject {
         defaults.removeObject(forKey: Keys.whisperModel)
         defaults.removeObject(forKey: Keys.autoModelSelection)
         defaults.removeObject(forKey: Keys.convertModes)
+
+        Task { [triggerProfileStore] in
+            do {
+                try await triggerProfileStore.save(.defaultProfile)
+            } catch {
+                NSLog("Speech2Text: failed to reset trigger profile store: \(error.localizedDescription)")
+            }
+        }
     }
 
     private static func makeShared() -> ShellPreferences {
@@ -208,7 +254,13 @@ final class ShellPreferences: ObservableObject {
             userDefaults.set(true, forKey: Keys.hasRequestedKeyboardPermission)
         }
 
-        return ShellPreferences(userDefaults: userDefaults)
+        let triggerStore = TriggerProfileStore.shared
+        let initialTriggerProfile = TriggerProfileStore.loadSynchronously()
+        return ShellPreferences(
+            userDefaults: userDefaults,
+            triggerProfileStore: triggerStore,
+            initialTriggerProfile: initialTriggerProfile
+        )
     }
 
     private func withPersistenceSuspended(_ operation: () -> Void) {
