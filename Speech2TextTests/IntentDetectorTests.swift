@@ -375,6 +375,16 @@ final class IntentDetectorTests: XCTestCase {
         XCTAssertEqual(intent.strippedBody, "body text")
     }
 
+    func testTrailingWinnerPreservesLeadingCommandLikeContentForParserAlignedFlow() {
+        let intent = IntentDetector.detect(
+            transcript: "convert to email first draft convert to slack",
+            modes: allModes
+        )
+
+        XCTAssertEqual(intent.mode, .slack)
+        XCTAssertEqual(intent.strippedBody, "convert to email first draft")
+    }
+
     // MARK: - Passthrough (false-positive guard)
 
     // These tests must stay GREEN after Plan 02 — they guard against false positives

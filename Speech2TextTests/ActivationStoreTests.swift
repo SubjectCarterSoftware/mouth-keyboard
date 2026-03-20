@@ -613,6 +613,120 @@ final class ActivationStoreTests: XCTestCase {
         XCTAssertEqual(mockRewriter.lastMode, .email)
     }
 
+    // MARK: - Phase 13 parser-gated finalize behavior (RED in 13-02 Task 1)
+
+    func test_finalize_uses_postAlias_instruction_segment_for_conversion_body() async throws {
+        let preferences = makePreferencesWithTriggerStore()
+        preferences.setTriggerPreset(.atlas)
+        try await Task.sleep(nanoseconds: 80_000_000)
+
+        let transcript = "capture these notes atlas convert to email send this to the team"
+        let mockTranscriber = ActivationStoreMockTranscriber(result: .success(transcript))
+        let mockRewriter = MockLLMRewriter(result: .success("Converted output"))
+        let mockClipboard = ActivationStoreMockClipboard()
+        let store = makeStore(
+            permissionsAuthorized: true,
+            transcriber: mockTranscriber,
+            llmRewriter: mockRewriter,
+            clipboard: mockClipboard,
+            preferences: preferences
+        )
+
+        store.arm()
+        store.finish()
+        try await Task.sleep(nanoseconds: 300_000_000)
+
+        XCTAssertEqual(mockRewriter.lastCalledOverload, .modeOverload)
+        XCTAssertEqual(mockRewriter.lastMode, .email)
+        XCTAssertEqual(mockRewriter.lastBody, "send this to the team")
+    }
+
+    func test_finalize_no_trigger_alias_keeps_passthrough_behavior() async throws {
+        let preferences = makePreferencesWithTriggerStore()
+        preferences.setTriggerPreset(.atlas)
+        try await Task.sleep(nanoseconds: 80_000_000)
+
+        let transcript = "convert to email send this to the team"
+        let mockTranscriber = ActivationStoreMockTranscriber(result: .success(transcript))
+        let mockRewriter = MockLLMRewriter(result: .success("Should not be called"))
+        let mockClipboard = ActivationStoreMockClipboard()
+        let store = makeStore(
+            permissionsAuthorized: true,
+            transcriber: mockTranscriber,
+            llmRewriter: mockRewriter,
+            clipboard: mockClipboard,
+            preferences: preferences
+        )
+
+        store.arm()
+        store.finish()
+        try await Task.sleep(nanoseconds: 300_000_000)
+
+        XCTAssertNil(mockRewriter.lastCalledOverload)
+        XCTAssertEqual(mockClipboard.lastWrittenText, transcript)
+        if case .success(_, _, let converted, _) = store.state {
+            XCTAssertFalse(converted)
+        } else {
+            XCTFail("Expected .success state, got \(store.state)")
+        }
+    }
+
+    func test_finalize_short_postAlias_instruction_does_not_activate_conversion() async throws {
+        let preferences = makePreferencesWithTriggerStore()
+        preferences.setTriggerPreset(.atlas)
+        try await Task.sleep(nanoseconds: 80_000_000)
+
+        let transcript = "convert to email weekly update atlas ok"
+        let mockTranscriber = ActivationStoreMockTranscriber(result: .success(transcript))
+        let mockRewriter = MockLLMRewriter(result: .success("Should not be called"))
+        let mockClipboard = ActivationStoreMockClipboard()
+        let store = makeStore(
+            permissionsAuthorized: true,
+            transcriber: mockTranscriber,
+            llmRewriter: mockRewriter,
+            clipboard: mockClipboard,
+            preferences: preferences
+        )
+
+        store.arm()
+        store.finish()
+        try await Task.sleep(nanoseconds: 300_000_000)
+
+        XCTAssertNil(mockRewriter.lastCalledOverload)
+        XCTAssertEqual(mockClipboard.lastWrittenText, transcript)
+        if case .success(_, _, let converted, _) = store.state {
+            XCTAssertFalse(converted)
+        } else {
+            XCTFail("Expected .success state, got \(store.state)")
+        }
+    }
+
+    func test_finalize_repeated_alias_mentions_use_last_name_wins_boundary() async throws {
+        let preferences = makePreferencesWithTriggerStore()
+        preferences.setTriggerPreset(.atlas)
+        try await Task.sleep(nanoseconds: 80_000_000)
+
+        let transcript = "atlas convert to email first draft atlas convert to slack final update"
+        let mockTranscriber = ActivationStoreMockTranscriber(result: .success(transcript))
+        let mockRewriter = MockLLMRewriter(result: .success("Slack output"))
+        let mockClipboard = ActivationStoreMockClipboard()
+        let store = makeStore(
+            permissionsAuthorized: true,
+            transcriber: mockTranscriber,
+            llmRewriter: mockRewriter,
+            clipboard: mockClipboard,
+            preferences: preferences
+        )
+
+        store.arm()
+        store.finish()
+        try await Task.sleep(nanoseconds: 300_000_000)
+
+        XCTAssertEqual(mockRewriter.lastCalledOverload, .modeOverload)
+        XCTAssertEqual(mockRewriter.lastMode, .slack)
+        XCTAssertEqual(mockRewriter.lastBody, "final update")
+    }
+
     // MARK: - Helpers
 
     private func makeStore(
@@ -775,11 +889,13 @@ final class MockLLMRewriter: LLMRewriting, @unchecked Sendable {
     enum CalledOverload { case modeOverload; case instructionsOverload }
     private let result: MockResult
     private(set) var lastCalledOverload: CalledOverload?
+    private(set) var lastBody: String?
     private(set) var lastInstructions: String?
     private(set) var lastMode: ConvertMode?
     init(result: MockResult) { self.result = result }
     func rewrite(body: String, mode: ConvertMode) async throws -> String {
         lastCalledOverload = .modeOverload
+        lastBody = body
         lastMode = mode
         switch result {
         case .success(let text): return text
@@ -788,6 +904,7 @@ final class MockLLMRewriter: LLMRewriting, @unchecked Sendable {
     }
     func rewrite(body: String, instructions: String) async throws -> String {
         lastCalledOverload = .instructionsOverload
+        lastBody = body
         lastInstructions = instructions
         switch result {
         case .success(let text): return text
