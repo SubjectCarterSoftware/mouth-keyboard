@@ -83,7 +83,7 @@ final class ActivationStoreTests: XCTestCase {
 
         XCTAssertEqual(mockClipboard.lastWrittenText, "Hello world")
         XCTAssertEqual(store.lastTranscription, "Hello world")
-        if case .success(let text, _, _) = store.state {
+        if case .success(let text, _, _, _) = store.state {
             XCTAssertEqual(text, "Hello world")
         } else {
             XCTFail("Expected .success state, got \(store.state)")
@@ -302,14 +302,14 @@ final class ActivationStoreTests: XCTestCase {
 
         try await Task.sleep(nanoseconds: 200_000_000)
 
-        if case .success(let text, _, _) = store.state {
+        if case .success(let text, _, _, _) = store.state {
             XCTAssertEqual(text, "ready")
         } else {
             XCTFail("Expected .success state, got \(store.state)")
         }
 
         XCTAssertTrue(hotkeyService.handleKeyDown()) // stale repeat should be ignored
-        if case .success(let text, _, _) = store.state {
+        if case .success(let text, _, _, _) = store.state {
             XCTAssertEqual(text, "ready")
         } else {
             XCTFail("Expected .success state after ignored repeat, got \(store.state)")
@@ -335,7 +335,7 @@ final class ActivationStoreTests: XCTestCase {
 
         try await Task.sleep(nanoseconds: 200_000_000)
 
-        if case .success(let text, _, _) = store.state {
+        if case .success(let text, _, _, _) = store.state {
             XCTAssertEqual(text, "first")
         } else {
             XCTFail("Expected .success state, got \(store.state)")
@@ -400,7 +400,7 @@ final class ActivationStoreTests: XCTestCase {
         try await Task.sleep(nanoseconds: 300_000_000)
         XCTAssertEqual(mockClipboard.lastWrittenText, "Subject: Meeting Request\n\nPlease schedule...")
         XCTAssertEqual(store.lastConvertedTranscription, "Subject: Meeting Request\n\nPlease schedule...")
-        if case .success(_, _, let converted) = store.state {
+        if case .success(_, _, let converted, _) = store.state {
             XCTAssertTrue(converted)
         } else {
             XCTFail("Expected .success state, got \(store.state)")
@@ -420,7 +420,7 @@ final class ActivationStoreTests: XCTestCase {
         try await Task.sleep(nanoseconds: 200_000_000)
         XCTAssertEqual(mockClipboard.lastWrittenText, "Hello world")
         XCTAssertNil(store.lastConvertedTranscription)
-        if case .success(_, _, let converted) = store.state {
+        if case .success(_, _, let converted, _) = store.state {
             XCTAssertFalse(converted)
         } else {
             XCTFail("Expected .success state, got \(store.state)")
@@ -558,7 +558,7 @@ final class ActivationStoreTests: XCTestCase {
         XCTAssertNil(mockRewriter.lastCalledOverload,
                      "Passthrough path must not call LLM rewriter at all")
         XCTAssertEqual(mockClipboard.lastWrittenText, "Hello world")
-        if case .success(_, _, let converted) = store.state {
+        if case .success(_, _, let converted, _) = store.state {
             XCTAssertFalse(converted)
         } else {
             XCTFail("Expected .success state, got \(store.state)")

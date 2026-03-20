@@ -44,8 +44,8 @@ struct RecordingPillView: View {
             recordingContent
         case .processing:
             processingContent
-        case .success(_, let pasted, let converted):
-            successContent(pasted: pasted, converted: converted)
+        case .success(_, let pasted, let converted, let noMatchPassthrough):
+            successContent(pasted: pasted, converted: converted, noMatchPassthrough: noMatchPassthrough)
         case .converting:
             convertingContent
         case .failure(let reason):
@@ -190,7 +190,25 @@ struct RecordingPillView: View {
 
     // MARK: - Success state
 
-    private func successContent(pasted: Bool, converted: Bool) -> some View {
+    private func successContent(pasted: Bool, converted: Bool, noMatchPassthrough: Bool = false) -> some View {
+        // No-match passthrough: fuzzy detection fired but found no matching mode.
+        if noMatchPassthrough {
+            let label = pasted ? "No match \u{00B7} Pasted" : "No match \u{00B7} Copied"
+            return AnyView(
+                HStack(spacing: 8) {
+                    Image(systemName: "exclamationmark.circle.fill")
+                        .font(.system(size: 16, weight: .semibold))
+                        .foregroundStyle(Color.orange)
+
+                    Text(label)
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundStyle(.white)
+                }
+                .frame(width: 180, height: 44)
+                .preferredColorScheme(.dark)
+            )
+        }
+
         let label: String
         switch (converted, pasted) {
         case (true, true):   label = "Converted & Pasted"
@@ -199,29 +217,31 @@ struct RecordingPillView: View {
         case (false, false): label = "Copied"
         }
 
-        return HStack(spacing: 8) {
-            if pasted {
-                ZStack {
-                    Circle()
-                        .fill(Color.blue)
-                    Image(systemName: "clipboard.fill")
-                        .font(.system(size: 10, weight: .semibold))
-                        .blendMode(.destinationOut)
+        return AnyView(
+            HStack(spacing: 8) {
+                if pasted {
+                    ZStack {
+                        Circle()
+                            .fill(Color.blue)
+                        Image(systemName: "clipboard.fill")
+                            .font(.system(size: 10, weight: .semibold))
+                            .blendMode(.destinationOut)
+                    }
+                    .compositingGroup()
+                    .frame(width: 18, height: 18)
+                } else {
+                    Image(systemName: "checkmark.circle.fill")
+                        .font(.system(size: 16, weight: .semibold))
+                        .foregroundStyle(Color.green)
                 }
-                .compositingGroup()
-                .frame(width: 18, height: 18)
-            } else {
-                Image(systemName: "checkmark.circle.fill")
-                    .font(.system(size: 16, weight: .semibold))
-                    .foregroundStyle(Color.green)
-            }
 
-            Text(label)
-                .font(.system(size: 13, weight: .semibold))
-                .foregroundStyle(.white)
-        }
-        .frame(width: 160, height: 44)
-        .preferredColorScheme(.dark)
+                Text(label)
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundStyle(.white)
+            }
+            .frame(width: 160, height: 44)
+            .preferredColorScheme(.dark)
+        )
     }
 
     private func recoveryContent(feedback: RecordingState.RecoveryFeedback) -> some View {

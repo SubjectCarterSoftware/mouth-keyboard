@@ -302,7 +302,7 @@ final class ActivationStore: ObservableObject {
                 } else {
                     clipboardService.writeToClipboard(trimmed)
                 }
-                state = .success(text: trimmed, pasted: didPaste, converted: false)
+                state = .success(text: trimmed, pasted: didPaste, converted: false, noMatchPassthrough: intent.hadCandidates)
                 soundPlayer.playSuccess()
                 scheduleDismissToIdle(afterNanoseconds: 1_500_000_000, sessionID: sessionID)
             } else {

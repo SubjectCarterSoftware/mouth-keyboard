@@ -92,7 +92,9 @@ enum IntentDetector {
             return makeIntent(def: def, strippedBody: body)
         }
 
-        return ConvertIntent(mode: .passthrough, strippedBody: trimmedOriginal, originalTranscript: transcript)
+        var passthrough = ConvertIntent(mode: .passthrough, strippedBody: trimmedOriginal, originalTranscript: transcript)
+        passthrough.hadCandidates = hasAnyCandidate(leadingZone, defs: definitions) || hasAnyCandidate(trailingZone, defs: definitions)
+        return passthrough
     }
 
     static func detect(transcript: String, modes: [ConvertMode]) -> ConvertIntent {
@@ -176,7 +178,33 @@ enum IntentDetector {
             return ConvertIntent(mode: def.mode, strippedBody: body, originalTranscript: transcript)
         }
 
-        return ConvertIntent(mode: .passthrough, strippedBody: trimmedOriginal, originalTranscript: transcript)
+        var passthrough = ConvertIntent(mode: .passthrough, strippedBody: trimmedOriginal, originalTranscript: transcript)
+        let activeDefs = IntentCatalog.all.filter { modes.contains($0.mode) }
+        passthrough.hadCandidates = hasAnyCandidate(leadingZone, defs: activeDefs) || hasAnyCandidate(trailingZone, defs: activeDefs)
+        return passthrough
+    }
+
+    // MARK: - Candidate Check
+
+    /// Returns true if any definition in `defs` scores >= 0.4 in windowed similarity
+    /// against the given zone. Used to set `hadCandidates` on passthrough returns.
+    private static func hasAnyCandidate(_ zone: String, defs: [IntentDefinition]) -> Bool {
+        guard !zone.isEmpty else { return false }
+        let candidate = stripFillers(zone)
+        guard !candidate.isEmpty else { return false }
+        let candidateTokens = candidate.split(separator: " ", omittingEmptySubsequences: true).map(String.init)
+        guard candidateTokens.count >= 2 else { return false }
+
+        for def in defs {
+            for pattern in def.phrasePatterns {
+                if candidate.contains(pattern) { return true }
+                let patternTokens = pattern.split(separator: " ", omittingEmptySubsequences: true).map(String.init)
+                guard candidateTokens.count >= patternTokens.count else { continue }
+                let (score, _) = windowedSimilarity(candidateTokens: candidateTokens, patternTokens: patternTokens)
+                if score >= 0.4 { return true }
+            }
+        }
+        return false
     }
 
     // MARK: - Normalization

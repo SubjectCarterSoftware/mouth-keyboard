@@ -3,7 +3,7 @@ enum RecordingState: Equatable {
     case recording
     case processing
     case converting                                           // NEW: non-terminal, blocks arm()
-    case success(text: String, pasted: Bool, converted: Bool) // EXTENDED: added converted
+    case success(text: String, pasted: Bool, converted: Bool, noMatchPassthrough: Bool = false) // EXTENDED: added converted, noMatchPassthrough
     case failure(reason: FailureReason)
 
     enum RecoveryFeedback: Equatable {

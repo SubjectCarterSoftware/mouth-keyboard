@@ -11,6 +11,9 @@ struct ConvertIntent: Equatable {
     let originalTranscript: String
     let effectiveSystemPrompt: String?  // set by ActivationStore (Plan 03), nil from detector
     let customIntentID: String?         // non-nil when matched definition has .passthrough mode (custom)
+    /// True when fuzzy detection fired (any definition scored >= 0.4 in windowed similarity)
+    /// but no definition passed the full confidence threshold. Used to show orange "No match" pill.
+    var hadCandidates: Bool = false
 
     /// Backward-compatible convenience init for existing call sites (3-arg).
     init(mode: ConvertMode, strippedBody: String, originalTranscript: String) {
