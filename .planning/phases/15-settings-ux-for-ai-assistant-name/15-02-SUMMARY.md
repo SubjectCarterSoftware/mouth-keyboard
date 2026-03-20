@@ -59,7 +59,7 @@ completed: 2026-03-20
 - **Duration:** ~12 min
 - **Started:** 2026-03-20T18:17:09Z
 - **Completed:** 2026-03-20T18:29:00Z
-- **Tasks:** 2 of 3 (Task 3 is a human-verify checkpoint — paused)
+- **Tasks:** 3 of 3 (all complete; Task 3 was human-verify checkpoint — approved)
 - **Files modified:** 5
 
 ## Accomplishments
@@ -75,7 +75,7 @@ Each task was committed atomically:
 
 1. **Task 1: Add RED end-to-end tests and isolated trigger-profile test hooks** - `96e8930` (feat)
 2. **Task 2: Apply verification-driven UX polish and accessibility adjustments** - `e38dec5` (fix)
-3. **Task 3: Manual verification** - *Paused at checkpoint*
+3. **Task 3: Manual verification — trigger-name settings flow and no-restart runtime behavior** - human-verify checkpoint, approved by user
 
 ## Files Created/Modified
 
@@ -116,8 +116,8 @@ Each task was committed atomically:
 
 - Automated test gate is green: 45/45 ActivationStoreTests, 59/59 combined with AIAssistantSettingsViewModelTests
 - App builds successfully
-- Task 3 (manual verification) requires human to launch the app, exercise the settings flow, and approve
-- Phase 15 is the final planned phase for milestone v1.2; completion pending Task 3 sign-off
+- Task 3 (manual verification) human-verify checkpoint approved: full SETT-01/SETT-02/SETT-03 flow confirmed in the live app
+- Phase 15 is complete — the final planned phase for milestone v1.2
 
 ## User Setup Required
 
@@ -125,4 +125,4 @@ None - no external service configuration required.
 
 ---
 *Phase: 15-settings-ux-for-ai-assistant-name*
-*Completed: 2026-03-20 (Tasks 1-2; Task 3 pending human verify)*
+*Completed: 2026-03-20*
