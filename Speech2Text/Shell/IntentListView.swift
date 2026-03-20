@@ -77,6 +77,7 @@ final class IntentListViewModel: ObservableObject {
 // MARK: - IntentListView
 
 struct IntentListView: View {
+    @Environment(\.dismiss) private var dismiss
     @StateObject private var vm = IntentListViewModel()
     @State private var selectedRowID: String?
     @State private var showingAddMode = false
@@ -100,6 +101,9 @@ struct IntentListView: View {
             }
             .navigationTitle("Conversion Modes")
             .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Done") { dismiss() }
+                }
                 ToolbarItem(placement: .primaryAction) {
                     Button("Add Mode", systemImage: "plus") {
                         showingAddMode = true
