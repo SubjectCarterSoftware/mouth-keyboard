@@ -4,14 +4,14 @@ milestone: v1.1
 milestone_name: Convert Modes
 current_plan: 2
 status: planning
-stopped_at: Completed 09-03-PLAN.md
-last_updated: "2026-03-19T23:01:02.645Z"
-last_activity: 2026-03-19
+stopped_at: Completed 10-01-PLAN.md
+last_updated: "2026-03-20T00:22:22.129Z"
+last_activity: 2026-03-20
 progress:
   total_phases: 10
   completed_phases: 9
-  total_plans: 21
-  completed_plans: 21
+  total_plans: 23
+  completed_plans: 22
   percent: 100
 ---
 
@@ -30,7 +30,7 @@ Phase: 8 of 10 (LLM Rewrite Service)
 Current Plan: 2
 Total Plans in Phase: 2
 Status: Phase complete; ready for Phase 9 planning (ActivationStore integration)
-Last Activity: 2026-03-19
+Last Activity: 2026-03-20
 Progress: [██████████] 100%
 
 ## Performance Metrics
@@ -57,6 +57,7 @@ Progress: [██████████] 100%
 | Phase 09-activationstore-integration-and-guards P09-01 | 25 | 3 tasks | 8 files |
 | Phase 09-activationstore-integration-and-guards P02 | 8 | 3 tasks | 4 files |
 | Phase 09-activationstore-integration-and-guards P03 | 10 | 2 tasks | 0 files |
+| Phase 10-fuzzy-intent-detection P01 | 8 | 2 tasks | 8 files |
 
 ## Accumulated Context
 
@@ -88,6 +89,9 @@ Recent decisions affecting current work:
 - [Phase 09-02]: failureBackground(for:) helper isolates color-per-reason logic — easy to extend for future FailureReason types needing distinct colors
 - [Phase 09-02]: StatusMenuView 'Copy Last AI Converted Transcription' is always-present with .disabled modifier (not conditionally hidden) — consistent menu layout per CONTEXT.md spec
 - [Phase 09-activationstore-integration-and-guards]: All 5 Phase 9 verification behaviors confirmed in live app — no code changes required
+- [Phase 10-fuzzy-intent-detection]: IntentCatalog now drives IntentDetector phrase matching; activationPhraseCandidates removed from ConvertMode
+- [Phase 10-fuzzy-intent-detection]: StringSimilarity stub returns 0.0; Plan 02 provides real Jaro-Winkler implementation
+- [Phase 10-fuzzy-intent-detection]: confidenceThreshold: 0.82 for email/slack/teams; 0.85 for cleanEnglish; 0.80 for actionItems/aiPrompt
 
 ### Pending Todos
 
@@ -101,6 +105,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-19T22:56:49.944Z
-Stopped at: Completed 09-03-PLAN.md
+Last session: 2026-03-20T00:22:22.126Z
+Stopped at: Completed 10-01-PLAN.md
 Resume file: None

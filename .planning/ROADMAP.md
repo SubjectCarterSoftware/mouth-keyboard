@@ -129,7 +129,7 @@ Plans:
 | 7. Core Types and Intent Detection | v1.1 | 2/2 | Complete | 2026-03-19 |
 | 8. LLM Rewrite Service | v1.1 | 0/2 | Planned | - |
 | 9. ActivationStore Integration and Guards | 3/3 | Complete    | 2026-03-19 | - |
-| 10. Fuzzy Intent Detection | v1.1 | 0/2 | Planned | - |
+| 10. Fuzzy Intent Detection | 1/2 | In Progress|  | - |
 
 ---
 *Last updated: 2026-03-19 after Phase 10 planned — 2 plans, TDD RED/GREEN pattern*
