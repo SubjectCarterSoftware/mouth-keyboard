@@ -70,6 +70,9 @@
 		A00000010000000000000040 /* IntentCatalog.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000020000000000000040 /* IntentCatalog.swift */; };
 		A00000010000000000000041 /* StringSimilarity.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000020000000000000041 /* StringSimilarity.swift */; };
 		A00000010000000000000042 /* StringSimilarityTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000020000000000000042 /* StringSimilarityTests.swift */; };
+		A00000010000000000000043 /* UserIntentEntry.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000020000000000000043 /* UserIntentEntry.swift */; };
+		A00000010000000000000044 /* UserIntentStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000020000000000000044 /* UserIntentStore.swift */; };
+		A00000010000000000000045 /* UserIntentStoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000020000000000000045 /* UserIntentStoreTests.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -153,6 +156,9 @@
 		A00000020000000000000040 /* IntentCatalog.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IntentCatalog.swift; sourceTree = "<group>"; };
 		A00000020000000000000041 /* StringSimilarity.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StringSimilarity.swift; sourceTree = "<group>"; };
 		A00000020000000000000042 /* StringSimilarityTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StringSimilarityTests.swift; sourceTree = "<group>"; };
+		A00000020000000000000043 /* UserIntentEntry.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UserIntentEntry.swift; sourceTree = "<group>"; };
+		A00000020000000000000044 /* UserIntentStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UserIntentStore.swift; sourceTree = "<group>"; };
+		A00000020000000000000045 /* UserIntentStoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UserIntentStoreTests.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -297,6 +303,7 @@
 				A00000020000000000000016 /* ShellPreferencesPhase2Tests.swift */,
 				A00000020000000000000030 /* ShellPreferencesModelTests.swift */,
 				A0000002000000000000002A /* WhisperServiceTests.swift */,
+				A00000020000000000000045 /* UserIntentStoreTests.swift */,
 			);
 			path = Speech2TextTests;
 			sourceTree = "<group>";
@@ -363,6 +370,8 @@
 				A0000002000000000000003F /* IntentDefinition.swift */,
 				A00000020000000000000040 /* IntentCatalog.swift */,
 				A00000020000000000000041 /* StringSimilarity.swift */,
+				A00000020000000000000043 /* UserIntentEntry.swift */,
+				A00000020000000000000044 /* UserIntentStore.swift */,
 			);
 			path = Conversion;
 			sourceTree = "<group>";
@@ -524,6 +533,8 @@
 				A0000001000000000000003F /* IntentDefinition.swift in Sources */,
 				A00000010000000000000040 /* IntentCatalog.swift in Sources */,
 				A00000010000000000000041 /* StringSimilarity.swift in Sources */,
+				A00000010000000000000043 /* UserIntentEntry.swift in Sources */,
+				A00000010000000000000044 /* UserIntentStore.swift in Sources */,
 				A0000001000000000000003C /* LLMRewriteService.swift in Sources */,
 				A00000010000000000000032 /* PasteService.swift in Sources */,
 				A00000010000000000000017 /* HotkeyService.swift in Sources */,
@@ -562,6 +573,7 @@
 				A00000010000000000000015 /* HotkeyServiceTests.swift in Sources */,
 				A00000010000000000000037 /* IntentDetectorTests.swift in Sources */,
 				A00000010000000000000042 /* StringSimilarityTests.swift in Sources */,
+				A00000010000000000000045 /* UserIntentStoreTests.swift in Sources */,
 				A0000001000000000000003D /* LLMRewriteServiceTests.swift in Sources */,
 				A0000001000000000000003E /* LLMRewriteServiceIntegrationTests.swift in Sources */,
 				A0000001000000000000000D /* PermissionServiceTests.swift in Sources */,
