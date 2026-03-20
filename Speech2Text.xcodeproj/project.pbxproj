@@ -84,6 +84,8 @@
 		A0000001000000000000004E /* TriggerAliasNormalizer.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0000002000000000000004E /* TriggerAliasNormalizer.swift */; };
 		A0000001000000000000004F /* TriggerCalibrationSession.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0000002000000000000004F /* TriggerCalibrationSession.swift */; };
 		A00000010000000000000050 /* TriggerTranscriptParserTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000020000000000000050 /* TriggerTranscriptParserTests.swift */; };
+		A00000010000000000000051 /* TriggerTranscriptParser.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000020000000000000051 /* TriggerTranscriptParser.swift */; };
+		A00000010000000000000052 /* TriggerTranscriptSplit.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000020000000000000052 /* TriggerTranscriptSplit.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -181,6 +183,8 @@
 		A0000002000000000000004E /* TriggerAliasNormalizer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TriggerAliasNormalizer.swift; sourceTree = "<group>"; };
 		A0000002000000000000004F /* TriggerCalibrationSession.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TriggerCalibrationSession.swift; sourceTree = "<group>"; };
 		A00000020000000000000050 /* TriggerTranscriptParserTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TriggerTranscriptParserTests.swift; sourceTree = "<group>"; };
+		A00000020000000000000051 /* TriggerTranscriptParser.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TriggerTranscriptParser.swift; sourceTree = "<group>"; };
+		A00000020000000000000052 /* TriggerTranscriptSplit.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TriggerTranscriptSplit.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -356,6 +360,8 @@
 				A0000002000000000000004A /* TriggerProfileStore.swift */,
 				A0000002000000000000004E /* TriggerAliasNormalizer.swift */,
 				A0000002000000000000004F /* TriggerCalibrationSession.swift */,
+				A00000020000000000000051 /* TriggerTranscriptParser.swift */,
+				A00000020000000000000052 /* TriggerTranscriptSplit.swift */,
 			);
 			path = Activation;
 			sourceTree = "<group>";
@@ -585,6 +591,8 @@
 				A0000001000000000000004A /* TriggerProfileStore.swift in Sources */,
 				A0000001000000000000004E /* TriggerAliasNormalizer.swift in Sources */,
 				A0000001000000000000004F /* TriggerCalibrationSession.swift in Sources */,
+				A00000010000000000000051 /* TriggerTranscriptParser.swift in Sources */,
+				A00000010000000000000052 /* TriggerTranscriptSplit.swift in Sources */,
 				A0000001000000000000000B /* RecoveryActions.swift in Sources */,
 				A00000010000000000000005 /* ShellPreferences.swift in Sources */,
 				A00000010000000000000047 /* IntentEditView.swift in Sources */,
