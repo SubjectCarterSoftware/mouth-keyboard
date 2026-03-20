@@ -14,9 +14,39 @@ enum IntentCatalog {
     ]
 
     /// Returns the effective definitions by merging store overrides into built-ins and appending custom entries.
-    /// Stub implementation — returns all unchanged until GREEN phase.
+    /// - Built-in overrides: replaces phrasePatterns and keywordSignal for the matching mode if non-empty.
+    /// - Custom entries (isBuiltIn == false): appended at the end with mode == .passthrough.
     static func effective(store: [UserIntentEntry]) -> [IntentDefinition] {
-        return all
+        var result: [IntentDefinition] = []
+
+        for def in all {
+            if let entry = store.first(where: { $0.id == def.mode.rawValue && $0.isBuiltIn }) {
+                // Override phrasePatterns and keywordSignal from store; keep aliases and confidenceThreshold
+                result.append(IntentDefinition(
+                    mode: def.mode,
+                    aliases: def.aliases,
+                    phrasePatterns: entry.phrasePatterns.isEmpty ? def.phrasePatterns : entry.phrasePatterns,
+                    keywordSignal: entry.keywordSignal.isEmpty ? def.keywordSignal : entry.keywordSignal,
+                    confidenceThreshold: def.confidenceThreshold
+                ))
+            } else {
+                result.append(def)
+            }
+        }
+
+        // Append custom (non-built-in) modes
+        let customEntries = store.filter { !$0.isBuiltIn }
+        for entry in customEntries {
+            result.append(IntentDefinition(
+                mode: .passthrough,             // no new ConvertMode cases (locked decision)
+                aliases: [entry.modeName],
+                phrasePatterns: entry.phrasePatterns,
+                keywordSignal: entry.keywordSignal,
+                confidenceThreshold: 0.82       // default; not tunable in v1
+            ))
+        }
+
+        return result
     }
 
     // MARK: - Private Definitions

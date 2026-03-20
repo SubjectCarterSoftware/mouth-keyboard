@@ -115,11 +115,14 @@ actor LLMRewriteService: LLMRewriting {
     }
 
     func rewrite(body: String, instructions: String) async throws -> String {
-        // Stub — throws until GREEN phase implements this
-        throw LLMRewriteError.modelLoadFailed
+        try await rewriteCore(body: body, instructions: instructions)
     }
 
     func rewrite(body: String, mode: ConvertMode) async throws -> String {
+        try await rewriteCore(body: body, instructions: mode.defaultSystemPrompt)
+    }
+
+    private func rewriteCore(body: String, instructions: String) async throws -> String {
         if Task.isCancelled {
             throw LLMRewriteError.cancelled
         }
@@ -139,7 +142,7 @@ actor LLMRewriteService: LLMRewriting {
             let stream = try streamFactory(
                 model,
                 body,
-                mode.defaultSystemPrompt,
+                instructions,
                 generationParameters
             )
 

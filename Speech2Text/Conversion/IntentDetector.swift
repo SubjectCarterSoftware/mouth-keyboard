@@ -6,9 +6,93 @@ enum IntentDetector {
     static let minimumMargin = 0.15
 
     /// New overload: accepts [IntentDefinition] directly, bypassing IntentCatalog.all.
-    /// Stub — returns passthrough until GREEN phase implements full algorithm.
+    /// For custom entries (mode == .passthrough), sets customIntentID = aliases.first.
     static func detect(transcript: String, definitions: [IntentDefinition]) -> ConvertIntent {
-        return ConvertIntent(mode: .passthrough, strippedBody: transcript, originalTranscript: transcript)
+        let trimmedOriginal = transcript.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedOriginal.isEmpty else {
+            return ConvertIntent(mode: .passthrough, strippedBody: "", originalTranscript: transcript)
+        }
+        guard !definitions.isEmpty else {
+            return ConvertIntent(mode: .passthrough, strippedBody: trimmedOriginal, originalTranscript: transcript)
+        }
+
+        let normalized = normalize(trimmedOriginal)
+        let tokens = normalized.split(separator: " ", omittingEmptySubsequences: true).map(String.init)
+        let (leadingZone, trailingZone) = extractZones(tokens: tokens)
+        let zonesAreDistinct = leadingZone != trailingZone
+
+        func makeIntent(def: IntentDefinition, strippedBody: String) -> ConvertIntent {
+            let customID: String? = def.mode == .passthrough ? def.aliases.first : nil
+            return ConvertIntent(
+                mode: def.mode,
+                strippedBody: strippedBody,
+                originalTranscript: transcript,
+                effectiveSystemPrompt: nil,
+                customIntentID: customID
+            )
+        }
+
+        if zonesAreDistinct {
+            if let (def, _, pattern) = scoreZoneDefs(trailingZone, defs: definitions) {
+                if let range = rangeInOriginal(pattern: pattern, original: trimmedOriginal, normalized: normalized, options: [.caseInsensitive, .backwards]) {
+                    let body = extractBodyTrailing(from: trimmedOriginal, matchedRange: range)
+                    let strippedBody = stripLeadingTriggerIfPresent(from: body)
+                    return makeIntent(def: def, strippedBody: strippedBody)
+                }
+            }
+            if let (def, _, pattern) = scoreZoneDefs(leadingZone, defs: definitions) {
+                let body = extractBodyLeading(from: trimmedOriginal, normalizedOriginal: normalized, matchedPattern: pattern)
+                return makeIntent(def: def, strippedBody: body)
+            }
+            return ConvertIntent(mode: .passthrough, strippedBody: trimmedOriginal, originalTranscript: transcript)
+        }
+
+        let allWinners = scoreAllZoneDefs(leadingZone, defs: definitions)
+
+        var bestTrailing: (IntentDefinition, String, Int)? = nil
+        for (def, _, pattern) in allWinners {
+            if let range = rangeInOriginal(pattern: pattern, original: trimmedOriginal, normalized: normalized, options: [.caseInsensitive, .backwards]) {
+                let upperOffset = trimmedOriginal.distance(from: trimmedOriginal.startIndex, to: range.upperBound)
+                let totalLen = trimmedOriginal.count
+                if upperOffset * 2 > totalLen {
+                    if let current = bestTrailing {
+                        if upperOffset > current.2 { bestTrailing = (def, pattern, upperOffset) }
+                    } else {
+                        bestTrailing = (def, pattern, upperOffset)
+                    }
+                }
+            }
+        }
+
+        if let (def, pattern, _) = bestTrailing {
+            if let range = rangeInOriginal(pattern: pattern, original: trimmedOriginal, normalized: normalized, options: [.caseInsensitive, .backwards]) {
+                let body = extractBodyTrailing(from: trimmedOriginal, matchedRange: range)
+                let strippedBody = stripLeadingTriggerIfPresent(from: body)
+                return makeIntent(def: def, strippedBody: strippedBody)
+            }
+        }
+
+        var bestLeading: (IntentDefinition, String, Int)? = nil
+        for (def, _, pattern) in allWinners {
+            if let range = rangeInOriginal(pattern: pattern, original: trimmedOriginal, normalized: normalized, options: .caseInsensitive) {
+                let lowerOffset = trimmedOriginal.distance(from: trimmedOriginal.startIndex, to: range.lowerBound)
+                let totalLen = trimmedOriginal.count
+                if lowerOffset * 2 <= totalLen {
+                    if let current = bestLeading {
+                        if lowerOffset < current.2 { bestLeading = (def, pattern, lowerOffset) }
+                    } else {
+                        bestLeading = (def, pattern, lowerOffset)
+                    }
+                }
+            }
+        }
+
+        if let (def, pattern, _) = bestLeading {
+            let body = extractBodyLeading(from: trimmedOriginal, normalizedOriginal: normalized, matchedPattern: pattern)
+            return makeIntent(def: def, strippedBody: body)
+        }
+
+        return ConvertIntent(mode: .passthrough, strippedBody: trimmedOriginal, originalTranscript: transcript)
     }
 
     static func detect(transcript: String, modes: [ConvertMode]) -> ConvertIntent {
@@ -281,6 +365,92 @@ enum IntentDetector {
         }
 
         // Exact matches take priority: if any winner is exact, discard fuzzy-only winners.
+        let hasExact = results.contains { $0.3 }
+        let filtered = hasExact ? results.filter { $0.3 } : results
+        return filtered.map { ($0.0, $0.1, $0.2) }
+    }
+
+    // MARK: - Scoring (defs overloads — used by detect(transcript:definitions:))
+
+    /// Like scoreZone but accepts [IntentDefinition] directly instead of filtering IntentCatalog.all by modes.
+    private static func scoreZoneDefs(
+        _ zone: String,
+        defs: [IntentDefinition]
+    ) -> (IntentDefinition, Double, String)? {
+        guard !zone.isEmpty else { return nil }
+        let candidate = stripFillers(zone)
+        guard !candidate.isEmpty else { return nil }
+        let candidateTokens = candidate.split(separator: " ", omittingEmptySubsequences: true).map(String.init)
+        guard candidateTokens.count >= 2 else { return nil }
+
+        var scored: [(IntentDefinition, Double, String, Bool)] = []
+
+        for def in defs {
+            var bestScore: Double = 0
+            var bestPattern = ""
+            var isExact = false
+
+            for pattern in def.phrasePatterns {
+                if candidate.contains(pattern) {
+                    bestScore = 1.0; bestPattern = pattern; isExact = true; break
+                }
+                let patternTokens = pattern.split(separator: " ", omittingEmptySubsequences: true).map(String.init)
+                guard candidateTokens.count >= patternTokens.count else { continue }
+                let (wscore, wstring) = windowedSimilarity(candidateTokens: candidateTokens, patternTokens: patternTokens)
+                if wscore > bestScore { bestScore = wscore; bestPattern = wstring.isEmpty ? pattern : wstring }
+            }
+
+            let keywordBonus: Double = (!isExact && bestScore >= 0.80 && candidate.contains(def.keywordSignal)) ? 0.15 : 0
+            let composite = min(1.0, bestScore + keywordBonus)
+            if !bestPattern.isEmpty {
+                scored.append((def, composite, bestPattern, isExact))
+            }
+        }
+
+        scored.sort { $0.1 > $1.1 }
+        guard let top = scored.first else { return nil }
+
+        if !top.3 && scored.count >= 2 {
+            guard top.1 - scored[1].1 >= minimumMargin else { return nil }
+        }
+        guard top.1 >= top.0.confidenceThreshold else { return nil }
+        return (top.0, top.1, top.2)
+    }
+
+    /// Like scoreAllZone but accepts [IntentDefinition] directly.
+    private static func scoreAllZoneDefs(
+        _ zone: String,
+        defs: [IntentDefinition]
+    ) -> [(IntentDefinition, Double, String)] {
+        guard !zone.isEmpty else { return [] }
+        let candidate = stripFillers(zone)
+        guard !candidate.isEmpty else { return [] }
+        let candidateTokens = candidate.split(separator: " ", omittingEmptySubsequences: true).map(String.init)
+        guard candidateTokens.count >= 2 else { return [] }
+
+        var results: [(IntentDefinition, Double, String, Bool)] = []
+
+        for def in defs {
+            var bestScore: Double = 0
+            var bestPattern = ""
+            var isExact = false
+
+            for pattern in def.phrasePatterns {
+                if candidate.contains(pattern) {
+                    bestScore = 1.0; bestPattern = pattern; isExact = true; break
+                }
+                let patternTokens = pattern.split(separator: " ", omittingEmptySubsequences: true).map(String.init)
+                guard candidateTokens.count >= patternTokens.count else { continue }
+                let (wscore, wstring) = windowedSimilarity(candidateTokens: candidateTokens, patternTokens: patternTokens)
+                if wscore > bestScore { bestScore = wscore; bestPattern = wstring.isEmpty ? pattern : wstring }
+            }
+
+            let keywordBonus: Double = (!isExact && bestScore >= 0.80 && candidate.contains(def.keywordSignal)) ? 0.15 : 0
+            let composite = min(1.0, bestScore + keywordBonus)
+            guard composite >= def.confidenceThreshold, !bestPattern.isEmpty else { continue }
+            results.append((def, composite, bestPattern, isExact))
+        }
+
         let hasExact = results.contains { $0.3 }
         let filtered = hasExact ? results.filter { $0.3 } : results
         return filtered.map { ($0.0, $0.1, $0.2) }
