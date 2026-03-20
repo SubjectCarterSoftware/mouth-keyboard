@@ -4,14 +4,14 @@ milestone: v1.1
 milestone_name: Convert Modes
 current_plan: 2
 status: planning
-stopped_at: Completed 11-01-PLAN.md
-last_updated: "2026-03-20T10:57:15.277Z"
+stopped_at: Completed 11-02-PLAN.md
+last_updated: "2026-03-20T11:00:17.665Z"
 last_activity: 2026-03-20
 progress:
   total_phases: 11
   completed_phases: 10
   total_plans: 28
-  completed_plans: 24
+  completed_plans: 25
   percent: 100
 ---
 
@@ -60,6 +60,7 @@ Progress: [██████████] 100%
 | Phase 10-fuzzy-intent-detection P01 | 8 | 2 tasks | 8 files |
 | Phase 10-fuzzy-intent-detection P02 | 525757 | 2 tasks | 3 files |
 | Phase 11-intent-configuration-ui P01 | 15 | 2 tasks | 5 files |
+| Phase 11-intent-configuration-ui P02 | 11 | 2 tasks | 7 files |
 
 ## Accumulated Context
 
@@ -100,6 +101,9 @@ Recent decisions affecting current work:
 - [Phase 11-01]: UserIntentStore uses actor isolation; all mutation serialized via Swift concurrency
 - [Phase 11-01]: storeURL init parameter enables hermetic tests using FileManager.temporaryDirectory UUIDs — no App Support pollution
 - [Phase 11-01]: Silent degradation on JSON corruption: store starts fresh, never propagates decode errors to callers
+- [Phase Phase 11-02]: rewrite(body:mode:) delegates to rewriteCore(body:instructions:) private helper — single code path, backward compatible
+- [Phase Phase 11-02]: Custom intent mode field is .passthrough (no new ConvertMode cases); caller distinguishes via customIntentID = aliases.first
+- [Phase Phase 11-02]: effectiveSystemPrompt nil from detector — ActivationStore (Plan 03) resolves it; detector stays pure detection logic
 
 ### Pending Todos
 
@@ -113,6 +117,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-20T10:57:15.274Z
-Stopped at: Completed 11-01-PLAN.md
+Last session: 2026-03-20T11:00:17.663Z
+Stopped at: Completed 11-02-PLAN.md
 Resume file: None
