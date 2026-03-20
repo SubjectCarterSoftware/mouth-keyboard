@@ -10,6 +10,7 @@ struct SetupWindowView: View {
     let dismissWindow: () -> Void
 
     @State private var showingModesSheet = false
+    @State private var showingAssistantSheet = false
 
     private var primaryActionTitle: String {
         if preferences.hasCompletedInitialSetup {
@@ -73,6 +74,20 @@ struct SetupWindowView: View {
                     KeyboardShortcuts.Recorder("Stop & Auto Paste:", name: .activateAndPaste)
                 }
                 .formStyle(.columns)
+
+                Divider()
+
+                AIAssistantTileView(
+                    preferences: preferences,
+                    onChangeTapped: { showingAssistantSheet = true }
+                )
+                .sheet(isPresented: $showingAssistantSheet) {
+                    AIAssistantSettingsView(
+                        viewModel: AIAssistantSettingsViewModel(preferences: preferences),
+                        preferences: preferences
+                    )
+                }
+                .accessibilityIdentifier("assistantTile")
 
                 Divider()
 

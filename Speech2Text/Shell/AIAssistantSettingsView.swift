@@ -91,7 +91,46 @@ final class AIAssistantSettingsViewModel: ObservableObject {
     }
 }
 
-// MARK: - View
+// MARK: - Tile View
+
+struct AIAssistantTileView: View {
+    @ObservedObject var preferences: ShellPreferences
+    let onChangeTapped: () -> Void
+
+    private var viewModel: AIAssistantSettingsViewModel {
+        AIAssistantSettingsViewModel(preferences: preferences)
+    }
+
+    var body: some View {
+        let vm = AIAssistantSettingsViewModel(preferences: preferences)
+        HStack {
+            VStack(alignment: .leading, spacing: 2) {
+                Text("AI Assistant")
+                    .font(.body)
+                Text(vm.activeName)
+                    .font(.body.weight(.medium))
+                    .accessibilityIdentifier("assistantTile.activeName")
+                Text(vm.tileStatusLine)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .accessibilityIdentifier("assistantTile.statusLine")
+                if let summary = vm.aliasSummary {
+                    Text("Variants: \(summary)")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .accessibilityIdentifier("assistantTile.aliasSummary")
+                }
+            }
+            Spacer()
+            Button("Change") {
+                onChangeTapped()
+            }
+            .accessibilityIdentifier("assistantTile.changeButton")
+        }
+    }
+}
+
+// MARK: - Sheet View
 
 struct AIAssistantSettingsView: View {
     @ObservedObject var viewModel: AIAssistantSettingsViewModel
