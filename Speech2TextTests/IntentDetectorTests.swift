@@ -4,7 +4,7 @@ import XCTest
 final class IntentDetectorTests: XCTestCase {
     private let allModes = ConvertMode.allCases
 
-    // MARK: - MODE metadata tests (MODE-01 through MODE-06)
+    // MARK: - MODE Metadata (keep GREEN)
 
     func testCleanEnglishHasActivationPhrase() {
         XCTAssertEqual(ConvertMode.cleanEnglish.defaultActivationPhrase, "convert to clean english")
@@ -54,17 +54,6 @@ final class IntentDetectorTests: XCTestCase {
         XCTAssertEqual(ConvertMode.aiPrompt.defaultSystemPrompt, "You are an AI prompt writer. Structure the user's raw dictated text as a well-formed AI prompt with three sections: 1) Context (background the AI needs), 2) Task (the specific ask), 3) Output format (how the response should look). Return only the structured prompt, no commentary.")
     }
 
-    func testEmailHasAllActivationPhraseCandidates() {
-        XCTAssertEqual(
-            ConvertMode.email.activationPhraseCandidates,
-            ["convert to email", "format to email", "convert email", "format email"]
-        )
-    }
-
-    func testPassthroughHasNoActivationPhraseCandidates() {
-        XCTAssertEqual(ConvertMode.passthrough.activationPhraseCandidates, [])
-    }
-
     func testPassthroughHasEmptyPhraseAndPrompt() {
         XCTAssertEqual(ConvertMode.passthrough.defaultActivationPhrase, "")
         XCTAssertEqual(ConvertMode.passthrough.defaultSystemPrompt, "")
@@ -76,33 +65,93 @@ final class IntentDetectorTests: XCTestCase {
 
     func testConvertIntentStoresAllFields() {
         let intent = ConvertIntent(mode: .email, strippedBody: "hello", originalTranscript: "convert to email hello")
-
         XCTAssertEqual(intent.mode, .email)
         XCTAssertEqual(intent.strippedBody, "hello")
         XCTAssertEqual(intent.originalTranscript, "convert to email hello")
     }
 
-    func testDetectReturnsMatchedIntent() {
-        let intent = IntentDetector.detect(transcript: "convert to email hello", modes: allModes)
+    // MARK: - IntentCatalog Structure
 
-        XCTAssertEqual(intent.mode, .email)
-        XCTAssertEqual(intent.strippedBody, "hello")
-        XCTAssertEqual(intent.originalTranscript, "convert to email hello")
+    func testIntentCatalogHasSixEntries() {
+        XCTAssertEqual(IntentCatalog.all.count, 6)
     }
 
-    // MARK: - INTENT-01: Leading trigger detection
+    func testIntentCatalogContainsEmailEntry() {
+        XCTAssertNotNil(IntentCatalog.all.first(where: { $0.mode == .email }))
+    }
 
-    func testLeadingTriggerEmail() {
+    func testEmailPhrasePatternContainsMakeThisAnEmail() {
+        let emailDef = IntentCatalog.all.first(where: { $0.mode == .email })
+        XCTAssertNotNil(emailDef)
+        XCTAssertTrue(emailDef!.phrasePatterns.contains("make this an email"),
+                      "Expected 'make this an email' in email phrasePatterns")
+    }
+
+    func testEmailPhrasePatternContainsBackwardCompatPhrase() {
+        let emailDef = IntentCatalog.all.first(where: { $0.mode == .email })
+        XCTAssertNotNil(emailDef)
+        XCTAssertTrue(emailDef!.phrasePatterns.contains("convert to email"),
+                      "Expected 'convert to email' in email phrasePatterns for backward compatibility")
+    }
+
+    func testEmailConfidenceThreshold() {
+        let emailDef = IntentCatalog.all.first(where: { $0.mode == .email })
+        XCTAssertNotNil(emailDef)
+        XCTAssertEqual(emailDef!.confidenceThreshold, 0.82, accuracy: 0.001)
+    }
+
+    func testActionItemsConfidenceThreshold() {
+        let def = IntentCatalog.all.first(where: { $0.mode == .actionItems })
+        XCTAssertNotNil(def)
+        XCTAssertEqual(def!.confidenceThreshold, 0.80, accuracy: 0.001)
+    }
+
+    // MARK: - INTENT-01: Leading Zone Detection
+
+    // These tests are RED until Plan 02 replaces hasPrefix/hasSuffix with fuzzy scoring
+
+    func testLeadingParaphraseEmail() {
+        // "make this an email" is a new paraphrase — hasPrefix won't match "convert to email" family
         let intent = IntentDetector.detect(
-            transcript: "Convert to email send this to the team",
+            transcript: "Make this an email send this to the team",
             modes: allModes
         )
         XCTAssertEqual(intent.mode, .email)
         XCTAssertEqual(intent.strippedBody, "send this to the team")
-        XCTAssertEqual(intent.originalTranscript, "Convert to email send this to the team")
     }
 
-    func testLeadingTriggerUppercase() {
+    func testLeadingFillerPlusEmail() {
+        // Filler "Okay" before paraphrase — OLD detector won't strip fillers
+        let intent = IntentDetector.detect(
+            transcript: "Okay make this an email send this to the team",
+            modes: allModes
+        )
+        XCTAssertEqual(intent.mode, .email)
+    }
+
+    func testLeadingEmailMode() {
+        // "Email mode" paraphrase — not in old candidate list
+        let intent = IntentDetector.detect(
+            transcript: "Email mode send this to the team",
+            modes: allModes
+        )
+        XCTAssertEqual(intent.mode, .email)
+        XCTAssertEqual(intent.strippedBody, "send this to the team")
+    }
+
+    func testLeadingBackwardCompatEmail() {
+        // "convert to email" still works — MUST stay GREEN in Plan 02 too (backward compat)
+        // Currently GREEN with old detector (exact phrase match)
+        let intent = IntentDetector.detect(
+            transcript: "convert to email send this to the team",
+            modes: allModes
+        )
+        XCTAssertEqual(intent.mode, .email)
+        XCTAssertEqual(intent.strippedBody, "send this to the team")
+    }
+
+    func testLeadingBackwardCompatEmailUppercase() {
+        // Case-insensitive exact phrase — GREEN with old detector
         let intent = IntentDetector.detect(
             transcript: "CONVERT TO EMAIL send this to the team",
             modes: allModes
@@ -111,129 +160,316 @@ final class IntentDetectorTests: XCTestCase {
         XCTAssertEqual(intent.strippedBody, "send this to the team")
     }
 
-    func testLeadingTriggerMixedCase() {
+    func testLeadingActionItems() {
+        // "Extract action items" — new paraphrase, not in old candidates
         let intent = IntentDetector.detect(
-            transcript: "Convert To Email send this to the team",
+            transcript: "Extract action items call bob tomorrow and fix the bug",
             modes: allModes
         )
-        XCTAssertEqual(intent.mode, .email)
-        XCTAssertEqual(intent.strippedBody, "send this to the team")
+        XCTAssertEqual(intent.mode, .actionItems)
     }
 
-    func testLeadingTriggerFormatToPrefix() {
+    func testLeadingTurnIntoSlack() {
+        // "Turn into slack" — new paraphrase
         let intent = IntentDetector.detect(
-            transcript: "format to slack quick update here",
+            transcript: "Turn into slack quick channel update",
             modes: allModes
         )
         XCTAssertEqual(intent.mode, .slack)
-        XCTAssertEqual(intent.strippedBody, "quick update here")
     }
 
-    func testLeadingTriggerConvertShortPrefix() {
+    func testLeadingAiPrompt() {
+        // "Make this an ai prompt" — new paraphrase
         let intent = IntentDetector.detect(
-            transcript: "convert clean english this needs fixing",
-            modes: allModes
-        )
-        XCTAssertEqual(intent.mode, .cleanEnglish)
-        XCTAssertEqual(intent.strippedBody, "this needs fixing")
-    }
-
-    func testLeadingTriggerFormatShortPrefix() {
-        let intent = IntentDetector.detect(
-            transcript: "format action items call bob tomorrow",
-            modes: allModes
-        )
-        XCTAssertEqual(intent.mode, .actionItems)
-        XCTAssertEqual(intent.strippedBody, "call bob tomorrow")
-    }
-
-    func testLeadingTriggerTwoWordModeActionItems() {
-        let intent = IntentDetector.detect(
-            transcript: "Convert to action items call bob tomorrow",
-            modes: allModes
-        )
-        XCTAssertEqual(intent.mode, .actionItems)
-        XCTAssertEqual(intent.strippedBody, "call bob tomorrow")
-    }
-
-    func testLeadingTriggerAiPrompt() {
-        let intent = IntentDetector.detect(
-            transcript: "Convert to ai prompt make me a story",
+            transcript: "Make this an ai prompt write a story about the sea",
             modes: allModes
         )
         XCTAssertEqual(intent.mode, .aiPrompt)
-        XCTAssertEqual(intent.strippedBody, "make me a story")
     }
 
-    func testLeadingTriggerWithWhisperLeadingSpace() {
+    func testLeadingCleanEnglish() {
+        // "Clean this up" — new paraphrase
         let intent = IntentDetector.detect(
-            transcript: " Convert to email send this",
-            modes: allModes
-        )
-        XCTAssertEqual(intent.mode, .email)
-        XCTAssertEqual(intent.strippedBody, "send this")
-    }
-
-    // MARK: - INTENT-02: Trailing trigger detection
-
-    func testTrailingTriggerEmail() {
-        let intent = IntentDetector.detect(
-            transcript: "send this to the team convert to email",
-            modes: allModes
-        )
-        XCTAssertEqual(intent.mode, .email)
-        XCTAssertEqual(intent.strippedBody, "send this to the team")
-        XCTAssertEqual(intent.originalTranscript, "send this to the team convert to email")
-    }
-
-    func testTrailingTriggerWithPeriod() {
-        let intent = IntentDetector.detect(
-            transcript: "send this to the team convert to email.",
-            modes: allModes
-        )
-        XCTAssertEqual(intent.mode, .email)
-        XCTAssertEqual(intent.strippedBody, "send this to the team")
-    }
-
-    func testTrailingTriggerTwoWordModeCleanEnglish() {
-        let intent = IntentDetector.detect(
-            transcript: "this needs cleanup convert to clean english",
+            transcript: "Clean this up this draft needs work",
             modes: allModes
         )
         XCTAssertEqual(intent.mode, .cleanEnglish)
-        XCTAssertEqual(intent.strippedBody, "this needs cleanup")
     }
 
-    func testTrailingTriggerFormatToPrefix() {
+    func testLeadingTeams() {
+        // "Format for teams" — in catalog; old "format teams" was candidate but "format for teams" is new
         let intent = IntentDetector.detect(
-            transcript: "quick update for the channel format to slack",
+            transcript: "Format for teams this is an update for the team channel",
             modes: allModes
         )
-        XCTAssertEqual(intent.mode, .slack)
-        XCTAssertEqual(intent.strippedBody, "quick update for the channel")
+        XCTAssertEqual(intent.mode, .teams)
     }
 
-    func testTrailingTriggerConvertShortPrefix() {
+    func testLeadingFillerPlusActionItems() {
+        // "Um can you" filler before "action items"
         let intent = IntentDetector.detect(
-            transcript: "this draft needs cleanup convert clean english",
-            modes: allModes
-        )
-        XCTAssertEqual(intent.mode, .cleanEnglish)
-        XCTAssertEqual(intent.strippedBody, "this draft needs cleanup")
-    }
-
-    func testTrailingTriggerFormatShortPrefixWithPunctuation() {
-        let intent = IntentDetector.detect(
-            transcript: "call bob tomorrow format action items!",
+            transcript: "Um can you action items please call bob tomorrow",
             modes: allModes
         )
         XCTAssertEqual(intent.mode, .actionItems)
-        XCTAssertEqual(intent.strippedBody, "call bob tomorrow")
     }
 
-    // MARK: - INTENT-03: Case-insensitive, end-wins, passthrough
+    func testLeadingWhisperLeadingSpacePreserved() {
+        // Whisper sometimes produces a leading space
+        let intent = IntentDetector.detect(
+            transcript: " Make this an email send this",
+            modes: allModes
+        )
+        XCTAssertEqual(intent.mode, .email)
+    }
 
-    func testEndWinsWhenBothLeadingAndTrailingPresent() {
+    // --- Fuzzy paraphrase tests (require real Jaro-Winkler in Plan 02) ---
+
+    func testLeadingParaphraseEmailAsAMail() {
+        // "As a mail" — paraphrase not in catalog; requires fuzzy matching
+        let intent = IntentDetector.detect(
+            transcript: "As a mail send this report to the board",
+            modes: allModes
+        )
+        XCTAssertEqual(intent.mode, .email)
+    }
+
+    func testLeadingParaphraseSlackUpdate() {
+        // "Slack this update" — not in catalog; requires fuzzy matching
+        let intent = IntentDetector.detect(
+            transcript: "Slack this update quick note for the channel",
+            modes: allModes
+        )
+        XCTAssertEqual(intent.mode, .slack)
+    }
+
+    func testLeadingNaturalVariantActionItems() {
+        // "Pull out action items" — not in catalog; requires fuzzy matching
+        let intent = IntentDetector.detect(
+            transcript: "Pull out action items from this meeting notes call bob",
+            modes: allModes
+        )
+        XCTAssertEqual(intent.mode, .actionItems)
+    }
+
+    func testLeadingNormalizationEMailVariant() {
+        // "E mail mode" with space — requires normalization: "e mail" → "email"
+        let intent = IntentDetector.detect(
+            transcript: "E mail mode send this project update",
+            modes: allModes
+        )
+        XCTAssertEqual(intent.mode, .email)
+    }
+
+    func testLeadingNormalizationActionItemSingular() {
+        // "Action item" singular → requires normalization to "action items"
+        let intent = IntentDetector.detect(
+            transcript: "Action item call bob tomorrow",
+            modes: allModes
+        )
+        XCTAssertEqual(intent.mode, .actionItems)
+    }
+
+    // MARK: - INTENT-02: Trailing Zone Detection
+
+    // These tests are RED until Plan 02 replaces hasSuffix with fuzzy scoring
+
+    func testTrailingParaphraseEmail() {
+        // "make this an email" trailing — new paraphrase
+        let intent = IntentDetector.detect(
+            transcript: "Send this to the team make this an email",
+            modes: allModes
+        )
+        XCTAssertEqual(intent.mode, .email)
+        XCTAssertEqual(intent.strippedBody, "Send this to the team")
+    }
+
+    func testTrailingActionItemsPlease() {
+        // "action items please" trailing — new paraphrase
+        let intent = IntentDetector.detect(
+            transcript: "Call bob tomorrow and fix the bug action items please",
+            modes: allModes
+        )
+        XCTAssertEqual(intent.mode, .actionItems)
+    }
+
+    func testTrailingEmailModeWithPeriod() {
+        // "email mode." trailing with terminal punctuation
+        let intent = IntentDetector.detect(
+            transcript: "Send this to the team email mode.",
+            modes: allModes
+        )
+        XCTAssertEqual(intent.mode, .email)
+        XCTAssertEqual(intent.strippedBody, "Send this to the team")
+    }
+
+    func testTrailingBackwardCompatEmail() {
+        // "convert to email" trailing — GREEN with old detector
+        let intent = IntentDetector.detect(
+            transcript: "Send this to the team convert to email",
+            modes: allModes
+        )
+        XCTAssertEqual(intent.mode, .email)
+        XCTAssertEqual(intent.strippedBody, "Send this to the team")
+    }
+
+    func testTrailingFormatToSlack() {
+        // "format to slack" trailing backward compat — GREEN with old detector
+        let intent = IntentDetector.detect(
+            transcript: "Quick update for the channel format to slack",
+            modes: allModes
+        )
+        XCTAssertEqual(intent.mode, .slack)
+    }
+
+    func testTrailingTurnIntoTeams() {
+        // "turn into teams" trailing — new paraphrase
+        let intent = IntentDetector.detect(
+            transcript: "This update is for the team turn into teams",
+            modes: allModes
+        )
+        XCTAssertEqual(intent.mode, .teams)
+    }
+
+    func testTrailingRewriteAsCleanEnglish() {
+        // "rewrite as clean english" trailing — new paraphrase
+        let intent = IntentDetector.detect(
+            transcript: "This draft needs work rewrite as clean english",
+            modes: allModes
+        )
+        XCTAssertEqual(intent.mode, .cleanEnglish)
+    }
+
+    func testTrailingAsAnAiPrompt() {
+        // "as an ai prompt" trailing — new paraphrase
+        let intent = IntentDetector.detect(
+            transcript: "Write a story about the sea as an ai prompt",
+            modes: allModes
+        )
+        XCTAssertEqual(intent.mode, .aiPrompt)
+    }
+
+    func testTrailingFillerAfterEmailMode() {
+        // "email mode please" trailing with filler word
+        let intent = IntentDetector.detect(
+            transcript: "Send this to the team email mode please",
+            modes: allModes
+        )
+        XCTAssertEqual(intent.mode, .email)
+        XCTAssertEqual(intent.strippedBody, "Send this to the team")
+    }
+
+    func testTrailingFillerUhAfterActionItems() {
+        // "action items uh" — filler after command; Plan 02 strips "uh" then matches "action items"
+        let intent = IntentDetector.detect(
+            transcript: "Call bob tomorrow action items uh",
+            modes: allModes
+        )
+        XCTAssertEqual(intent.mode, .actionItems)
+    }
+
+    // --- Fuzzy trailing paraphrase tests (require real Jaro-Winkler in Plan 02) ---
+
+    func testTrailingFuzzyParaphraseEmail() {
+        // "send as an email" — not exact catalog match; requires fuzzy scoring
+        let intent = IntentDetector.detect(
+            transcript: "Here is the project summary send as an email",
+            modes: allModes
+        )
+        XCTAssertEqual(intent.mode, .email)
+    }
+
+    func testTrailingNormalizationActionItemSingular() {
+        // "action item" singular trailing — requires normalization
+        let intent = IntentDetector.detect(
+            transcript: "Call bob fix the pipeline action item",
+            modes: allModes
+        )
+        XCTAssertEqual(intent.mode, .actionItems)
+    }
+
+    func testTrailingNormalizationEMailSpace() {
+        // "e mail mode" with space — requires normalization: "e mail" → "email"
+        let intent = IntentDetector.detect(
+            transcript: "This needs to go out e mail mode",
+            modes: allModes
+        )
+        XCTAssertEqual(intent.mode, .email)
+    }
+
+    // MARK: - INTENT-03: Case-Insensitive, Span Removal, originalTranscript
+
+    // These tests are RED until Plan 02 provides case-insensitive fuzzy detection
+
+    func testMixedCaseLeadingParaphrase() {
+        let intent = IntentDetector.detect(
+            transcript: "Make This An Email send this to the team",
+            modes: allModes
+        )
+        XCTAssertEqual(intent.mode, .email)
+    }
+
+    func testUpperCaseLeadingParaphrase() {
+        let intent = IntentDetector.detect(
+            transcript: "MAKE THIS AN EMAIL send this to the team",
+            modes: allModes
+        )
+        XCTAssertEqual(intent.mode, .email)
+    }
+
+    func testMixedCaseTrailingParaphrase() {
+        let intent = IntentDetector.detect(
+            transcript: "Send this to the team Make This An Email",
+            modes: allModes
+        )
+        XCTAssertEqual(intent.mode, .email)
+    }
+
+    func testStrippedBodyHasNoCommandSpanTrailing() {
+        // Trailing detection: strippedBody should be only the body content, not the command
+        let intent = IntentDetector.detect(
+            transcript: "Send this to the team make this an email",
+            modes: allModes
+        )
+        XCTAssertEqual(intent.mode, .email)
+        XCTAssertFalse(intent.strippedBody.lowercased().contains("email"),
+                       "strippedBody should not contain the command span")
+    }
+
+    func testOriginalTranscriptPreservedLeading() {
+        let raw = "Make this an email send this to the team"
+        let intent = IntentDetector.detect(transcript: raw, modes: allModes)
+        XCTAssertEqual(intent.originalTranscript, raw)
+    }
+
+    func testOriginalTranscriptPreservedTrailing() {
+        let raw = "Send this to the team make this an email"
+        let intent = IntentDetector.detect(transcript: raw, modes: allModes)
+        XCTAssertEqual(intent.originalTranscript, raw)
+    }
+
+    func testOnlyCommandTrailingReturnsEmptyBody() {
+        // Only the command phrase → strippedBody = ""
+        let intent = IntentDetector.detect(
+            transcript: "make this an email",
+            modes: allModes
+        )
+        XCTAssertEqual(intent.mode, .email)
+        XCTAssertEqual(intent.strippedBody, "")
+    }
+
+    func testOnlyCommandLeadingReturnsEmptyBody() {
+        // "email mode" is the whole transcript
+        let intent = IntentDetector.detect(
+            transcript: "email mode",
+            modes: allModes
+        )
+        XCTAssertEqual(intent.mode, .email)
+        XCTAssertEqual(intent.strippedBody, "")
+    }
+
+    func testTrailingWinsWhenBothZonesDetect() {
+        // "convert to email" leading, "convert to slack" trailing → slack wins
         let intent = IntentDetector.detect(
             transcript: "convert to email body text convert to slack",
             modes: allModes
@@ -242,7 +478,11 @@ final class IntentDetectorTests: XCTestCase {
         XCTAssertEqual(intent.strippedBody, "body text")
     }
 
-    func testNoTriggerReturnsPassthrough() {
+    // MARK: - Passthrough (false-positive guard)
+
+    // These tests must stay GREEN after Plan 02 — they guard against false positives
+
+    func testPlainDictationReturnsPassthrough() {
         let intent = IntentDetector.detect(
             transcript: "send this to the team",
             modes: allModes
@@ -252,29 +492,13 @@ final class IntentDetectorTests: XCTestCase {
         XCTAssertEqual(intent.originalTranscript, "send this to the team")
     }
 
-    func testBareModenameNoPrefix() {
+    func testIncidentalEmailMentionReturnsPassthrough() {
+        // "email" in the body, not as a command — position guard prevents false positive
         let intent = IntentDetector.detect(
-            transcript: "email send this to the team",
+            transcript: "I got an email about the project and should reply",
             modes: allModes
         )
         XCTAssertEqual(intent.mode, .passthrough)
-    }
-
-    func testTrailingBareModeNameNoPrefix() {
-        let intent = IntentDetector.detect(
-            transcript: "send this to the team email",
-            modes: allModes
-        )
-        XCTAssertEqual(intent.mode, .passthrough)
-    }
-
-    func testOnlyTriggerPhraseReturnsEmptyBody() {
-        let intent = IntentDetector.detect(
-            transcript: "convert to email",
-            modes: allModes
-        )
-        XCTAssertEqual(intent.mode, .email)
-        XCTAssertEqual(intent.strippedBody, "")
     }
 
     func testEmptyTranscriptReturnsPassthrough() {
@@ -286,9 +510,21 @@ final class IntentDetectorTests: XCTestCase {
         XCTAssertEqual(intent.strippedBody, "")
     }
 
-    func testOriginalTranscriptPreservedOnMatch() {
-        let raw = "Convert To Email send this to the team"
-        let intent = IntentDetector.detect(transcript: raw, modes: allModes)
-        XCTAssertEqual(intent.originalTranscript, raw)
+    func testBareKeywordEmailReturnsPassthrough() {
+        // "email the team" — keyword without command framing, below threshold
+        let intent = IntentDetector.detect(
+            transcript: "email the team",
+            modes: allModes
+        )
+        XCTAssertEqual(intent.mode, .passthrough)
+    }
+
+    func testSingleTokenEmailReturnsPassthrough() {
+        // Single bare keyword "email" alone — too short, threshold not met
+        let intent = IntentDetector.detect(
+            transcript: "email",
+            modes: allModes
+        )
+        XCTAssertEqual(intent.mode, .passthrough)
     }
 }
