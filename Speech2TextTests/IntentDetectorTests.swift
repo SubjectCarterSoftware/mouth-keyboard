@@ -372,7 +372,7 @@ final class IntentDetectorTests: XCTestCase {
             modes: allModes
         )
         XCTAssertEqual(intent.mode, .slack)
-        XCTAssertEqual(intent.strippedBody, "body text")
+        XCTAssertEqual(intent.strippedBody, "convert to email body text")
     }
 
     func testTrailingWinnerPreservesLeadingCommandLikeContentForParserAlignedFlow() {

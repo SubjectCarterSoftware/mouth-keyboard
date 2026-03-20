@@ -36,8 +36,7 @@ enum IntentDetector {
             if let (def, _, pattern) = scoreZoneDefs(trailingZone, defs: definitions) {
                 if let range = rangeInOriginal(pattern: pattern, original: trimmedOriginal, normalized: normalized, options: [.caseInsensitive, .backwards]) {
                     let body = extractBodyTrailing(from: trimmedOriginal, matchedRange: range)
-                    let strippedBody = stripLeadingTriggerIfPresent(from: body)
-                    return makeIntent(def: def, strippedBody: strippedBody)
+                    return makeIntent(def: def, strippedBody: body)
                 }
             }
             if let (def, _, pattern) = scoreZoneDefs(leadingZone, defs: definitions) {
@@ -52,13 +51,13 @@ enum IntentDetector {
         var bestTrailing: (IntentDefinition, String, Int)? = nil
         for (def, _, pattern) in allWinners {
             if let range = rangeInOriginal(pattern: pattern, original: trimmedOriginal, normalized: normalized, options: [.caseInsensitive, .backwards]) {
-                let upperOffset = trimmedOriginal.distance(from: trimmedOriginal.startIndex, to: range.upperBound)
+                let lowerOffset = trimmedOriginal.distance(from: trimmedOriginal.startIndex, to: range.lowerBound)
                 let totalLen = trimmedOriginal.count
-                if upperOffset * 2 > totalLen {
+                if lowerOffset * 2 > totalLen {
                     if let current = bestTrailing {
-                        if upperOffset > current.2 { bestTrailing = (def, pattern, upperOffset) }
+                        if lowerOffset > current.2 { bestTrailing = (def, pattern, lowerOffset) }
                     } else {
-                        bestTrailing = (def, pattern, upperOffset)
+                        bestTrailing = (def, pattern, lowerOffset)
                     }
                 }
             }
@@ -67,8 +66,7 @@ enum IntentDetector {
         if let (def, pattern, _) = bestTrailing {
             if let range = rangeInOriginal(pattern: pattern, original: trimmedOriginal, normalized: normalized, options: [.caseInsensitive, .backwards]) {
                 let body = extractBodyTrailing(from: trimmedOriginal, matchedRange: range)
-                let strippedBody = stripLeadingTriggerIfPresent(from: body)
-                return makeIntent(def: def, strippedBody: strippedBody)
+                return makeIntent(def: def, strippedBody: body)
             }
         }
 
@@ -114,8 +112,7 @@ enum IntentDetector {
             if let (def, _, pattern) = scoreZone(trailingZone, modes: modes) {
                 if let range = rangeInOriginal(pattern: pattern, original: trimmedOriginal, normalized: normalized, options: [.caseInsensitive, .backwards]) {
                     let body = extractBodyTrailing(from: trimmedOriginal, matchedRange: range)
-                    let strippedBody = stripLeadingTriggerIfPresent(from: body)
-                    return ConvertIntent(mode: def.mode, strippedBody: strippedBody, originalTranscript: transcript)
+                    return ConvertIntent(mode: def.mode, strippedBody: body, originalTranscript: transcript)
                 }
             }
             if let (def, _, pattern) = scoreZone(leadingZone, modes: modes) {
@@ -134,16 +131,16 @@ enum IntentDetector {
 
         // Trailing pass: find a winner whose pattern appears in the SECOND HALF of the transcript.
         // Among all trailing-qualified winners, pick the one whose pattern ends furthest right.
-        var bestTrailing: (IntentDefinition, String, Int)? = nil // (def, pattern, upperOffset)
+        var bestTrailing: (IntentDefinition, String, Int)? = nil // (def, pattern, lowerOffset)
         for (def, _, pattern) in allWinners {
             if let range = rangeInOriginal(pattern: pattern, original: trimmedOriginal, normalized: normalized, options: [.caseInsensitive, .backwards]) {
-                let upperOffset = trimmedOriginal.distance(from: trimmedOriginal.startIndex, to: range.upperBound)
+                let lowerOffset = trimmedOriginal.distance(from: trimmedOriginal.startIndex, to: range.lowerBound)
                 let totalLen = trimmedOriginal.count
-                if upperOffset * 2 > totalLen {
+                if lowerOffset * 2 > totalLen {
                     if let current = bestTrailing {
-                        if upperOffset > current.2 { bestTrailing = (def, pattern, upperOffset) }
+                        if lowerOffset > current.2 { bestTrailing = (def, pattern, lowerOffset) }
                     } else {
-                        bestTrailing = (def, pattern, upperOffset)
+                        bestTrailing = (def, pattern, lowerOffset)
                     }
                 }
             }
@@ -152,8 +149,7 @@ enum IntentDetector {
         if let (def, pattern, _) = bestTrailing {
             if let range = rangeInOriginal(pattern: pattern, original: trimmedOriginal, normalized: normalized, options: [.caseInsensitive, .backwards]) {
                 let body = extractBodyTrailing(from: trimmedOriginal, matchedRange: range)
-                let strippedBody = stripLeadingTriggerIfPresent(from: body)
-                return ConvertIntent(mode: def.mode, strippedBody: strippedBody, originalTranscript: transcript)
+                return ConvertIntent(mode: def.mode, strippedBody: body, originalTranscript: transcript)
             }
         }
 
@@ -535,18 +531,4 @@ enum IntentDetector {
         return String(original[bodyStart...]).trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
-    // MARK: - Strip Leading Trigger
-
-    private static func stripLeadingTriggerIfPresent(from body: String) -> String {
-        let trimmedBody = body.trimmingCharacters(in: .whitespacesAndNewlines)
-        let normalizedBody = normalize(trimmedBody)
-        for def in IntentCatalog.all {
-            for pattern in def.phrasePatterns {
-                guard normalizedBody.hasPrefix(pattern) else { continue }
-                let bodyStart = trimmedBody.index(trimmedBody.startIndex, offsetBy: pattern.count)
-                return String(trimmedBody[bodyStart...]).trimmingCharacters(in: .whitespacesAndNewlines)
-            }
-        }
-        return body
-    }
 }

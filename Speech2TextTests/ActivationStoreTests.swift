@@ -385,7 +385,7 @@ final class ActivationStoreTests: XCTestCase {
 
     func test_trigger_dictation_produces_converted_clipboard_output() async throws {
         let mockTranscriber = ActivationStoreMockTranscriber(
-            result: .success("convert to email Please schedule a meeting for Friday")
+            result: .success("zeus convert to email Please schedule a meeting for Friday")
         )
         let mockRewriter = MockLLMRewriter(result: .success("Subject: Meeting Request\n\nPlease schedule..."))
         let mockClipboard = ActivationStoreMockClipboard()
@@ -446,7 +446,7 @@ final class ActivationStoreTests: XCTestCase {
         try await intentStore.addOrUpdateBuiltInOverride(emailOverride)
 
         let mockTranscriber = ActivationStoreMockTranscriber(
-            result: .success("convert to email Please schedule a meeting for Friday")
+            result: .success("zeus convert to email Please schedule a meeting for Friday")
         )
         let mockRewriter = MockLLMRewriter(result: .success("Rewritten email output"))
         let mockClipboard = ActivationStoreMockClipboard()
@@ -485,7 +485,7 @@ final class ActivationStoreTests: XCTestCase {
         try await intentStore.addOrUpdateCustomMode(customEntry)
 
         let mockTranscriber = ActivationStoreMockTranscriber(
-            result: .success("convert to jira We need to fix the login bug")
+            result: .success("zeus convert to jira We need to fix the login bug")
         )
         let mockRewriter = MockLLMRewriter(result: .success("JIRA: Fix login bug"))
         let mockClipboard = ActivationStoreMockClipboard()
@@ -515,7 +515,7 @@ final class ActivationStoreTests: XCTestCase {
         let intentStore = UserIntentStore(storeURL: tmpURL)
 
         let mockTranscriber = ActivationStoreMockTranscriber(
-            result: .success("convert to email Please schedule a meeting")
+            result: .success("zeus convert to email Please schedule a meeting")
         )
         let mockRewriter = MockLLMRewriter(result: .success("Email output"))
         let mockClipboard = ActivationStoreMockClipboard()
@@ -595,7 +595,7 @@ final class ActivationStoreTests: XCTestCase {
         try await Task.sleep(nanoseconds: 80_000_000)
 
         let mockTranscriber = ActivationStoreMockTranscriber(
-            result: .success("convert to email Please schedule a meeting")
+            result: .success("helios convert to email Please schedule a meeting")
         )
         let mockRewriter = MockLLMRewriter(result: .success("Email output"))
         let store = makeStore(

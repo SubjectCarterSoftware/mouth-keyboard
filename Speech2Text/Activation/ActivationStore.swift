@@ -291,8 +291,16 @@ final class ActivationStore: ObservableObject {
             // Snapshot merged catalog from UserIntentStore for detection
             let storeEntries = await userIntentStore.allEntries()
             let effectiveDefinitions = IntentCatalog.effective(store: storeEntries)
-            let intent = IntentDetector.detect(transcript: trimmed, definitions: effectiveDefinitions)
-            _ = triggerAliases.count
+            let split = TriggerTranscriptParser.split(transcript: trimmed, activeAliases: triggerAliases)
+            let intent: ConvertIntent
+            switch split {
+            case .noTrigger:
+                intent = ConvertIntent(mode: .passthrough, strippedBody: trimmed, originalTranscript: trimmed)
+            case .invalidTrigger:
+                intent = ConvertIntent(mode: .passthrough, strippedBody: trimmed, originalTranscript: trimmed)
+            case .validTrigger(_, let instruction, _):
+                intent = IntentDetector.detect(transcript: instruction, definitions: effectiveDefinitions)
+            }
 
             if intent.mode == .passthrough && intent.customIntentID == nil {
                 // LLM-02: passthrough path completely unchanged
