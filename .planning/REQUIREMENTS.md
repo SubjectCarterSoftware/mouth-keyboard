@@ -24,7 +24,7 @@
 
 - [x] **LLM-01**: Rewriting runs locally via Qwen2.5-1.5B-Instruct-4bit (MLX), with the model downloaded on first use and cached persistently
 - [x] **LLM-02**: The no-trigger dictation path is completely unchanged — plain transcriptions still copy raw text to clipboard
-- [ ] **LLM-03**: User sees download progress in the menu bar when the rewrite model is downloading for the first time
+- ~~**LLM-03**: User sees download progress in the menu bar when the rewrite model is downloading for the first time~~ *(dropped — Phase 10 redefined)*
 
 ### Guards & UX
 
@@ -34,10 +34,10 @@
 
 ### Settings
 
-- [ ] **SETT-01**: User can view all 6 built-in modes in the settings panel, including their activation phrase and read-only system prompt
-- [ ] **SETT-02**: User can edit the activation phrase for any built-in mode (defaults to "convert to [mode name]")
-- [ ] **SETT-03**: User can add a custom mode with a custom activation phrase and a system prompt (max 280 characters)
-- [ ] **SETT-04**: User can delete a custom mode they previously created
+- ~~**SETT-01**: User can view all 6 built-in modes in the settings panel, including their activation phrase and read-only system prompt~~ *(dropped — Phase 10 redefined)*
+- ~~**SETT-02**: User can edit the activation phrase for any built-in mode (defaults to "convert to [mode name]")~~ *(dropped)*
+- ~~**SETT-03**: User can add a custom mode with a custom activation phrase and a system prompt (max 280 characters)~~ *(dropped)*
+- ~~**SETT-04**: User can delete a custom mode they previously created~~ *(dropped)*
 
 ## Future Requirements
 
@@ -72,14 +72,14 @@
 | MODE-06 | Phase 7 | Complete |
 | LLM-01 | Phase 6 | Complete |
 | LLM-02 | Phase 9 | Complete |
-| LLM-03 | Phase 10 | Pending |
+| LLM-03 | — | Dropped |
 | UX-01 | Phase 9 | Complete |
 | GUARD-01 | Phase 9 | Complete |
 | GUARD-02 | Phase 8 | Complete |
-| SETT-01 | Phase 10 | Pending |
-| SETT-02 | Phase 10 | Pending |
-| SETT-03 | Phase 10 | Pending |
-| SETT-04 | Phase 10 | Pending |
+| SETT-01 | — | Dropped |
+| SETT-02 | — | Dropped |
+| SETT-03 | — | Dropped |
+| SETT-04 | — | Dropped |
 
 **Coverage:**
 - v1.1 requirements: 19 total
@@ -88,4 +88,4 @@
 
 ---
 *Requirements defined: 2026-03-18*
-*Last updated: 2026-03-18 after roadmap creation — traceability corrected (MODE-01–06 to Phase 7, LLM-02 to Phase 9)*
+*Last updated: 2026-03-19 — SETT-01–04 and LLM-03 dropped; Phase 10 redefined as Fuzzy Intent Detection*

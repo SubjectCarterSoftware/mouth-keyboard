@@ -100,20 +100,21 @@ Plans:
 - [x] 09-02-PLAN.md — UI layer: pill .converting animation + .wordLimitExceeded, AppDelegate, StatusMenuView + Speech2TextApp wiring
 - [ ] 09-03-PLAN.md — Manual verification: .converting animation, 350-word guard, LLM fallback, passthrough regression, menu item
 
-### Phase 10: Settings Panel and First-Run Download UX
-**Goal**: Users can view, edit, and extend conversion modes in the settings panel, and the 869 MB model download on first use shows visible progress in the menu bar status item so users know the app is working.
+### Phase 10: Fuzzy Intent Detection
+**Goal**: Replace the brittle exact-phrase IntentDetector with a config-driven normalization + fuzzy matching classifier that handles natural speech variation, filler words, and common paraphrase patterns for all 5 conversion intents.
 **Depends on**: Phase 9
-**Requirements**: LLM-03, SETT-01, SETT-02, SETT-03, SETT-04
+**Requirements**: INTENT-01, INTENT-02, INTENT-03
 **Success Criteria** (what must be TRUE):
-  1. The settings panel lists all 6 built-in modes with their activation phrase and read-only system prompt
-  2. A user can edit the activation phrase for any built-in mode and the updated phrase is detected correctly on the next dictation
-  3. A user can add a custom mode with a custom activation phrase and system prompt (max 280 characters) and it appears in the mode list and triggers correctly
-  4. A user can delete a custom mode they previously created and it no longer appears in the list or triggers
-  5. While the rewrite model is downloading for the first time, the menu bar status item shows "Downloading rewrite model X%…" and updates as progress advances
-**Plans**: TBD
+  1. A transcript ending with a natural paraphrase of a conversion intent (e.g., "make this an email", "turn into slack message", "action items please") is detected and the matched span is stripped, leaving only the body content
+  2. A transcript with a clear intent command at the beginning is also correctly detected and stripped
+  3. Filler words around command phrases (e.g., "uh", "okay", "please", "real quick") do not prevent detection
+  4. Ambiguous or low-confidence transcripts (no clear command) pass through without transformation — the raw transcript is copied to clipboard unchanged
+  5. The intent catalog is config-driven: each intent has an ID, phrase patterns/aliases, and a confidence threshold — adding a new intent requires only a data change, not new matching logic
+**Plans**: 2 plans
 
 Plans:
-- [ ] 10-01: TBD
+- [ ] 10-01-PLAN.md — Stubs (IntentDefinition, IntentCatalog, StringSimilarity), remove activationPhraseCandidates, write full failing fuzzy corpus (RED)
+- [ ] 10-02-PLAN.md — Implement Jaro-Winkler + zone pipeline, turn all tests GREEN, full regression
 
 ## Progress
 
@@ -128,7 +129,7 @@ Plans:
 | 7. Core Types and Intent Detection | v1.1 | 2/2 | Complete | 2026-03-19 |
 | 8. LLM Rewrite Service | v1.1 | 0/2 | Planned | - |
 | 9. ActivationStore Integration and Guards | 3/3 | Complete    | 2026-03-19 | - |
-| 10. Settings Panel and First-Run Download UX | v1.1 | 0/TBD | Not started | - |
+| 10. Fuzzy Intent Detection | v1.1 | 0/2 | Planned | - |
 
 ---
-*Last updated: 2026-03-19 after Phase 8 planning*
+*Last updated: 2026-03-19 after Phase 10 planned — 2 plans, TDD RED/GREEN pattern*
