@@ -66,6 +66,10 @@
 		A0000001000000000000003C /* LLMRewriteService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0000002000000000000003C /* LLMRewriteService.swift */; };
 		A0000001000000000000003D /* LLMRewriteServiceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0000002000000000000003D /* LLMRewriteServiceTests.swift */; };
 		A0000001000000000000003E /* LLMRewriteServiceIntegrationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0000002000000000000003E /* LLMRewriteServiceIntegrationTests.swift */; };
+		A0000001000000000000003F /* IntentDefinition.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0000002000000000000003F /* IntentDefinition.swift */; };
+		A00000010000000000000040 /* IntentCatalog.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000020000000000000040 /* IntentCatalog.swift */; };
+		A00000010000000000000041 /* StringSimilarity.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000020000000000000041 /* StringSimilarity.swift */; };
+		A00000010000000000000042 /* StringSimilarityTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000020000000000000042 /* StringSimilarityTests.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -145,6 +149,10 @@
 		A0000002000000000000003C /* LLMRewriteService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LLMRewriteService.swift; sourceTree = "<group>"; };
 		A0000002000000000000003D /* LLMRewriteServiceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LLMRewriteServiceTests.swift; sourceTree = "<group>"; };
 		A0000002000000000000003E /* LLMRewriteServiceIntegrationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LLMRewriteServiceIntegrationTests.swift; sourceTree = "<group>"; };
+		A0000002000000000000003F /* IntentDefinition.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IntentDefinition.swift; sourceTree = "<group>"; };
+		A00000020000000000000040 /* IntentCatalog.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IntentCatalog.swift; sourceTree = "<group>"; };
+		A00000020000000000000041 /* StringSimilarity.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StringSimilarity.swift; sourceTree = "<group>"; };
+		A00000020000000000000042 /* StringSimilarityTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StringSimilarityTests.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -281,6 +289,7 @@
 				A0000002000000000000002C /* ClipboardServiceTests.swift */,
 				A00000020000000000000019 /* HotkeyServiceTests.swift */,
 				A0000002000000000000003B /* IntentDetectorTests.swift */,
+				A00000020000000000000042 /* StringSimilarityTests.swift */,
 				A0000002000000000000003D /* LLMRewriteServiceTests.swift */,
 				A0000002000000000000003E /* LLMRewriteServiceIntegrationTests.swift */,
 				A0000002000000000000000F /* PermissionServiceTests.swift */,
@@ -351,6 +360,9 @@
 				A00000020000000000000039 /* ConvertIntent.swift */,
 				A0000002000000000000003A /* IntentDetector.swift */,
 				A0000002000000000000003C /* LLMRewriteService.swift */,
+				A0000002000000000000003F /* IntentDefinition.swift */,
+				A00000020000000000000040 /* IntentCatalog.swift */,
+				A00000020000000000000041 /* StringSimilarity.swift */,
 			);
 			path = Conversion;
 			sourceTree = "<group>";
@@ -509,6 +521,9 @@
 				A00000010000000000000035 /* ConvertIntent.swift in Sources */,
 				A00000010000000000000034 /* ConvertMode.swift in Sources */,
 				A00000010000000000000036 /* IntentDetector.swift in Sources */,
+				A0000001000000000000003F /* IntentDefinition.swift in Sources */,
+				A00000010000000000000040 /* IntentCatalog.swift in Sources */,
+				A00000010000000000000041 /* StringSimilarity.swift in Sources */,
 				A0000001000000000000003C /* LLMRewriteService.swift in Sources */,
 				A00000010000000000000032 /* PasteService.swift in Sources */,
 				A00000010000000000000017 /* HotkeyService.swift in Sources */,
@@ -546,6 +561,7 @@
 				A00000010000000000000027 /* ClipboardServiceTests.swift in Sources */,
 				A00000010000000000000015 /* HotkeyServiceTests.swift in Sources */,
 				A00000010000000000000037 /* IntentDetectorTests.swift in Sources */,
+				A00000010000000000000042 /* StringSimilarityTests.swift in Sources */,
 				A0000001000000000000003D /* LLMRewriteServiceTests.swift in Sources */,
 				A0000001000000000000003E /* LLMRewriteServiceIntegrationTests.swift in Sources */,
 				A0000001000000000000000D /* PermissionServiceTests.swift in Sources */,

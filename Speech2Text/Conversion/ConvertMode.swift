@@ -45,22 +45,4 @@ enum ConvertMode: String, CaseIterable, Equatable {
         // Explicitly excludes .passthrough
     }
 
-    var activationPhraseCandidates: [String] {
-        switch self {
-        case .cleanEnglish:
-            return ["convert to clean english", "format to clean english", "convert clean english", "format clean english"]
-        case .email:
-            return ["convert to email", "format to email", "convert email", "format email"]
-        case .slack:
-            return ["convert to slack", "format to slack", "convert slack", "format slack"]
-        case .teams:
-            return ["convert to teams", "format to teams", "convert teams", "format teams"]
-        case .actionItems:
-            return ["convert to action items", "format to action items", "convert action items", "format action items"]
-        case .aiPrompt:
-            return ["convert to ai prompt", "format to ai prompt", "convert ai prompt", "format ai prompt"]
-        case .passthrough:
-            return []
-        }
-    }
 }

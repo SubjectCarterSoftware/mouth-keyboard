@@ -19,8 +19,9 @@ enum IntentDetector {
 
         for mode in modes {
             guard mode != .passthrough else { continue }
+            let candidates = IntentCatalog.all.first(where: { $0.mode == mode })?.phrasePatterns ?? []
 
-            for candidate in mode.activationPhraseCandidates {
+            for candidate in candidates {
                 let candidateLength = candidate.count
 
                 if normalized.hasPrefix(candidate) {
@@ -85,8 +86,9 @@ enum IntentDetector {
 
         for mode in modes {
             guard mode != .passthrough else { continue }
+            let candidates = IntentCatalog.all.first(where: { $0.mode == mode })?.phrasePatterns ?? []
 
-            for candidate in mode.activationPhraseCandidates {
+            for candidate in candidates {
                 guard normalizedBody.hasPrefix(candidate) else { continue }
 
                 let bodyStart = trimmedBody.index(trimmedBody.startIndex, offsetBy: candidate.count)
