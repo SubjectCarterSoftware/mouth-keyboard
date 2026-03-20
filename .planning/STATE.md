@@ -4,14 +4,14 @@ milestone: v1.1
 milestone_name: Convert Modes
 current_plan: 2
 status: planning
-stopped_at: Completed 11-02-PLAN.md
-last_updated: "2026-03-20T11:00:17.665Z"
+stopped_at: Completed 11-03-PLAN.md
+last_updated: "2026-03-20T11:14:24.649Z"
 last_activity: 2026-03-20
 progress:
   total_phases: 11
   completed_phases: 10
   total_plans: 28
-  completed_plans: 25
+  completed_plans: 26
   percent: 100
 ---
 
@@ -61,6 +61,7 @@ Progress: [██████████] 100%
 | Phase 10-fuzzy-intent-detection P02 | 525757 | 2 tasks | 3 files |
 | Phase 11-intent-configuration-ui P01 | 15 | 2 tasks | 5 files |
 | Phase 11-intent-configuration-ui P02 | 11 | 2 tasks | 7 files |
+| Phase 11-intent-configuration-ui P03 | 12 | 2 tasks | 3 files |
 
 ## Accumulated Context
 
@@ -104,6 +105,10 @@ Recent decisions affecting current work:
 - [Phase Phase 11-02]: rewrite(body:mode:) delegates to rewriteCore(body:instructions:) private helper — single code path, backward compatible
 - [Phase Phase 11-02]: Custom intent mode field is .passthrough (no new ConvertMode cases); caller distinguishes via customIntentID = aliases.first
 - [Phase Phase 11-02]: effectiveSystemPrompt nil from detector — ActivationStore (Plan 03) resolves it; detector stays pure detection logic
+- [Phase Phase 11-03]: allEntries() snapshot taken once at session-start — avoids repeated actor hops, provides consistent view for the whole finalizeSession call
+- [Phase Phase 11-03]: passthrough check updated to intent.mode == .passthrough && intent.customIntentID == nil — custom intents use .passthrough mode but are NOT passthrough
+- [Phase Phase 11-03]: Dual-path LLM routing: instructions overload for user-configured intents, mode overload for defaults — zero behavior change for unconfigured modes
+- [Phase Phase 11-03]: UserIntentStore.shared singleton added alongside existing init(storeURL:) injection pattern for tests
 
 ### Pending Todos
 
@@ -117,6 +122,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-20T11:00:17.663Z
-Stopped at: Completed 11-02-PLAN.md
+Last session: 2026-03-20T11:14:24.647Z
+Stopped at: Completed 11-03-PLAN.md
 Resume file: None

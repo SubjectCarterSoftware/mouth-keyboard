@@ -9,6 +9,8 @@ struct SetupWindowView: View {
     @ObservedObject private var audioDeviceService = AudioDeviceService.shared
     let dismissWindow: () -> Void
 
+    @State private var showingModesSheet = false
+
     private var primaryActionTitle: String {
         if preferences.hasCompletedInitialSetup {
             return "Close"
@@ -71,6 +73,20 @@ struct SetupWindowView: View {
                     KeyboardShortcuts.Recorder("Stop & Auto Paste:", name: .activateAndPaste)
                 }
                 .formStyle(.columns)
+
+                Divider()
+
+                HStack {
+                    Text("Conversion Modes")
+                    Spacer()
+                    Button("Manage Modes") {
+                        showingModesSheet = true
+                    }
+                }
+                .sheet(isPresented: $showingModesSheet) {
+                    IntentListView()
+                        .frame(minWidth: 700, minHeight: 500)
+                }
 
                 Divider()
 
