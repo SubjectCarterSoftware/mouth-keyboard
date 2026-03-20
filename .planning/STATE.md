@@ -2,10 +2,10 @@
 gsd_state_version: 1.0
 milestone: v1.2
 milestone_name: AI Trigger Name
-status: Ready
-stopped_at: Completed 15-03-PLAN.md
-last_updated: "2026-03-20T18:58:44.307Z"
-last_activity: 2026-03-20 — completed 14-02 trigger instruction fallback routing plan
+status: Complete
+stopped_at: v1.2 milestone archived
+last_updated: "2026-03-20T19:11:48.975Z"
+last_activity: 2026-03-20 — v1.2 AI Trigger Name milestone shipped and archived
 progress:
   total_phases: 4
   completed_phases: 4
@@ -20,14 +20,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-20)
 
 **Core value:** From a single hotkey, the user can dictate and get reliable text into the clipboard fast enough that it feels close to typing speed.
-**Current focus:** Begin v1.2 Phase 15 settings UX work (15-01 next).
+**Current focus:** v1.2 complete. Plan next milestone with `$gsd-new-milestone`.
 
 ## Current Position
 
-Phase: 15 of 15 (Settings UX for AI Assistant Name)
-Plan: 01 of 02 (15-01-PLAN.md next)
-Status: Ready
-Last activity: 2026-03-20 — completed 14-02 trigger instruction fallback routing plan
+Phase: — (milestone complete)
+Plan: —
+Status: Complete
+Last activity: 2026-03-20 — v1.2 AI Trigger Name shipped and archived
 
 ## Performance Metrics
 
