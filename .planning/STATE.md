@@ -4,14 +4,14 @@ milestone: v1.1
 milestone_name: Convert Modes
 current_plan: 2
 status: planning
-stopped_at: Completed 11-03-PLAN.md
-last_updated: "2026-03-20T11:14:24.649Z"
+stopped_at: Completed 11-04-PLAN.md
+last_updated: "2026-03-20T11:21:49.671Z"
 last_activity: 2026-03-20
 progress:
   total_phases: 11
   completed_phases: 10
   total_plans: 28
-  completed_plans: 26
+  completed_plans: 27
   percent: 100
 ---
 
@@ -62,6 +62,7 @@ Progress: [██████████] 100%
 | Phase 11-intent-configuration-ui P01 | 15 | 2 tasks | 5 files |
 | Phase 11-intent-configuration-ui P02 | 11 | 2 tasks | 7 files |
 | Phase 11-intent-configuration-ui P03 | 12 | 2 tasks | 3 files |
+| Phase 11-intent-configuration-ui P04 | 5 | 2 tasks | 4 files |
 
 ## Accumulated Context
 
@@ -109,6 +110,8 @@ Recent decisions affecting current work:
 - [Phase Phase 11-03]: passthrough check updated to intent.mode == .passthrough && intent.customIntentID == nil — custom intents use .passthrough mode but are NOT passthrough
 - [Phase Phase 11-03]: Dual-path LLM routing: instructions overload for user-configured intents, mode overload for defaults — zero behavior change for unconfigured modes
 - [Phase Phase 11-03]: UserIntentStore.shared singleton added alongside existing init(storeURL:) injection pattern for tests
+- [Phase 11-04]: SetupWindowView uses sheet (not TabView) for Modes — existing view is a ScrollView form; sheet is consistent and minimal
+- [Phase 11-04]: Phrase pattern generation updates store entry only if it already exists — avoids orphan entries before user saves a new custom mode
 
 ### Pending Todos
 
@@ -122,6 +125,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-20T11:14:24.647Z
-Stopped at: Completed 11-03-PLAN.md
+Last session: 2026-03-20T11:21:49.668Z
+Stopped at: Completed 11-04-PLAN.md
 Resume file: None
