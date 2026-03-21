@@ -41,10 +41,11 @@ final class LLMRewriteServiceIntegrationTests: XCTestCase {
     func testRealRewriteReusesLoadedModelOnSecondCall() async throws {
         let loadCounter = IntegrationLoadCounter()
 
+        let defaultLoader = LLMRewriteService.makeDefaultLoader(tier: .standard2B)
         let service = LLMRewriteService(
             loader: { hub in
                 await loadCounter.increment()
-                return try await LLMRewriteService.defaultLoader(hub: hub)
+                return try await defaultLoader(hub)
             }
         )
 

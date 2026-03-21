@@ -278,14 +278,95 @@ final class LLMRewriteServiceTests: XCTestCase {
         XCTAssertEqual(result, "ok")
     }
 
+    // MARK: - setTier tests (Phase 2)
+
+    func testSetTierClearsCachedModelAndLoadTaskForNextCall() async throws {
+        let loadCounter = CallCounter()
+        let service = makeService(
+            loader: { _ in
+                await loadCounter.increment()
+                return .init()
+            },
+            streamFactory: { _, _, _, _ in
+                stream(events: [.chunk("ok"), .completion(.stop)])
+            }
+        )
+
+        // First rewrite loads the model once.
+        _ = try await service.rewrite(body: "one", mode: .email)
+        let countAfterFirst = await loadCounter.value()
+        XCTAssertEqual(countAfterFirst, 1)
+
+        // Changing tier clears the cache; next rewrite loads again.
+        await service.setTier(.standard4B)
+        _ = try await service.rewrite(body: "two", mode: .email)
+        let countAfterTierChange = await loadCounter.value()
+        XCTAssertEqual(countAfterTierChange, 2)
+    }
+
+    func testSetTierToSameTierDoesNotInvalidateCache() async throws {
+        let loadCounter = CallCounter()
+        let service = makeService(
+            loader: { _ in
+                await loadCounter.increment()
+                return .init()
+            },
+            streamFactory: { _, _, _, _ in
+                stream(events: [.chunk("ok"), .completion(.stop)])
+            }
+        )
+
+        _ = try await service.rewrite(body: "one", mode: .email)
+        await service.setTier(.standard2B) // same tier — no-op
+        _ = try await service.rewrite(body: "two", mode: .email)
+
+        let count = await loadCounter.value()
+        XCTAssertEqual(count, 1)
+    }
+
+    func testModelTooLargeForDeviceIsThrownOnMemoryPressureError() async throws {
+        struct FakeOOMError: LocalizedError {
+            var errorDescription: String? { "out of memory: alloc failed" }
+        }
+
+        let service = makeService(
+            loader: { _ in throw FakeOOMError() },
+            streamFactory: { _, _, _, _ in
+                XCTFail("Stream should not run when model loading fails")
+                return stream(events: [])
+            }
+        )
+
+        await assertRewriteError(.modelTooLargeForDevice) {
+            try await service.rewrite(body: "raw", mode: .cleanEnglish)
+        }
+    }
+
+    func testRegularLoadFailureThrowsModelLoadFailed() async throws {
+        struct OtherError: Error {}
+
+        let service = makeService(
+            loader: { _ in throw OtherError() },
+            streamFactory: { _, _, _, _ in
+                XCTFail("Stream should not run when model loading fails")
+                return stream(events: [])
+            }
+        )
+
+        await assertRewriteError(.modelLoadFailed) {
+            try await service.rewrite(body: "raw", mode: .cleanEnglish)
+        }
+    }
+
     private func makeService(
+        tier: RewriteModelTier = .standard2B,
         loader: @escaping LLMRewriteService.Loader = { _ in .init() },
         streamFactory: @escaping LLMRewriteService.StreamFactory
     ) -> LLMRewriteService {
         LLMRewriteService(
+            tier: tier,
             loader: loader,
             streamFactory: streamFactory,
-            generationParameters: .init(maxTokens: 64, temperature: 0, topP: 1.0),
             hubFactory: { HubApi(downloadBase: URL(fileURLWithPath: "/tmp")) }
         )
     }
