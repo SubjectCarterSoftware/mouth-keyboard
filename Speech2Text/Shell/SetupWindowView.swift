@@ -111,6 +111,35 @@ struct SetupWindowView: View {
 
                 Divider()
 
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("Conversion Model")
+                        .font(.body)
+
+                    ForEach(RewriteModelTier.allCases) { tier in
+                        Button {
+                            preferences.rewriteModelTier = tier
+                        } label: {
+                            HStack {
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text(tier.displayName)
+                                    Text("~\(String(format: "%.1f", tier.approximateDownloadSizeGB)) GB · \(tier.ramGuidance)")
+                                        .font(.caption)
+                                        .foregroundStyle(.secondary)
+                                }
+                                Spacer()
+                                if preferences.rewriteModelTier == tier {
+                                    Image(systemName: "checkmark")
+                                        .foregroundStyle(Color.accentColor)
+                                }
+                            }
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityIdentifier("conversionModel.\(tier.rawValue)")
+                    }
+                }
+
+                Divider()
+
                 HStack {
                     Text("Speech Transcription Model")
                     Spacer()
