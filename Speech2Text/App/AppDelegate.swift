@@ -34,17 +34,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             try? await WhisperService.shared.prepare()
         }
 
-        // Eagerly warm up the rewrite model for higher tiers to reduce first-use latency.
-        // Skipped for the default 2B tier to avoid unnecessary load on lighter devices.
-        if preferences.rewriteModelTier != .standard2B {
-            Task {
-                await LLMRewriteService.shared.prepare()
-            }
-        }
+        // Download the rewrite model for the current tier on launch.
+        RewriteModelLoadState.shared.startDownload(for: preferences.rewriteModelTier)
         tierObservation = preferences.$rewriteModelTier
             .dropFirst()
             .sink { newTier in
-                Task { await LLMRewriteService.shared.setTier(newTier) }
+                RewriteModelLoadState.shared.startDownload(for: newTier)
             }
 
         audioCaptureService.onCaptureFailure = { [weak self] error in

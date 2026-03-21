@@ -6,6 +6,7 @@ import SwiftUI
 struct SetupWindowView: View {
     @ObservedObject var preferences: ShellPreferences
     @ObservedObject var readinessStore: ReadinessStore
+    @ObservedObject private var modelLoadState = RewriteModelLoadState.shared
     @ObservedObject private var audioDeviceService = AudioDeviceService.shared
     let dismissWindow: () -> Void
 
@@ -38,6 +39,47 @@ struct SetupWindowView: View {
 
         let isAvailable = audioDeviceService.availableDevices.contains { $0.uid == selectedUID }
         return isAvailable ? nil : selectedUID
+    }
+
+    @ViewBuilder
+    private func conversionModelRow(for tier: RewriteModelTier) -> some View {
+        let isSelected = preferences.rewriteModelTier == tier
+        let isDownloadingThisTier = modelLoadState.phase.activeTier == tier
+            && modelLoadState.phase.downloadProgress != nil
+
+        Button {
+            preferences.rewriteModelTier = tier
+        } label: {
+            VStack(alignment: .leading, spacing: 4) {
+                HStack {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(tier.displayName)
+                        if !isDownloadingThisTier {
+                            Text("~\(String(format: "%.1f", tier.approximateDownloadSizeGB)) GB · \(tier.ramGuidance)")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                    Spacer()
+                    if isSelected && !isDownloadingThisTier {
+                        Image(systemName: "checkmark")
+                            .foregroundStyle(Color.accentColor)
+                    }
+                }
+                if isDownloadingThisTier, let progress = modelLoadState.phase.downloadProgress {
+                    HStack(spacing: 6) {
+                        ProgressView(value: progress)
+                            .progressViewStyle(.linear)
+                        Text("\(Int(progress * 100))%")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                            .monospacedDigit()
+                    }
+                }
+            }
+        }
+        .buttonStyle(.plain)
+        .accessibilityIdentifier("conversionModel.\(tier.rawValue)")
     }
 
     var body: some View {
@@ -116,25 +158,13 @@ struct SetupWindowView: View {
                         .font(.body)
 
                     ForEach(RewriteModelTier.allCases) { tier in
-                        Button {
-                            preferences.rewriteModelTier = tier
-                        } label: {
-                            HStack {
-                                VStack(alignment: .leading, spacing: 2) {
-                                    Text(tier.displayName)
-                                    Text("~\(String(format: "%.1f", tier.approximateDownloadSizeGB)) GB · \(tier.ramGuidance)")
-                                        .font(.caption)
-                                        .foregroundStyle(.secondary)
-                                }
-                                Spacer()
-                                if preferences.rewriteModelTier == tier {
-                                    Image(systemName: "checkmark")
-                                        .foregroundStyle(Color.accentColor)
-                                }
-                            }
-                        }
-                        .buttonStyle(.plain)
-                        .accessibilityIdentifier("conversionModel.\(tier.rawValue)")
+                        conversionModelRow(for: tier)
+                    }
+
+                    if case .failed(_, let message) = modelLoadState.phase {
+                        Text(message)
+                            .font(.caption)
+                            .foregroundStyle(.red)
                     }
                 }
 

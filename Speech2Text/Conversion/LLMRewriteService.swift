@@ -128,10 +128,6 @@ actor LLMRewriteService: LLMRewriting {
         cachedModel = nil
     }
 
-    func prepare() async {
-        _ = try? await resolveModel()
-    }
-
     func rewrite(body: String, instructions: String) async throws -> String {
         try await rewriteCore(body: body, instructions: instructions)
     }
@@ -247,11 +243,30 @@ actor LLMRewriteService: LLMRewriting {
         return description.contains("out of memory") || description.contains("memory") && description.contains("alloc")
     }
 
-    static func makeDefaultLoader(tier: RewriteModelTier) -> Loader {
+    func download(progressHandler: @Sendable @escaping (Progress) -> Void = { _ in }) async throws {
+        if cachedModel != nil {
+            let done = Progress(totalUnitCount: 1)
+            done.completedUnitCount = 1
+            progressHandler(done)
+            return
+        }
+        loadTask?.cancel()
+        loadTask = nil
+        let loader = LLMRewriteService.makeDefaultLoader(tier: tier, progressHandler: progressHandler)
+        let hub = try hubFactory()
+        let model = try await loader(hub)
+        cachedModel = model
+    }
+
+    static func makeDefaultLoader(
+        tier: RewriteModelTier,
+        progressHandler: @Sendable @escaping (Progress) -> Void = { _ in }
+    ) -> Loader {
         { hub in
             let container = try await LLMModelFactory.shared.loadContainer(
                 hub: hub,
-                configuration: tier.modelConfiguration
+                configuration: tier.modelConfiguration,
+                progressHandler: progressHandler
             )
             return RewriteModel(container: container)
         }
