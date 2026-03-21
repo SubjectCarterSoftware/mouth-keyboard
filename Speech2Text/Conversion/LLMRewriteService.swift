@@ -5,6 +5,7 @@ import MLXLMCommon
 
 enum LLMRewriteError: LocalizedError, Equatable {
     case modelLoadFailed
+    case modelTooLargeForDevice
     case generationFailed
     case cancelled
     case outputTruncated
@@ -14,6 +15,8 @@ enum LLMRewriteError: LocalizedError, Equatable {
         switch self {
         case .modelLoadFailed:
             return "Failed to load rewrite model."
+        case .modelTooLargeForDevice:
+            return "This model is too large for your device — reverting to default."
         case .generationFailed:
             return "Rewrite generation failed."
         case .cancelled:
@@ -87,31 +90,46 @@ actor LLMRewriteService: LLMRewriting {
 
     static let shared = LLMRewriteService()
 
-    private static let defaultGenerationParameters = GenerateParameters(
-        maxTokens: 1_024,
-        temperature: 0,
-        topP: 1.0
-    )
-
-    private let loader: Loader
     private let streamFactory: StreamFactory
-    private let generationParameters: GenerateParameters
     private let hubFactory: @Sendable () throws -> HubApi
     private let rewriteExecutionGate = RewriteExecutionGate()
 
+    private var tier: RewriteModelTier = .standard2B
+    private var tierLoader: Loader = LLMRewriteService.makeDefaultLoader(tier: .standard2B)
+    private let hasCustomLoader: Bool
     private var cachedModel: RewriteModel?
     private var loadTask: Task<RewriteModel, Error>?
 
+    private var generationParameters: GenerateParameters {
+        GenerateParameters(maxTokens: tier.recommendedMaxTokens, temperature: 0, topP: 1.0)
+    }
+
     init(
-        loader: @escaping Loader = LLMRewriteService.defaultLoader,
+        tier: RewriteModelTier = .standard2B,
+        loader: Loader? = nil,
         streamFactory: @escaping StreamFactory = LLMRewriteService.defaultStreamFactory,
-        generationParameters: GenerateParameters = LLMRewriteService.defaultGenerationParameters,
         hubFactory: @escaping @Sendable () throws -> HubApi = LLMRewriteService.makePersistentHub
     ) {
-        self.loader = loader
+        self.tier = tier
+        self.hasCustomLoader = loader != nil
+        self.tierLoader = loader ?? LLMRewriteService.makeDefaultLoader(tier: tier)
         self.streamFactory = streamFactory
-        self.generationParameters = generationParameters
         self.hubFactory = hubFactory
+    }
+
+    func setTier(_ newTier: RewriteModelTier) {
+        guard newTier != tier else { return }
+        tier = newTier
+        if !hasCustomLoader {
+            tierLoader = LLMRewriteService.makeDefaultLoader(tier: newTier)
+        }
+        loadTask?.cancel()
+        loadTask = nil
+        cachedModel = nil
+    }
+
+    func prepare() async {
+        _ = try? await resolveModel()
     }
 
     func rewrite(body: String, instructions: String) async throws -> String {
@@ -132,6 +150,8 @@ actor LLMRewriteService: LLMRewriting {
             model = try await resolveModel()
         } catch is CancellationError {
             throw LLMRewriteError.cancelled
+        } catch let rewriteError as LLMRewriteError {
+            throw rewriteError
         } catch {
             throw LLMRewriteError.modelLoadFailed
         }
@@ -202,9 +222,9 @@ actor LLMRewriteService: LLMRewriting {
             return try await loadTask.value
         }
 
-        let task = Task { [loader, hubFactory] in
+        let task = Task { [tierLoader, hubFactory] in
             let hub = try hubFactory()
-            return try await loader(hub)
+            return try await tierLoader(hub)
         }
         loadTask = task
 
@@ -215,16 +235,26 @@ actor LLMRewriteService: LLMRewriting {
             return model
         } catch {
             loadTask = nil
+            if isMemoryPressureError(error) {
+                throw LLMRewriteError.modelTooLargeForDevice
+            }
             throw error
         }
     }
 
-    static func defaultLoader(hub: HubApi) async throws -> RewriteModel {
-        let container = try await LLMModelFactory.shared.loadContainer(
-            hub: hub,
-            configuration: LLMRegistry.qwen2_5_1_5b
-        )
-        return RewriteModel(container: container)
+    private func isMemoryPressureError(_ error: Error) -> Bool {
+        let description = error.localizedDescription.lowercased()
+        return description.contains("out of memory") || description.contains("memory") && description.contains("alloc")
+    }
+
+    static func makeDefaultLoader(tier: RewriteModelTier) -> Loader {
+        { hub in
+            let container = try await LLMModelFactory.shared.loadContainer(
+                hub: hub,
+                configuration: tier.modelConfiguration
+            )
+            return RewriteModel(container: container)
+        }
     }
 
     private static func defaultStreamFactory(
