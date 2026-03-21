@@ -16,6 +16,7 @@ final class ShellPreferences: ObservableObject {
         static let autoModelSelection = "autoModelSelection"
         static let launchAtLogin = "launchAtLogin"
         static let convertModes = "convertModes"
+        static let rewriteModelTier = "rewriteModelTier"
     }
 
     static let shared = makeShared()
@@ -86,6 +87,14 @@ final class ShellPreferences: ObservableObject {
         }
     }
 
+    @Published var rewriteModelTier: RewriteModelTier {
+        didSet {
+            persistIfNeeded {
+                defaults.set(rewriteModelTier.rawValue, forKey: Keys.rewriteModelTier)
+            }
+        }
+    }
+
     var shouldPresentSetupOnLaunch: Bool {
         !hasCompletedInitialSetup
     }
@@ -134,6 +143,13 @@ final class ShellPreferences: ObservableObject {
             convertModes = decoded.isEmpty ? ConvertMode.allBuiltIns : decoded
         } else {
             convertModes = ConvertMode.allBuiltIns
+        }
+
+        if let storedTier = userDefaults.string(forKey: Keys.rewriteModelTier),
+           let tier = RewriteModelTier(rawValue: storedTier) {
+            rewriteModelTier = tier
+        } else {
+            rewriteModelTier = .standard2B
         }
 
         activeTriggerProfile = (initialTriggerProfile ?? TriggerProfileStore.loadSynchronously()).normalized()
@@ -221,6 +237,7 @@ final class ShellPreferences: ObservableObject {
             whisperModel = .baseEN
             autoModelSelection = false
             convertModes = ConvertMode.allBuiltIns
+            rewriteModelTier = .standard2B
             activeTriggerProfile = .defaultProfile
         }
 
@@ -233,6 +250,7 @@ final class ShellPreferences: ObservableObject {
         defaults.removeObject(forKey: Keys.whisperModel)
         defaults.removeObject(forKey: Keys.autoModelSelection)
         defaults.removeObject(forKey: Keys.convertModes)
+        defaults.removeObject(forKey: Keys.rewriteModelTier)
 
         Task { [triggerProfileStore] in
             do {

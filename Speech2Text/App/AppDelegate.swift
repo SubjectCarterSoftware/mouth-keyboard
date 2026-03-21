@@ -16,6 +16,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
 
     private var pillPanel: RecordingPillPanel?
     private var stateObservation: AnyCancellable?
+    private var tierObservation: AnyCancellable?
     private var statusItem: NSStatusItem?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
@@ -32,6 +33,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         Task {
             try? await WhisperService.shared.prepare()
         }
+
+        // Eagerly warm up the rewrite model for higher tiers to reduce first-use latency.
+        // Skipped for the default 2B tier to avoid unnecessary load on lighter devices.
+        if preferences.rewriteModelTier != .standard2B {
+            Task {
+                await LLMRewriteService.shared.prepare()
+            }
+        }
+        tierObservation = preferences.$rewriteModelTier
+            .dropFirst()
+            .sink { newTier in
+                Task { await LLMRewriteService.shared.setTier(newTier) }
+            }
+
         audioCaptureService.onCaptureFailure = { [weak self] error in
             self?.activationStore.handleCaptureFailure(error)
         }
@@ -83,6 +98,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     func applicationWillTerminate(_ notification: Notification) {
         hotkeyService.stop()
         stateObservation?.cancel()
+        tierObservation?.cancel()
     }
 
     func applicationDidBecomeActive(_ notification: Notification) {
