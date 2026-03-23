@@ -485,7 +485,6 @@ actor LLMRewriteService: LLMRewriting {
             container,
             instructions: instructions,
             generateParameters: parameters,
-            additionalContext: ["enable_thinking": false],
             tools: []
         )
 
