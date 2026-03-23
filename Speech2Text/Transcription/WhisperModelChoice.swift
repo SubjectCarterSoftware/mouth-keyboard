@@ -10,17 +10,23 @@ enum WhisperModelChoice: String, CaseIterable, Identifiable {
 
     var displayName: String {
         switch self {
-        case .baseEN:     return "Base (fastest)"
-        case .smallEN:    return "Small (balanced)"
-        case .mediumEN:   return "Medium (high quality)"
-        case .largeTurbo: return "Large Turbo (best quality)"
+        case .baseEN:     return "Base"
+        case .smallEN:    return "Small"
+        case .mediumEN:   return "Medium"
+        case .largeTurbo: return "Large Turbo"
         }
     }
 
-    /// Selects the appropriate model based on recording duration.
-    static func forDuration(_ seconds: TimeInterval) -> WhisperModelChoice {
-        if seconds < 60 { return .baseEN }
-        if seconds < 300 { return .smallEN }
-        return .mediumEN
+    var detailSummary: String {
+        switch self {
+        case .baseEN:
+            return "Fastest · Short notes"
+        case .smallEN:
+            return "Balanced · Everyday use"
+        case .mediumEN:
+            return "Higher quality · Longer dictation"
+        case .largeTurbo:
+            return "Best quality · Largest download"
+        }
     }
 }

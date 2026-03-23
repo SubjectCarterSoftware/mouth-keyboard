@@ -34,6 +34,25 @@ final class TriggerTranscriptParserTests: XCTestCase {
         )
     }
 
+    func testCommaAfterTriggerStillActivatesNamedAssistantInstruction() {
+        let transcript = """
+        Okay, I have a couple of meetings tomorrow. I have one about my Q3 and Q4 bigger features that we need to commit to and iron those out. There's like five or six things on that list and then I have a call with a different customer later about a different feature and I have like a business lineage feature working on as well. Zeus, can you put that in the format of an email just for an update that I'm going to send to my team?
+        """
+        let split = TriggerTranscriptParser.split(
+            transcript: transcript,
+            activeAliases: ["zeus"]
+        )
+
+        XCTAssertEqual(
+            split,
+            .validTrigger(
+                content: "Okay, I have a couple of meetings tomorrow. I have one about my Q3 and Q4 bigger features that we need to commit to and iron those out. There's like five or six things on that list and then I have a call with a different customer later about a different feature and I have like a business lineage feature working on as well.",
+                instruction: "can you put that in the format of an email just for an update that I'm going to send to my team?",
+                matchedAlias: "zeus"
+            )
+        )
+    }
+
     func testNoAliasMatchReturnsNoTriggerPassthrough() {
         let transcript = "Please send this to finance before noon."
         let split = TriggerTranscriptParser.split(

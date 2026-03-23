@@ -147,9 +147,9 @@ actor LLMRewriteService: LLMRewriting {
         self.tierLoader = loader ?? LLMRewriteService.makeDefaultLoader(tier: tier)
         self.fileDownloader = fileDownloader ?? { tier, progressHandler in
             let hub = try hubFactory()
-            return try await downloadModel(
+            return try await LLMRewriteService.downloadModelFiles(
                 hub: hub,
-                configuration: tier.modelConfiguration,
+                tier: tier,
                 progressHandler: progressHandler
             )
         }
@@ -399,6 +399,8 @@ actor LLMRewriteService: LLMRewriting {
             return directory
         }
 
+        try Self.deleteIncompleteDownloadedModelFilesIfNeeded(for: tier)
+
         let fileDownloader = self.fileDownloader
         let task = Task { [self, fileDownloader, tier] in
             try await fileDownloader(tier) { progress in
@@ -481,9 +483,9 @@ actor LLMRewriteService: LLMRewriting {
             throw LLMRewriteError.generationFailed
         }
 
+        let rewritePrompt = makeRewritePrompt(body: body, instructions: instructions)
         let session = ChatSession(
             container,
-            instructions: instructions,
             generateParameters: parameters,
             tools: []
         )
@@ -492,7 +494,7 @@ actor LLMRewriteService: LLMRewriting {
             let task = Task {
                 do {
                     var stripper = ThinkStripper()
-                    for try await generation in session.streamDetails(to: body, images: [], videos: []) {
+                    for try await generation in session.streamDetails(to: rewritePrompt, images: [], videos: []) {
                         switch generation {
                         case .chunk(let text):
                             let visible = stripper.process(text)
@@ -526,11 +528,49 @@ actor LLMRewriteService: LLMRewriting {
         }
     }
 
+    static func makeRewritePrompt(body: String, instructions: String) -> String {
+        let trimmedBody = body.trimmingCharacters(in: .whitespacesAndNewlines)
+        let trimmedInstructions = instructions.trimmingCharacters(in: .whitespacesAndNewlines)
+        let effectiveInstructions: String
+        if trimmedInstructions.isEmpty {
+            effectiveInstructions = "Return the source text exactly as written."
+        } else {
+            effectiveInstructions = trimmedInstructions
+        }
+
+        return """
+        You are a local text rewriting assistant.
+        Follow the rewrite instructions exactly.
+        Return only the final rewritten text.
+        Do not explain your changes.
+        Do not include labels, quotes, code fences, or <think> tags.
+
+        Rewrite instructions:
+        \(effectiveInstructions)
+
+        Source text:
+        \(trimmedBody)
+        """
+    }
+
     static func downloadModelFiles(
         for tier: RewriteModelTier,
         progressHandler: @Sendable @escaping (Progress) -> Void = { _ in }
     ) async throws -> URL {
         try await shared.downloadFiles(for: tier, progressHandler: progressHandler)
+    }
+
+    private static func downloadModelFiles(
+        hub: HubApi,
+        tier: RewriteModelTier,
+        progressHandler: @Sendable @escaping (Progress) -> Void
+    ) async throws -> URL {
+        let repo = Hub.Repo(id: tier.hubSlug)
+        return try await hub.snapshot(
+            from: repo,
+            matching: requiredDownloadPatterns(for: tier),
+            progressHandler: progressHandler
+        )
     }
 
     static func isModelDownloaded(
@@ -552,7 +592,7 @@ actor LLMRewriteService: LLMRewriting {
         }
 
         let fileNames = Set(contents.map(\.lastPathComponent))
-        let hasRequiredMetadata = requiredTopLevelArtifacts.isSubset(of: fileNames)
+        let hasRequiredMetadata = requiredTopLevelArtifacts(for: tier).isSubset(of: fileNames)
         let hasWeights = contents.contains { url in
             url.pathExtension == "safetensors" || url.lastPathComponent == "model.safetensors.index.json"
         }
@@ -602,6 +642,17 @@ actor LLMRewriteService: LLMRewriting {
         try fileManager.removeItem(at: directory)
     }
 
+    static func deleteIncompleteDownloadedModelFilesIfNeeded(
+        for tier: RewriteModelTier,
+        baseURL: URL? = nil,
+        fileManager: FileManager = .default
+    ) throws {
+        let directory = try downloadedModelDirectory(for: tier, baseURL: baseURL, fileManager: fileManager)
+        guard fileManager.fileExists(atPath: directory.path) else { return }
+        guard !isModelDownloaded(tier, baseURL: baseURL, fileManager: fileManager) else { return }
+        try fileManager.removeItem(at: directory)
+    }
+
     private static func localModelConfiguration(for tier: RewriteModelTier, directory: URL) -> ModelConfiguration {
         let source = tier.modelConfiguration
         return ModelConfiguration(
@@ -621,10 +672,25 @@ actor LLMRewriteService: LLMRewriting {
         return done
     }
 
-    private static let requiredTopLevelArtifacts: Set<String> = [
-        "config.json",
-        "tokenizer.json"
-    ]
+    static func requiredDownloadPatterns(for tier: RewriteModelTier) -> [String] {
+        switch tier {
+        case .standard2B, .standard4B, .high9B:
+            return ["*.safetensors", "*.json", "*.jinja"]
+        }
+    }
+
+    private static func requiredTopLevelArtifacts(for tier: RewriteModelTier) -> Set<String> {
+        switch tier {
+        case .standard2B, .standard4B, .high9B:
+            return [
+                "chat_template.jinja",
+                "config.json",
+                "optiq_metadata.json",
+                "tokenizer.json",
+                "tokenizer_config.json"
+            ]
+        }
+    }
 }
 
 struct ThinkStripper {

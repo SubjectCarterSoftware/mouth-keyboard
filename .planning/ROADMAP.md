@@ -55,9 +55,9 @@ Phases 12-15 shipped (9/9 plans complete). Named trigger boundary, voice calibra
 | 13. Last-Name-Wins Parser Integration | v1.2 | 2/2 | Complete | 2026-03-20 |
 | 14. Instruction Routing via Existing Intents | v1.2 | 2/2 | Complete | 2026-03-20 |
 | 15. Settings UX for AI Assistant Name | v1.2 | 3/3 | Complete | 2026-03-20 |
-| 16. Diagnostic Logging and Error Visibility | v1.3 | 0/2 | Not started | — |
-| 17. Model Loading and Configuration Fix | v1.3 | 0/2 | Not started | — |
-| 18. Generation Pipeline and Chat Template Fix | v1.3 | 0/2 | Not started | — |
+| 16. Diagnostic Logging and Error Visibility | v1.3 | 2/2 | Complete | 2026-03-23 |
+| 17. Model Loading and Configuration Fix | v1.3 | 2/2 | Complete | 2026-03-23 |
+| 18. Generation Pipeline and Chat Template Fix | v1.3 | 2/2 | Complete | 2026-03-23 |
 | 19. Tier Selector Validation and End-to-End Test | v1.3 | 0/2 | Not started | — |
 
 ## Phase Details — v1.3 Qwen 3.5 LLM Upgrade

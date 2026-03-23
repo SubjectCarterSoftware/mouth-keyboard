@@ -125,7 +125,7 @@ final class RecordingPillPanel: NSPanel {
         }
 
         switch state {
-        case .recording, .converting:
+        case .recording, .modelDownloading, .converting:
             return RecordingPillPanel.recordingSize
         case .failure:
             return RecordingPillPanel.failureSize

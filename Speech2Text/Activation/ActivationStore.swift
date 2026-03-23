@@ -34,6 +34,18 @@ protocol ReadinessProviding {
 
 extension ReadinessStore: ReadinessProviding {}
 
+@MainActor
+protocol WhisperModelLoadStateProviding: AnyObject {
+    var phase: WhisperModelLoadState.Phase { get }
+    var phasePublisher: AnyPublisher<WhisperModelLoadState.Phase, Never> { get }
+}
+
+extension WhisperModelLoadState: WhisperModelLoadStateProviding {
+    var phasePublisher: AnyPublisher<WhisperModelLoadState.Phase, Never> {
+        $phase.eraseToAnyPublisher()
+    }
+}
+
 // MARK: - ActivationStore
 
 @MainActor
@@ -56,6 +68,7 @@ final class ActivationStore: ObservableObject {
 
     private let preferences: ShellPreferences
     private let readinessProvider: any ReadinessProviding
+    private let whisperModelLoadState: any WhisperModelLoadStateProviding
     private let whisperService: any WhisperTranscribing
     private let llmRewriteService: any LLMRewriting
     private let clipboardService: ClipboardService
@@ -81,6 +94,7 @@ final class ActivationStore: ObservableObject {
         self.init(
             preferences: preferences,
             readinessProvider: readinessStore,
+            whisperModelLoadState: WhisperModelLoadState.shared,
             whisperService: WhisperService(),
             clipboardService: ClipboardService(),
             pasteService: PasteService(),
@@ -92,6 +106,7 @@ final class ActivationStore: ObservableObject {
     init(
         preferences: ShellPreferences,
         readinessProvider: any ReadinessProviding,
+        whisperModelLoadState: any WhisperModelLoadStateProviding = WhisperModelLoadState.shared,
         whisperService: any WhisperTranscribing = WhisperService(),
         llmRewriteService: any LLMRewriting = LLMRewriteService.shared,
         clipboardService: ClipboardService = ClipboardService(),
@@ -101,6 +116,7 @@ final class ActivationStore: ObservableObject {
     ) {
         self.preferences = preferences
         self.readinessProvider = readinessProvider
+        self.whisperModelLoadState = whisperModelLoadState
         self.whisperService = whisperService
         self.llmRewriteService = llmRewriteService
         self.clipboardService = clipboardService
@@ -198,6 +214,7 @@ final class ActivationStore: ObservableObject {
         guard
             state == .recording
                 || state == .processing
+                || state.isModelDownloading
                 || state == .converting
         else {
             return
@@ -278,7 +295,19 @@ final class ActivationStore: ObservableObject {
         do {
             guard isCurrentSession(sessionID) else { return }
 
-            try await prepareWhisperModel()
+            let selectedModel = preferences.whisperModel
+            do {
+                let downloadObserver = observeWhisperModelDownloadProgress(
+                    for: selectedModel,
+                    sessionID: sessionID
+                )
+                defer {
+                    downloadObserver.cancel()
+                    syncWhisperModelDownloadState(for: selectedModel, phase: .idle, sessionID: sessionID)
+                }
+
+                try await prepareWhisperModel(model: selectedModel)
+            }
             guard isCurrentSession(sessionID) else { return }
 
             let samples = try bufferAccumulator.convertToWhisperFormat()
@@ -442,7 +471,7 @@ final class ActivationStore: ObservableObject {
                 self.state = .idle
                 self.scheduleWhisperModelIdleUnload()
                 self.scheduleRewriteModelIdleUnload()
-            case .idle, .recording, .processing, .converting:
+            case .idle, .recording, .processing, .modelDownloading, .converting:
                 break
             }
             self.dismissTask = nil
@@ -471,6 +500,40 @@ final class ActivationStore: ObservableObject {
 
     private func prepareWhisperModel() async throws {
         try await whisperService.prepare(model: preferences.whisperModel)
+    }
+
+    private func prepareWhisperModel(model: WhisperModelChoice) async throws {
+        try await whisperService.prepare(model: model)
+    }
+
+    private func observeWhisperModelDownloadProgress(
+        for model: WhisperModelChoice,
+        sessionID: UUID
+    ) -> AnyCancellable {
+        syncWhisperModelDownloadState(for: model, phase: whisperModelLoadState.phase, sessionID: sessionID)
+        return whisperModelLoadState.phasePublisher
+            .removeDuplicates()
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] phase in
+                self?.syncWhisperModelDownloadState(for: model, phase: phase, sessionID: sessionID)
+            }
+    }
+
+    private func syncWhisperModelDownloadState(
+        for model: WhisperModelChoice,
+        phase: WhisperModelLoadState.Phase,
+        sessionID: UUID
+    ) {
+        guard sessionID == activeSessionID else { return }
+
+        switch phase {
+        case .downloading(let activeModel, let progress) where activeModel == model:
+            state = .modelDownloading(model: activeModel, progress: progress)
+        default:
+            if case .modelDownloading(let activeModel, _) = state, activeModel == model {
+                state = .processing
+            }
+        }
     }
 
     private func beginRewriteModelWarmup() {

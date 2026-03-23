@@ -280,6 +280,28 @@ final class LLMRewriteServiceTests: XCTestCase {
                        "rewrite(body:instructions:) should pass instructions directly to streamFactory")
     }
 
+    func testMakeRewritePromptIncludesInstructionsAndBody() {
+        let prompt = LLMRewriteService.makeRewritePrompt(
+            body: "Draft note for finance.",
+            instructions: "Turn this into a short email."
+        )
+
+        XCTAssertTrue(prompt.contains("Rewrite instructions:\nTurn this into a short email."))
+        XCTAssertTrue(prompt.contains("Source text:\nDraft note for finance."))
+        XCTAssertTrue(prompt.contains("Return only the final rewritten text."))
+        XCTAssertTrue(prompt.contains("Do not include labels, quotes, code fences, or <think> tags."))
+    }
+
+    func testMakeRewritePromptUsesSafeDefaultWhenInstructionsAreEmpty() {
+        let prompt = LLMRewriteService.makeRewritePrompt(
+            body: "Keep this exactly.",
+            instructions: "   "
+        )
+
+        XCTAssertTrue(prompt.contains("Rewrite instructions:\nReturn the source text exactly as written."))
+        XCTAssertTrue(prompt.contains("Source text:\nKeep this exactly."))
+    }
+
     // MARK: - setTier tests (Phase 2)
 
     func testSetTierClearsCachedModelAndLoadTaskForNextCall() async throws {
@@ -402,7 +424,7 @@ final class LLMRewriteServiceTests: XCTestCase {
         XCTAssertEqual(loadCount, 1)
     }
 
-    func testDownloadedModelDetectionReturnsTrueWhenTierDirectoryHasFiles() throws {
+    func testDownloadedModelDetectionReturnsFalseWhenOptiQTierDirectoryLacksRequiredArtifacts() throws {
         let fileManager = FileManager.default
         let baseURL = fileManager.temporaryDirectory
             .appendingPathComponent("LLMRewriteServiceTests.Downloaded.\(UUID().uuidString)", isDirectory: true)
@@ -414,6 +436,28 @@ final class LLMRewriteServiceTests: XCTestCase {
         try fileManager.createDirectory(at: modelDirectory, withIntermediateDirectories: true)
         try Data("{}".utf8).write(to: modelDirectory.appendingPathComponent("config.json"))
         try Data("{}".utf8).write(to: modelDirectory.appendingPathComponent("tokenizer.json"))
+        try Data("weights".utf8).write(to: modelDirectory.appendingPathComponent("model.safetensors"))
+
+        XCTAssertFalse(
+            LLMRewriteService.isModelDownloaded(.standard2B, baseURL: baseURL, fileManager: fileManager)
+        )
+    }
+
+    func testDownloadedModelDetectionReturnsTrueWhenOptiQTierDirectoryHasCurrentArtifacts() throws {
+        let fileManager = FileManager.default
+        let baseURL = fileManager.temporaryDirectory
+            .appendingPathComponent("LLMRewriteServiceTests.CurrentArtifacts.\(UUID().uuidString)", isDirectory: true)
+        let modelDirectory = try LLMRewriteService.downloadedModelDirectory(
+            for: .standard2B,
+            baseURL: baseURL,
+            fileManager: fileManager
+        )
+        try fileManager.createDirectory(at: modelDirectory, withIntermediateDirectories: true)
+        try Data("{}".utf8).write(to: modelDirectory.appendingPathComponent("config.json"))
+        try Data("{}".utf8).write(to: modelDirectory.appendingPathComponent("tokenizer.json"))
+        try Data("{}".utf8).write(to: modelDirectory.appendingPathComponent("tokenizer_config.json"))
+        try Data("{% raw %}".utf8).write(to: modelDirectory.appendingPathComponent("chat_template.jinja"))
+        try Data("{}".utf8).write(to: modelDirectory.appendingPathComponent("optiq_metadata.json"))
         try Data("weights".utf8).write(to: modelDirectory.appendingPathComponent("model.safetensors"))
 
         XCTAssertTrue(
@@ -436,6 +480,79 @@ final class LLMRewriteServiceTests: XCTestCase {
         XCTAssertFalse(
             LLMRewriteService.isModelDownloaded(.standard2B, baseURL: baseURL, fileManager: fileManager)
         )
+    }
+
+    func testRequiredDownloadPatternsCoverCurrentOptiQArtifacts() {
+        let requiredArtifacts = ["config.json", "tokenizer.json", "tokenizer_config.json", "optiq_metadata.json", "chat_template.jinja"]
+        let patterns = LLMRewriteService.requiredDownloadPatterns(for: .standard4B)
+
+        for artifact in requiredArtifacts {
+            XCTAssertTrue(
+                patterns.contains { patternMatches($0, fileName: artifact) },
+                "Expected download patterns \(patterns) to cover \(artifact)"
+            )
+        }
+    }
+
+    func testOnlyIdleAllowsRewriteModelManagement() {
+        XCTAssertTrue(RecordingState.idle.allowsRewriteModelManagement)
+        XCTAssertFalse(RecordingState.recording.allowsRewriteModelManagement)
+        XCTAssertFalse(RecordingState.processing.allowsRewriteModelManagement)
+        XCTAssertFalse(RecordingState.modelDownloading(model: .baseEN, progress: 0.5).allowsRewriteModelManagement)
+        XCTAssertFalse(RecordingState.converting.allowsRewriteModelManagement)
+        XCTAssertFalse(RecordingState.success(text: "ok", pasted: false, converted: true).allowsRewriteModelManagement)
+        XCTAssertFalse(RecordingState.failure(reason: .noSpeechDetected).allowsRewriteModelManagement)
+    }
+
+    func testDeleteIncompleteDownloadedModelFilesIfNeededRemovesPartialTierDirectory() throws {
+        let fileManager = FileManager.default
+        let baseURL = fileManager.temporaryDirectory
+            .appendingPathComponent("LLMRewriteServiceTests.RepairIncomplete.\(UUID().uuidString)", isDirectory: true)
+        let modelDirectory = try LLMRewriteService.downloadedModelDirectory(
+            for: .standard4B,
+            baseURL: baseURL,
+            fileManager: fileManager
+        )
+        try fileManager.createDirectory(at: modelDirectory, withIntermediateDirectories: true)
+        try Data("{}".utf8).write(to: modelDirectory.appendingPathComponent("config.json"))
+        try Data("{}".utf8).write(to: modelDirectory.appendingPathComponent("tokenizer.json"))
+        try Data("{}".utf8).write(to: modelDirectory.appendingPathComponent("tokenizer_config.json"))
+        try Data("{}".utf8).write(to: modelDirectory.appendingPathComponent("optiq_metadata.json"))
+        try Data("weights".utf8).write(to: modelDirectory.appendingPathComponent("model.safetensors"))
+
+        try LLMRewriteService.deleteIncompleteDownloadedModelFilesIfNeeded(
+            for: .standard4B,
+            baseURL: baseURL,
+            fileManager: fileManager
+        )
+
+        XCTAssertFalse(fileManager.fileExists(atPath: modelDirectory.path))
+    }
+
+    func testDeleteIncompleteDownloadedModelFilesIfNeededPreservesCompleteTierDirectory() throws {
+        let fileManager = FileManager.default
+        let baseURL = fileManager.temporaryDirectory
+            .appendingPathComponent("LLMRewriteServiceTests.PreserveComplete.\(UUID().uuidString)", isDirectory: true)
+        let modelDirectory = try LLMRewriteService.downloadedModelDirectory(
+            for: .standard4B,
+            baseURL: baseURL,
+            fileManager: fileManager
+        )
+        try fileManager.createDirectory(at: modelDirectory, withIntermediateDirectories: true)
+        try Data("{}".utf8).write(to: modelDirectory.appendingPathComponent("config.json"))
+        try Data("{}".utf8).write(to: modelDirectory.appendingPathComponent("tokenizer.json"))
+        try Data("{}".utf8).write(to: modelDirectory.appendingPathComponent("tokenizer_config.json"))
+        try Data("{% raw %}".utf8).write(to: modelDirectory.appendingPathComponent("chat_template.jinja"))
+        try Data("{}".utf8).write(to: modelDirectory.appendingPathComponent("optiq_metadata.json"))
+        try Data("weights".utf8).write(to: modelDirectory.appendingPathComponent("model.safetensors"))
+
+        try LLMRewriteService.deleteIncompleteDownloadedModelFilesIfNeeded(
+            for: .standard4B,
+            baseURL: baseURL,
+            fileManager: fileManager
+        )
+
+        XCTAssertTrue(fileManager.fileExists(atPath: modelDirectory.path))
     }
 
     func testDeleteDownloadedModelFilesRemovesOnlySelectedTierDirectory() throws {
@@ -553,6 +670,15 @@ private func stream(
     }
 }
 
+private func patternMatches(_ pattern: String, fileName: String) -> Bool {
+    let escaped = NSRegularExpression.escapedPattern(for: pattern)
+        .replacingOccurrences(of: "\\*", with: ".*")
+        .replacingOccurrences(of: "\\?", with: ".")
+    let regex = try? NSRegularExpression(pattern: "^\(escaped)$", options: [.caseInsensitive])
+    let range = NSRange(fileName.startIndex..<fileName.endIndex, in: fileName)
+    return regex?.firstMatch(in: fileName, options: [], range: range) != nil
+}
+
 extension LLMRewriteServiceTests {
     func testThinkStripperSimpleNoThink() {
         var stripper = ThinkStripper()
@@ -595,5 +721,52 @@ extension LLMRewriteServiceTests {
         let text = "a<think>b</think>c<think>d</think>e"
         let result = stripper.process(text) + stripper.flush()
         XCTAssertEqual(result, "ace")
+    }
+
+    func testRealQwen2BModelGeneration() async throws {
+        let transcript = "1, 9, 12, 13, 14, 15. Zeus, can you please put those in ascending order for me?"
+        let triggerName = "Zeus"
+        
+        // 1. Simulate the parser
+        let aliases = TriggerAliasNormalizer.normalize([triggerName])
+        let split = TriggerTranscriptParser.split(transcript: transcript, activeAliases: aliases)
+        
+        var body = ""
+        var instructions = ""
+        
+        switch split {
+        case .validTrigger(let content, let instruction, _):
+            body = content.trimmingCharacters(in: .whitespacesAndNewlines)
+            instructions = instruction.trimmingCharacters(in: .whitespacesAndNewlines)
+        default:
+            XCTFail("Parser failed to find valid trigger!")
+            return
+        }
+        
+        XCTAssertEqual(body, "1, 9, 12, 13, 14, 15.")
+        XCTAssertEqual(instructions, "can you please put those in ascending order for me?")
+        
+        // 2. Simulate the LLM rewrite using the 2B tier
+        let service = LLMRewriteService()
+        
+        do {
+            print("Starting model download & generation... This may take a minute.")
+            
+            // Explicitly load model
+            try await service.prewarm()
+            
+            let result = try await service.rewrite(
+                body: body,
+                instructions: instructions
+            )
+            
+            print("Successfully generated result: \(result)")
+            XCTAssertFalse(result.isEmpty)
+            
+        } catch {
+            print("FATAL MODEL ERROR: \(error)")
+            print("FATAL MODEL ERROR DESC: \(error.localizedDescription)")
+            XCTFail("Model generation failed with error: \(error)")
+        }
     }
 }

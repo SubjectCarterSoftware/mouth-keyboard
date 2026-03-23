@@ -16,7 +16,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
 
     private var pillPanel: RecordingPillPanel?
     private var stateObservation: AnyCancellable?
-    private var tierObservation: AnyCancellable?
     private var statusItem: NSStatusItem?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
@@ -28,20 +27,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         hotkeyService.start()
         readinessStore.refresh()
 
-        // Eagerly download/load the WhisperKit model so it's ready when the user
-        // first records. Failure is non-fatal — transcribe will surface the error.
-        Task {
-            try? await WhisperService.shared.prepare()
+        // Keep the selected Whisper model downloaded for first use, but do not
+        // hold it in memory while the app is idle.
+        if !WhisperService.isModelDownloaded(preferences.whisperModel) {
+            WhisperModelLoadState.shared.startDownload(for: preferences.whisperModel)
         }
 
-        // Download the rewrite model for the current tier on launch.
-        RewriteModelLoadState.shared.startDownload(for: preferences.rewriteModelTier)
-        tierObservation = preferences.$rewriteModelTier
-            .dropFirst()
-            .sink { newTier in
-                RewriteModelLoadState.shared.startDownload(for: newTier)
-            }
-
+        // Keep the selected rewrite tier ready for first use. On a fresh install
+        // this is the default 2B tier; on later launches this only runs if the
+        // selected tier isn't already downloaded.
+        if !LLMRewriteService.isModelDownloaded(preferences.rewriteModelTier) {
+            RewriteModelLoadState.shared.startDownload(for: preferences.rewriteModelTier)
+        }
 
         audioCaptureService.onCaptureFailure = { [weak self] error in
             self?.activationStore.handleCaptureFailure(error)
@@ -69,7 +66,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
                 case .recording:
                     self.onRecordingStarted()
                 case .processing:
-                    self.onProcessingStarted()
+                    self.onProcessingStarted(state: newState)
+                case .modelDownloading:
+                    self.onProcessingStarted(state: newState)
                 case .converting:
                     self.onConvertingStarted()
                 case .success:
@@ -94,7 +93,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     func applicationWillTerminate(_ notification: Notification) {
         hotkeyService.stop()
         stateObservation?.cancel()
-        tierObservation?.cancel()
     }
 
     func applicationDidBecomeActive(_ notification: Notification) {
@@ -131,13 +129,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         updateMenuBarIcon(state: .recording)
     }
 
-    private func onProcessingStarted() {
+    private func onProcessingStarted(state: RecordingState) {
         // Audio capture is stopped now — all samples are in the accumulator.
         audioCaptureService.stop()
         levelMonitor.onSilenceTimeout = nil
 
         // Pill panel stays visible during processing (RecordingPillPanel handles this).
-        updateMenuBarIcon(state: .processing)
+        updateMenuBarIcon(state: state)
     }
 
     private func onConvertingStarted() {
@@ -179,6 +177,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         case .processing:
             symbolName = "ellipsis.circle"
             description = "Processing"
+        case .modelDownloading:
+            symbolName = "arrow.down.circle"
+            description = "Downloading model"
         case .converting:
             symbolName = "ellipsis.circle"
             description = "Converting"

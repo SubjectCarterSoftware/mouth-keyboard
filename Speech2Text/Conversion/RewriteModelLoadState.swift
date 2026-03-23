@@ -2,6 +2,12 @@ import Foundation
 
 @MainActor
 final class RewriteModelLoadState: ObservableObject {
+    struct TierStatus: Equatable {
+        let isDownloaded: Bool
+        let isWarm: Bool
+        let isDownloading: Bool
+        let isDeleting: Bool
+    }
 
     enum Phase: Equatable {
         case idle
@@ -25,20 +31,23 @@ final class RewriteModelLoadState: ObservableObject {
     static let shared = RewriteModelLoadState()
 
     @Published private(set) var phase: Phase = .idle
+    @Published private(set) var downloadedTiers: Set<RewriteModelTier> = []
+    @Published private(set) var warmTier: RewriteModelTier?
+    @Published private(set) var deletingTier: RewriteModelTier?
 
     private var downloadTask: Task<Void, Never>?
+    private var statusRefreshTask: Task<Void, Never>?
 
     func startDownload(for tier: RewriteModelTier) {
         downloadTask?.cancel()
         phase = .downloading(tier: tier, progress: 0)
+        refreshStatus()
 
         downloadTask = Task { [weak self] in
             guard let self else { return }
 
-            await LLMRewriteService.shared.setTier(tier)
-
             do {
-                try await LLMRewriteService.shared.download { [weak self] progress in
+                _ = try await LLMRewriteService.downloadModelFiles(for: tier) { [weak self] progress in
                     let fraction = min(max(progress.fractionCompleted, 0), 1)
                     Task { @MainActor [weak self] in
                         guard let self, case .downloading = self.phase else { return }
@@ -47,13 +56,62 @@ final class RewriteModelLoadState: ObservableObject {
                 }
                 guard !Task.isCancelled else { return }
                 phase = .ready(tier: tier)
+                refreshStatus()
             } catch is CancellationError {
                 // A new startDownload call cancelled us — it sets the phase itself.
             } catch {
                 phase = .failed(tier: tier, message: error.localizedDescription)
+                refreshStatus()
             }
 
             downloadTask = nil
+        }
+    }
+
+    func status(for tier: RewriteModelTier) -> TierStatus {
+        TierStatus(
+            isDownloaded: downloadedTiers.contains(tier),
+            isWarm: warmTier == tier,
+            isDownloading: phase.activeTier == tier && phase.downloadProgress != nil,
+            isDeleting: deletingTier == tier
+        )
+    }
+
+    func refreshStatus() {
+        downloadedTiers = Set(RewriteModelTier.allCases.filter { tier in
+            LLMRewriteService.isModelDownloaded(tier)
+        })
+        statusRefreshTask?.cancel()
+        statusRefreshTask = Task { [weak self] in
+            guard let self else { return }
+            let warmTier = await LLMRewriteService.shared.loadedTier()
+            guard !Task.isCancelled else { return }
+            self.warmTier = warmTier
+            self.statusRefreshTask = nil
+        }
+    }
+
+    func deleteModel(for tier: RewriteModelTier) {
+        downloadTask?.cancel()
+        downloadTask = nil
+        phase = .idle
+        deletingTier = tier
+
+        Task { [weak self] in
+            guard let self else { return }
+
+            do {
+                try await LLMRewriteService.shared.deleteDownloadedModel(for: tier)
+                if self.phase.activeTier == tier {
+                    self.phase = .idle
+                }
+                self.deletingTier = nil
+                self.refreshStatus()
+            } catch {
+                self.deletingTier = nil
+                self.phase = .failed(tier: tier, message: error.localizedDescription)
+                self.refreshStatus()
+            }
         }
     }
 }

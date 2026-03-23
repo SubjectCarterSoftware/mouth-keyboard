@@ -62,7 +62,6 @@
 		A00000010000000000000031 /* Resources/Sounds/Basso.aiff in Resources */ = {isa = PBXBuildFile; fileRef = A00000020000000000000035 /* Resources/Sounds/Basso.aiff */; };
 		A00000010000000000000032 /* PasteService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000020000000000000036 /* PasteService.swift */; };
 		A00000010000000000000033 /* PostEventPermissionService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000020000000000000037 /* PostEventPermissionService.swift */; };
-		A00000010000000000000034 /* ConvertMode.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000020000000000000038 /* ConvertMode.swift */; };
 		A0000001000000000000003C /* LLMRewriteService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0000002000000000000003C /* LLMRewriteService.swift */; };
 		A00000010000000000000059 /* RewriteModelTier.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000020000000000000059 /* RewriteModelTier.swift */; };
 		A00000010000000000000060 /* RewriteModelLoadState.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000020000000000000060 /* RewriteModelLoadState.swift */; };
@@ -154,7 +153,6 @@
 		A00000020000000000000035 /* Resources/Sounds/Basso.aiff */ = {isa = PBXFileReference; lastKnownFileType = audio.aiff; path = Resources/Sounds/Basso.aiff; sourceTree = "<group>"; };
 		A00000020000000000000036 /* PasteService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PasteService.swift; sourceTree = "<group>"; };
 		A00000020000000000000037 /* PostEventPermissionService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PostEventPermissionService.swift; sourceTree = "<group>"; };
-		A00000020000000000000038 /* ConvertMode.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConvertMode.swift; sourceTree = "<group>"; };
 		A0000002000000000000003C /* LLMRewriteService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LLMRewriteService.swift; sourceTree = "<group>"; };
 		A00000020000000000000059 /* RewriteModelTier.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RewriteModelTier.swift; sourceTree = "<group>"; };
 		A00000020000000000000060 /* RewriteModelLoadState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RewriteModelLoadState.swift; sourceTree = "<group>"; };
@@ -391,7 +389,6 @@
 		A0000004000000000000000F /* Conversion */ = {
 			isa = PBXGroup;
 			children = (
-				A00000020000000000000038 /* ConvertMode.swift */,
 				A0000002000000000000003C /* LLMRewriteService.swift */,
 				A00000020000000000000059 /* RewriteModelTier.swift */,
 				A00000020000000000000060 /* RewriteModelLoadState.swift */,
@@ -551,7 +548,6 @@
 				A0000001000000000000001C /* AudioDeviceService.swift in Sources */,
 				A0000001000000000000001A /* AudioLevelMonitor.swift in Sources */,
 				A00000010000000000000023 /* ClipboardService.swift in Sources */,
-				A00000010000000000000034 /* ConvertMode.swift in Sources */,
 				A00000010000000000000041 /* StringSimilarity.swift in Sources */,
 				A0000001000000000000003C /* LLMRewriteService.swift in Sources */,
 				A00000010000000000000059 /* RewriteModelTier.swift in Sources */,
@@ -874,11 +870,11 @@
 		A00000140000000000000003 /* XCRemoteSwiftPackageReference "mlx-swift-lm" */ = {
 			isa = XCRemoteSwiftPackageReference;
 			repositoryURL = "https://github.com/ml-explore/mlx-swift-lm";
-			requirement = {
-				kind = upToNextMinorVersion;
-				minimumVersion = 2.30.6;
+				requirement = {
+					kind = revision;
+					revision = 06bfeed73f5b93f476057c8dc6d9c8a329ae3072;
+				};
 			};
-		};
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */

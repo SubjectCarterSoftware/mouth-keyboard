@@ -13,7 +13,6 @@ final class ShellPreferences: ObservableObject {
         static let hasRequestedPostEventPermission = "hasRequestedPostEventPermission"
         static let micDeviceUID = "micDeviceUID"
         static let whisperModel = "whisperModel"
-        static let autoModelSelection = "autoModelSelection"
         static let launchAtLogin = "launchAtLogin"
         static let rewriteModelTier = "rewriteModelTier"
     }
@@ -62,14 +61,6 @@ final class ShellPreferences: ObservableObject {
         didSet {
             persistIfNeeded {
                 defaults.set(whisperModel.rawValue, forKey: Keys.whisperModel)
-            }
-        }
-    }
-
-    @Published var autoModelSelection: Bool {
-        didSet {
-            persistIfNeeded {
-                defaults.set(autoModelSelection, forKey: Keys.autoModelSelection)
             }
         }
     }
@@ -124,8 +115,6 @@ final class ShellPreferences: ObservableObject {
         } else {
             whisperModel = .baseEN
         }
-
-        autoModelSelection = userDefaults.object(forKey: Keys.autoModelSelection) as? Bool ?? false
 
         launchAtLogin = SMAppService.mainApp.status == .enabled
 
@@ -207,7 +196,6 @@ final class ShellPreferences: ObservableObject {
             hasRequestedPostEventPermission = false
             micDeviceUID = nil
             whisperModel = .baseEN
-            autoModelSelection = false
             rewriteModelTier = .standard2B
             activeTriggerProfile = .defaultProfile
         }
@@ -219,7 +207,6 @@ final class ShellPreferences: ObservableObject {
         defaults.removeObject(forKey: Keys.hasRequestedPostEventPermission)
         defaults.removeObject(forKey: Keys.micDeviceUID)
         defaults.removeObject(forKey: Keys.whisperModel)
-        defaults.removeObject(forKey: Keys.autoModelSelection)
         defaults.removeObject(forKey: Keys.rewriteModelTier)
 
         Task { [triggerProfileStore] in

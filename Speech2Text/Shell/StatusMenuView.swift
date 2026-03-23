@@ -17,7 +17,10 @@ struct StatusMenuView: View {
 
 
     private var canCancelSession: Bool {
-        recordingState == .recording || recordingState == .processing || recordingState == .converting
+        recordingState == .recording
+            || recordingState == .processing
+            || recordingState.isModelDownloading
+            || recordingState == .converting
     }
 
     private var canRestartSession: Bool {
@@ -39,6 +42,8 @@ struct StatusMenuView: View {
             return "Recording is active. Use Restart to clear the current buffer or Cancel to discard it."
         case .processing:
             return "Processing is active. Cancel stops the session and preserves the existing clipboard."
+        case .modelDownloading(let model, _):
+            return "\(model.displayName) is still downloading. Cancel stops the session and preserves the existing clipboard."
         case .failure(let reason):
             return failureMessage(for: reason)
         case .idle, .success, .converting:

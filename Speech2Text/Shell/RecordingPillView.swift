@@ -44,6 +44,8 @@ struct RecordingPillView: View {
             recordingContent
         case .processing:
             processingContent
+        case .modelDownloading(let model, let progress):
+            modelDownloadingContent(model: model, progress: progress)
         case .success(_, let pasted, let converted, let noMatchPassthrough):
             successContent(pasted: pasted, converted: converted, noMatchPassthrough: noMatchPassthrough)
         case .converting:
@@ -164,6 +166,36 @@ struct RecordingPillView: View {
         .onDisappear {
             pulseOpacity = 0.3
         }
+    }
+
+    private func modelDownloadingContent(model: WhisperModelChoice, progress: Double) -> some View {
+        let clampedProgress = min(max(progress, 0), 1)
+
+        return HStack(spacing: 10) {
+            Image(systemName: "arrow.down.circle.fill")
+                .font(.system(size: 14, weight: .semibold))
+                .foregroundStyle(Color.accentColor)
+
+            VStack(alignment: .leading, spacing: 4) {
+                Text("Downloading \(model.displayName)")
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundStyle(.white)
+                    .lineLimit(1)
+
+                ProgressView(value: clampedProgress)
+                    .progressViewStyle(.linear)
+                    .tint(Color.accentColor)
+                    .controlSize(.small)
+            }
+
+            Text("\(Int(clampedProgress * 100))%")
+                .font(.system(size: 12, weight: .semibold))
+                .foregroundStyle(.secondary)
+                .monospacedDigit()
+        }
+        .padding(.horizontal, 12)
+        .frame(width: 220, height: 44)
+        .preferredColorScheme(.dark)
     }
 
     // MARK: - Converting state
@@ -323,8 +355,10 @@ struct RecordingPillView: View {
             return "Selected mic unavailable"
         case .selectedMicrophoneDisconnected:
             return "Selected mic disconnected"
-        case .modelError:
-            return "Model error"
+        case .modelError(let msg):
+            // Strip out the "Rewrite failed: " prefix to save space
+            let trimmed = msg.replacingOccurrences(of: "Rewrite failed: ", with: "")
+            return trimmed.prefix(30).appending((trimmed.count > 30) ? "..." : "")
         case .silenceTimeout:
             return "Silence timeout"
         case .wordLimitExceeded:
@@ -339,6 +373,13 @@ struct RecordingPillView: View {
 
 #Preview("Processing") {
     RecordingPillView(levelMonitor: AudioLevelMonitor(), recordingState: .processing)
+}
+
+#Preview("Model Downloading") {
+    RecordingPillView(
+        levelMonitor: AudioLevelMonitor(),
+        recordingState: .modelDownloading(model: .largeTurbo, progress: 0.42)
+    )
 }
 
 #Preview("Success - Copied") {

@@ -1,3 +1,4 @@
+import Combine
 import XCTest
 @testable import Speech2Text
 
@@ -77,6 +78,83 @@ final class ActivationStoreTests: XCTestCase {
         store.finish()
 
         XCTAssertEqual(store.state, .processing)
+    }
+
+    func testFinishShowsSelectedModelDownloadProgressWhileWaitingForPrepare() async throws {
+        let suiteName = "ActivationStoreTests.ModelDownloadProgress.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suiteName) ?? .standard
+        defaults.removePersistentDomain(forName: suiteName)
+        let preferences = ShellPreferences(userDefaults: defaults)
+        preferences.whisperModel = .largeTurbo
+
+        let loadState = StubWhisperModelLoadState()
+        let store = makeStore(
+            permissionsAuthorized: true,
+            transcriber: DelayedPrepareWhisperTranscriber(
+                prepareDelayNanoseconds: 300_000_000,
+                result: .success("Hello world")
+            ),
+            whisperModelLoadState: loadState,
+            preferences: preferences
+        )
+
+        store.arm()
+        store.finish()
+        XCTAssertEqual(store.state, .processing)
+
+        try await Task.sleep(nanoseconds: 50_000_000)
+        loadState.phase = .downloading(model: .largeTurbo, progress: 0.42)
+        try await Task.sleep(nanoseconds: 50_000_000)
+
+        guard case .modelDownloading(let model, let progress) = store.state else {
+            XCTFail("Expected model-download progress state, got \(store.state)")
+            return
+        }
+        XCTAssertEqual(model, .largeTurbo)
+        XCTAssertEqual(progress, 0.42, accuracy: 0.001)
+
+        loadState.phase = .ready(model: .largeTurbo)
+        try await Task.sleep(nanoseconds: 350_000_000)
+
+        XCTAssertEqual(store.lastTranscription, "Hello world")
+        if case .success(let text, _, _, _) = store.state {
+            XCTAssertEqual(text, "Hello world")
+        } else {
+            XCTFail("Expected .success state after prepare completed, got \(store.state)")
+        }
+    }
+
+    func testCancelDuringModelDownloadReturnsToIdle() async throws {
+        let suiteName = "ActivationStoreTests.CancelDuringModelDownload.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suiteName) ?? .standard
+        defaults.removePersistentDomain(forName: suiteName)
+        let preferences = ShellPreferences(userDefaults: defaults)
+        preferences.whisperModel = .mediumEN
+
+        let loadState = StubWhisperModelLoadState()
+        let store = makeStore(
+            permissionsAuthorized: true,
+            transcriber: DelayedPrepareWhisperTranscriber(
+                prepareDelayNanoseconds: 500_000_000,
+                result: .success("unused")
+            ),
+            whisperModelLoadState: loadState,
+            preferences: preferences
+        )
+
+        store.arm()
+        store.finish()
+        try await Task.sleep(nanoseconds: 50_000_000)
+
+        loadState.phase = .downloading(model: .mediumEN, progress: 0.25)
+        try await Task.sleep(nanoseconds: 50_000_000)
+        XCTAssertTrue(store.state.isModelDownloading)
+
+        store.cancelCurrentSession()
+        try await Task.sleep(nanoseconds: 50_000_000)
+
+        XCTAssertEqual(store.state, .idle)
+        XCTAssertEqual(store.recoveryFeedback, .canceled)
     }
 
     func test_finish_no_op_when_not_recording() {
@@ -1010,6 +1088,7 @@ final class ActivationStoreTests: XCTestCase {
         permissionsAuthorized: Bool,
         transcriber: (any WhisperTranscribing)? = nil,
         llmRewriter: (any LLMRewriting)? = nil,
+        whisperModelLoadState: (any WhisperModelLoadStateProviding)? = nil,
         clipboard: ClipboardService? = nil,
         pasteService: (any PasteServicing)? = nil,
         bufferAccumulator: AudioBufferAccumulator? = nil,
@@ -1024,6 +1103,7 @@ final class ActivationStoreTests: XCTestCase {
         return ActivationStore(
             preferences: resolvedPreferences,
             readinessProvider: StubReadinessProvider(permissionsAuthorized: permissionsAuthorized),
+            whisperModelLoadState: whisperModelLoadState ?? StubWhisperModelLoadState(),
             whisperService: transcriber ?? ActivationStoreMockTranscriber(result: .success("")),
             llmRewriteService: llmRewriter ?? MockLLMRewriter(result: .failure(LLMRewriteError.cancelled)),
             clipboardService: clipboard ?? ActivationStoreMockClipboard(),
@@ -1074,6 +1154,19 @@ private struct StubReadinessProvider: ReadinessProviding {
     }
 }
 
+@MainActor
+private final class StubWhisperModelLoadState: WhisperModelLoadStateProviding {
+    @Published var phase: WhisperModelLoadState.Phase
+
+    init(phase: WhisperModelLoadState.Phase = .idle) {
+        self.phase = phase
+    }
+
+    var phasePublisher: AnyPublisher<WhisperModelLoadState.Phase, Never> {
+        $phase.eraseToAnyPublisher()
+    }
+}
+
 /// Mock transcriber scoped to ActivationStoreTests to avoid conflict with WhisperServiceTests.MockWhisperTranscriber
 final class ActivationStoreMockTranscriber: WhisperTranscribing, @unchecked Sendable {
     enum MockResult {
@@ -1108,6 +1201,32 @@ final class DelayedWhisperTranscriber: WhisperTranscribing, @unchecked Sendable 
 
     func transcribe(samples: [Float]) async throws -> String {
         try await Task.sleep(nanoseconds: delayNanoseconds)
+        switch result {
+        case .success(let text):
+            return text
+        case .failure(let error):
+            throw error
+        }
+    }
+}
+
+final class DelayedPrepareWhisperTranscriber: WhisperTranscribing, @unchecked Sendable {
+    private let prepareDelayNanoseconds: UInt64
+    private let result: ActivationStoreMockTranscriber.MockResult
+
+    init(
+        prepareDelayNanoseconds: UInt64,
+        result: ActivationStoreMockTranscriber.MockResult = .success("delayed")
+    ) {
+        self.prepareDelayNanoseconds = prepareDelayNanoseconds
+        self.result = result
+    }
+
+    func prepare(model: WhisperModelChoice) async throws {
+        try await Task.sleep(nanoseconds: prepareDelayNanoseconds)
+    }
+
+    func transcribe(samples: [Float]) async throws -> String {
         switch result {
         case .success(let text):
             return text

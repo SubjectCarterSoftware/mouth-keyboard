@@ -22,8 +22,7 @@ struct TriggerTranscriptParser {
 
         let content = String(trimmedTranscript[..<matchedRange.lowerBound])
             .trimmingCharacters(in: .whitespacesAndNewlines)
-        let instruction = String(trimmedTranscript[matchedRange.upperBound...])
-            .trimmingCharacters(in: .whitespacesAndNewlines)
+        let instruction = cleanedInstruction(String(trimmedTranscript[matchedRange.upperBound...]))
 
         let tokenCount = instruction.split(whereSeparator: \.isWhitespace).count
         guard tokenCount >= minimumInstructionTokens else {
@@ -84,5 +83,15 @@ struct TriggerTranscriptParser {
         }
 
         return bestMatch
+    }
+
+    private static func cleanedInstruction(_ text: String) -> String {
+        let trimmedWhitespace = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        let leadingBoundaryCharacters = CharacterSet.whitespacesAndNewlines
+            .union(CharacterSet(charactersIn: ",.:;"))
+        let trimmedScalars = trimmedWhitespace.unicodeScalars.drop {
+            leadingBoundaryCharacters.contains($0)
+        }
+        return String(String.UnicodeScalarView(trimmedScalars))
     }
 }
