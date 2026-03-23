@@ -1,16 +1,16 @@
 ---
 gsd_state_version: 1.0
-milestone: v1.2
-milestone_name: AI Trigger Name
-status: Complete
-stopped_at: v1.2 milestone archived
-last_updated: "2026-03-20T19:11:48.975Z"
-last_activity: 2026-03-20 — v1.2 AI Trigger Name milestone shipped and archived
+milestone: v1.3
+milestone_name: Qwen 3.5 LLM Upgrade
+status: Defining requirements
+stopped_at: ~
+last_updated: "2026-03-23T15:41:00.000Z"
+last_activity: 2026-03-23 — Milestone v1.3 started
 progress:
-  total_phases: 4
-  completed_phases: 4
-  total_plans: 9
-  completed_plans: 9
+  total_phases: 0
+  completed_phases: 0
+  total_plans: 0
+  completed_plans: 0
 ---
 
 # Project State
@@ -20,14 +20,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-20)
 
 **Core value:** From a single hotkey, the user can dictate and get reliable text into the clipboard fast enough that it feels close to typing speed.
-**Current focus:** v1.2 complete. Plan next milestone with `$gsd-new-milestone`.
+**Current focus:** v1.3 Qwen 3.5 LLM Upgrade — fix LLM rewrite pipeline for all Qwen 3.5 model tiers.
 
 ## Current Position
 
-Phase: — (milestone complete)
+Phase: Not started (defining requirements)
 Plan: —
-Status: Complete
-Last activity: 2026-03-20 — v1.2 AI Trigger Name shipped and archived
+Status: Defining requirements
+Last activity: 2026-03-23 — Milestone v1.3 started
 
 ## Performance Metrics
 
@@ -112,6 +112,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-20T18:49:36.641Z
-Stopped at: Completed 15-03-PLAN.md
+Last session: 2026-03-23T15:41:00.000Z
+Stopped at: Milestone v1.3 started — defining requirements
 Resume file: None

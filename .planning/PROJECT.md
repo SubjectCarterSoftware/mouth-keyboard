@@ -40,7 +40,16 @@ From a single hotkey, the user can dictate and get reliable text into the clipbo
 
 ### Active
 
-<!-- No active milestone. Define next milestone with $gsd-new-milestone -->
+## Current Milestone: v1.3 Qwen 3.5 LLM Upgrade
+
+**Goal:** Fix the LLM rewrite pipeline to work reliably with Qwen 3.5 models across all tiers and allow users to select between model tiers in settings.
+
+**Target features:**
+- Diagnose and fix Qwen 3.5 model loading/inference failures across all tiers (2B, 4B, 9B)
+- Ensure the LLM rewrite pipeline produces valid output end-to-end with Qwen 3.5
+- Validate the model tier selector in settings works for switching between tiers
+- Improve error visibility so rewrite failures are diagnosable rather than silently falling back
+- Investigate and resolve potential MLX-Swift framework overlap between WhisperKit and MLXLLM
 
 ### Out of Scope
 
@@ -94,5 +103,22 @@ Performance expectations remain aggressive, but the biggest remaining product pr
 | Unresolved valid-trigger instructions route to custom LLM rewrite (not passthrough) | Makes trigger-activated speech useful even without a built-in mode match | ✓ Shipped v1.2 |
 | `CalibrationCapturingDone` error type as exit sentinel for capturer exhaustion | Enables clean runner termination for both test stubs and real device cancellation | ✓ Shipped v1.2 |
 
+## Evolution
+
+This document evolves at phase transitions and milestone boundaries.
+
+**After each phase transition** (via `/gsd-transition`):
+1. Requirements invalidated? → Move to Out of Scope with reason
+2. Requirements validated? → Move to Validated with phase reference
+3. New requirements emerged? → Add to Active
+4. Decisions to log? → Add to Key Decisions
+5. "What This Is" still accurate? → Update if drifted
+
+**After each milestone** (via `/gsd-complete-milestone`):
+1. Full review of all sections
+2. Core Value check — still the right priority?
+3. Audit Out of Scope — reasons still valid?
+4. Update Context with current state
+
 ---
-*Last updated: 2026-03-20 after v1.2 milestone shipped*
+*Last updated: 2026-03-23 after v1.3 milestone started*
