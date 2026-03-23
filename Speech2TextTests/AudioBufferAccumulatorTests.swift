@@ -70,4 +70,28 @@ final class AudioBufferAccumulatorTests: XCTestCase {
                       "Sample count \(samples.count) should be approximately \(expectedCount) (±\(tolerance))")
     }
 
+    func testAppendStopsAddingBuffersAfterOverflow() {
+        let accumulator = AudioBufferAccumulator(maxDuration: 0.001)
+        let buffer = makeBuffer(frameCount: 16, sampleRate: 16_000)
+
+        accumulator.append(buffer)
+        XCTAssertEqual(accumulator.totalFrameCount, 16)
+
+        accumulator.append(buffer)
+        XCTAssertEqual(accumulator.totalFrameCount, 16, "Overflow should block additional frames from being stored")
+    }
+
+    func testConvertThrowsOverflowAfterCap() throws {
+        let accumulator = AudioBufferAccumulator(maxDuration: 0.001)
+        let buffer = makeBuffer(frameCount: 16, sampleRate: 16_000)
+        accumulator.append(buffer)
+        accumulator.append(buffer)
+
+        XCTAssertThrowsError(try accumulator.convertToWhisperFormat()) { error in
+            guard case AudioBufferAccumulatorError.overflow = error else {
+                return XCTFail("Expected overflow error, got \(error)")
+            }
+        }
+    }
+
 }

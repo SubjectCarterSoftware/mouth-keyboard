@@ -8,9 +8,9 @@ struct SetupWindowView: View {
     @ObservedObject var readinessStore: ReadinessStore
     @ObservedObject private var modelLoadState = RewriteModelLoadState.shared
     @ObservedObject private var audioDeviceService = AudioDeviceService.shared
+    @StateObject private var assistantSettingsViewModel: AIAssistantSettingsViewModel
     let dismissWindow: () -> Void
 
-    @State private var showingModesSheet = false
     @State private var showingAssistantSheet = false
 
     private var primaryActionTitle: String {
@@ -82,6 +82,19 @@ struct SetupWindowView: View {
         .accessibilityIdentifier("conversionModel.\(tier.rawValue)")
     }
 
+    init(
+        preferences: ShellPreferences,
+        readinessStore: ReadinessStore,
+        dismissWindow: @escaping () -> Void
+    ) {
+        self.preferences = preferences
+        self.readinessStore = readinessStore
+        self.dismissWindow = dismissWindow
+        _assistantSettingsViewModel = StateObject(
+            wrappedValue: AIAssistantSettingsViewModel(preferences: preferences)
+        )
+    }
+
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
@@ -120,36 +133,15 @@ struct SetupWindowView: View {
                 Divider()
 
                 AIAssistantTileView(
-                    preferences: preferences,
+                    viewModel: assistantSettingsViewModel,
                     onChangeTapped: { showingAssistantSheet = true }
                 )
                 .sheet(isPresented: $showingAssistantSheet) {
                     AIAssistantSettingsView(
-                        viewModel: AIAssistantSettingsViewModel(preferences: preferences),
-                        preferences: preferences
+                        viewModel: assistantSettingsViewModel
                     )
                 }
                 .accessibilityIdentifier("assistantTile")
-
-                Divider()
-
-                HStack {
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text("Assistant Shortcuts")
-                            .font(.body)
-                        Text("Store a set of instructions invoked by a single name")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                    }
-                    Spacer()
-                    Button("Manage Shortcuts") {
-                        showingModesSheet = true
-                    }
-                }
-                .sheet(isPresented: $showingModesSheet) {
-                    IntentListView()
-                        .frame(minWidth: 920, idealWidth: 960, minHeight: 560, idealHeight: 600)
-                }
 
                 Divider()
 
@@ -166,6 +158,7 @@ struct SetupWindowView: View {
                             .font(.caption)
                             .foregroundStyle(.red)
                     }
+
                 }
 
                 Divider()

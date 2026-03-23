@@ -1,3 +1,5 @@
+IMPLEMENTED - 2026-03-21
+
 #### Objective
 
 Replace the current fuzzy command detection approach with a named AI trigger system. Instead of scanning the entire transcript for fuzzy command phrases, the user explicitly invokes the AI by saying its name (for example Zeus, Atlas, or Gaia).

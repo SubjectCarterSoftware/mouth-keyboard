@@ -74,8 +74,8 @@ final class LLMRewriteServiceTests: XCTestCase {
             return stream(events: [.chunk("ok"), .completion(.stop)])
         }
 
-        _ = try await service.rewrite(body: "raw", mode: .teams)
-        XCTAssertEqual(capturedInstructions, ConvertMode.teams.defaultSystemPrompt)
+        _ = try await service.rewrite(body: "raw", mode: .email)
+        XCTAssertEqual(capturedInstructions, ConvertMode.email.defaultSystemPrompt)
     }
 
     func testSequentialRewritesReuseLoadedContainer() async throws {
@@ -110,8 +110,8 @@ final class LLMRewriteServiceTests: XCTestCase {
             }
         )
 
-        async let first: String = service.rewrite(body: "one", mode: .slack)
-        async let second: String = service.rewrite(body: "two", mode: .slack)
+        async let first: String = service.rewrite(body: "one", mode: .email)
+        async let second: String = service.rewrite(body: "two", mode: .email)
         _ = try await (first, second)
 
         let loadCount = await loadCounter.value()
@@ -136,9 +136,9 @@ final class LLMRewriteServiceTests: XCTestCase {
             }
         }
 
-        let firstTask = Task { try await service.rewrite(body: "first", mode: .slack) }
+        let firstTask = Task { try await service.rewrite(body: "first", mode: .email) }
         try await Task.sleep(nanoseconds: 20_000_000)
-        let secondTask = Task { try await service.rewrite(body: "second", mode: .slack) }
+        let secondTask = Task { try await service.rewrite(body: "second", mode: .email) }
         try await Task.sleep(nanoseconds: 20_000_000)
         await probe.releaseFirst()
 
@@ -160,8 +160,8 @@ final class LLMRewriteServiceTests: XCTestCase {
             }
         )
 
-        _ = try await service.rewrite(body: "one", mode: .teams)
-        _ = try await service.rewrite(body: "two", mode: .teams)
+        _ = try await service.rewrite(body: "one", mode: .cleanEnglish)
+        _ = try await service.rewrite(body: "two", mode: .cleanEnglish)
 
         XCTAssertEqual(streamCounter.count, 2)
     }

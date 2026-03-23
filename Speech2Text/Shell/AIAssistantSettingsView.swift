@@ -9,6 +9,14 @@ enum AssistantProfileKind: Equatable {
     case custom
 }
 
+// MARK: - Custom Record State
+
+private enum CustomRecordState: Equatable {
+    case idle
+    case recording
+    case confirming(String)
+}
+
 // MARK: - View Model
 
 @MainActor
@@ -19,8 +27,6 @@ final class AIAssistantSettingsViewModel: ObservableObject {
     @Published private(set) var aliasSummary: String? = nil
 
     @Published var pendingSelection: TriggerNamePreset = .zeus
-    @Published var customNameInput: String = ""
-    @Published private(set) var isCalibrationRequired: Bool = false
 
     private let preferences: ShellPreferences
     private var cancellables = Set<AnyCancellable>()
@@ -36,20 +42,18 @@ final class AIAssistantSettingsViewModel: ObservableObject {
             .store(in: &cancellables)
     }
 
-    var normalizedCustomName: String {
-        customNameInput.trimmingCharacters(in: .whitespaces)
-    }
-
-    func saveCustomName() {
-        let trimmed = normalizedCustomName
-        guard !trimmed.isEmpty else { return }
-        preferences.setCustomTrigger(primary: trimmed, aliases: [])
-        pendingSelection = .custom
-    }
-
     func applyPendingPreset() {
         guard pendingSelection != .custom else { return }
         preferences.setTriggerPreset(pendingSelection)
+    }
+
+    func applyRecordedName(_ transcription: String) {
+        let trimmed = transcription
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .trimmingCharacters(in: .punctuationCharacters)
+        guard !trimmed.isEmpty else { return }
+        preferences.setCustomTrigger(primary: trimmed, aliases: [])
+        pendingSelection = .custom
     }
 
     private func updateFromProfile(_ profile: TriggerProfile) {
@@ -73,12 +77,9 @@ final class AIAssistantSettingsViewModel: ObservableObject {
 
     private func buildStatusLine(kind: AssistantProfileKind, profile: TriggerProfile) -> String {
         switch kind {
-        case .default:
-            return "Default"
-        case .preset:
-            return "Preset"
-        case .custom:
-            return "Custom"
+        case .default: return "Default"
+        case .preset: return "Preset"
+        case .custom: return "Custom"
         }
     }
 
@@ -94,23 +95,22 @@ final class AIAssistantSettingsViewModel: ObservableObject {
 // MARK: - Tile View
 
 struct AIAssistantTileView: View {
-    @ObservedObject var preferences: ShellPreferences
+    @ObservedObject var viewModel: AIAssistantSettingsViewModel
     let onChangeTapped: () -> Void
 
     var body: some View {
-        let vm = AIAssistantSettingsViewModel(preferences: preferences)
         HStack {
             VStack(alignment: .leading, spacing: 2) {
                 Text("AI Assistant")
                     .font(.body)
-                Text(vm.activeName)
+                Text(viewModel.activeName)
                     .font(.body.weight(.medium))
                     .accessibilityIdentifier("assistantTile.activeName")
-                Text(vm.tileStatusLine)
+                Text(viewModel.tileStatusLine)
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .accessibilityIdentifier("assistantTile.statusLine")
-                if let summary = vm.aliasSummary {
+                if let summary = viewModel.aliasSummary {
                     Text("Variants: \(summary)")
                         .font(.caption)
                         .foregroundStyle(.secondary)
@@ -130,14 +130,11 @@ struct AIAssistantTileView: View {
 
 struct AIAssistantSettingsView: View {
     @ObservedObject var viewModel: AIAssistantSettingsViewModel
-    @ObservedObject var preferences: ShellPreferences
     @Environment(\.dismiss) private var dismiss
 
-    @State private var isCalibrating: Bool = false
-    @State private var calibrationAccepted: Int = 0
-    @State private var showRetryMessage: Bool = false
-    @State private var calibrationComplete: Bool = false
-    @State private var runner: AssistantCalibrationRunner? = nil
+    @State private var customRecordState: CustomRecordState = .idle
+    @State private var recordingTask: Task<Void, Never>?
+    @State private var captureBusyMessage: String?
 
     @ViewBuilder
     private func presetRow(for preset: TriggerNamePreset) -> some View {
@@ -158,13 +155,88 @@ struct AIAssistantSettingsView: View {
         .accessibilityIdentifier("assistantSettings.preset.\(preset.rawValue)")
     }
 
+    @ViewBuilder
+    private var customNameSection: some View {
+        switch customRecordState {
+        case .idle:
+            VStack(alignment: .leading, spacing: 4) {
+                HStack {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Button("Record Custom Name") {
+                            startRecording()
+                        }
+                        .accessibilityIdentifier("assistantSettings.recordCustomNameButton")
+                        if viewModel.profileKind == .custom {
+                            Text(viewModel.activeName)
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                                .accessibilityIdentifier("assistantSettings.currentCustomName")
+                        }
+                    }
+                    Spacer()
+                    if viewModel.pendingSelection == .custom {
+                        Image(systemName: "checkmark")
+                            .foregroundStyle(Color.accentColor)
+                            .accessibilityIdentifier("assistantSettings.customCheckmark")
+                    }
+                }
+                if let busyMessage = captureBusyMessage {
+                    Text(busyMessage)
+                        .font(.caption)
+                        .foregroundStyle(.orange)
+                        .accessibilityIdentifier("assistantSettings.captureBusyMessage")
+                }
+            }
+
+        case .recording:
+            HStack {
+                Text("Listening…")
+                    .foregroundStyle(.secondary)
+                    .accessibilityIdentifier("assistantSettings.listeningLabel")
+                ProgressView()
+                Spacer()
+                Button("Stop Recording") {
+                    stopRecording()
+                }
+                .accessibilityIdentifier("assistantSettings.stopRecordingButton")
+            }
+
+        case .confirming(let name):
+            VStack(alignment: .leading, spacing: 8) {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("I heard:")
+                        .foregroundStyle(.secondary)
+                    Text("\"\(name)\"")
+                        .font(.title3.weight(.medium))
+                        .accessibilityIdentifier("assistantSettings.transcriptionLabel")
+                }
+                HStack {
+                    Button("Try Record Again") {
+                        startRecording()
+                    }
+                    .accessibilityIdentifier("assistantSettings.tryRecordAgainButton")
+                    Spacer()
+                    Button("Cancel") {
+                        customRecordState = .idle
+                    }
+                    .accessibilityIdentifier("assistantSettings.cancelRecordingButton")
+                    Button("Save & Apply") {
+                        viewModel.applyRecordedName(name)
+                        customRecordState = .idle
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .accessibilityIdentifier("assistantSettings.saveAndApplyButton")
+                }
+            }
+        }
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 20) {
             Text("AI Assistant")
                 .font(.title2.weight(.semibold))
                 .accessibilityIdentifier("assistantSettings.title")
 
-            // Preset picker
             VStack(alignment: .leading, spacing: 8) {
                 Text("Assistant Name")
                     .font(.headline)
@@ -172,29 +244,12 @@ struct AIAssistantSettingsView: View {
                 presetRow(for: .zeus)
                 presetRow(for: .atlas)
                 presetRow(for: .gaia)
+
+                Divider()
+
+                customNameSection
             }
 
-            Divider()
-
-            // Custom name section
-            VStack(alignment: .leading, spacing: 8) {
-                Text("Custom Name")
-                    .font(.headline)
-
-                HStack {
-                    TextField("Enter name", text: $viewModel.customNameInput)
-                        .textFieldStyle(.roundedBorder)
-                        .accessibilityIdentifier("assistantSettings.customNameField")
-
-                    Button("Save") {
-                        viewModel.saveCustomName()
-                    }
-                    .disabled(viewModel.normalizedCustomName.isEmpty)
-                    .accessibilityIdentifier("assistantSettings.saveCustomName")
-                }
-            }
-
-            // Alias summary
             if let summary = viewModel.aliasSummary {
                 VStack(alignment: .leading, spacing: 4) {
                     Text("Recognized variants")
@@ -204,56 +259,6 @@ struct AIAssistantSettingsView: View {
                         .font(.caption)
                         .foregroundStyle(.secondary)
                         .accessibilityIdentifier("assistantSettings.aliasSummary")
-                }
-            }
-
-            Divider()
-
-            // Calibration section
-            VStack(alignment: .leading, spacing: 8) {
-                Text("Calibration")
-                    .font(.headline)
-
-                if calibrationComplete {
-                    Text("Calibration complete.")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                        .accessibilityIdentifier("assistantSettings.calibrationComplete")
-                } else if isCalibrating {
-                    Text("Say \"\(viewModel.activeName)\" clearly...")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                    ProgressView(value: Double(calibrationAccepted), total: 3)
-                        .accessibilityIdentifier("assistantSettings.calibrationProgress")
-                    if showRetryMessage {
-                        Text("Didn't catch that — try again.")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                            .accessibilityIdentifier("assistantSettings.calibrationRetry")
-                    }
-                    Button("Cancel") {
-                        isCalibrating = false
-                        calibrationAccepted = 0
-                        showRetryMessage = false
-                        runner = nil
-                    }
-                    .accessibilityIdentifier("assistantSettings.calibrationCancel")
-                } else {
-                    Text("Calibrate to improve name recognition accuracy.")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                    HStack {
-                        Button(viewModel.isCalibrationRequired ? "Start Calibration (Recommended)" : "Start Calibration") {
-                            startCalibration()
-                        }
-                        .accessibilityIdentifier("assistantSettings.startCalibration")
-                        Button("Skip") {
-                            // No-op — user can dismiss via Done
-                        }
-                        .buttonStyle(.plain)
-                        .foregroundStyle(.secondary)
-                        .accessibilityIdentifier("assistantSettings.skipCalibration")
-                    }
                 }
             }
 
@@ -269,36 +274,35 @@ struct AIAssistantSettingsView: View {
             }
         }
         .padding(24)
-        .frame(minWidth: 400, idealWidth: 440, minHeight: 460, idealHeight: 500)
+        .frame(minWidth: 400, idealWidth: 440, minHeight: 340, idealHeight: 380)
     }
 
-    private func startCalibration() {
-        let capturer = LiveCalibrationSampleCapturer()
-        let r = AssistantCalibrationRunner(
-            primaryName: viewModel.activeName,
-            preferences: preferences,
-            capturer: capturer
-        )
-        r.onRetry = {
-            showRetryMessage = true
+    private func startRecording() {
+        recordingTask?.cancel()
+        customRecordState = .recording
+        captureBusyMessage = nil
+        recordingTask = Task {
+            let capturer = LiveCalibrationSampleCapturer()
+            do {
+                if let transcription = try await capturer.captureTranscript() {
+                    let normalized = transcription
+                        .trimmingCharacters(in: .whitespacesAndNewlines)
+                        .trimmingCharacters(in: .punctuationCharacters)
+                    customRecordState = normalized.isEmpty ? .idle : .confirming(normalized)
+                } else {
+                    customRecordState = .idle
+                }
+            } catch AudioCaptureError.captureBusy {
+                captureBusyMessage = "Custom name recording must wait until the active recording ends."
+                customRecordState = .idle
+            } catch {
+                customRecordState = .idle
+            }
         }
-        r.onSampleAccepted = { _ in
-            calibrationAccepted += 1
-            showRetryMessage = false
-        }
-        r.onComplete = {
-            isCalibrating = false
-            calibrationComplete = true
-        }
-        runner = r
-        isCalibrating = true
-        calibrationAccepted = 0
-        showRetryMessage = false
-        calibrationComplete = false
-        Task {
-            await r.runSession()
-            // If runner was cancelled (runner = nil path), isCalibrating is already false.
-            // If it completed normally, onComplete already set calibrationComplete = true.
-        }
+    }
+
+    private func stopRecording() {
+        recordingTask?.cancel()
+        recordingTask = nil
     }
 }

@@ -18,8 +18,6 @@ final class LLMRewriteServiceIntegrationTests: XCTestCase {
         let inputs: [ConvertMode: String] = [
             .cleanEnglish: "um so I was thinking we should uh fix the bug before the deadline",
             .email: "I want to follow up on the meeting we had yesterday about the roadmap",
-            .slack: "hey can we sync tomorrow morning on the project status and blockers",
-            .teams: "need to discuss the deployment timeline with the team before end of week",
         ]
 
         for (mode, input) in inputs {

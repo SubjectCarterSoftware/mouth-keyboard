@@ -1,3 +1,4 @@
+import Combine
 import XCTest
 @testable import Speech2Text
 
@@ -85,57 +86,62 @@ final class AIAssistantSettingsViewModelTests: XCTestCase {
         XCTAssertEqual(vm.pendingSelection, .gaia)
     }
 
-    func testCalibrationRemainsOptionalForPresetChanges() {
+    // MARK: Recorded name
+
+    func testApplyRecordedNameActivatesCustomProfile() {
         let preferences = makePreferences(activeProfile: .zeus)
         let vm = AIAssistantSettingsViewModel(preferences: preferences)
 
-        vm.pendingSelection = .atlas
-        XCTAssertFalse(vm.isCalibrationRequired, "Calibration should never be required for preset changes")
-    }
-
-    // MARK: Custom name save
-
-    func testSavingCustomNameNormalizesWhitespace() {
-        let preferences = makePreferences(activeProfile: .zeus)
-        let vm = AIAssistantSettingsViewModel(preferences: preferences)
-
-        vm.customNameInput = "  Nova  "
-        let normalized = vm.normalizedCustomName
-        XCTAssertEqual(normalized, "Nova")
-    }
-
-    func testSavingCustomNameWithExcessWhitespaceActivatesCustomProfile() {
-        let preferences = makePreferences(activeProfile: .zeus)
-        let vm = AIAssistantSettingsViewModel(preferences: preferences)
-
-        vm.customNameInput = "  Nova  "
-        vm.saveCustomName()
+        vm.applyRecordedName("Nova")
 
         XCTAssertEqual(vm.pendingSelection, .custom)
     }
 
-    func testEmptyCustomNameDoesNotActivateCustomProfile() {
+    func testApplyRecordedNameWithWhitespaceOnlyDoesNotActivateCustomProfile() {
         let preferences = makePreferences(activeProfile: .zeus)
         let vm = AIAssistantSettingsViewModel(preferences: preferences)
 
-        vm.customNameInput = "   "
-        vm.saveCustomName()
+        vm.applyRecordedName("   ")
 
-        // Should not switch to custom when input is blank
         XCTAssertNotEqual(vm.pendingSelection, .custom)
     }
 
-    func testCustomNameCanSaveOnlyThroughExplicitSaveAction() {
+    func testApplyRecordedNameWithEmptyStringDoesNotActivateCustomProfile() {
         let preferences = makePreferences(activeProfile: .zeus)
         let vm = AIAssistantSettingsViewModel(preferences: preferences)
 
-        vm.customNameInput = "Nova"
-        // Setting input alone does not change pendingSelection to .custom
-        XCTAssertNotEqual(vm.pendingSelection, .custom)
+        vm.applyRecordedName("")
 
-        vm.saveCustomName()
-        // After explicit save, pendingSelection must be .custom
+        XCTAssertNotEqual(vm.pendingSelection, .custom)
+    }
+
+    func testApplyRecordedNameWithTrailingPeriodActivatesCustomProfile() {
+        // "Nova." has non-punctuation content after stripping — guard should pass.
+        let preferences = makePreferences(activeProfile: .zeus)
+        let vm = AIAssistantSettingsViewModel(preferences: preferences)
+
+        vm.applyRecordedName("Nova.")
+
         XCTAssertEqual(vm.pendingSelection, .custom)
+    }
+
+    func testApplyRecordedNameWithSurroundingQuotesActivatesCustomProfile() {
+        // "Hey" (with smart quotes) has non-punctuation content — guard should pass.
+        let preferences = makePreferences(activeProfile: .zeus)
+        let vm = AIAssistantSettingsViewModel(preferences: preferences)
+
+        vm.applyRecordedName("\"Hey\"")
+
+        XCTAssertEqual(vm.pendingSelection, .custom)
+    }
+
+    func testApplyRecordedNameWithOnlyPunctuationDoesNotActivateCustomProfile() {
+        let preferences = makePreferences(activeProfile: .zeus)
+        let vm = AIAssistantSettingsViewModel(preferences: preferences)
+
+        vm.applyRecordedName("...")
+
+        XCTAssertNotEqual(vm.pendingSelection, .custom)
     }
 
     // MARK: Alias summary

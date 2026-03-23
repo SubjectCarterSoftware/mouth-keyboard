@@ -12,6 +12,7 @@ final class RecordingPillPanel: NSPanel {
     private var currentSize: NSSize = RecordingPillPanel.defaultSize
     private var screenObserver: NSObjectProtocol?
     private var stateObserver: AnyCancellable?
+    private var selectedVisibleFrame: CGRect?
 
     private let hostingView: NSHostingView<RecordingPillViewWrapper>
     private let containerView: NSVisualEffectView
@@ -64,6 +65,7 @@ final class RecordingPillPanel: NSPanel {
             object: nil,
             queue: .main
         ) { [weak self] _ in
+            self?.selectedVisibleFrame = nil
             self?.updatePosition()
         }
 
@@ -95,8 +97,11 @@ final class RecordingPillPanel: NSPanel {
         let shouldShow = feedback != nil || state != .idle
 
         if shouldShow {
+            if selectedVisibleFrame == nil {
+                selectedVisibleFrame = chooseVisibleFrame()
+            }
             // Enable mouse events only during recording so the finish/cancel buttons work
-            let interactive = (state == .recording)
+            let interactive = (state == .recording || state == .converting)
             if ignoresMouseEvents == interactive {
                 ignoresMouseEvents = !interactive
             }
@@ -110,6 +115,7 @@ final class RecordingPillPanel: NSPanel {
         } else {
             ignoresMouseEvents = true
             orderOut(nil)
+            selectedVisibleFrame = nil
         }
     }
 
@@ -119,7 +125,7 @@ final class RecordingPillPanel: NSPanel {
         }
 
         switch state {
-        case .recording:
+        case .recording, .converting:
             return RecordingPillPanel.recordingSize
         case .failure:
             return RecordingPillPanel.failureSize
@@ -131,13 +137,23 @@ final class RecordingPillPanel: NSPanel {
     // MARK: - Positioning
 
     func updatePosition() {
-        guard let screen = NSScreen.main else { return }
-        let visibleFrame = screen.visibleFrame
+        guard let visibleFrame = selectedVisibleFrame ?? chooseVisibleFrame() else {
+            return
+        }
+        selectedVisibleFrame = visibleFrame
         let origin = NSPoint(
             x: visibleFrame.midX - (currentSize.width / 2),
             y: visibleFrame.minY + 40
         )
         setFrame(NSRect(origin: origin, size: currentSize), display: true)
+    }
+
+    private func chooseVisibleFrame() -> CGRect? {
+        let mouseLocation = NSEvent.mouseLocation
+        if let screen = NSScreen.screens.first(where: { $0.visibleFrame.contains(mouseLocation) }) {
+            return screen.visibleFrame
+        }
+        return NSScreen.main?.visibleFrame
     }
 }
 
@@ -152,6 +168,7 @@ private struct RecordingPillViewWrapper: View {
             levelMonitor: levelMonitor,
             recordingState: activationStore.state,
             recoveryFeedback: activationStore.recoveryFeedback,
+            silenceWarningActive: levelMonitor.silenceWarningActive,
             onFinish: { activationStore.arm() },
             onCancel: { activationStore.cancelCurrentSession() },
             onRestart: { activationStore.restartCurrentSession() },

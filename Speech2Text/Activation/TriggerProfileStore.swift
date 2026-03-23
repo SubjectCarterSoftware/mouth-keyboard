@@ -8,15 +8,7 @@ actor TriggerProfileStore {
     private var loaded = false
 
     static var defaultStoreURL: URL {
-        let appSupport = try! FileManager.default.url(
-            for: .applicationSupportDirectory,
-            in: .userDomainMask,
-            appropriateFor: nil,
-            create: true
-        )
-        return appSupport
-            .appendingPathComponent("Speech2Text", isDirectory: true)
-            .appendingPathComponent("TriggerProfileStore.json")
+        StoreURLResolver.url(for: "TriggerProfileStore.json")
     }
 
     init(storeURL: URL = TriggerProfileStore.defaultStoreURL) {
@@ -30,13 +22,16 @@ actor TriggerProfileStore {
 
         do {
             let data = try Data(contentsOf: storeURL)
-            if let payload = try? JSONDecoder().decode(StoredTriggerProfiles.self, from: data) {
+            let decoder = JSONDecoder()
+            if let payload = try? decoder.decode(StoredTriggerProfiles.self, from: data) {
                 return payload.triggerProfile
             }
-            if let legacyProfile = try? JSONDecoder().decode(TriggerProfile.self, from: data) {
+            if let legacyProfile = try? decoder.decode(TriggerProfile.self, from: data) {
                 return legacyProfile.normalized()
             }
+            StoreQuarantine.quarantine(storeURL: storeURL, label: "trigger profile store")
         } catch {
+            StoreQuarantine.quarantine(storeURL: storeURL, label: "trigger profile store")
             return TriggerProfile.defaultProfile
         }
 

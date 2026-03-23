@@ -42,6 +42,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
                 RewriteModelLoadState.shared.startDownload(for: newTier)
             }
 
+
         audioCaptureService.onCaptureFailure = { [weak self] error in
             self?.activationStore.handleCaptureFailure(error)
         }
@@ -122,10 +123,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         }
 
         // Wire silence callbacks for this recording session.
-        levelMonitor.onSilenceWarning = {
-            // Phase 03 pill UI will handle the visual warning state.
-            NSLog("AudioLevelMonitor: ~45s of silence — will auto-stop in ~15s")
-        }
         levelMonitor.onSilenceTimeout = { [weak self] in
             self?.activationStore.handleSilenceTimeout()
         }
@@ -137,7 +134,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     private func onProcessingStarted() {
         // Audio capture is stopped now — all samples are in the accumulator.
         audioCaptureService.stop()
-        levelMonitor.onSilenceWarning = nil
         levelMonitor.onSilenceTimeout = nil
 
         // Pill panel stays visible during processing (RecordingPillPanel handles this).
@@ -161,7 +157,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
 
     private func onReturnedToIdle() {
         audioCaptureService.stop()
-        levelMonitor.onSilenceWarning = nil
         levelMonitor.onSilenceTimeout = nil
         // Pill panel hides itself (RecordingPillPanel handles this).
         updateMenuBarIcon(state: .idle)

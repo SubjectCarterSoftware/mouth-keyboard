@@ -1,18 +1,42 @@
 import AppKit
 import CoreGraphics
 
-struct PasteService {
-    /// Writes text to the clipboard and simulates ⌘V to paste into the active window.
-    func paste(text: String) {
-        NSPasteboard.general.clearContents()
-        NSPasteboard.general.setString(text, forType: .string)
+enum PasteOutcome {
+    case pasted
+    case copiedOnly
+}
 
-        let source = CGEventSource(stateID: .hidSystemState)
-        let keyDown = CGEvent(keyboardEventSource: source, virtualKey: 9, keyDown: true)
-        let keyUp = CGEvent(keyboardEventSource: source, virtualKey: 9, keyDown: false)
-        keyDown?.flags = .maskCommand
-        keyUp?.flags = .maskCommand
-        keyDown?.post(tap: .cghidEventTap)
-        keyUp?.post(tap: .cghidEventTap)
+protocol PasteServicing {
+    func paste(text: String) -> PasteOutcome
+}
+
+struct PasteService: PasteServicing {
+    func paste(text: String) -> PasteOutcome {
+        let pasteboard = NSPasteboard.general
+        pasteboard.clearContents()
+        pasteboard.setString(text, forType: .string)
+
+        guard let source = CGEventSource(stateID: .hidSystemState) else {
+            logPasteFailure(reason: "could not create CGEventSource")
+            return .copiedOnly
+        }
+
+        guard
+            let keyDown = CGEvent(keyboardEventSource: source, virtualKey: 9, keyDown: true),
+            let keyUp = CGEvent(keyboardEventSource: source, virtualKey: 9, keyDown: false)
+        else {
+            logPasteFailure(reason: "could not create synthetic key events")
+            return .copiedOnly
+        }
+
+        keyDown.flags = .maskCommand
+        keyUp.flags = .maskCommand
+        keyDown.post(tap: .cghidEventTap)
+        keyUp.post(tap: .cghidEventTap)
+        return .pasted
+    }
+
+    private func logPasteFailure(reason: String) {
+        NSLog("Speech2Text: Synthetic paste failure (%@); clipboard still contains the text.", reason)
     }
 }

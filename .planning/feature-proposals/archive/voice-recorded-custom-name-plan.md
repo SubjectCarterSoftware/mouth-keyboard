@@ -1,3 +1,5 @@
+IMPLEMENTED - 2026-03-21
+
 # Plan: Voice-Recorded Custom Assistant Name
 
 **Status:** Approved — Option A (remove calibration)

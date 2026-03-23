@@ -4,14 +4,24 @@ import Foundation
 enum AudioBufferAccumulatorError: Error {
     case emptyBuffers
     case conversionFailed
+    case overflow
 }
 
 private let whisperSampleRate: Double = 16_000.0
+private let defaultAccumulatorMaxDuration: TimeInterval = 5 * 60
 
 class AudioBufferAccumulator: AudioBufferReceiving {
     private var buffers: [AVAudioPCMBuffer] = []
     private var inputFormat: AVAudioFormat?
     private let lock = NSLock()
+    private let maximumDuration: TimeInterval
+    private var maximumFrameCount: AVAudioFrameCount?
+    private var accumulatedFrameCount: AVAudioFrameCount = 0
+    private var overflowed = false
+
+    init(maxDuration: TimeInterval = defaultAccumulatorMaxDuration) {
+        self.maximumDuration = maxDuration
+    }
 
     // MARK: - Public Interface
 
@@ -20,16 +30,30 @@ class AudioBufferAccumulator: AudioBufferReceiving {
 
         lock.lock()
         defer { lock.unlock() }
+        if overflowed {
+            return
+        }
         if inputFormat == nil {
             inputFormat = storedBuffer.format
+            if storedBuffer.format.sampleRate > 0 {
+                maximumFrameCount = AVAudioFrameCount(maximumDuration * storedBuffer.format.sampleRate)
+            }
         }
+
+        let frameLength = storedBuffer.frameLength
+        if let maxFrameCount = maximumFrameCount, accumulatedFrameCount + frameLength > maxFrameCount {
+            overflowed = true
+            return
+        }
+
         buffers.append(storedBuffer)
+        accumulatedFrameCount += frameLength
     }
 
     var totalFrameCount: AVAudioFrameCount {
         lock.lock()
         defer { lock.unlock() }
-        return buffers.reduce(0) { $0 + $1.frameLength }
+        return accumulatedFrameCount
     }
 
     /// Total duration of accumulated audio in seconds.
@@ -41,6 +65,12 @@ class AudioBufferAccumulator: AudioBufferReceiving {
     }
 
     func convertToWhisperFormat() throws -> [Float] {
+        lock.lock()
+        let isOverflowed = overflowed
+        lock.unlock()
+        if isOverflowed {
+            throw AudioBufferAccumulatorError.overflow
+        }
         let snapshot = try snapshot()
         return try Self.convertToWhisperFormat(buffers: snapshot.buffers, format: snapshot.format)
     }
@@ -50,12 +80,16 @@ class AudioBufferAccumulator: AudioBufferReceiving {
         defer { lock.unlock() }
         buffers.removeAll()
         inputFormat = nil
+        accumulatedFrameCount = 0
+        maximumFrameCount = nil
+        overflowed = false
     }
 
     private func snapshot() throws -> (buffers: [AVAudioPCMBuffer], format: AVAudioFormat, totalFrameCount: AVAudioFrameCount) {
         lock.lock()
         let localBuffers = buffers
         let localFormat = inputFormat
+        let totalFrames = accumulatedFrameCount
         lock.unlock()
 
         guard !localBuffers.isEmpty, let format = localFormat else {
@@ -65,7 +99,7 @@ class AudioBufferAccumulator: AudioBufferReceiving {
         return (
             buffers: localBuffers,
             format: format,
-            totalFrameCount: localBuffers.reduce(0) { $0 + $1.frameLength }
+            totalFrameCount: totalFrames
         )
     }
 

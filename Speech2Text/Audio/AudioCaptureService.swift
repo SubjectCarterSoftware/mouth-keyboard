@@ -12,6 +12,7 @@ enum AudioCaptureError: LocalizedError {
     case noUsableInputDevice
     case selectedInputDisconnected
     case engineException(NSError) 
+    case captureBusy
 
     var errorDescription: String? {
         switch self {
@@ -25,6 +26,8 @@ enum AudioCaptureError: LocalizedError {
             return "The selected microphone disconnected."
         case .engineException(let error):
             return "Audio engine error: \(error.localizedDescription)"
+        case .captureBusy:
+            return "Audio capture is already in use."
         }
     }
 }
@@ -124,7 +127,7 @@ final class AudioCaptureService {
     @MainActor
     func start(levelMonitor: AudioLevelMonitor, bufferReceiver: (any AudioBufferReceiving)? = nil) throws {
         guard !hasInstalledTap else {
-            return
+            throw AudioCaptureError.captureBusy
         }
 
         let engine = try ensureEngine()

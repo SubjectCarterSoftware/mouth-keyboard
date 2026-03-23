@@ -17,7 +17,7 @@ struct StatusMenuView: View {
 
 
     private var canCancelSession: Bool {
-        recordingState == .recording || recordingState == .processing
+        recordingState == .recording || recordingState == .processing || recordingState == .converting
     }
 
     private var canRestartSession: Bool {

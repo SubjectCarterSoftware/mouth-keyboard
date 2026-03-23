@@ -15,7 +15,6 @@ final class ShellPreferences: ObservableObject {
         static let whisperModel = "whisperModel"
         static let autoModelSelection = "autoModelSelection"
         static let launchAtLogin = "launchAtLogin"
-        static let convertModes = "convertModes"
         static let rewriteModelTier = "rewriteModelTier"
     }
 
@@ -78,15 +77,6 @@ final class ShellPreferences: ObservableObject {
     @Published private(set) var launchAtLogin: Bool
     @Published private(set) var activeTriggerProfile: TriggerProfile
 
-    @Published var convertModes: [ConvertMode] {
-        didSet {
-            persistIfNeeded {
-                let rawValues = self.convertModes.map(\.rawValue)
-                self.defaults.set(rawValues, forKey: Keys.convertModes)
-            }
-        }
-    }
-
     @Published var rewriteModelTier: RewriteModelTier {
         didSet {
             persistIfNeeded {
@@ -94,6 +84,7 @@ final class ShellPreferences: ObservableObject {
             }
         }
     }
+
 
     var shouldPresentSetupOnLaunch: Bool {
         !hasCompletedInitialSetup
@@ -138,19 +129,13 @@ final class ShellPreferences: ObservableObject {
 
         launchAtLogin = SMAppService.mainApp.status == .enabled
 
-        if let stored = userDefaults.stringArray(forKey: Keys.convertModes) {
-            let decoded = stored.compactMap(ConvertMode.init(rawValue:))
-            convertModes = decoded.isEmpty ? ConvertMode.allBuiltIns : decoded
-        } else {
-            convertModes = ConvertMode.allBuiltIns
-        }
-
         if let storedTier = userDefaults.string(forKey: Keys.rewriteModelTier),
            let tier = RewriteModelTier(rawValue: storedTier) {
             rewriteModelTier = tier
         } else {
             rewriteModelTier = .standard2B
         }
+
 
         activeTriggerProfile = (initialTriggerProfile ?? TriggerProfileStore.loadSynchronously()).normalized()
     }
@@ -212,19 +197,6 @@ final class ShellPreferences: ObservableObject {
         }
     }
 
-    func applyCalibrationAliases(_ aliases: [String]) {
-        let normalizedAliases = TriggerAliasNormalizer.normalize(aliases)
-        Task { [weak self, triggerProfileStore] in
-            do {
-                let updated = try await triggerProfileStore.replaceAliasesForActiveProfile(normalizedAliases)
-                await MainActor.run {
-                    self?.activeTriggerProfile = updated
-                }
-            } catch {
-                NSLog("Speech2Text: failed to persist calibration aliases: \(error.localizedDescription)")
-            }
-        }
-    }
 
     func reset() {
         withPersistenceSuspended {
@@ -236,7 +208,6 @@ final class ShellPreferences: ObservableObject {
             micDeviceUID = nil
             whisperModel = .baseEN
             autoModelSelection = false
-            convertModes = ConvertMode.allBuiltIns
             rewriteModelTier = .standard2B
             activeTriggerProfile = .defaultProfile
         }
@@ -249,7 +220,6 @@ final class ShellPreferences: ObservableObject {
         defaults.removeObject(forKey: Keys.micDeviceUID)
         defaults.removeObject(forKey: Keys.whisperModel)
         defaults.removeObject(forKey: Keys.autoModelSelection)
-        defaults.removeObject(forKey: Keys.convertModes)
         defaults.removeObject(forKey: Keys.rewriteModelTier)
 
         Task { [triggerProfileStore] in

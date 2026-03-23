@@ -5,18 +5,20 @@ import Combine
 @MainActor
 final class AudioLevelMonitor: ObservableObject {
     @Published private(set) var level: Float = 0.0
+    @Published private(set) var silenceWarningActive = false
 
     // MARK: - Silence detection
 
-    var onSilenceWarning: (() -> Void)?
     var onSilenceTimeout: (() -> Void)?
 
     private let silenceThreshold: Float = 0.01
     private var silenceStartTime: Date?
-    private var hasFiredWarning = false
     private var hasFiredTimeout = false
+    private let now: () -> Date
 
-    init() {}
+    init(now: @escaping () -> Date = Date.init) {
+        self.now = now
+    }
 
     // MARK: - Buffer processing
 
@@ -46,15 +48,15 @@ final class AudioLevelMonitor: ObservableObject {
     }
 
     private func updateSilenceTracking(normalized: Float) {
+        let currentTime = now()
         if normalized < silenceThreshold {
             // Silent
             if silenceStartTime == nil {
-                silenceStartTime = Date()
+                silenceStartTime = currentTime
             }
-            let elapsed = Date().timeIntervalSince(silenceStartTime!)
-            if elapsed >= 45 && !hasFiredWarning {
-                hasFiredWarning = true
-                onSilenceWarning?()
+            let elapsed = currentTime.timeIntervalSince(silenceStartTime!)
+            if elapsed >= 45 {
+                silenceWarningActive = true
             }
             if elapsed >= 60 && !hasFiredTimeout {
                 hasFiredTimeout = true
@@ -63,7 +65,7 @@ final class AudioLevelMonitor: ObservableObject {
         } else {
             // Sound detected — reset silence tracking
             silenceStartTime = nil
-            hasFiredWarning = false
+            silenceWarningActive = false
             hasFiredTimeout = false
         }
     }
@@ -71,7 +73,7 @@ final class AudioLevelMonitor: ObservableObject {
     func reset() {
         level = 0.0
         silenceStartTime = nil
-        hasFiredWarning = false
         hasFiredTimeout = false
+        silenceWarningActive = false
     }
 }

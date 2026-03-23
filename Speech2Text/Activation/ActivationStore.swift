@@ -43,7 +43,6 @@ final class ActivationStore: ObservableObject {
         readinessProvider: ReadinessStore.shared,
         whisperService: WhisperService.shared,
         llmRewriteService: LLMRewriteService.shared,
-        userIntentStore: UserIntentStore.shared,
         clipboardService: ClipboardService(),
         pasteService: PasteService(),
         bufferAccumulator: AudioBufferAccumulator(),
@@ -59,9 +58,8 @@ final class ActivationStore: ObservableObject {
     private let readinessProvider: any ReadinessProviding
     private let whisperService: any WhisperTranscribing
     private let llmRewriteService: any LLMRewriting
-    private let userIntentStore: UserIntentStore
     private let clipboardService: ClipboardService
-    private let pasteService: PasteService
+    private let pasteService: any PasteServicing
     private let resetSessionMonitoring: @MainActor () -> Void
     let bufferAccumulator: AudioBufferAccumulator
     let voiceActivityDetector: VoiceActivityDetector
@@ -94,9 +92,8 @@ final class ActivationStore: ObservableObject {
         readinessProvider: any ReadinessProviding,
         whisperService: any WhisperTranscribing = WhisperService(),
         llmRewriteService: any LLMRewriting = LLMRewriteService.shared,
-        userIntentStore: UserIntentStore = UserIntentStore.shared,
         clipboardService: ClipboardService = ClipboardService(),
-        pasteService: PasteService = PasteService(),
+        pasteService: any PasteServicing = PasteService(),
         bufferAccumulator: AudioBufferAccumulator = AudioBufferAccumulator(),
         resetSessionMonitoring: @escaping @MainActor () -> Void = {}
     ) {
@@ -104,7 +101,6 @@ final class ActivationStore: ObservableObject {
         self.readinessProvider = readinessProvider
         self.whisperService = whisperService
         self.llmRewriteService = llmRewriteService
-        self.userIntentStore = userIntentStore
         self.clipboardService = clipboardService
         self.pasteService = pasteService
         self.bufferAccumulator = bufferAccumulator
@@ -202,7 +198,13 @@ final class ActivationStore: ObservableObject {
     }
 
     func cancelCurrentSession() {
-        guard state == .recording || state == .processing else { return }
+        guard
+            state == .recording
+                || state == .processing
+                || state == .converting
+        else {
+            return
+        }
 
         invalidateActiveSession()
         voiceActivityDetector.reset()
@@ -288,74 +290,49 @@ final class ActivationStore: ObservableObject {
                 throw TranscriptionError.noSpeechDetected
             }
 
-            // Snapshot merged catalog from UserIntentStore for detection
-            let storeEntries = await userIntentStore.allEntries()
-            let effectiveDefinitions = IntentCatalog.effective(store: storeEntries)
             let split = TriggerTranscriptParser.split(transcript: trimmed, activeAliases: triggerAliases)
-            let intent: ConvertIntent
+            let shouldConvert: Bool
+            let conversionBody: String
+            let conversionInstructions: String?
             switch split {
             case .noTrigger:
-                intent = ConvertIntent(mode: .passthrough, strippedBody: trimmed, originalTranscript: trimmed)
+                shouldConvert = false
+                conversionBody = trimmed
+                conversionInstructions = nil
             case .invalidTrigger:
-                intent = ConvertIntent(mode: .passthrough, strippedBody: trimmed, originalTranscript: trimmed)
+                shouldConvert = false
+                conversionBody = trimmed
+                conversionInstructions = nil
             case .validTrigger(let content, let instruction, _):
-                let builtInDefinitions = effectiveDefinitions.filter { $0.mode != .passthrough }
-                let customDefinitions = effectiveDefinitions.filter { $0.mode == .passthrough }
-                let builtInIntent = IntentDetector.detectPredefinedShortcut(
-                    transcript: instruction,
-                    definitions: builtInDefinitions
-                )
-                if builtInIntent.mode != .passthrough {
-                    intent = builtInIntent
-                } else if !customDefinitions.isEmpty {
-                    var customIntent = IntentDetector.detect(
-                        transcript: instruction,
-                        definitions: customDefinitions
-                    )
-                    if customIntent.customIntentID != nil {
-                        customIntent.hadCandidates = customIntent.hadCandidates || builtInIntent.hadCandidates
-                        intent = customIntent
-                    } else {
-                        var fallbackIntent = ConvertIntent(
-                            mode: .passthrough,
-                            strippedBody: content.trimmingCharacters(in: .whitespacesAndNewlines),
-                            originalTranscript: trimmed,
-                            effectiveSystemPrompt: instruction.trimmingCharacters(in: .whitespacesAndNewlines)
-                        )
-                        fallbackIntent.hadCandidates = customIntent.hadCandidates || builtInIntent.hadCandidates
-                        intent = fallbackIntent
-                    }
-                } else {
-                    var fallbackIntent = ConvertIntent(
-                        mode: .passthrough,
-                        strippedBody: content.trimmingCharacters(in: .whitespacesAndNewlines),
-                        originalTranscript: trimmed,
-                        effectiveSystemPrompt: instruction.trimmingCharacters(in: .whitespacesAndNewlines)
-                    )
-                    fallbackIntent.hadCandidates = builtInIntent.hadCandidates
-                    intent = fallbackIntent
-                }
+                shouldConvert = true
+                conversionBody = content.trimmingCharacters(in: .whitespacesAndNewlines)
+                conversionInstructions = instruction.trimmingCharacters(in: .whitespacesAndNewlines)
             }
 
-            if intent.mode == .passthrough && intent.customIntentID == nil && intent.effectiveSystemPrompt == nil {
-                // LLM-02: passthrough path completely unchanged
+            if !shouldConvert {
                 let didPaste = pasteOnCompletion
                 pasteOnCompletion = false
                 lastTranscription = trimmed
+                var syntheticPasteSucceeded = false
                 if didPaste {
-                    pasteService.paste(text: trimmed)
+                    let outcome = pasteService.paste(text: trimmed)
+                    syntheticPasteSucceeded = (outcome == .pasted)
                 } else {
                     clipboardService.writeToClipboard(trimmed)
                 }
-                state = .success(text: trimmed, pasted: didPaste, converted: false, noMatchPassthrough: intent.hadCandidates)
+                state = .success(
+                    text: trimmed,
+                    pasted: syntheticPasteSucceeded,
+                    converted: false,
+                    noMatchPassthrough: false
+                )
                 soundPlayer.playSuccess()
                 scheduleDismissToIdle(afterNanoseconds: 1_500_000_000, sessionID: sessionID)
             } else {
                 // Conversion path — paste is not supported for LLM output
                 pasteOnCompletion = false
 
-                // GUARD-01: 350-word gate (count on strippedBody, NOT trimmed)
-                let wordCount = intent.strippedBody
+                let wordCount = conversionBody
                     .split(separator: " ", omittingEmptySubsequences: true).count
                 guard wordCount <= 350 else {
                     guard isCurrentSession(sessionID) else { return }
@@ -371,33 +348,16 @@ final class ActivationStore: ObservableObject {
                 guard isCurrentSession(sessionID) else { return }
                 state = .converting
 
-                // Resolve effective system prompt from matched entry
-                let resolvedInstructions: String?
-                if let prompt = intent.effectiveSystemPrompt {
-                    resolvedInstructions = prompt
-                } else if let customID = intent.customIntentID {
-                    // Custom mode: look up entry by modeName match
-                    resolvedInstructions = storeEntries.first { !$0.isBuiltIn && $0.modeName == customID }?.systemPrompt
-                } else if intent.mode != .passthrough {
-                    // Built-in: check for store override
-                    resolvedInstructions = storeEntries.first { $0.id == intent.mode.rawValue && $0.isBuiltIn }?.systemPrompt
-                } else {
-                    resolvedInstructions = nil
-                }
-
                 // LLM call — rewrite() hops to LLMRewriteService actor automatically
                 let rewritten: String
                 do {
-                    if let instructions = resolvedInstructions {
+                    if let instructions = conversionInstructions {
                         rewritten = try await llmRewriteService.rewrite(
-                            body: intent.strippedBody,
+                            body: conversionBody,
                             instructions: instructions
                         )
                     } else {
-                        rewritten = try await llmRewriteService.rewrite(
-                            body: intent.strippedBody,
-                            mode: intent.mode
-                        )
+                        rewritten = conversionBody
                     }
                 } catch {
                     // GUARD-02 fallback: silent — raw transcript to clipboard
@@ -421,6 +381,11 @@ final class ActivationStore: ObservableObject {
         } catch TranscriptionError.noSpeechDetected {
             guard isCurrentSession(sessionID) else { return }
             state = .failure(reason: .noSpeechDetected)
+            soundPlayer.playFailure()
+            scheduleDismissToIdle(afterNanoseconds: 2_000_000_000, sessionID: sessionID)
+        } catch AudioBufferAccumulatorError.overflow {
+            guard isCurrentSession(sessionID) else { return }
+            state = .failure(reason: .wordLimitExceeded)
             soundPlayer.playFailure()
             scheduleDismissToIdle(afterNanoseconds: 2_000_000_000, sessionID: sessionID)
         } catch {
@@ -507,6 +472,8 @@ final class ActivationStore: ObservableObject {
             return .selectedMicrophoneDisconnected
         case .engineException(let underlyingError):
             return .modelError(underlyingError.localizedDescription)
+        case .captureBusy:
+            return .modelError(error.localizedDescription)
         }
     }
 }

@@ -169,21 +169,34 @@ struct RecordingPillView: View {
     // MARK: - Converting state
 
     private var convertingContent: some View {
-        HStack(spacing: 6) {
-            ForEach(0..<3, id: \.self) { index in
-                Circle()
-                    .fill(Color.blue.opacity(0.85))
-                    .frame(width: 8, height: 8)
-                    .scaleEffect(pulseOpacity > 0.5 ? 1.15 : 0.85)
-                    .animation(
-                        Animation.easeInOut(duration: 0.6)
-                            .repeatForever(autoreverses: true)
-                            .delay(Double(index) * 0.2),
-                        value: pulseOpacity
-                    )
+        ZStack {
+            HStack(spacing: 6) {
+                ForEach(0..<3, id: \.self) { index in
+                    Circle()
+                        .fill(Color.blue.opacity(0.85))
+                        .frame(width: 8, height: 8)
+                        .scaleEffect(pulseOpacity > 0.5 ? 1.15 : 0.85)
+                        .animation(
+                            Animation.easeInOut(duration: 0.6)
+                                .repeatForever(autoreverses: true)
+                                .delay(Double(index) * 0.2),
+                            value: pulseOpacity
+                        )
+                }
+            }
+            HStack {
+                Spacer()
+                Button(action: { onCancel?() }) {
+                    Image(systemName: "xmark.circle.fill")
+                        .font(.system(size: 18, weight: .semibold))
+                        .foregroundStyle(Color.red)
+                }
+                .buttonStyle(.plain)
+                .accessibilityIdentifier("pill.cancel")
+                .padding(.trailing, 10)
             }
         }
-        .frame(width: 160, height: 44)
+        .frame(width: 220, height: 44)
         .preferredColorScheme(.dark)
         .onAppear { pulseOpacity = 1.0 }
     }

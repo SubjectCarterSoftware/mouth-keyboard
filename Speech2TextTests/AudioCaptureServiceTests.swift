@@ -80,6 +80,22 @@ final class AudioCaptureServiceTests: XCTestCase {
     }
 
     @MainActor
+    func testStartThrowsWhenCaptureAlreadyActive() throws {
+        let service = AudioCaptureService(
+            preferences: makePreferences(),
+            engineStarter: { _ in },
+            authorizationStatusProvider: { .authorized }
+        )
+        try service.start(levelMonitor: AudioLevelMonitor())
+
+        XCTAssertThrowsError(try service.start(levelMonitor: AudioLevelMonitor())) { error in
+            guard case AudioCaptureError.captureBusy = error else {
+                return XCTFail("Expected captureBusy, got \(error)")
+            }
+        }
+    }
+
+    @MainActor
     func testSelectedDeviceDisconnectReportsTypedFailureInsteadOfFallback() throws {
         let preferences = makePreferences()
         preferences.micDeviceUID = "usb-mic"
@@ -204,6 +220,31 @@ final class AudioCaptureServiceTests: XCTestCase {
 
         let level = await MainActor.run { monitor.level }
         XCTAssertEqual(level, 0.5, accuracy: 0.01)
+    }
+
+    func testSilenceWarningFlagActivatesAndClears() async throws {
+        var currentTime = Date()
+        let monitor = await MainActor.run {
+            AudioLevelMonitor(now: { currentTime })
+        }
+
+        let silentBuffer = makeBuffer(sampleValue: 0.0)
+        monitor.process(buffer: silentBuffer)
+        try await Task.sleep(nanoseconds: 20_000_000)
+
+        currentTime = currentTime.addingTimeInterval(46)
+        monitor.process(buffer: silentBuffer)
+        try await Task.sleep(nanoseconds: 20_000_000)
+
+        let warningActive = await MainActor.run { monitor.silenceWarningActive }
+        XCTAssertTrue(warningActive)
+
+        let loudBuffer = makeBuffer(sampleValue: 0.2)
+        monitor.process(buffer: loudBuffer)
+        try await Task.sleep(nanoseconds: 20_000_000)
+
+        let warningCleared = await MainActor.run { monitor.silenceWarningActive }
+        XCTAssertFalse(warningCleared)
     }
 
     private func makeBuffer(sampleValue: Float) -> AVAudioPCMBuffer {

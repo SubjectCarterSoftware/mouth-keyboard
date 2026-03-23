@@ -51,6 +51,10 @@ final class TriggerProfileStoreTests: XCTestCase {
         let loaded = await TriggerProfileStore(storeURL: storeURL).load()
 
         XCTAssertEqual(loaded, .defaultProfile)
+
+        let contents = try FileManager.default.contentsOfDirectory(atPath: storeURL.deletingLastPathComponent().path)
+        XCTAssertTrue(contents.contains(where: { $0.hasPrefix("TriggerProfileStore.json.corrupt") }))
+        XCTAssertFalse(FileManager.default.fileExists(atPath: storeURL.path))
     }
 
     func testFailedSaveDoesNotReplaceLastKnownPersistedProfile() async throws {
