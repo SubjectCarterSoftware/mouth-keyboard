@@ -1,7 +1,9 @@
 import Foundation
 import MLXLMCommon
 
-enum RewriteModelTier: String, CaseIterable, Identifiable {
+enum RewriteModelTier: String, CaseIterable, Identifiable, Hashable {
+    // Raw values are persisted in user defaults, so keep them stable even if the
+    // backing hub model changes.
     case standard2B = "qwen3.5-2b"
     case standard4B = "qwen3.5-4b"
     case high9B     = "qwen3.5-9b"
@@ -18,17 +20,17 @@ enum RewriteModelTier: String, CaseIterable, Identifiable {
 
     var hubSlug: String {
         switch self {
-        case .standard2B: return "mlx-community/Qwen3.5-2B-MLX-4bit"
-        case .standard4B: return "mlx-community/Qwen3.5-4B-MLX-4bit"
-        case .high9B:     return "mlx-community/Qwen3.5-9B-MLX-4bit"
+        case .standard2B: return "mlx-community/Qwen3.5-2B-OptiQ-4bit"
+        case .standard4B: return "mlx-community/Qwen3.5-4B-OptiQ-4bit"
+        case .high9B:     return "mlx-community/Qwen3.5-9B-OptiQ-4bit"
         }
     }
 
     var approximateDownloadSizeGB: Double {
         switch self {
-        case .standard2B: return 1.6
-        case .standard4B: return 2.9
-        case .high9B:     return 5.0
+        case .standard2B: return 1.4
+        case .standard4B: return 3.0
+        case .high9B:     return 6.0
         }
     }
 
@@ -49,6 +51,10 @@ enum RewriteModelTier: String, CaseIterable, Identifiable {
     }
 
     var modelConfiguration: ModelConfiguration {
-        ModelConfiguration(id: hubSlug)
+        ModelConfiguration(
+            id: hubSlug,
+            extraEOSTokens: ["<|im_end|>"],
+            eosTokenIds: [248044]
+        )
     }
 }
