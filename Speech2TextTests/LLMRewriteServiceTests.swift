@@ -63,19 +63,8 @@ final class LLMRewriteServiceTests: XCTestCase {
             stream(events: [.chunk("  rewritten text  "), .completion(.stop)])
         }
 
-        let rewritten = try await service.rewrite(body: "raw", mode: .cleanEnglish)
+        let rewritten = try await service.rewrite(body: "raw", instructions: "")
         XCTAssertEqual(rewritten, "rewritten text")
-    }
-
-    func testRewriteUsesModeDefaultSystemPrompt() async throws {
-        var capturedInstructions: String?
-        let service = makeService { _, _, instructions, _ in
-            capturedInstructions = instructions
-            return stream(events: [.chunk("ok"), .completion(.stop)])
-        }
-
-        _ = try await service.rewrite(body: "raw", mode: .email)
-        XCTAssertEqual(capturedInstructions, ConvertMode.email.defaultSystemPrompt)
     }
 
     func testSequentialRewritesReuseLoadedContainer() async throws {
@@ -90,8 +79,8 @@ final class LLMRewriteServiceTests: XCTestCase {
             }
         )
 
-        _ = try await service.rewrite(body: "one", mode: .email)
-        _ = try await service.rewrite(body: "two", mode: .email)
+        _ = try await service.rewrite(body: "one", instructions: "")
+        _ = try await service.rewrite(body: "two", instructions: "")
 
         let loadCount = await loadCounter.value()
         XCTAssertEqual(loadCount, 1)
@@ -110,9 +99,31 @@ final class LLMRewriteServiceTests: XCTestCase {
             }
         )
 
-        async let first: String = service.rewrite(body: "one", mode: .email)
-        async let second: String = service.rewrite(body: "two", mode: .email)
+        async let first: String = service.rewrite(body: "one", instructions: "")
+        async let second: String = service.rewrite(body: "two", instructions: "")
         _ = try await (first, second)
+
+        let loadCount = await loadCounter.value()
+        XCTAssertEqual(loadCount, 1)
+    }
+
+    func testDownloadAndRewriteShareInflightLoadTask() async throws {
+        let loadCounter = CallCounter()
+        let service = makeService(
+            loader: { _ in
+                await loadCounter.increment()
+                try await Task.sleep(nanoseconds: 50_000_000)
+                return .init()
+            },
+            streamFactory: { _, _, _, _ in
+                stream(events: [.chunk("ok"), .completion(.stop)])
+            }
+        )
+
+        async let preload: Void = service.download()
+        try await Task.sleep(nanoseconds: 20_000_000)
+        async let rewrite: String = service.rewrite(body: "one", instructions: "")
+        _ = try await (preload, rewrite)
 
         let loadCount = await loadCounter.value()
         XCTAssertEqual(loadCount, 1)
@@ -136,9 +147,9 @@ final class LLMRewriteServiceTests: XCTestCase {
             }
         }
 
-        let firstTask = Task { try await service.rewrite(body: "first", mode: .email) }
+        let firstTask = Task { try await service.rewrite(body: "first", instructions: "") }
         try await Task.sleep(nanoseconds: 20_000_000)
-        let secondTask = Task { try await service.rewrite(body: "second", mode: .email) }
+        let secondTask = Task { try await service.rewrite(body: "second", instructions: "") }
         try await Task.sleep(nanoseconds: 20_000_000)
         await probe.releaseFirst()
 
@@ -160,8 +171,8 @@ final class LLMRewriteServiceTests: XCTestCase {
             }
         )
 
-        _ = try await service.rewrite(body: "one", mode: .cleanEnglish)
-        _ = try await service.rewrite(body: "two", mode: .cleanEnglish)
+        _ = try await service.rewrite(body: "one", instructions: "")
+        _ = try await service.rewrite(body: "two", instructions: "")
 
         XCTAssertEqual(streamCounter.count, 2)
     }
@@ -176,7 +187,7 @@ final class LLMRewriteServiceTests: XCTestCase {
         )
 
         await assertRewriteError(.modelLoadFailed) {
-            try await service.rewrite(body: "raw", mode: .cleanEnglish)
+            try await service.rewrite(body: "raw", instructions: "")
         }
     }
 
@@ -186,7 +197,7 @@ final class LLMRewriteServiceTests: XCTestCase {
         }
 
         await assertRewriteError(.generationFailed) {
-            try await service.rewrite(body: "raw", mode: .cleanEnglish)
+            try await service.rewrite(body: "raw", instructions: "")
         }
     }
 
@@ -196,7 +207,7 @@ final class LLMRewriteServiceTests: XCTestCase {
         }
 
         await assertRewriteError(.cancelled) {
-            try await service.rewrite(body: "raw", mode: .cleanEnglish)
+            try await service.rewrite(body: "raw", instructions: "")
         }
     }
 
@@ -215,7 +226,7 @@ final class LLMRewriteServiceTests: XCTestCase {
             }
         }
 
-        let rewriteTask = Task { try await service.rewrite(body: "raw", mode: .cleanEnglish) }
+        let rewriteTask = Task { try await service.rewrite(body: "raw", instructions: "") }
         try await Task.sleep(nanoseconds: 20_000_000)
         rewriteTask.cancel()
 
@@ -230,7 +241,7 @@ final class LLMRewriteServiceTests: XCTestCase {
         }
 
         await assertRewriteError(.outputTruncated) {
-            try await service.rewrite(body: "raw", mode: .cleanEnglish)
+            try await service.rewrite(body: "raw", instructions: "")
         }
     }
 
@@ -240,7 +251,7 @@ final class LLMRewriteServiceTests: XCTestCase {
         }
 
         await assertRewriteError(.emptyOutput) {
-            try await service.rewrite(body: "raw", mode: .cleanEnglish)
+            try await service.rewrite(body: "raw", instructions: "")
         }
     }
 
@@ -250,7 +261,7 @@ final class LLMRewriteServiceTests: XCTestCase {
         }
 
         await assertRewriteError(.generationFailed) {
-            try await service.rewrite(body: "raw", mode: .cleanEnglish)
+            try await service.rewrite(body: "raw", instructions: "")
         }
     }
 
@@ -269,15 +280,6 @@ final class LLMRewriteServiceTests: XCTestCase {
                        "rewrite(body:instructions:) should pass instructions directly to streamFactory")
     }
 
-    func testRewriteWithModeStillCompiles() async throws {
-        // Regression: existing rewrite(body:mode:) must still work
-        let service = makeService { _, _, _, _ in
-            stream(events: [.chunk("ok"), .completion(.stop)])
-        }
-        let result = try await service.rewrite(body: "raw", mode: .cleanEnglish)
-        XCTAssertEqual(result, "ok")
-    }
-
     // MARK: - setTier tests (Phase 2)
 
     func testSetTierClearsCachedModelAndLoadTaskForNextCall() async throws {
@@ -293,13 +295,13 @@ final class LLMRewriteServiceTests: XCTestCase {
         )
 
         // First rewrite loads the model once.
-        _ = try await service.rewrite(body: "one", mode: .email)
+        _ = try await service.rewrite(body: "one", instructions: "")
         let countAfterFirst = await loadCounter.value()
         XCTAssertEqual(countAfterFirst, 1)
 
         // Changing tier clears the cache; next rewrite loads again.
         await service.setTier(.standard4B)
-        _ = try await service.rewrite(body: "two", mode: .email)
+        _ = try await service.rewrite(body: "two", instructions: "")
         let countAfterTierChange = await loadCounter.value()
         XCTAssertEqual(countAfterTierChange, 2)
     }
@@ -316,12 +318,154 @@ final class LLMRewriteServiceTests: XCTestCase {
             }
         )
 
-        _ = try await service.rewrite(body: "one", mode: .email)
+        _ = try await service.rewrite(body: "one", instructions: "")
         await service.setTier(.standard2B) // same tier — no-op
-        _ = try await service.rewrite(body: "two", mode: .email)
+        _ = try await service.rewrite(body: "two", instructions: "")
 
         let count = await loadCounter.value()
         XCTAssertEqual(count, 1)
+    }
+
+    func testUnloadClearsCachedModelAndForcesReloadOnNextUse() async throws {
+        let loadCounter = CallCounter()
+        let service = makeService(
+            loader: { _ in
+                await loadCounter.increment()
+                return .init()
+            },
+            streamFactory: { _, _, _, _ in
+                stream(events: [.chunk("ok"), .completion(.stop)])
+            }
+        )
+
+        try await service.prewarm()
+        await service.unload()
+        _ = try await service.rewrite(body: "two", instructions: "")
+
+        let count = await loadCounter.value()
+        XCTAssertEqual(count, 2)
+    }
+
+    func testScheduledIdleUnloadClearsCachedModelAfterDelay() async throws {
+        let loadCounter = CallCounter()
+        let service = makeService(
+            loader: { _ in
+                await loadCounter.increment()
+                return .init()
+            },
+            streamFactory: { _, _, _, _ in
+                stream(events: [.chunk("ok"), .completion(.stop)])
+            }
+        )
+
+        try await service.prewarm()
+        await service.scheduleIdleUnload(afterNanoseconds: 20_000_000)
+        try await Task.sleep(nanoseconds: 60_000_000)
+        _ = try await service.rewrite(body: "two", instructions: "")
+
+        let count = await loadCounter.value()
+        XCTAssertEqual(count, 2)
+    }
+
+    func testDownloadFilesAndRewriteShareInflightDownloadTask() async throws {
+        let downloadCounter = CallCounter()
+        let loadCounter = CallCounter()
+        let modelDirectory = URL(fileURLWithPath: "/tmp/LLMRewriteServiceTests.shared-download")
+        let service = makeService(
+            loader: { _ in
+                await loadCounter.increment()
+                return .init()
+            },
+            fileDownloader: { _, progressHandler in
+                await downloadCounter.increment()
+                let progress = Progress(totalUnitCount: 1)
+                progress.completedUnitCount = 0
+                progressHandler(progress)
+                try await Task.sleep(nanoseconds: 50_000_000)
+                progress.completedUnitCount = 1
+                progressHandler(progress)
+                return modelDirectory
+            },
+            streamFactory: { _, _, _, _ in
+                stream(events: [.chunk("ok"), .completion(.stop)])
+            }
+        )
+
+        async let backgroundDownload: URL = service.downloadFiles(for: .standard2B)
+        try await Task.sleep(nanoseconds: 20_000_000)
+        async let rewrite: String = service.rewrite(body: "one", instructions: "")
+        _ = try await (backgroundDownload, rewrite)
+
+        let downloadCount = await downloadCounter.value()
+        let loadCount = await loadCounter.value()
+        XCTAssertEqual(downloadCount, 1)
+        XCTAssertEqual(loadCount, 1)
+    }
+
+    func testDownloadedModelDetectionReturnsTrueWhenTierDirectoryHasFiles() throws {
+        let fileManager = FileManager.default
+        let baseURL = fileManager.temporaryDirectory
+            .appendingPathComponent("LLMRewriteServiceTests.Downloaded.\(UUID().uuidString)", isDirectory: true)
+        let modelDirectory = try LLMRewriteService.downloadedModelDirectory(
+            for: .standard2B,
+            baseURL: baseURL,
+            fileManager: fileManager
+        )
+        try fileManager.createDirectory(at: modelDirectory, withIntermediateDirectories: true)
+        try Data("{}".utf8).write(to: modelDirectory.appendingPathComponent("config.json"))
+        try Data("{}".utf8).write(to: modelDirectory.appendingPathComponent("tokenizer.json"))
+        try Data("weights".utf8).write(to: modelDirectory.appendingPathComponent("model.safetensors"))
+
+        XCTAssertTrue(
+            LLMRewriteService.isModelDownloaded(.standard2B, baseURL: baseURL, fileManager: fileManager)
+        )
+    }
+
+    func testDownloadedModelDetectionReturnsFalseWhenTierDirectoryIsMissingRequiredArtifacts() throws {
+        let fileManager = FileManager.default
+        let baseURL = fileManager.temporaryDirectory
+            .appendingPathComponent("LLMRewriteServiceTests.Incomplete.\(UUID().uuidString)", isDirectory: true)
+        let modelDirectory = try LLMRewriteService.downloadedModelDirectory(
+            for: .standard2B,
+            baseURL: baseURL,
+            fileManager: fileManager
+        )
+        try fileManager.createDirectory(at: modelDirectory, withIntermediateDirectories: true)
+        try Data("{}".utf8).write(to: modelDirectory.appendingPathComponent("config.json"))
+
+        XCTAssertFalse(
+            LLMRewriteService.isModelDownloaded(.standard2B, baseURL: baseURL, fileManager: fileManager)
+        )
+    }
+
+    func testDeleteDownloadedModelFilesRemovesOnlySelectedTierDirectory() throws {
+        let fileManager = FileManager.default
+        let baseURL = fileManager.temporaryDirectory
+            .appendingPathComponent("LLMRewriteServiceTests.Delete.\(UUID().uuidString)", isDirectory: true)
+        let standard2BDirectory = try LLMRewriteService.downloadedModelDirectory(
+            for: .standard2B,
+            baseURL: baseURL,
+            fileManager: fileManager
+        )
+        let standard4BDirectory = try LLMRewriteService.downloadedModelDirectory(
+            for: .standard4B,
+            baseURL: baseURL,
+            fileManager: fileManager
+        )
+
+        try fileManager.createDirectory(at: standard2BDirectory, withIntermediateDirectories: true)
+        try fileManager.createDirectory(at: standard4BDirectory, withIntermediateDirectories: true)
+        try Data("2b".utf8).write(to: standard2BDirectory.appendingPathComponent("config.json"))
+        try Data("4b".utf8).write(to: standard4BDirectory.appendingPathComponent("config.json"))
+
+        try LLMRewriteService.deleteDownloadedModelFiles(
+            for: .standard2B,
+            baseURL: baseURL,
+            fileManager: fileManager
+        )
+
+        XCTAssertFalse(fileManager.fileExists(atPath: standard2BDirectory.path))
+        XCTAssertTrue(fileManager.fileExists(atPath: standard4BDirectory.path))
     }
 
     func testModelTooLargeForDeviceIsThrownOnMemoryPressureError() async throws {
@@ -338,7 +482,7 @@ final class LLMRewriteServiceTests: XCTestCase {
         )
 
         await assertRewriteError(.modelTooLargeForDevice) {
-            try await service.rewrite(body: "raw", mode: .cleanEnglish)
+            try await service.rewrite(body: "raw", instructions: "")
         }
     }
 
@@ -354,18 +498,20 @@ final class LLMRewriteServiceTests: XCTestCase {
         )
 
         await assertRewriteError(.modelLoadFailed) {
-            try await service.rewrite(body: "raw", mode: .cleanEnglish)
+            try await service.rewrite(body: "raw", instructions: "")
         }
     }
 
     private func makeService(
         tier: RewriteModelTier = .standard2B,
         loader: @escaping LLMRewriteService.Loader = { _ in .init() },
+        fileDownloader: LLMRewriteService.FileDownloader? = nil,
         streamFactory: @escaping LLMRewriteService.StreamFactory
     ) -> LLMRewriteService {
         LLMRewriteService(
             tier: tier,
             loader: loader,
+            fileDownloader: fileDownloader,
             streamFactory: streamFactory,
             hubFactory: { HubApi(downloadBase: URL(fileURLWithPath: "/tmp")) }
         )
@@ -404,5 +550,50 @@ private func stream(
         continuation.onTermination = { _ in
             task.cancel()
         }
+    }
+}
+
+extension LLMRewriteServiceTests {
+    func testThinkStripperSimpleNoThink() {
+        var stripper = ThinkStripper()
+        let result = stripper.process("Hello world!") + stripper.flush()
+        XCTAssertEqual(result, "Hello world!")
+    }
+
+    func testThinkStripperCompleteThinkBlock() {
+        var stripper = ThinkStripper()
+        let result = stripper.process("Hello <think> internal thought </think> world!") + stripper.flush()
+        XCTAssertEqual(result, "Hello  world!")
+    }
+
+    func testThinkStripperFragmentedTags() {
+        var stripper = ThinkStripper()
+        var result = ""
+        result += stripper.process("Hello <")
+        result += stripper.process("th")
+        result += stripper.process("ink>")
+        result += stripper.process(" internal ")
+        result += stripper.process("</thi")
+        result += stripper.process("nk> world!")
+        result += stripper.flush()
+        
+        XCTAssertEqual(result, "Hello  world!")
+    }
+
+    func testThinkStripperPartialMatchThatWasntATag() {
+        var stripper = ThinkStripper()
+        var result = ""
+        result += stripper.process("This costs <")
+        result += stripper.process("5 dollars.")
+        result += stripper.flush()
+        
+        XCTAssertEqual(result, "This costs <5 dollars.")
+    }
+
+    func testThinkStripperMultipleThinkBlocks() {
+        var stripper = ThinkStripper()
+        let text = "a<think>b</think>c<think>d</think>e"
+        let result = stripper.process(text) + stripper.flush()
+        XCTAssertEqual(result, "ace")
     }
 }

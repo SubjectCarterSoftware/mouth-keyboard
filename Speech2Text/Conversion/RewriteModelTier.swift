@@ -51,10 +51,11 @@ enum RewriteModelTier: String, CaseIterable, Identifiable, Hashable {
     }
 
     var modelConfiguration: ModelConfiguration {
-        ModelConfiguration(
+        var base = ModelConfiguration(
             id: hubSlug,
-            extraEOSTokens: ["<|im_end|>"],
-            eosTokenIds: [248044]
+            extraEOSTokens: ["<|im_end|>"]
         )
+        base.eosTokenIds = [248044]
+        return base
     }
 }

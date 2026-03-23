@@ -485,21 +485,34 @@ actor LLMRewriteService: LLMRewriting {
             container,
             instructions: instructions,
             generateParameters: parameters,
+            additionalContext: ["enable_thinking": false],
             tools: []
         )
 
         return AsyncThrowingStream { continuation in
             let task = Task {
                 do {
+                    var stripper = ThinkStripper()
                     for try await generation in session.streamDetails(to: body, images: [], videos: []) {
                         switch generation {
                         case .chunk(let text):
-                            continuation.yield(.chunk(text))
+                            let visible = stripper.process(text)
+                            if !visible.isEmpty {
+                                continuation.yield(.chunk(visible))
+                            }
                         case .info(let info):
+                            let remaining = stripper.flush()
+                            if !remaining.isEmpty {
+                                continuation.yield(.chunk(remaining))
+                            }
                             continuation.yield(.completion(info.stopReason))
                         case .toolCall:
                             break
                         }
+                    }
+                    let remaining = stripper.flush()
+                    if !remaining.isEmpty {
+                        continuation.yield(.chunk(remaining))
                     }
                     continuation.finish()
                 } catch {
@@ -613,4 +626,62 @@ actor LLMRewriteService: LLMRewriting {
         "config.json",
         "tokenizer.json"
     ]
+}
+
+struct ThinkStripper {
+    private var inThink = false
+    private var buffer = ""
+
+    mutating func process(_ text: String) -> String {
+        buffer += text
+        var output = ""
+
+        while !buffer.isEmpty {
+            if inThink {
+                if let range = buffer.range(of: "</think>") {
+                    buffer = String(buffer[range.upperBound...])
+                    inThink = false
+                } else {
+                    let partial = suffixPartialMatch(buffer, target: "</think>")
+                    buffer = String(buffer.suffix(partial))
+                    break
+                }
+            } else {
+                if let range = buffer.range(of: "<think>") {
+                    output += String(buffer[..<range.lowerBound])
+                    buffer = String(buffer[range.upperBound...])
+                    inThink = true
+                } else {
+                    let partial = suffixPartialMatch(buffer, target: "<think>")
+                    let safeIndex = buffer.index(buffer.endIndex, offsetBy: -partial)
+                    output += String(buffer[..<safeIndex])
+                    buffer = String(buffer[safeIndex...])
+                    break
+                }
+            }
+        }
+        return output
+    }
+
+    mutating func flush() -> String {
+        let remaining = inThink ? "" : buffer
+        buffer = ""
+        return remaining
+    }
+
+    private func suffixPartialMatch(_ text: String, target: String) -> Int {
+        let textUTF8 = Array(text.utf8)
+        let targetUTF8 = Array(target.utf8)
+        let maxLen = min(textUTF8.count, targetUTF8.count - 1)
+        guard maxLen > 0 else { return 0 }
+        
+        for len in (1...maxLen).reversed() {
+            let suffix = textUTF8[(textUTF8.count - len)...]
+            let prefix = targetUTF8[0..<len]
+            if suffix[...] == prefix[...] {
+                return len
+            }
+        }
+        return 0
+    }
 }
