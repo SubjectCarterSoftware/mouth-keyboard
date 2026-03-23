@@ -65,6 +65,8 @@ final class ActivationStore: ObservableObject {
     let voiceActivityDetector: VoiceActivityDetector
     var soundPlayer: ActivationSoundPlayer = .init()
     private static let maxRecordingDuration: UInt64 = 5 * 60 * 1_000_000_000 // 5 minutes
+    private static let whisperModelIdleUnloadDelay: UInt64 = WhisperService.idleUnloadDelayNanoseconds
+    private static let rewriteModelIdleUnloadDelay: UInt64 = LLMRewriteService.idleUnloadDelayNanoseconds
 
     var onPastePermissionNeeded: () -> Void = {}
 
@@ -149,6 +151,8 @@ final class ActivationStore: ObservableObject {
         activeSessionID = UUID()
         voiceActivityDetector.reset()
         state = .recording
+        beginWhisperModelWarmup()
+        beginRewriteModelWarmup()
 
         // Auto-stop after 5 minutes to prevent runaway recordings.
         let sessionID = activeSessionID
@@ -158,13 +162,6 @@ final class ActivationStore: ObservableObject {
             self.finish()
         }
 
-        // When auto-selection is off the model choice is fixed, so preload it
-        // while the user is still speaking to eliminate load-time after recording.
-        if !preferences.autoModelSelection {
-            Task { [weak self] in
-                try? await self?.prepareWhisperModel(for: nil)
-            }
-        }
     }
 
     /// Arm with paste intent: records then pastes the transcription to the active cursor position.
@@ -210,6 +207,8 @@ final class ActivationStore: ObservableObject {
         voiceActivityDetector.reset()
         publishRecoveryFeedback(.canceled)
         state = .idle
+        scheduleWhisperModelIdleUnload()
+        scheduleRewriteModelIdleUnload()
     }
 
     func restartCurrentSession() {
@@ -220,6 +219,8 @@ final class ActivationStore: ObservableObject {
         resetSessionMonitoring()
         publishRecoveryFeedback(.restarted)
         state = .recording
+        beginWhisperModelWarmup()
+        beginRewriteModelWarmup()
     }
 
     /// Copies the last transcription to the clipboard.
@@ -277,7 +278,7 @@ final class ActivationStore: ObservableObject {
         do {
             guard isCurrentSession(sessionID) else { return }
 
-            try await prepareWhisperModel(for: bufferAccumulator.duration)
+            try await prepareWhisperModel()
             guard isCurrentSession(sessionID) else { return }
 
             let samples = try bufferAccumulator.convertToWhisperFormat()
@@ -360,13 +361,15 @@ final class ActivationStore: ObservableObject {
                         rewritten = conversionBody
                     }
                 } catch {
-                    // GUARD-02 fallback: silent — raw transcript to clipboard
+                    // GUARD-02: surface rewrite error visibly — raw transcript still goes to clipboard
                     guard isCurrentSession(sessionID) else { return }
+                    let errorDescription = (error as? LLMRewriteError)?.errorDescription ?? error.localizedDescription
+                    NSLog("Speech2Text: assistant rewrite failed — \(errorDescription)")
                     clipboardService.writeToClipboard(trimmed)
                     lastTranscription = trimmed
-                    state = .success(text: trimmed, pasted: false, converted: false)
-                    soundPlayer.playSuccess()
-                    scheduleDismissToIdle(afterNanoseconds: 1_500_000_000, sessionID: sessionID)
+                    state = .failure(reason: .modelError("Rewrite failed: \(errorDescription)"))
+                    soundPlayer.playFailure()
+                    scheduleDismissToIdle(afterNanoseconds: 2_000_000_000, sessionID: sessionID)
                     return
                 }
 
@@ -437,6 +440,8 @@ final class ActivationStore: ObservableObject {
             switch self.state {
             case .success, .failure:
                 self.state = .idle
+                self.scheduleWhisperModelIdleUnload()
+                self.scheduleRewriteModelIdleUnload()
             case .idle, .recording, .processing, .converting:
                 break
             }
@@ -448,15 +453,40 @@ final class ActivationStore: ObservableObject {
         !Task.isCancelled && sessionID == activeSessionID
     }
 
-    private func prepareWhisperModel(for duration: TimeInterval?) async throws {
-        if let whisperService = whisperService as? WhisperService {
-            let modelChoice: WhisperModelChoice
-            if preferences.autoModelSelection, let duration {
-                modelChoice = WhisperModelChoice.forDuration(duration)
-            } else {
-                modelChoice = preferences.whisperModel
-            }
-            try await whisperService.prepare(model: modelChoice.rawValue)
+    private func beginWhisperModelWarmup() {
+        Task { [weak self] in
+            guard let self else { return }
+            await self.whisperService.cancelScheduledUnload()
+            try? await self.whisperService.prepare(model: self.preferences.whisperModel)
+        }
+    }
+
+    private func scheduleWhisperModelIdleUnload() {
+        Task { [whisperService] in
+            await whisperService.scheduleIdleUnload(
+                afterNanoseconds: Self.whisperModelIdleUnloadDelay
+            )
+        }
+    }
+
+    private func prepareWhisperModel() async throws {
+        try await whisperService.prepare(model: preferences.whisperModel)
+    }
+
+    private func beginRewriteModelWarmup() {
+        Task { [weak self] in
+            guard let self else { return }
+            await self.llmRewriteService.cancelScheduledUnload()
+            await self.llmRewriteService.setTier(self.preferences.rewriteModelTier)
+            try? await self.llmRewriteService.prewarm()
+        }
+    }
+
+    private func scheduleRewriteModelIdleUnload() {
+        Task { [llmRewriteService] in
+            await llmRewriteService.scheduleIdleUnload(
+                afterNanoseconds: Self.rewriteModelIdleUnloadDelay
+            )
         }
     }
 

@@ -17,6 +17,26 @@ final class ActivationStoreTests: XCTestCase {
         XCTAssertEqual(store.state, .recording)
     }
 
+    func testArmStartsRewriteModelWarmupForSelectedTier() async throws {
+        let defaults = UserDefaults(suiteName: "ActivationStoreTests.RewriteWarmup.\(UUID().uuidString)") ?? .standard
+        let preferences = ShellPreferences(userDefaults: defaults)
+        preferences.rewriteModelTier = .high9B
+        let mockRewriter = MockLLMRewriter(result: .success("unused"))
+        let store = makeStore(
+            permissionsAuthorized: true,
+            llmRewriter: mockRewriter,
+            preferences: preferences
+        )
+
+        store.arm()
+        try await Task.sleep(nanoseconds: 100_000_000)
+
+        XCTAssertEqual(store.state, .recording)
+        XCTAssertEqual(mockRewriter.setTierCalls, [.high9B])
+        XCTAssertEqual(mockRewriter.cancelScheduledUnloadCallCount, 1)
+        XCTAssertEqual(mockRewriter.prewarmCallCount, 1)
+    }
+
     func testStopTransitionsToIdle() {
         let store = makeStore(permissionsAuthorized: true)
         store.arm()
@@ -116,19 +136,46 @@ final class ActivationStoreTests: XCTestCase {
         XCTAssertEqual(pasteStub.lastText, "Fallback text")
     }
 
-    func testCancelDuringRecordingReturnsToIdleWithoutClipboardWrite() {
+    func testCancelDuringRecordingReturnsToIdleWithoutClipboardWrite() async throws {
         let mockClipboard = ActivationStoreMockClipboard()
+        let mockRewriter = MockLLMRewriter(result: .success("unused"))
         let store = makeStore(
             permissionsAuthorized: true,
+            llmRewriter: mockRewriter,
             clipboard: mockClipboard
         )
         store.arm()
 
         store.cancelCurrentSession()
 
+        try await Task.sleep(nanoseconds: 100_000_000)
+
         XCTAssertEqual(store.state, .idle)
         XCTAssertEqual(store.recoveryFeedback, .canceled)
         XCTAssertNil(mockClipboard.lastWrittenText)
+        XCTAssertEqual(
+            mockRewriter.scheduledIdleUnloadDurations.last,
+            LLMRewriteService.idleUnloadDelayNanoseconds
+        )
+    }
+
+    func testSuccessfulPassthroughSessionSchedulesRewriteModelIdleUnloadAfterReturningToIdle() async throws {
+        let mockRewriter = MockLLMRewriter(result: .success("unused"))
+        let store = makeStore(
+            permissionsAuthorized: true,
+            transcriber: ActivationStoreMockTranscriber(result: .success("Hello world")),
+            llmRewriter: mockRewriter
+        )
+
+        store.arm()
+        store.finish()
+        try await Task.sleep(nanoseconds: 1_800_000_000)
+
+        XCTAssertEqual(store.state, .idle)
+        XCTAssertEqual(
+            mockRewriter.scheduledIdleUnloadDurations.last,
+            LLMRewriteService.idleUnloadDelayNanoseconds
+        )
     }
 
     func testCancelDuringProcessingSuppressesLateSuccessPublication() async throws {
@@ -478,6 +525,35 @@ final class ActivationStoreTests: XCTestCase {
         }
     }
 
+    func test_finalize_rewrite_failure_surfaces_model_error_not_silent_success() async throws {
+        let transcript = "team update zeus make this concise and direct"
+        let mockTranscriber = ActivationStoreMockTranscriber(result: .success(transcript))
+        let mockRewriter = MockLLMRewriter(result: .failure(LLMRewriteError.generationFailed))
+        let mockClipboard = ActivationStoreMockClipboard()
+        let store = makeStore(
+            permissionsAuthorized: true,
+            transcriber: mockTranscriber,
+            llmRewriter: mockRewriter,
+            clipboard: mockClipboard
+        )
+        store.arm()
+        store.finish()
+        try await Task.sleep(nanoseconds: 300_000_000)
+
+        // Raw transcript should still be in clipboard as safety net
+        XCTAssertEqual(mockClipboard.lastWrittenText, transcript)
+        // State should be .failure, NOT .success
+        if case .failure(let reason) = store.state {
+            if case .modelError(let message) = reason {
+                XCTAssertTrue(message.contains("Rewrite failed"), "Error message should contain 'Rewrite failed', got: \(message)")
+            } else {
+                XCTFail("Expected .modelError reason, got \(reason)")
+            }
+        } else {
+            XCTFail("Expected .failure state when rewrite throws, got \(store.state)")
+        }
+    }
+
     func test_passthrough_dictation_is_completely_unchanged() async throws {
         let mockTranscriber = ActivationStoreMockTranscriber(result: .success("Hello world"))
         let mockClipboard = ActivationStoreMockClipboard()
@@ -807,11 +883,16 @@ final class ActivationStoreTests: XCTestCase {
 
         XCTAssertEqual(mockRewriter.lastCalledOverload, MockLLMRewriter.CalledOverload.instructionsOverload)
         XCTAssertEqual(mockClipboard.lastWrittenText, transcript)
-        if case .success(let text, _, let converted, _) = store.state {
-            XCTAssertEqual(text, transcript)
-            XCTAssertFalse(converted)
+        XCTAssertEqual(mockRewriter.lastCalledOverload, MockLLMRewriter.CalledOverload.instructionsOverload)
+        XCTAssertEqual(mockClipboard.lastWrittenText, transcript)
+        if case .failure(let reason) = store.state {
+            if case .modelError(let message) = reason {
+                XCTAssertTrue(message.contains("Rewrite failed"))
+            } else {
+                XCTFail("Expected .modelError reason, got \(reason)")
+            }
         } else {
-            XCTFail("Expected .success state, got \(store.state)")
+            XCTFail("Expected .failure state, got \(store.state)")
         }
     }
 
@@ -840,11 +921,15 @@ final class ActivationStoreTests: XCTestCase {
         XCTAssertEqual(mockRewriter.lastBody, "weekly update on launch metrics")
         XCTAssertEqual(mockRewriter.lastInstructions, "make this casual and concise")
         XCTAssertEqual(mockClipboard.lastWrittenText, transcript)
-        if case .success(let text, _, let converted, _) = store.state {
-            XCTAssertEqual(text, transcript)
-            XCTAssertFalse(converted)
+        XCTAssertEqual(mockClipboard.lastWrittenText, transcript)
+        if case .failure(let reason) = store.state {
+            if case .modelError(let message) = reason {
+                XCTAssertTrue(message.contains("Rewrite failed"))
+            } else {
+                XCTFail("Expected .modelError reason, got \(reason)")
+            }
         } else {
-            XCTFail("Expected .success state, got \(store.state)")
+            XCTFail("Expected .failure state, got \(store.state)")
         }
     }
 
@@ -1084,21 +1169,21 @@ final class ResetHookTracker {
 
 final class MockLLMRewriter: LLMRewriting, @unchecked Sendable {
     enum MockResult { case success(String); case failure(Error) }
-    enum CalledOverload { case modeOverload; case instructionsOverload }
+    enum CalledOverload: Equatable { case instructionsOverload }
     private let result: MockResult
-    private(set) var lastCalledOverload: CalledOverload?
     private(set) var lastBody: String?
     private(set) var lastInstructions: String?
-    private(set) var lastMode: ConvertMode?
+    private(set) var lastCalledOverload: CalledOverload?
+    private(set) var setTierCalls: [RewriteModelTier] = []
+    private(set) var prewarmCallCount = 0
+    private(set) var scheduledIdleUnloadDurations: [UInt64] = []
+    private(set) var cancelScheduledUnloadCallCount = 0
     init(result: MockResult) { self.result = result }
-    func rewrite(body: String, mode: ConvertMode) async throws -> String {
-        lastCalledOverload = .modeOverload
-        lastBody = body
-        lastMode = mode
-        switch result {
-        case .success(let text): return text
-        case .failure(let error): throw error
-        }
+    func setTier(_ newTier: RewriteModelTier) async {
+        setTierCalls.append(newTier)
+    }
+    func prewarm() async throws {
+        prewarmCallCount += 1
     }
     func rewrite(body: String, instructions: String) async throws -> String {
         lastCalledOverload = .instructionsOverload
@@ -1108,6 +1193,12 @@ final class MockLLMRewriter: LLMRewriting, @unchecked Sendable {
         case .success(let text): return text
         case .failure(let error): throw error
         }
+    }
+    func scheduleIdleUnload(afterNanoseconds duration: UInt64) async {
+        scheduledIdleUnloadDurations.append(duration)
+    }
+    func cancelScheduledUnload() async {
+        cancelScheduledUnloadCallCount += 1
     }
 }
 
@@ -1125,11 +1216,6 @@ final class DelayedLLMRewriter: LLMRewriting, @unchecked Sendable {
         case .success(let text): return text
         case .failure(let error): throw error
         }
-    }
-
-    func rewrite(body: String, mode: ConvertMode) async throws -> String {
-        try await Task.sleep(nanoseconds: delayNanoseconds)
-        return try complete()
     }
 
     func rewrite(body: String, instructions: String) async throws -> String {
