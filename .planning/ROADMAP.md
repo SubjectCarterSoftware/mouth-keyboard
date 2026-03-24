@@ -60,7 +60,7 @@ Phases 12-15 shipped (9/9 plans complete). Named trigger boundary, voice calibra
 | 17. Model Loading and Configuration Fix | v1.3 | 2/2 | Complete | 2026-03-23 |
 | 18. Generation Pipeline and Chat Template Fix | v1.3 | 2/2 | Complete | 2026-03-23 |
 | 19. Tier Selector Validation and End-to-End Test | v1.3 | 0/2 | Deferred | — |
-| 20. Permission Model and UI Wiring | v1.4 | 1/2 | In Progress|  |
+| 20. Permission Model and UI Wiring | v1.4 | 2/2 | Complete   | 2026-03-24 |
 | 21. Test Updates and Verification | v1.4 | 0/? | Not started | - |
 
 ## Phase Details — v1.3 Qwen 3.5 LLM Upgrade
@@ -113,11 +113,11 @@ Phases 12-15 shipped (9/9 plans complete). Named trigger boundary, voice calibra
   3. Recovery action from a denied Hold to Transcribe row opens Privacy > Input Monitoring pane (not Privacy > Accessibility)
   4. All labels, detail text, action buttons, and setup guide popover reference "Input Monitoring" — no remaining "Accessibility" references in hold-related UI
   5. `.postEvent` permission messages reference only Auto Paste — no mention of Hold to Transcribe
-**Plans:** 1/2 plans executed
+**Plans:** 2/2 plans complete
 
 Plans:
 - [x] 20-01-PLAN.md — Permission model core: add .holdToTranscribe to PermissionKind, update derive(), wire ReadinessStore
-- [ ] 20-02-PLAN.md — UI wiring: create InputMonitoringSetupGuide, rewire HoldToTranscribeRow and PermissionTile
+- [x] 20-02-PLAN.md — UI wiring: create InputMonitoringSetupGuide, rewire HoldToTranscribeRow and PermissionTile
 
 ### Phase 21: Test Updates and Verification
 **Goal:** Validate that the corrected permission wiring passes automated tests and that hold mode functions end-to-end with the correct permission granted.

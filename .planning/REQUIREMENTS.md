@@ -9,14 +9,14 @@ Requirements for this milestone. Each maps to roadmap phases.
 
 ### Permission Wiring
 
-- [ ] **HTT-01**: Hold to Transcribe row in Settings checks Input Monitoring permission status (`CGPreflightListenEventAccess`), not Accessibility
-- [ ] **HTT-02**: Clicking "Enable" on the Hold to Transcribe row requests Input Monitoring permission (`CGRequestListenEventAccess`)
+- [x] **HTT-01**: Hold to Transcribe row in Settings checks Input Monitoring permission status (`CGPreflightListenEventAccess`), not Accessibility
+- [x] **HTT-02**: Clicking "Enable" on the Hold to Transcribe row requests Input Monitoring permission (`CGRequestListenEventAccess`)
 - [x] **HTT-03**: Recovery action from a denied Hold to Transcribe row opens Privacy > Input Monitoring, not Privacy > Accessibility
 
 ### User-Facing Text
 
-- [ ] **HTT-04**: All user-facing labels and descriptions in the Hold to Transcribe row reference "Input Monitoring", not "Accessibility"
-- [ ] **HTT-05**: Setup guide popover shows steps for adding the app to Privacy > Input Monitoring
+- [x] **HTT-04**: All user-facing labels and descriptions in the Hold to Transcribe row reference "Input Monitoring", not "Accessibility"
+- [x] **HTT-05**: Setup guide popover shows steps for adding the app to Privacy > Input Monitoring
 
 ### Permission Model
 
@@ -48,11 +48,11 @@ Requirements for this milestone. Each maps to roadmap phases.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| HTT-01 | Phase 20 | Pending |
-| HTT-02 | Phase 20 | Pending |
+| HTT-01 | Phase 20 | Complete |
+| HTT-02 | Phase 20 | Complete |
 | HTT-03 | Phase 20 | Complete |
-| HTT-04 | Phase 20 | Pending |
-| HTT-05 | Phase 20 | Pending |
+| HTT-04 | Phase 20 | Complete |
+| HTT-05 | Phase 20 | Complete |
 | HTT-06 | Phase 20 | Complete |
 | HTT-07 | Phase 20 | Complete |
 | HTT-08 | Phase 21 | Pending |

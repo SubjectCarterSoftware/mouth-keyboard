@@ -2,9 +2,9 @@
 gsd_state_version: 1.0
 milestone: v1.3
 milestone_name: Qwen 3.5 LLM Upgrade
-status: Ready to execute
-stopped_at: Completed 20-01-PLAN.md
-last_updated: "2026-03-24T18:24:42.865Z"
+status: Phase complete — ready for verification
+stopped_at: Completed 20-02-PLAN.md
+last_updated: "2026-03-24T18:28:17.813Z"
 progress:
   total_phases: 4
   completed_phases: 0
@@ -64,6 +64,7 @@ Plan: 2 of 2
 | Phase 15 P02 | 12m | 2 tasks | 5 files |
 | Phase 15-settings-ux-for-ai-assistant-name P02 | ~20min | 3 tasks | 5 files |
 | Phase 20 P01 | 1m | 2 tasks | 2 files |
+| Phase 20 P02 | 2min | 2 tasks | 2 files |
 
 ## Accumulated Context
 
@@ -77,6 +78,8 @@ Recent decisions affecting current work:
 - [Phase 20]: CaseIterable order microphone → holdToTranscribe → postEvent ensures correct tile layout
 - [Phase 20]: .holdToTranscribe is isRequired: true — denied state triggers Setup Blocked
 - [Phase 20]: .postEvent messages decoupled from Hold to Transcribe — only reference Auto Paste
+- [Phase 20]: InputMonitoringSetupGuide follows same structure as AccessibilitySetupGuide with Input Monitoring wording
+- [Phase 20]: PermissionTile uses kind-based popover routing: Group + conditional dispatches .holdToTranscribe vs .postEvent to different guides
 
 ### Pending Todos
 
@@ -88,6 +91,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-24T18:24:42.862Z
-Stopped at: Completed 20-01-PLAN.md
+Last session: 2026-03-24T18:28:17.810Z
+Stopped at: Completed 20-02-PLAN.md
 Resume file: None
