@@ -5,7 +5,8 @@
 - ✅ **v1.0** — Phases 1-5 (shipped 2026-03-08) — See `.planning/milestones/v1.0-ROADMAP.md`
 - ✅ **v1.1 Convert Modes** — Phases 6-11 (shipped 2026-03-20) — See `.planning/milestones/v1.1-ROADMAP.md`
 - ✅ **v1.2 AI Trigger Name** — Phases 12-15 (shipped 2026-03-20) — See `.planning/milestones/v1.2-ROADMAP.md`
-- 🔄 **v1.3 Qwen 3.5 LLM Upgrade** — Phases 16-19
+- ⏸️ **v1.3 Qwen 3.5 LLM Upgrade** — Phases 16-18 complete, Phase 19 deferred (closed 2026-03-24)
+- 🔄 **v1.4 Hold-to-Transcribe Permission Fix** — Phases 20-21
 
 ## Archived Milestones
 
@@ -58,7 +59,7 @@ Phases 12-15 shipped (9/9 plans complete). Named trigger boundary, voice calibra
 | 16. Diagnostic Logging and Error Visibility | v1.3 | 2/2 | Complete | 2026-03-23 |
 | 17. Model Loading and Configuration Fix | v1.3 | 2/2 | Complete | 2026-03-23 |
 | 18. Generation Pipeline and Chat Template Fix | v1.3 | 2/2 | Complete | 2026-03-23 |
-| 19. Tier Selector Validation and End-to-End Test | v1.3 | 0/2 | Not started | — |
+| 19. Tier Selector Validation and End-to-End Test | v1.3 | 0/2 | Deferred | — |
 
 ## Phase Details — v1.3 Qwen 3.5 LLM Upgrade
 

@@ -1,5 +1,18 @@
 # Milestones
 
+## v1.3 Qwen 3.5 LLM Upgrade (Closed: 2026-03-24)
+
+**Phases completed:** 3 of 4 phases, 6 plans
+**Phase 19 (Tier Selector Validation) deferred** — deprioritized in favor of Hold-to-Transcribe fix.
+
+**Key accomplishments:**
+- Diagnostic logging and structured error visibility for LLM rewrite failures
+- Qwen 3.5 model loading via `LLMModelFactory` with proper EOS token config
+- Chat template rendering with think-tag stripping and correct generation stop
+- WhisperKit and MLXLLM coexistence without loading conflicts
+
+---
+
 ## v1.2 AI Trigger Name (Shipped: 2026-03-20)
 
 **Phases completed:** 4 phases, 9 plans
