@@ -23,6 +23,7 @@ enum PermissionGrantState: String, CaseIterable, Equatable {
 
 enum PermissionKind: String, CaseIterable, Identifiable {
     case microphone
+    case holdToTranscribe
     case postEvent
 
     var id: String {
@@ -33,6 +34,8 @@ enum PermissionKind: String, CaseIterable, Identifiable {
         switch self {
         case .microphone:
             return "Microphone Access"
+        case .holdToTranscribe:
+            return "Input Monitoring"
         case .postEvent:
             return "Auto Paste"
         }
@@ -42,6 +45,8 @@ enum PermissionKind: String, CaseIterable, Identifiable {
         switch self {
         case .microphone:
             return "mic.fill"
+        case .holdToTranscribe:
+            return "keyboard.fill"
         case .postEvent:
             return "doc.on.clipboard.fill"
         }
@@ -51,6 +56,8 @@ enum PermissionKind: String, CaseIterable, Identifiable {
         switch self {
         case .microphone:
             return URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Microphone")
+        case .holdToTranscribe:
+            return URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_ListenEvent")
         case .postEvent:
             return URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility")
         }
@@ -64,12 +71,18 @@ enum PermissionKind: String, CaseIterable, Identifiable {
             return "Allow microphone access now so the first recording attempt does not surprise the user later."
         case (.microphone, .denied):
             return "Microphone access is denied. Re-enable it in System Settings to move past the blocked state."
+        case (.holdToTranscribe, .authorized):
+            return "Ready — hold to record."
+        case (.holdToTranscribe, .notDetermined):
+            return "Needs keyboard access."
+        case (.holdToTranscribe, .denied):
+            return "Keyboard access is blocked."
         case (.postEvent, .authorized):
-            return "Accessibility access can Auto Paste into other apps and enables Hold to Transcribe."
+            return "Auto Paste can insert text into other apps."
         case (.postEvent, .notDetermined):
-            return "Allow Accessibility access so Auto Paste and Hold to Transcribe work across apps."
+            return "Allow Accessibility access so Auto Paste works across apps."
         case (.postEvent, .denied):
-            return "Accessibility access is blocked. Re-enable it in System Settings to use Auto Paste and Hold to Transcribe."
+            return "Accessibility access is blocked. Re-enable it in System Settings to use Auto Paste."
         }
     }
 }
@@ -117,6 +130,7 @@ struct ReadinessSnapshot: Equatable {
     static func derive(
         isSetupComplete: Bool,
         microphoneStatus: PermissionGrantState,
+        keyboardStatus: PermissionGrantState,
         postEventStatus: PermissionGrantState
     ) -> Self {
         let permissions = [
@@ -124,6 +138,12 @@ struct ReadinessSnapshot: Equatable {
                 kind: .microphone,
                 status: microphoneStatus,
                 message: PermissionKind.microphone.message(for: microphoneStatus),
+                isRequired: true
+            ),
+            PermissionChecklistItem(
+                kind: .holdToTranscribe,
+                status: keyboardStatus,
+                message: PermissionKind.holdToTranscribe.message(for: keyboardStatus),
                 isRequired: true
             ),
             PermissionChecklistItem(
