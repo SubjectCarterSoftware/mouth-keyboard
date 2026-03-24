@@ -153,7 +153,7 @@ struct InputMonitoringSetupGuide: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
-            Text("How to enable Keyboard Shortcuts")
+            Text("How to enable Hold to Transcribe")
                 .font(.headline)
 
             VStack(alignment: .leading, spacing: 12) {

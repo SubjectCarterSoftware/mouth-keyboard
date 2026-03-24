@@ -174,32 +174,34 @@ private struct KeyboardShortcutsRow: View {
         case .authorized:
             return nil
         case .notDetermined:
-            return "Enable Keyboard Shortcuts"
+            return "Enable Hold to Transcribe"
         case .denied:
-            return "Fix Keyboard Shortcuts"
+            return "Fix Hold to Transcribe"
         }
     }
 
     var body: some View {
-        HStack(spacing: 12) {
-            HoldShortcutRecorder(preferences: preferences)
+        LabeledContent("Hold to Transcribe:") {
+            HStack(spacing: 12) {
+                HoldShortcutRecorder(preferences: preferences)
 
-            Text(detailText)
-                .font(.caption)
-                .foregroundStyle(status == .authorized ? Color.secondary : statusColor)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .multilineTextAlignment(.leading)
-                .fixedSize(horizontal: false, vertical: true)
-                .accessibilityIdentifier("setupWindow.keyboardShortcuts.message")
+                Text(detailText)
+                    .font(.caption)
+                    .foregroundStyle(status == .authorized ? Color.secondary : statusColor)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .multilineTextAlignment(.leading)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .accessibilityIdentifier("setupWindow.keyboardShortcuts.message")
 
-            if let actionTitle {
-                Button(actionTitle) {
-                    showsSetupGuide = true
+                if let actionTitle {
+                    Button(actionTitle) {
+                        showsSetupGuide = true
+                    }
+                    .accessibilityIdentifier("setupWindow.keyboardShortcuts.action")
                 }
-                .accessibilityIdentifier("setupWindow.keyboardShortcuts.action")
             }
+            .frame(maxWidth: .infinity, alignment: .leading)
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
         .accessibilityIdentifier("setupWindow.keyboardShortcuts.row")
         .popover(isPresented: $showsSetupGuide, arrowEdge: .bottom) {
             InputMonitoringSetupGuide {
@@ -624,16 +626,12 @@ struct SetupWindowView: View {
                     KeyboardShortcuts.Recorder("Stop Only:", name: .stopSession)
                     KeyboardShortcuts.Recorder("Stop & Auto Paste:", name: .activateAndPaste)
 
-                    LabeledContent {
-                        KeyboardShortcutsRow(
-                            preferences: preferences,
-                            status: keyboardShortcutsStatus,
-                            requestAccess: requestKeyboardShortcutsAccess,
-                            openRecovery: { readinessStore.openRecovery(for: .keyboardShortcuts) }
-                        )
-                    } label: {
-                        Text("Keyboard Shortcuts:")
-                    }
+                    KeyboardShortcutsRow(
+                        preferences: preferences,
+                        status: keyboardShortcutsStatus,
+                        requestAccess: requestKeyboardShortcutsAccess,
+                        openRecovery: { readinessStore.openRecovery(for: .keyboardShortcuts) }
+                    )
 
                     LabeledContent {
                         AlwaysAutoPasteRow(isOn: alwaysAutoPasteBinding)
