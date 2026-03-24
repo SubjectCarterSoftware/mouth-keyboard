@@ -2,9 +2,9 @@
 gsd_state_version: 1.0
 milestone: v1.3
 milestone_name: Qwen 3.5 LLM Upgrade
-status: Milestone complete
-stopped_at: Completed 20-02-PLAN.md
-last_updated: "2026-03-24T18:32:15.782Z"
+status: Phase complete — ready for verification
+stopped_at: Completed 22-01-PLAN.md
+last_updated: "2026-03-24T20:05:28.227Z"
 progress:
   total_phases: 4
   completed_phases: 0
@@ -19,12 +19,12 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-24)
 
 **Core value:** From a single hotkey, the user can dictate and get reliable text into the clipboard fast enough that it feels close to typing speed.
-**Current focus:** Phase 20 — permission-model-and-ui-wiring
+**Current focus:** Phase 22 — permission-startup-flow-and-hotkey-gating
 
 ## Current Position
 
-Phase: 20
-Plan: Not started
+Phase: 22 (permission-startup-flow-and-hotkey-gating) — EXECUTING
+Plan: 1 of 1
 
 ## Performance Metrics
 
@@ -65,6 +65,7 @@ Plan: Not started
 | Phase 15-settings-ux-for-ai-assistant-name P02 | ~20min | 3 tasks | 5 files |
 | Phase 20 P01 | 1m | 2 tasks | 2 files |
 | Phase 20 P02 | 2min | 2 tasks | 2 files |
+| Phase 22 P01 | 4min | 2 tasks | 5 files |
 
 ## Accumulated Context
 
@@ -80,6 +81,8 @@ Recent decisions affecting current work:
 - [Phase 20]: .postEvent messages decoupled from Hold to Transcribe — only reference Auto Paste
 - [Phase 20]: InputMonitoringSetupGuide follows same structure as AccessibilitySetupGuide with Input Monitoring wording
 - [Phase 20]: PermissionTile uses kind-based popover routing: Group + conditional dispatches .holdToTranscribe vs .postEvent to different guides
+- [Phase 22]: Renamed .holdToTranscribe → .keyboardShortcuts since Input Monitoring gates all keyboard shortcuts
+- [Phase 22]: Accessibility auto-prompt uses 0.75s delay with fire-once guard flag set before async block
 
 ### Roadmap Evolution
 
@@ -95,6 +98,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-24T18:28:17.810Z
-Stopped at: Completed 20-02-PLAN.md
+Last session: 2026-03-24T20:05:28.225Z
+Stopped at: Completed 22-01-PLAN.md
 Resume file: None
