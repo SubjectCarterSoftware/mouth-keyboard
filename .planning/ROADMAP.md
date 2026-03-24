@@ -60,7 +60,7 @@ Phases 12-15 shipped (9/9 plans complete). Named trigger boundary, voice calibra
 | 17. Model Loading and Configuration Fix | v1.3 | 2/2 | Complete | 2026-03-23 |
 | 18. Generation Pipeline and Chat Template Fix | v1.3 | 2/2 | Complete | 2026-03-23 |
 | 19. Tier Selector Validation and End-to-End Test | v1.3 | 0/2 | Deferred | — |
-| 20. Permission Model and UI Wiring | v1.4 | 2/2 | Complete   | 2026-03-24 |
+| 20. Permission Model and UI Wiring | v1.4 | 2/2 | Complete    | 2026-03-24 |
 | 21. Test Updates and Verification | v1.4 | 0/? | Not started | - |
 
 ## Phase Details — v1.3 Qwen 3.5 LLM Upgrade
