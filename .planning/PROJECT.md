@@ -16,6 +16,7 @@ From a single hotkey, the user can dictate and get reliable text into the clipbo
 - Voice calibration available in settings for custom trigger names (3-sample capture via Whisper).
 - Local models: `ggml-tiny.en.bin` for transcription; `Qwen2.5-1.5B-Instruct-4bit` (MLX) for rewriting.
 - 4 built-in modes: Clean English, Email, Slack, Teams. Custom modes are user-created via the settings UI.
+- Phase 22 complete (2026-03-24): Internal permission enum renamed `.keyboardShortcuts`; user-facing Setup labels read "Hold to Transcribe"; Accessibility auto-prompt fires on startup only after Input Monitoring is already granted (IM-gated, no delay).
 
 ## Requirements
 
@@ -123,4 +124,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-03-24 after Phase 22 (Permission Startup Flow and Hotkey Gating) complete — Accessibility auto-prompts at startup, "Keyboard Shortcuts" replaces "Hold to Transcribe" in permission UI*
+*Last updated: 2026-03-24 after Phase 22 (Permission Startup Flow and Hotkey Gating) complete — IM-gated Accessibility auto-prompt at startup; user-facing labels read "Hold to Transcribe" (internal enum `.keyboardShortcuts`)*
