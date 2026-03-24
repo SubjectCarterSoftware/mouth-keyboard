@@ -113,7 +113,11 @@ Phases 12-15 shipped (9/9 plans complete). Named trigger boundary, voice calibra
   3. Recovery action from a denied Hold to Transcribe row opens Privacy > Input Monitoring pane (not Privacy > Accessibility)
   4. All labels, detail text, action buttons, and setup guide popover reference "Input Monitoring" — no remaining "Accessibility" references in hold-related UI
   5. `.postEvent` permission messages reference only Auto Paste — no mention of Hold to Transcribe
-**Plans:** TBD
+**Plans:** 2 plans
+
+Plans:
+- [ ] 20-01-PLAN.md — Permission model core: add .holdToTranscribe to PermissionKind, update derive(), wire ReadinessStore
+- [ ] 20-02-PLAN.md — UI wiring: create InputMonitoringSetupGuide, rewire HoldToTranscribeRow and PermissionTile
 
 ### Phase 21: Test Updates and Verification
 **Goal:** Validate that the corrected permission wiring passes automated tests and that hold mode functions end-to-end with the correct permission granted.
