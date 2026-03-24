@@ -120,7 +120,7 @@ actor WhisperService: WhisperTranscribing {
     }
 
     func prepare(model: String = WhisperModelChoice.baseEN.rawValue) async throws {
-        guard let choice = WhisperModelChoice(rawValue: model) else {
+        guard let choice = WhisperModelChoice.resolvedStoredValue(model) else {
             throw TranscriptionError.modelLoadFailed
         }
         _ = try await resolveModel(for: choice)
@@ -364,12 +364,19 @@ actor WhisperService: WhisperTranscribing {
         for model: WhisperModelChoice,
         baseURL: URL? = nil
     ) -> URL {
+        downloadedModelDirectory(forModelIdentifier: model.rawValue, baseURL: baseURL)
+    }
+
+    static func downloadedModelDirectory(
+        forModelIdentifier modelIdentifier: String,
+        baseURL: URL? = nil
+    ) -> URL {
         let resolvedBaseURL = baseURL ?? persistentDownloadBaseURL()
         return resolvedBaseURL
             .appendingPathComponent("models", isDirectory: true)
             .appendingPathComponent("argmaxinc", isDirectory: true)
             .appendingPathComponent("whisperkit-coreml", isDirectory: true)
-            .appendingPathComponent("openai_whisper-\(model.rawValue)", isDirectory: true)
+            .appendingPathComponent("openai_whisper-\(modelIdentifier)", isDirectory: true)
     }
 
     static func deleteDownloadedModelFiles(
@@ -377,19 +384,52 @@ actor WhisperService: WhisperTranscribing {
         baseURL: URL? = nil,
         fileManager: FileManager = .default
     ) throws {
-        let directory = downloadedModelDirectory(for: model, baseURL: baseURL)
+        try deleteDownloadedModelFiles(
+            forModelIdentifier: model.rawValue,
+            baseURL: baseURL,
+            fileManager: fileManager
+        )
+    }
+
+    static func deleteLegacyUnsupportedModelFiles(
+        baseURL: URL? = nil,
+        fileManager: FileManager = .default
+    ) throws {
+        try deleteDownloadedModelFiles(
+            forModelIdentifier: WhisperModelChoice.legacyLargeTurboRawValue,
+            baseURL: baseURL,
+            fileManager: fileManager
+        )
+    }
+
+    private static func deleteDownloadedModelFiles(
+        forModelIdentifier modelIdentifier: String,
+        baseURL: URL? = nil,
+        fileManager: FileManager = .default
+    ) throws {
+        let directory = downloadedModelDirectory(forModelIdentifier: modelIdentifier, baseURL: baseURL)
         if fileManager.fileExists(atPath: directory.path) {
             try fileManager.removeItem(at: directory)
         }
 
-        let downloadCacheDirectory = downloadedModelCacheDirectory(for: model, baseURL: baseURL)
+        let downloadCacheDirectory = downloadedModelCacheDirectory(
+            forModelIdentifier: modelIdentifier,
+            baseURL: baseURL
+        )
         if fileManager.fileExists(atPath: downloadCacheDirectory.path) {
             try fileManager.removeItem(at: downloadCacheDirectory)
         }
     }
 
-    private static func downloadedModelCacheDirectory(
+    static func downloadedModelCacheDirectory(
         for model: WhisperModelChoice,
+        baseURL: URL? = nil
+    ) -> URL {
+        downloadedModelCacheDirectory(forModelIdentifier: model.rawValue, baseURL: baseURL)
+    }
+
+    static func downloadedModelCacheDirectory(
+        forModelIdentifier modelIdentifier: String,
         baseURL: URL? = nil
     ) -> URL {
         let resolvedBaseURL = baseURL ?? persistentDownloadBaseURL()
@@ -400,7 +440,7 @@ actor WhisperService: WhisperTranscribing {
             .appendingPathComponent(".cache", isDirectory: true)
             .appendingPathComponent("huggingface", isDirectory: true)
             .appendingPathComponent("download", isDirectory: true)
-            .appendingPathComponent("openai_whisper-\(model.rawValue)", isDirectory: true)
+            .appendingPathComponent("openai_whisper-\(modelIdentifier)", isDirectory: true)
     }
 
     private static func persistentDownloadBaseURL(fileManager: FileManager = .default) -> URL {

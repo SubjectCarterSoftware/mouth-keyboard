@@ -1,38 +1,68 @@
 import Combine
 import SwiftUI
 
-// MARK: - Profile Kind
-
-enum AssistantProfileKind: Equatable {
-    case `default`
-    case preset
-    case custom
+private enum AssistantNameControlMetrics {
+    static let recordControlWidth: CGFloat = 164
 }
-
-// MARK: - Custom Record State
-
-private enum CustomRecordState: Equatable {
-    case idle
-    case recording
-    case confirming(String)
-}
-
-// MARK: - View Model
 
 @MainActor
 final class AIAssistantSettingsViewModel: ObservableObject {
-    @Published private(set) var activeName: String = ""
-    @Published private(set) var profileKind: AssistantProfileKind = .default
-    @Published private(set) var tileStatusLine: String = ""
-    @Published private(set) var aliasSummary: String? = nil
+    enum RenameState: Equatable {
+        case idle
+        case recording
+        case transcribing
+        case preview
+        case submitting
+    }
 
-    @Published var pendingSelection: TriggerNamePreset = .zeus
+    typealias TranscriptCapture = @MainActor () async throws -> String?
+    typealias PrepareWhisperModel = @MainActor () async -> Bool
+
+    @Published private(set) var activeName: String = TriggerNamePreset.zeus.displayName
+    @Published private(set) var pendingRecordedName: String?
+    @Published private(set) var isUsingDefaultName = true
+    @Published private(set) var renameState: RenameState = .idle
+    @Published private(set) var captureMessage: String?
+    @Published private(set) var isRecordControlPresented = false
+    @Published private(set) var isPreparingRecordControl = false
 
     private let preferences: ShellPreferences
+    private let transcriptCapture: TranscriptCapture
+    private let prepareWhisperModel: PrepareWhisperModel
     private var cancellables = Set<AnyCancellable>()
+    private var warmupTask: Task<Void, Never>?
+    private var recordingTask: Task<Void, Never>?
+    private var submissionTask: Task<Void, Never>?
+    private var recordingSessionID = UUID()
 
-    init(preferences: ShellPreferences) {
+    var displayedName: String {
+        pendingRecordedName ?? activeName
+    }
+
+    var isPreviewingRecordedName: Bool {
+        pendingRecordedName != nil
+    }
+
+    init(
+        preferences: ShellPreferences,
+        transcriptCapture: TranscriptCapture? = nil,
+        prepareWhisperModel: PrepareWhisperModel? = nil
+    ) {
         self.preferences = preferences
+        self.transcriptCapture = transcriptCapture ?? {
+            let capturer = LiveCalibrationSampleCapturer()
+            return try await capturer.captureTranscript()
+        }
+        self.prepareWhisperModel = prepareWhisperModel ?? { [preferences] in
+            do {
+                try await WhisperService.shared.prepare(model: preferences.whisperModel)
+                WhisperModelLoadState.shared.refreshStatus()
+                return true
+            } catch {
+                WhisperModelLoadState.shared.refreshStatus()
+                return false
+            }
+        }
         updateFromProfile(preferences.activeTriggerProfile)
 
         preferences.$activeTriggerProfile
@@ -42,267 +72,410 @@ final class AIAssistantSettingsViewModel: ObservableObject {
             .store(in: &cancellables)
     }
 
-    func applyPendingPreset() {
-        guard pendingSelection != .custom else { return }
-        preferences.setTriggerPreset(pendingSelection)
+    deinit {
+        warmupTask?.cancel()
+        recordingTask?.cancel()
+        submissionTask?.cancel()
     }
 
-    func applyRecordedName(_ transcription: String) {
-        let trimmed = transcription
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-            .trimmingCharacters(in: .punctuationCharacters)
-        guard !trimmed.isEmpty else { return }
-        preferences.setCustomTrigger(primary: trimmed, aliases: [])
-        pendingSelection = .custom
+    func showRecordControl() {
+        guard renameState == .idle else { return }
+        warmupTask?.cancel()
+        captureMessage = nil
+        isRecordControlPresented = true
+        isPreparingRecordControl = true
+
+        warmupTask = Task { [weak self] in
+            guard let self else { return }
+
+            let didPrepare = await self.prepareWhisperModel()
+            guard !Task.isCancelled else { return }
+
+            self.isPreparingRecordControl = false
+            self.warmupTask = nil
+
+            if !didPrepare {
+                self.captureMessage = "Speech transcription model couldn't be loaded."
+                self.isRecordControlPresented = false
+            }
+        }
+    }
+
+    func startRecording() {
+        guard renameState == .idle, !isPreparingRecordControl else { return }
+        recordingTask?.cancel()
+        recordingSessionID = UUID()
+        let sessionID = recordingSessionID
+
+        pendingRecordedName = nil
+        isPreparingRecordControl = false
+        isRecordControlPresented = true
+        renameState = .recording
+        captureMessage = nil
+
+        recordingTask = Task { [weak self] in
+            guard let self else { return }
+
+            let didPrepare = await self.prepareWhisperModel()
+            guard self.recordingSessionID == sessionID else { return }
+
+            guard didPrepare else {
+                self.captureMessage = "Speech transcription model couldn't be loaded."
+                self.renameState = .idle
+                self.recordingTask = nil
+                return
+            }
+
+            do {
+                let transcription = try await self.transcriptCapture() ?? ""
+                guard self.recordingSessionID == sessionID else { return }
+
+                self.previewRecordedName(transcription)
+                if self.pendingRecordedName == nil {
+                    self.renameState = .idle
+                }
+            } catch AudioCaptureError.captureBusy {
+                guard self.recordingSessionID == sessionID else { return }
+                self.captureMessage = "Assistant renaming must wait until the current recording ends."
+                self.renameState = .idle
+            } catch {
+                guard self.recordingSessionID == sessionID else { return }
+                self.renameState = .idle
+            }
+
+            guard self.recordingSessionID == sessionID else { return }
+            self.recordingTask = nil
+        }
+    }
+
+    func stopRecording() {
+        guard renameState == .recording else { return }
+        renameState = .transcribing
+        recordingTask?.cancel()
+    }
+
+    func previewRecordedName(_ transcription: String) {
+        let trimmed = Self.sanitizedRecordedName(transcription)
+        guard !trimmed.isEmpty else {
+            pendingRecordedName = nil
+            return
+        }
+        captureMessage = nil
+        isPreparingRecordControl = false
+        isRecordControlPresented = true
+        pendingRecordedName = trimmed
+        renameState = .preview
+    }
+
+    func discardPendingRecordedName() {
+        pendingRecordedName = nil
+        captureMessage = nil
+        isPreparingRecordControl = false
+        isRecordControlPresented = true
+        renameState = .idle
+    }
+
+    func submitPendingRecordedName() {
+        guard let pendingRecordedName else { return }
+
+        submissionTask?.cancel()
+        captureMessage = nil
+        renameState = .submitting
+
+        submissionTask = Task { [weak self] in
+            guard let self else { return }
+
+            let didPersist = await self.preferences.persistCustomTrigger(
+                primary: pendingRecordedName,
+                aliases: []
+            )
+
+            guard !Task.isCancelled else { return }
+
+            if didPersist {
+                self.pendingRecordedName = nil
+                self.isPreparingRecordControl = false
+                self.isRecordControlPresented = false
+                self.renameState = .idle
+            } else {
+                self.captureMessage = "Assistant name couldn't be saved."
+                self.renameState = .preview
+            }
+
+            self.submissionTask = nil
+        }
+    }
+
+    func resetToZeus() {
+        recordingSessionID = UUID()
+        warmupTask?.cancel()
+        warmupTask = nil
+        recordingTask?.cancel()
+        recordingTask = nil
+        submissionTask?.cancel()
+        pendingRecordedName = nil
+        captureMessage = nil
+        isPreparingRecordControl = false
+        isRecordControlPresented = false
+        renameState = .submitting
+
+        submissionTask = Task { [weak self] in
+            guard let self else { return }
+
+            let didPersist = await self.preferences.persistAssistantNameResetToDefault()
+
+            guard !Task.isCancelled else { return }
+
+            if didPersist {
+                self.renameState = .idle
+            } else {
+                self.captureMessage = "Assistant name couldn't be reset."
+                self.renameState = .idle
+            }
+
+            self.submissionTask = nil
+        }
     }
 
     private func updateFromProfile(_ profile: TriggerProfile) {
         activeName = profile.activePrimary
-        pendingSelection = profile.activeProfile
-
-        switch profile.activeProfile {
-        case .zeus:
-            profileKind = .default
-            tileStatusLine = buildStatusLine(kind: .default, profile: profile)
-        case .atlas, .gaia:
-            profileKind = .preset
-            tileStatusLine = buildStatusLine(kind: .preset, profile: profile)
-        case .custom:
-            profileKind = .custom
-            tileStatusLine = buildStatusLine(kind: .custom, profile: profile)
-        }
-
-        aliasSummary = buildAliasSummary(profile: profile)
+        isUsingDefaultName = profile.activeProfile == .zeus
     }
 
-    private func buildStatusLine(kind: AssistantProfileKind, profile: TriggerProfile) -> String {
-        switch kind {
-        case .default: return "Default"
-        case .preset: return "Preset"
-        case .custom: return "Custom"
-        }
-    }
-
-    private func buildAliasSummary(profile: TriggerProfile) -> String? {
-        let aliases = profile.activeAliases
-        let primary = profile.activePrimary.lowercased()
-        let extras = aliases.filter { $0 != primary }
-        guard !extras.isEmpty else { return nil }
-        return extras.joined(separator: ", ")
+    private static func sanitizedRecordedName(_ transcription: String) -> String {
+        transcription
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .trimmingCharacters(in: .punctuationCharacters)
+            .replacingOccurrences(of: "\\s+", with: " ", options: .regularExpression)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
     }
 }
 
-// MARK: - Tile View
+private struct HoldToRecordNameControl: View {
+    let renameState: AIAssistantSettingsViewModel.RenameState
+    let onPress: () -> Void
+    let onRelease: () -> Void
 
-struct AIAssistantTileView: View {
-    @ObservedObject var viewModel: AIAssistantSettingsViewModel
-    let onChangeTapped: () -> Void
+    @State private var isPressed = false
 
     var body: some View {
-        HStack {
-            VStack(alignment: .leading, spacing: 2) {
-                Text("AI Assistant")
-                    .font(.body)
-                Text(viewModel.activeName)
-                    .font(.body.weight(.medium))
-                    .accessibilityIdentifier("assistantTile.activeName")
-                Text(viewModel.tileStatusLine)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .accessibilityIdentifier("assistantTile.statusLine")
-                if let summary = viewModel.aliasSummary {
-                    Text("Variants: \(summary)")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                        .accessibilityIdentifier("assistantTile.aliasSummary")
+        controlContent
+            .frame(maxWidth: .infinity)
+            .padding(.horizontal, 12)
+            .padding(.vertical, 6)
+            .background(
+                Color(nsColor: .controlBackgroundColor),
+                in: Capsule()
+            )
+            .overlay {
+                if isPressed || renameState == .recording {
+                    Capsule()
+                        .stroke(Color.accentColor, lineWidth: 1)
                 }
             }
-            Spacer()
-            Button("Change") {
-                onChangeTapped()
-            }
-            .accessibilityIdentifier("assistantTile.changeButton")
-        }
-    }
-}
-
-// MARK: - Sheet View
-
-struct AIAssistantSettingsView: View {
-    @ObservedObject var viewModel: AIAssistantSettingsViewModel
-    @Environment(\.dismiss) private var dismiss
-
-    @State private var customRecordState: CustomRecordState = .idle
-    @State private var recordingTask: Task<Void, Never>?
-    @State private var captureBusyMessage: String?
-
-    @ViewBuilder
-    private func presetRow(for preset: TriggerNamePreset) -> some View {
-        Button {
-            viewModel.pendingSelection = preset
-            viewModel.applyPendingPreset()
-        } label: {
-            HStack {
-                Text(preset.displayName)
-                Spacer()
-                if viewModel.pendingSelection == preset {
-                    Image(systemName: "checkmark")
-                        .foregroundStyle(Color.accentColor)
+            .contentShape(Capsule())
+            .gesture(
+                DragGesture(minimumDistance: 0)
+                    .onChanged { _ in
+                        guard renameState == .idle, !isPressed else { return }
+                        isPressed = true
+                        onPress()
+                    }
+                    .onEnded { _ in
+                        let shouldStop = isPressed && renameState == .recording
+                        isPressed = false
+                        if shouldStop {
+                            onRelease()
+                        }
+                    }
+            )
+            .onChange(of: renameState) { _, newState in
+                if newState != .recording {
+                    isPressed = false
                 }
             }
-        }
-        .buttonStyle(.plain)
-        .accessibilityIdentifier("assistantSettings.preset.\(preset.rawValue)")
+            .help(helpText)
+            .accessibilityElement(children: .combine)
+            .accessibilityLabel(accessibilityLabel)
+            .accessibilityIdentifier("assistantRow.holdRecordControl")
     }
 
     @ViewBuilder
-    private var customNameSection: some View {
-        switch customRecordState {
+    private var controlContent: some View {
+        switch renameState {
         case .idle:
-            VStack(alignment: .leading, spacing: 4) {
-                HStack {
-                    VStack(alignment: .leading, spacing: 2) {
-                        Button("Record Custom Name") {
-                            startRecording()
-                        }
-                        .accessibilityIdentifier("assistantSettings.recordCustomNameButton")
-                        if viewModel.profileKind == .custom {
-                            Text(viewModel.activeName)
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                                .accessibilityIdentifier("assistantSettings.currentCustomName")
-                        }
-                    }
-                    Spacer()
-                    if viewModel.pendingSelection == .custom {
-                        Image(systemName: "checkmark")
-                            .foregroundStyle(Color.accentColor)
-                            .accessibilityIdentifier("assistantSettings.customCheckmark")
-                    }
-                }
-                if let busyMessage = captureBusyMessage {
-                    Text(busyMessage)
-                        .font(.caption)
-                        .foregroundStyle(.orange)
-                        .accessibilityIdentifier("assistantSettings.captureBusyMessage")
-                }
-            }
+            Label("Hold to record", systemImage: "mic.fill")
 
         case .recording:
-            HStack {
-                Text("Listening…")
-                    .foregroundStyle(.secondary)
-                    .accessibilityIdentifier("assistantSettings.listeningLabel")
+            Label("Release to stop", systemImage: "mic.fill")
+                .foregroundStyle(.secondary)
+
+        case .transcribing:
+            HStack(spacing: 6) {
                 ProgressView()
-                Spacer()
-                Button("Stop Recording") {
-                    stopRecording()
-                }
-                .accessibilityIdentifier("assistantSettings.stopRecordingButton")
+                    .controlSize(.small)
+                Text("Transcribing…")
+                    .foregroundStyle(.secondary)
             }
 
-        case .confirming(let name):
-            VStack(alignment: .leading, spacing: 8) {
-                VStack(alignment: .leading, spacing: 2) {
-                    Text("I heard:")
+        case .preview, .submitting:
+            EmptyView()
+        }
+    }
+
+    private var helpText: String {
+        switch renameState {
+        case .idle:
+            return "Press and hold to record a new assistant name."
+        case .recording:
+            return "Release to stop recording."
+        case .transcribing:
+            return "Transcribing the recorded assistant name."
+        case .preview, .submitting:
+            return ""
+        }
+    }
+
+    private var accessibilityLabel: String {
+        switch renameState {
+        case .idle:
+            return "Press and hold to record a new assistant name"
+        case .recording:
+            return "Release to stop recording"
+        case .transcribing:
+            return "Transcribing assistant name"
+        case .preview, .submitting:
+            return "Assistant name recording control"
+        }
+    }
+}
+
+struct AIAssistantInlineRowView: View {
+    @ObservedObject var viewModel: AIAssistantSettingsViewModel
+
+    @ViewBuilder
+    private var recordControlSlot: some View {
+        Group {
+            if viewModel.isPreparingRecordControl {
+                HStack(spacing: 6) {
+                    ProgressView()
+                        .controlSize(.small)
+                    Text("Loading…")
                         .foregroundStyle(.secondary)
-                    Text("\"\(name)\"")
-                        .font(.title3.weight(.medium))
-                        .accessibilityIdentifier("assistantSettings.transcriptionLabel")
                 }
-                HStack {
-                    Button("Try Record Again") {
-                        startRecording()
-                    }
-                    .accessibilityIdentifier("assistantSettings.tryRecordAgainButton")
-                    Spacer()
-                    Button("Cancel") {
-                        customRecordState = .idle
-                    }
-                    .accessibilityIdentifier("assistantSettings.cancelRecordingButton")
-                    Button("Save & Apply") {
-                        viewModel.applyRecordedName(name)
-                        customRecordState = .idle
-                    }
-                    .buttonStyle(.borderedProminent)
-                    .accessibilityIdentifier("assistantSettings.saveAndApplyButton")
+                .accessibilityIdentifier("assistantRow.recordWarmupLabel")
+            } else if viewModel.isRecordControlPresented || viewModel.renameState == .recording || viewModel.renameState == .transcribing {
+                HoldToRecordNameControl(
+                    renameState: viewModel.renameState,
+                    onPress: { viewModel.startRecording() },
+                    onRelease: { viewModel.stopRecording() }
+                )
+            } else {
+                Button("Record new name") {
+                    viewModel.showRecordControl()
                 }
+                .frame(maxWidth: .infinity)
+                .accessibilityIdentifier("assistantRow.showRecordButton")
             }
         }
+        .frame(width: AssistantNameControlMetrics.recordControlWidth, alignment: .trailing)
+    }
+
+    @ViewBuilder
+    private var actionContent: some View {
+        switch viewModel.renameState {
+        case .idle:
+            HStack(spacing: 8) {
+                if !viewModel.isUsingDefaultName {
+                    Button("Reset to Zeus") {
+                        viewModel.resetToZeus()
+                    }
+                    .accessibilityIdentifier("assistantRow.resetButton")
+                }
+
+                recordControlSlot
+            }
+
+        case .recording, .transcribing:
+            recordControlSlot
+
+        case .preview:
+            HStack(spacing: 8) {
+                Button {
+                    viewModel.discardPendingRecordedName()
+                } label: {
+                    Image(systemName: "arrow.clockwise")
+                        .foregroundStyle(Color.orange)
+                        .frame(width: 18, height: 18)
+                }
+                .buttonStyle(.borderless)
+                .help("Discard the previewed name and try again.")
+                .accessibilityLabel("Discard preview and try again")
+                .accessibilityIdentifier("assistantRow.previewRestartButton")
+
+                Button {
+                    viewModel.submitPendingRecordedName()
+                } label: {
+                    Image(systemName: "checkmark.circle.fill")
+                        .foregroundStyle(Color.green)
+                        .frame(width: 18, height: 18)
+                }
+                .buttonStyle(.borderless)
+                .help("Use this transcribed assistant name.")
+                .accessibilityLabel("Use this assistant name")
+                .accessibilityIdentifier("assistantRow.previewSubmitButton")
+            }
+
+        case .submitting:
+            HStack(spacing: 6) {
+                ProgressView()
+                    .controlSize(.small)
+                Text("Saving…")
+                    .foregroundStyle(.secondary)
+            }
+            .accessibilityIdentifier("assistantRow.submittingLabel")
+        }
+    }
+
+    private var nameChipBackground: Color {
+        viewModel.isPreviewingRecordedName
+            ? Color.accentColor.opacity(0.12)
+            : Color(nsColor: .controlBackgroundColor)
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 20) {
-            Text("AI Assistant")
-                .font(.title2.weight(.semibold))
-                .accessibilityIdentifier("assistantSettings.title")
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(spacing: 12) {
+                Text(viewModel.displayedName)
+                    .font(.body.weight(.medium))
+                    .foregroundStyle(viewModel.isPreviewingRecordedName ? Color.accentColor : Color.primary)
+                    .lineLimit(1)
+                    .truncationMode(.tail)
+                    .layoutPriority(1)
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 6)
+                    .background(nameChipBackground, in: Capsule())
+                    .overlay {
+                        if viewModel.isPreviewingRecordedName {
+                            Capsule()
+                                .stroke(Color.accentColor, lineWidth: 1)
+                        }
+                    }
+                    .accessibilityIdentifier("assistantRow.activeName")
 
-            VStack(alignment: .leading, spacing: 8) {
-                Text("Assistant Name")
-                    .font(.headline)
+                Spacer(minLength: 12)
 
-                presetRow(for: .zeus)
-                presetRow(for: .atlas)
-                presetRow(for: .gaia)
-
-                Divider()
-
-                customNameSection
+                actionContent
             }
 
-            if let summary = viewModel.aliasSummary {
-                VStack(alignment: .leading, spacing: 4) {
-                    Text("Recognized variants")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                    Text(summary)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                        .accessibilityIdentifier("assistantSettings.aliasSummary")
-                }
-            }
-
-            Spacer()
-
-            HStack {
-                Spacer()
-                Button("Done") {
-                    dismiss()
-                }
-                .keyboardShortcut(.defaultAction)
-                .accessibilityIdentifier("assistantSettings.done")
+            if let captureMessage = viewModel.captureMessage {
+                Text(captureMessage)
+                    .font(.caption)
+                    .foregroundStyle(.orange)
+                    .accessibilityIdentifier("assistantRow.captureMessage")
             }
         }
-        .padding(24)
-        .frame(minWidth: 400, idealWidth: 440, minHeight: 340, idealHeight: 380)
-    }
-
-    private func startRecording() {
-        recordingTask?.cancel()
-        customRecordState = .recording
-        captureBusyMessage = nil
-        recordingTask = Task {
-            let capturer = LiveCalibrationSampleCapturer()
-            do {
-                if let transcription = try await capturer.captureTranscript() {
-                    let normalized = transcription
-                        .trimmingCharacters(in: .whitespacesAndNewlines)
-                        .trimmingCharacters(in: .punctuationCharacters)
-                    customRecordState = normalized.isEmpty ? .idle : .confirming(normalized)
-                } else {
-                    customRecordState = .idle
-                }
-            } catch AudioCaptureError.captureBusy {
-                captureBusyMessage = "Custom name recording must wait until the active recording ends."
-                customRecordState = .idle
-            } catch {
-                customRecordState = .idle
-            }
-        }
-    }
-
-    private func stopRecording() {
-        recordingTask?.cancel()
-        recordingTask = nil
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .accessibilityIdentifier("assistantRow")
     }
 }

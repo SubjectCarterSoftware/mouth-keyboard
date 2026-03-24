@@ -85,7 +85,7 @@ final class ActivationStoreTests: XCTestCase {
         let defaults = UserDefaults(suiteName: suiteName) ?? .standard
         defaults.removePersistentDomain(forName: suiteName)
         let preferences = ShellPreferences(userDefaults: defaults)
-        preferences.whisperModel = .largeTurbo
+        preferences.whisperModel = .smallEN
 
         let loadState = StubWhisperModelLoadState()
         let store = makeStore(
@@ -103,17 +103,17 @@ final class ActivationStoreTests: XCTestCase {
         XCTAssertEqual(store.state, .processing)
 
         try await Task.sleep(nanoseconds: 50_000_000)
-        loadState.phase = .downloading(model: .largeTurbo, progress: 0.42)
+        loadState.phase = .downloading(model: .smallEN, progress: 0.42)
         try await Task.sleep(nanoseconds: 50_000_000)
 
         guard case .modelDownloading(let model, let progress) = store.state else {
             XCTFail("Expected model-download progress state, got \(store.state)")
             return
         }
-        XCTAssertEqual(model, .largeTurbo)
+        XCTAssertEqual(model, .smallEN)
         XCTAssertEqual(progress, 0.42, accuracy: 0.001)
 
-        loadState.phase = .ready(model: .largeTurbo)
+        loadState.phase = .ready(model: .smallEN)
         try await Task.sleep(nanoseconds: 350_000_000)
 
         XCTAssertEqual(store.lastTranscription, "Hello world")
@@ -654,9 +654,9 @@ final class ActivationStoreTests: XCTestCase {
 
     // MARK: - Assistant fallback behavior
 
-    func test_trigger_preset_mutation_does_not_change_passthrough_finalize_behavior() async throws {
+    func test_trigger_name_mutation_does_not_change_passthrough_finalize_behavior() async throws {
         let preferences = makePreferencesWithTriggerStore()
-        preferences.setTriggerPreset(.atlas)
+        preferences.setCustomTrigger(primary: "Atlas", aliases: [])
         try await Task.sleep(nanoseconds: 80_000_000)
 
         let mockClipboard = ActivationStoreMockClipboard()
@@ -707,7 +707,7 @@ final class ActivationStoreTests: XCTestCase {
 
     func test_finalize_uses_pre_alias_content_as_body_and_post_alias_text_as_instructions() async throws {
         let preferences = makePreferencesWithTriggerStore()
-        preferences.setTriggerPreset(.atlas)
+        preferences.setCustomTrigger(primary: "Atlas", aliases: [])
         try await Task.sleep(nanoseconds: 80_000_000)
 
         let transcript = "capture these notes atlas send this to the team convert to email"
@@ -733,7 +733,7 @@ final class ActivationStoreTests: XCTestCase {
 
     func test_finalize_no_trigger_alias_keeps_passthrough_behavior() async throws {
         let preferences = makePreferencesWithTriggerStore()
-        preferences.setTriggerPreset(.atlas)
+        preferences.setCustomTrigger(primary: "Atlas", aliases: [])
         try await Task.sleep(nanoseconds: 80_000_000)
 
         let transcript = "convert to email send this to the team"
@@ -763,7 +763,7 @@ final class ActivationStoreTests: XCTestCase {
 
     func test_finalize_short_postAlias_instruction_does_not_activate_conversion() async throws {
         let preferences = makePreferencesWithTriggerStore()
-        preferences.setTriggerPreset(.atlas)
+        preferences.setCustomTrigger(primary: "Atlas", aliases: [])
         try await Task.sleep(nanoseconds: 80_000_000)
 
         let transcript = "convert to email weekly update atlas ok"
@@ -793,7 +793,7 @@ final class ActivationStoreTests: XCTestCase {
 
     func test_finalize_repeated_alias_mentions_use_last_name_wins_boundary() async throws {
         let preferences = makePreferencesWithTriggerStore()
-        preferences.setTriggerPreset(.atlas)
+        preferences.setCustomTrigger(primary: "Atlas", aliases: [])
         try await Task.sleep(nanoseconds: 80_000_000)
 
         let transcript = "atlas convert to email first draft atlas final update convert to slack"
@@ -821,7 +821,7 @@ final class ActivationStoreTests: XCTestCase {
 
     func test_finalize_validTrigger_leadingShortcut_instruction_routesToCustomInstructionFallback() async throws {
         let preferences = makePreferencesWithTriggerStore()
-        preferences.setTriggerPreset(.atlas)
+        preferences.setCustomTrigger(primary: "Atlas", aliases: [])
         try await Task.sleep(nanoseconds: 80_000_000)
 
         let transcript = "weekly team update atlas convert to email send this update to the team"
@@ -854,7 +854,7 @@ final class ActivationStoreTests: XCTestCase {
 
     func test_finalize_validTrigger_ambiguousBuiltInInstruction_routesToCustomInstructionFallback() async throws {
         let preferences = makePreferencesWithTriggerStore()
-        preferences.setTriggerPreset(.atlas)
+        preferences.setCustomTrigger(primary: "Atlas", aliases: [])
         try await Task.sleep(nanoseconds: 80_000_000)
 
         let transcript = "status update for engineering atlas convert to email or convert to slack"
@@ -887,7 +887,7 @@ final class ActivationStoreTests: XCTestCase {
 
     func test_finalize_validTrigger_uses_instruction_fallback_even_for_old_shortcut_phrasing() async throws {
         let preferences = makePreferencesWithTriggerStore()
-        preferences.setTriggerPreset(.atlas)
+        preferences.setCustomTrigger(primary: "Atlas", aliases: [])
         try await Task.sleep(nanoseconds: 80_000_000)
 
         let transcript = "atlas please send this update to the team convert to slack"
@@ -913,7 +913,7 @@ final class ActivationStoreTests: XCTestCase {
 
     func test_finalize_validTrigger_customFallback_preserves350WordGate() async throws {
         let preferences = makePreferencesWithTriggerStore()
-        preferences.setTriggerPreset(.atlas)
+        preferences.setCustomTrigger(primary: "Atlas", aliases: [])
         try await Task.sleep(nanoseconds: 80_000_000)
 
         let longBody = Array(repeating: "word", count: 351).joined(separator: " ")
@@ -940,7 +940,7 @@ final class ActivationStoreTests: XCTestCase {
 
     func test_finalize_validTrigger_llmFailure_silentlyFallsBackToRawClipboard() async throws {
         let preferences = makePreferencesWithTriggerStore()
-        preferences.setTriggerPreset(.atlas)
+        preferences.setCustomTrigger(primary: "Atlas", aliases: [])
         try await Task.sleep(nanoseconds: 80_000_000)
 
         let transcript = "atlas please send this update to the team convert to slack"
@@ -976,7 +976,7 @@ final class ActivationStoreTests: XCTestCase {
 
     func test_finalize_validTrigger_customFallback_llmFailure_silentlyFallsBackToRawClipboard() async throws {
         let preferences = makePreferencesWithTriggerStore()
-        preferences.setTriggerPreset(.atlas)
+        preferences.setCustomTrigger(primary: "Atlas", aliases: [])
         try await Task.sleep(nanoseconds: 80_000_000)
 
         let transcript = "weekly update on launch metrics atlas make this casual and concise"
@@ -1013,20 +1013,20 @@ final class ActivationStoreTests: XCTestCase {
 
     // MARK: - Phase 15 — no-restart trigger updates
 
-    /// After setTriggerPreset changes to atlas, the new preset alias activates
-    /// trigger parsing in the very next session without restarting the app.
-    func test_finalize_setTriggerPreset_updatesAliasesUsedInNextSession() async throws {
+    /// After resetAssistantNameToDefault, Zeus activates trigger parsing in the
+    /// very next session without restarting the app.
+    func test_finalize_resetAssistantNameToDefault_updatesAliasesUsedInNextSession() async throws {
         let preferences = makePreferencesWithTriggerStore()
-        // Start on zeus
-        preferences.setTriggerPreset(.zeus)
+        // Start on a custom name.
+        preferences.setCustomTrigger(primary: "Atlas", aliases: [])
         try await Task.sleep(nanoseconds: 80_000_000)
 
-        // Switch to atlas — no restart
-        preferences.setTriggerPreset(.atlas)
+        // Switch back to Zeus — no restart.
+        preferences.resetAssistantNameToDefault()
         try await Task.sleep(nanoseconds: 80_000_000)
 
-        // "atlas" must now be the active trigger
-        let transcript = "please draft a message atlas convert to slack"
+        // "zeus" must now be the active trigger.
+        let transcript = "please draft a message zeus convert to slack"
         let mockTranscriber = ActivationStoreMockTranscriber(result: .success(transcript))
         let mockRewriter = MockLLMRewriter(result: .success("Assistant output"))
         let mockClipboard = ActivationStoreMockClipboard()
@@ -1043,7 +1043,7 @@ final class ActivationStoreTests: XCTestCase {
         try await Task.sleep(nanoseconds: 300_000_000)
 
         XCTAssertEqual(mockRewriter.lastCalledOverload, .instructionsOverload,
-                       "'atlas' must activate trigger parsing after setTriggerPreset without restart")
+                       "'zeus' must activate trigger parsing after resetAssistantNameToDefault without restart")
         XCTAssertEqual(mockRewriter.lastInstructions, "convert to slack")
     }
 
@@ -1051,7 +1051,7 @@ final class ActivationStoreTests: XCTestCase {
     /// in the next session without restarting the app.
     func test_finalize_setCustomTrigger_updatesAliasesUsedInNextSession() async throws {
         let preferences = makePreferencesWithTriggerStore()
-        preferences.setTriggerPreset(.zeus)
+        preferences.resetAssistantNameToDefault()
         try await Task.sleep(nanoseconds: 80_000_000)
 
         // Switch to custom name "Helios"

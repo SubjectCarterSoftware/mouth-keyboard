@@ -27,6 +27,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         hotkeyService.start()
         readinessStore.refresh()
 
+        do {
+            try WhisperService.deleteLegacyUnsupportedModelFiles()
+        } catch {
+            NSLog("Speech2Text: failed to delete legacy Whisper files: \(error.localizedDescription)")
+        }
+
         // Keep the selected Whisper model downloaded for first use, but do not
         // hold it in memory while the app is idle.
         if !WhisperService.isModelDownloaded(preferences.whisperModel) {
@@ -214,7 +220,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         }
 
         let window = NSWindow(
-            contentRect: NSRect(x: 0, y: 0, width: 560, height: 620),
+            contentRect: NSRect(
+                x: 0,
+                y: 0,
+                width: SetupWindowMetrics.width,
+                height: SetupWindowMetrics.collapsedHeight
+            ),
             styleMask: [.titled, .closable, .miniaturizable],
             backing: .buffered,
             defer: false
@@ -224,6 +235,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         window.identifier = NSUserInterfaceItemIdentifier("Speech2TextSetupWindow")
         window.isReleasedWhenClosed = false
         window.title = "Speech2Text Settings"
+        window.contentMinSize = NSSize(
+            width: SetupWindowMetrics.width,
+            height: SetupWindowMetrics.collapsedHeight
+        )
+        window.contentMaxSize = NSSize(
+            width: SetupWindowMetrics.width,
+            height: SetupWindowMetrics.expandedHeight
+        )
         window.contentViewController = NSHostingController(
             rootView: SetupWindowView(
                 preferences: preferences,

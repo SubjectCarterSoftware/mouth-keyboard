@@ -37,7 +37,7 @@ final class TriggerProfileStoreTests: XCTestCase {
 
         let reloadedAfterPreset = await TriggerProfileStore(storeURL: storeURL).load()
         XCTAssertEqual(reloadedAfterPreset.activeProfile, .gaia)
-        XCTAssertEqual(reloadedAfterPreset.customPrimary, "Helios")
+        XCTAssertEqual(reloadedAfterPreset.customPrimary, "HeLios")
         XCTAssertEqual(reloadedAfterPreset.customAliases, ["hello zeus"])
 
         let switchedBack = reloadedAfterPreset.settingActiveProfile(.custom)

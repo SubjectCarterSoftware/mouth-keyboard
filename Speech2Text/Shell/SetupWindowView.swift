@@ -3,6 +3,12 @@ import Combine
 import KeyboardShortcuts
 import SwiftUI
 
+enum SetupWindowMetrics {
+    static let width: CGFloat = 560
+    static let collapsedHeight: CGFloat = 620
+    static let expandedHeight: CGFloat = 820
+}
+
 struct SetupWindowView: View {
     @ObservedObject var preferences: ShellPreferences
     @ObservedObject var readinessStore: ReadinessStore
@@ -11,9 +17,8 @@ struct SetupWindowView: View {
     @ObservedObject private var activationStore = ActivationStore.shared
     @ObservedObject private var audioDeviceService = AudioDeviceService.shared
     @StateObject private var assistantSettingsViewModel: AIAssistantSettingsViewModel
+    @State private var isAdvancedSettingsExpanded = false
     let dismissWindow: () -> Void
-
-    @State private var showingAssistantSheet = false
 
     private var primaryActionTitle: String {
         if preferences.hasCompletedInitialSetup {
@@ -321,6 +326,21 @@ struct SetupWindowView: View {
         )
     }
 
+    private func updateSetupWindowSize(forAdvancedSettingsExpanded isExpanded: Bool) {
+        guard let window = NSApp.windows.first(where: {
+            $0.identifier == NSUserInterfaceItemIdentifier("Speech2TextSetupWindow")
+        }) else {
+            return
+        }
+
+        window.setContentSize(
+            NSSize(
+                width: SetupWindowMetrics.width,
+                height: isExpanded ? SetupWindowMetrics.expandedHeight : SetupWindowMetrics.collapsedHeight
+            )
+        )
+    }
+
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
@@ -353,78 +373,105 @@ struct SetupWindowView: View {
                     KeyboardShortcuts.Recorder("Start / Stop:", name: .activate)
                     KeyboardShortcuts.Recorder("Stop Only:", name: .stopSession)
                     KeyboardShortcuts.Recorder("Stop & Auto Paste:", name: .activateAndPaste)
+
+                    LabeledContent {
+                        AIAssistantInlineRowView(
+                            viewModel: assistantSettingsViewModel
+                        )
+                    } label: {
+                        Text("Assistant name:")
+                    }
                 }
                 .formStyle(.columns)
 
                 Divider()
 
-                AIAssistantTileView(
-                    viewModel: assistantSettingsViewModel,
-                    onChangeTapped: { showingAssistantSheet = true }
-                )
-                .sheet(isPresented: $showingAssistantSheet) {
-                    AIAssistantSettingsView(
-                        viewModel: assistantSettingsViewModel
-                    )
-                }
-                .accessibilityIdentifier("assistantTile")
+                VStack(alignment: .leading, spacing: 0) {
+                    Button {
+                        withAnimation(.easeInOut(duration: 0.15)) {
+                            isAdvancedSettingsExpanded.toggle()
+                        }
+                    } label: {
+                        HStack(alignment: .firstTextBaseline, spacing: 12) {
+                            Text("Advanced")
+                                .font(.body)
 
-                Divider()
+                            Spacer()
 
-                VStack(alignment: .leading, spacing: 8) {
-                    HStack(alignment: .firstTextBaseline, spacing: 12) {
-                        Text("Conversion Model")
-                            .font(.body)
+                            Text("Model downloads and selection")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                                .multilineTextAlignment(.trailing)
 
-                        Spacer()
-
-                        Text("Select a downloaded model. Use the icon to download it or remove its files.")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                            .multilineTextAlignment(.trailing)
+                            Image(systemName: isAdvancedSettingsExpanded ? "chevron.down" : "chevron.right")
+                                .font(.caption.weight(.semibold))
+                                .foregroundStyle(.secondary)
+                        }
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .contentShape(Rectangle())
                     }
+                    .buttonStyle(.plain)
+                    .accessibilityIdentifier("setupWindow.advancedDisclosure")
 
-                    ForEach(RewriteModelTier.allCases) { tier in
-                        conversionModelRow(for: tier)
-                    }
+                    if isAdvancedSettingsExpanded {
+                        VStack(alignment: .leading, spacing: 16) {
+                            VStack(alignment: .leading, spacing: 8) {
+                                HStack(alignment: .firstTextBaseline, spacing: 12) {
+                                    Text("Speech Transcription Model")
+                                        .font(.body)
 
-                    if case .failed(_, let message) = modelLoadState.phase {
-                        Text(message)
-                            .font(.caption)
-                            .foregroundStyle(.red)
-                    }
+                                    Spacer()
 
-                    if !canManageConversionModels {
-                        Text("Wait for the current recording or transcription to finish before downloading, deleting, or switching conversion models.")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                    }
+                                    Text("Select a downloaded model. Use the icon to download it or remove its files.")
+                                        .font(.caption)
+                                        .foregroundStyle(.secondary)
+                                        .multilineTextAlignment(.trailing)
+                                }
 
-                }
+                                ForEach(WhisperModelChoice.allCases) { model in
+                                    whisperModelRow(for: model)
+                                }
 
-                Divider()
+                                if case .failed(_, let message) = whisperModelLoadState.phase {
+                                    Text(message)
+                                        .font(.caption)
+                                        .foregroundStyle(.red)
+                                }
+                            }
 
-                VStack(alignment: .leading, spacing: 8) {
-                    HStack(alignment: .firstTextBaseline, spacing: 12) {
-                        Text("Speech Transcription Model")
-                            .font(.body)
+                            Divider()
 
-                        Spacer()
+                            VStack(alignment: .leading, spacing: 8) {
+                                HStack(alignment: .firstTextBaseline, spacing: 12) {
+                                    Text("Conversion Model")
+                                        .font(.body)
 
-                        Text("Select a downloaded model. Use the icon to download it or remove its files.")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                            .multilineTextAlignment(.trailing)
-                    }
+                                    Spacer()
 
-                    ForEach(WhisperModelChoice.allCases) { model in
-                        whisperModelRow(for: model)
-                    }
+                                    Text("Select a downloaded model. Use the icon to download it or remove its files.")
+                                        .font(.caption)
+                                        .foregroundStyle(.secondary)
+                                        .multilineTextAlignment(.trailing)
+                                }
 
-                    if case .failed(_, let message) = whisperModelLoadState.phase {
-                        Text(message)
-                            .font(.caption)
-                            .foregroundStyle(.red)
+                                ForEach(RewriteModelTier.allCases) { tier in
+                                    conversionModelRow(for: tier)
+                                }
+
+                                if case .failed(_, let message) = modelLoadState.phase {
+                                    Text(message)
+                                        .font(.caption)
+                                        .foregroundStyle(.red)
+                                }
+
+                                if !canManageConversionModels {
+                                    Text("Wait for the current recording or transcription to finish before downloading, deleting, or switching conversion models.")
+                                        .font(.caption)
+                                        .foregroundStyle(.secondary)
+                                }
+                            }
+                        }
+                        .padding(.top, 10)
                     }
                 }
 
@@ -456,13 +503,19 @@ struct SetupWindowView: View {
             }
             .padding(24)
         }
-        .frame(minWidth: 560, maxWidth: 560, minHeight: 560, maxHeight: 660)
+        .frame(
+            minWidth: SetupWindowMetrics.width,
+            maxWidth: SetupWindowMetrics.width,
+            minHeight: SetupWindowMetrics.collapsedHeight,
+            maxHeight: SetupWindowMetrics.expandedHeight
+        )
         .background(.regularMaterial)
         .onAppear {
             audioDeviceService.refresh()
             readinessStore.refresh()
             modelLoadState.refreshStatus()
             whisperModelLoadState.refreshStatus()
+            updateSetupWindowSize(forAdvancedSettingsExpanded: isAdvancedSettingsExpanded)
             NSApp.activate(ignoringOtherApps: true)
         }
         .onReceive(Timer.publish(every: 3, on: .main, in: .common).autoconnect()) { _ in
@@ -475,6 +528,9 @@ struct SetupWindowView: View {
         }
         .onChange(of: preferences.whisperModel) { _ in
             whisperModelLoadState.refreshStatus()
+        }
+        .onChange(of: isAdvancedSettingsExpanded) { _, isExpanded in
+            updateSetupWindowSize(forAdvancedSettingsExpanded: isExpanded)
         }
     }
 }

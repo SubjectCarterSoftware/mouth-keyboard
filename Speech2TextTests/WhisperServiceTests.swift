@@ -183,6 +183,31 @@ final class WhisperServiceTests: XCTestCase {
         XCTAssertTrue(fileManager.fileExists(atPath: smallDirectory.path))
     }
 
+    func testDeleteLegacyUnsupportedModelFilesRemovesLargeTurboDirectoryAndCacheOnly() throws {
+        let fileManager = FileManager.default
+        let baseURL = fileManager.temporaryDirectory
+            .appendingPathComponent("WhisperServiceTests.LegacyCleanup.\(UUID().uuidString)", isDirectory: true)
+        let supportedDirectory = WhisperService.downloadedModelDirectory(for: .baseEN, baseURL: baseURL)
+        let legacyDirectory = WhisperService.downloadedModelDirectory(
+            forModelIdentifier: WhisperModelChoice.legacyLargeTurboRawValue,
+            baseURL: baseURL
+        )
+        let legacyCacheDirectory = WhisperService.downloadedModelCacheDirectory(
+            forModelIdentifier: WhisperModelChoice.legacyLargeTurboRawValue,
+            baseURL: baseURL
+        )
+
+        try fileManager.createDirectory(at: supportedDirectory, withIntermediateDirectories: true)
+        try fileManager.createDirectory(at: legacyDirectory, withIntermediateDirectories: true)
+        try fileManager.createDirectory(at: legacyCacheDirectory, withIntermediateDirectories: true)
+
+        try WhisperService.deleteLegacyUnsupportedModelFiles(baseURL: baseURL, fileManager: fileManager)
+
+        XCTAssertTrue(fileManager.fileExists(atPath: supportedDirectory.path))
+        XCTAssertFalse(fileManager.fileExists(atPath: legacyDirectory.path))
+        XCTAssertFalse(fileManager.fileExists(atPath: legacyCacheDirectory.path))
+    }
+
     private func makeService(
         loader: @escaping WhisperService.Loader = { _, _ in .init() },
         fileDownloader: WhisperService.FileDownloader? = nil,

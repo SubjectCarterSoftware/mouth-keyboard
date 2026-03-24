@@ -378,7 +378,7 @@ struct RecordingPillView: View {
 #Preview("Model Downloading") {
     RecordingPillView(
         levelMonitor: AudioLevelMonitor(),
-        recordingState: .modelDownloading(model: .largeTurbo, progress: 0.42)
+        recordingState: .modelDownloading(model: .mediumEN, progress: 0.42)
     )
 }
 

@@ -63,14 +63,10 @@ CGEventTap (flagsChanged events)
 
 The tap callback checks which modifier keycode changed and whether it appeared or disappeared from the flags. Roughly 50 lines of new Swift, no new permissions, no changes to the existing toggle flow.
 
-A preference toggle would let users choose their mode:
-- **Toggle mode** (current): press once to start, press again (or use stop shortcut) to stop
-- **Push-to-talk mode** (new): hold to record, release to transcribe
+the select hotkey should be the right option key
+the "Hold to transcribe" functionality should also get added to the settings UI beneath the other hotkeys but berfore the assistant name portion 
 
 ### Relevant files
-
-- `Speech2Text/Activation/HotkeyService.swift` — where the new tap would live or be called from
-- `Speech2Text/Permissions/KeyboardPermissionService.swift` — already requests `CGRequestListenEventAccess`, which covers CGEventTap
 
 ---
 

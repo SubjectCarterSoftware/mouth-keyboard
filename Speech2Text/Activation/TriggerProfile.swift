@@ -61,8 +61,9 @@ struct TriggerProfile: Equatable, Codable {
     var activePrimary: String {
         switch activeProfile {
         case .custom:
-            let normalizedPrimary = Self.normalizeAlias(customPrimary)
-            return normalizedPrimary.isEmpty ? Self.defaultCustomPrimary : customPrimary
+            let displayPrimary = Self.sanitizedCustomPrimary(customPrimary)
+            let normalizedPrimary = Self.normalizeAlias(displayPrimary)
+            return normalizedPrimary.isEmpty ? Self.defaultCustomPrimary : displayPrimary
         case .zeus, .atlas, .gaia:
             return activeProfile.displayName
         }
@@ -86,8 +87,8 @@ struct TriggerProfile: Equatable, Codable {
     }
 
     func normalized() -> TriggerProfile {
-        let normalizedCustomAliases = Self.normalizeAliases([customPrimary] + customAliases)
-        let normalizedCustomPrimary = normalizedCustomAliases.first.map(Self.titleCaseWords) ?? Self.defaultCustomPrimary
+        let normalizedCustomPrimary = Self.normalizedCustomPrimaryDisplay(customPrimary)
+        let normalizedCustomAliases = Self.normalizeAliases([normalizedCustomPrimary] + customAliases)
         let normalizedAdditionalCustomAliases = Array(normalizedCustomAliases.dropFirst())
 
         return TriggerProfile(
@@ -108,8 +109,9 @@ struct TriggerProfile: Equatable, Codable {
 
     func updatingCustom(primary: String, aliases: [String]) -> TriggerProfile {
         var copy = normalized()
-        let normalizedAliases = Self.normalizeAliases([primary] + aliases)
-        copy.customPrimary = normalizedAliases.first.map(Self.titleCaseWords) ?? Self.defaultCustomPrimary
+        let normalizedPrimary = Self.normalizedCustomPrimaryDisplay(primary)
+        let normalizedAliases = Self.normalizeAliases([normalizedPrimary] + aliases)
+        copy.customPrimary = normalizedPrimary
         copy.customAliases = Array(normalizedAliases.dropFirst())
         copy.activeProfile = .custom
         return copy
@@ -130,7 +132,7 @@ struct TriggerProfile: Equatable, Codable {
             copy.gaiaAliases = Self.normalizedPresetAliases(canonical: TriggerNamePreset.gaia.canonicalAlias, stored: aliases)
         case .custom:
             let custom = Self.normalizeAliases([copy.customPrimary] + aliases)
-            copy.customPrimary = custom.first.map(Self.titleCaseWords) ?? Self.defaultCustomPrimary
+            copy.customPrimary = Self.normalizedCustomPrimaryDisplay(copy.customPrimary)
             copy.customAliases = Array(custom.dropFirst())
         }
         return copy.normalized()
@@ -148,14 +150,16 @@ struct TriggerProfile: Equatable, Codable {
         normalizeAliases([canonical] + stored)
     }
 
-    private static func titleCaseWords(_ value: String) -> String {
+    private static func sanitizedCustomPrimary(_ value: String) -> String {
         value
-            .split(separator: " ")
-            .map { segment in
-                guard let first = segment.first else { return "" }
-                return String(first).uppercased() + String(segment.dropFirst())
-            }
-            .joined(separator: " ")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .replacingOccurrences(of: "\\s+", with: " ", options: .regularExpression)
+    }
+
+    private static func normalizedCustomPrimaryDisplay(_ value: String) -> String {
+        let sanitized = sanitizedCustomPrimary(value)
+        let normalizedAlias = normalizeAlias(sanitized)
+        return normalizedAlias.isEmpty ? defaultCustomPrimary : sanitized
     }
 
     private enum CodingKeys: String, CodingKey {

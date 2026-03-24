@@ -109,11 +109,12 @@ final class ShellPreferences: ObservableObject {
             showsMenuHints = userDefaults.bool(forKey: Keys.showsMenuHints)
         }
 
-        if let storedModel = userDefaults.string(forKey: Keys.whisperModel),
-           let model = WhisperModelChoice(rawValue: storedModel) {
-            whisperModel = model
-        } else {
-            whisperModel = .baseEN
+        let storedWhisperModel = userDefaults.string(forKey: Keys.whisperModel)
+        let resolvedWhisperModel = WhisperModelChoice.resolvedStoredValue(storedWhisperModel) ?? .baseEN
+        whisperModel = resolvedWhisperModel
+
+        if storedWhisperModel == WhisperModelChoice.legacyLargeTurboRawValue {
+            userDefaults.set(resolvedWhisperModel.rawValue, forKey: Keys.whisperModel)
         }
 
         launchAtLogin = SMAppService.mainApp.status == .enabled
@@ -126,7 +127,19 @@ final class ShellPreferences: ObservableObject {
         }
 
 
-        activeTriggerProfile = (initialTriggerProfile ?? TriggerProfileStore.loadSynchronously()).normalized()
+        let loadedTriggerProfile = (initialTriggerProfile ?? TriggerProfileStore.loadSynchronously()).normalized()
+        let migratedTriggerProfile = Self.migratedTriggerProfile(loadedTriggerProfile)
+        activeTriggerProfile = migratedTriggerProfile
+
+        if migratedTriggerProfile != loadedTriggerProfile {
+            Task { [triggerProfileStore] in
+                do {
+                    try await triggerProfileStore.save(migratedTriggerProfile)
+                } catch {
+                    NSLog("Speech2Text: failed to migrate trigger profile: \(error.localizedDescription)")
+                }
+            }
+        }
     }
 
     func completeInitialSetup() {
@@ -158,32 +171,27 @@ final class ShellPreferences: ObservableObject {
         launchAtLogin = SMAppService.mainApp.status == .enabled
     }
 
-    func setTriggerPreset(_ preset: TriggerNamePreset) {
-        let nextProfile = activeTriggerProfile.settingActiveProfile(preset)
-        Task { [weak self, triggerProfileStore] in
-            do {
-                try await triggerProfileStore.save(nextProfile)
-                await MainActor.run {
-                    self?.activeTriggerProfile = nextProfile
-                }
-            } catch {
-                NSLog("Speech2Text: failed to persist trigger preset: \(error.localizedDescription)")
-            }
+    func setCustomTrigger(primary: String, aliases: [String]) {
+        Task { [weak self] in
+            _ = await self?.persistCustomTrigger(primary: primary, aliases: aliases)
         }
     }
 
-    func setCustomTrigger(primary: String, aliases: [String]) {
-        let nextProfile = activeTriggerProfile.updatingCustom(primary: primary, aliases: aliases)
-        Task { [weak self, triggerProfileStore] in
-            do {
-                try await triggerProfileStore.save(nextProfile)
-                await MainActor.run {
-                    self?.activeTriggerProfile = nextProfile
-                }
-            } catch {
-                NSLog("Speech2Text: failed to persist custom trigger profile: \(error.localizedDescription)")
-            }
+    func resetAssistantNameToDefault() {
+        Task { [weak self] in
+            _ = await self?.persistAssistantNameResetToDefault()
         }
+    }
+
+    @discardableResult
+    func persistCustomTrigger(primary: String, aliases: [String]) async -> Bool {
+        let nextProfile = activeTriggerProfile.updatingCustom(primary: primary, aliases: aliases)
+        return await persistTriggerProfile(nextProfile, logContext: "custom trigger profile")
+    }
+
+    @discardableResult
+    func persistAssistantNameResetToDefault() async -> Bool {
+        await persistTriggerProfile(.defaultProfile, logContext: "assistant name reset")
     }
 
 
@@ -215,6 +223,28 @@ final class ShellPreferences: ObservableObject {
             } catch {
                 NSLog("Speech2Text: failed to reset trigger profile store: \(error.localizedDescription)")
             }
+        }
+    }
+
+    @discardableResult
+    private func persistTriggerProfile(_ nextProfile: TriggerProfile, logContext: String) async -> Bool {
+        let normalizedProfile = Self.migratedTriggerProfile(nextProfile.normalized())
+        do {
+            try await triggerProfileStore.save(normalizedProfile)
+            activeTriggerProfile = normalizedProfile
+            return true
+        } catch {
+            NSLog("Speech2Text: failed to persist \(logContext): \(error.localizedDescription)")
+            return false
+        }
+    }
+
+    private static func migratedTriggerProfile(_ profile: TriggerProfile) -> TriggerProfile {
+        switch profile.activeProfile {
+        case .atlas, .gaia:
+            return profile.settingActiveProfile(.zeus)
+        case .zeus, .custom:
+            return profile
         }
     }
 
@@ -265,11 +295,19 @@ final class ShellPreferences: ObservableObject {
                 seedProfile = seedProfile.settingActiveProfile(preset)
             }
 
+            if let customNameIndex = arguments.firstIndex(of: "-seed-trigger-custom-name"),
+               arguments.indices.contains(arguments.index(after: customNameIndex)) {
+                seedProfile = seedProfile.updatingCustom(
+                    primary: arguments[arguments.index(after: customNameIndex)],
+                    aliases: []
+                )
+            }
+
             // Optionally seed calibrated aliases via '-seed-trigger-profile-calibrated'
             if arguments.contains("-seed-trigger-profile-calibrated") {
                 let activePreset = seedProfile.activeProfile
                 let canonicalName = activePreset == .custom
-                    ? seedProfile.customPrimary.lowercased()
+                    ? TriggerProfile.normalizeAlias(seedProfile.customPrimary)
                     : activePreset.canonicalAlias
                 let calibratedAliases = [canonicalName, "hey \(canonicalName)", "assistant \(canonicalName)"]
                 seedProfile = seedProfile.replacingAliasesForActiveProfile(calibratedAliases)
