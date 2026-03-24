@@ -123,4 +123,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-03-24 after v1.4 milestone started*
+*Last updated: 2026-03-24 after Phase 20 (Permission Model and UI Wiring) complete — Hold to Transcribe UI now wired to Input Monitoring permission*
