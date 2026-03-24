@@ -132,10 +132,19 @@ Plans:
 
 ### Phase 22: Permission Startup Flow and Hotkey Gating
 
-**Goal:** Auto-prompt Accessibility permission at startup (like Input Monitoring already does), and gate global hotkey status on Input Monitoring so the UI accurately reflects that Control+V requires this permission.
-**Requirements**: TBD
+**Goal:** Auto-prompt Accessibility permission at startup (like Input Monitoring already does), and rename `.holdToTranscribe` → `.keyboardShortcuts` so the UI accurately reflects that Input Monitoring gates all keyboard shortcuts (Control+V, Control+B, Hold-to-Transcribe).
+**Requirements**: P22-RENAME (rename .holdToTranscribe → .keyboardShortcuts throughout), P22-STARTUP (auto-prompt Accessibility at startup with delay)
 **Depends on:** Phase 20
-**Plans:** TBD
+**Success Criteria:**
+  1. PermissionKind uses `.keyboardShortcuts` — no `.holdToTranscribe` references remain in Readiness/ or Shell/
+  2. Setup window shows "Keyboard Shortcuts" title, "Ready — shortcuts enabled." / "Needs keyboard access." / "Keyboard access is blocked." messages
+  3. Accessibility permission auto-prompts once at startup with ~0.75s delay after Input Monitoring prompt
+  4. Auto-prompt fires only on first install (guarded by `hasRequestedPostEventPermission` flag)
+  5. Build succeeds with zero holdToTranscribe-related compiler errors
+**Plans:** 1 plan
+
+Plans:
+- [ ] 22-01-PLAN.md — Rename .holdToTranscribe → .keyboardShortcuts + Accessibility auto-prompt at startup
 
 ---
 *Last updated: 2026-03-24 — v1.4 Hold-to-Transcribe Permission Fix roadmap created*
