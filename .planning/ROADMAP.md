@@ -141,11 +141,11 @@ Plans:
   3. Accessibility permission auto-prompts once at startup with ~0.75s delay after Input Monitoring prompt
   4. Auto-prompt fires only on first install (guarded by `hasRequestedPostEventPermission` flag)
   5. Build succeeds with zero holdToTranscribe-related compiler errors
-**Plans:** 1/2 plans
+**Plans:** 2/2 plans complete
 
 Plans:
 - [x] 22-01-PLAN.md — Rename .holdToTranscribe → .keyboardShortcuts + Accessibility auto-prompt at startup
-- [ ] 22-02-PLAN.md — Gap closure: revert user-facing labels to "Hold to Transcribe" + IM-gated auto-prompt
+- [x] 22-02-PLAN.md — Gap closure: revert user-facing labels to "Hold to Transcribe" + IM-gated auto-prompt
 
 ---
 *Last updated: 2026-03-24 — v1.4 Hold-to-Transcribe Permission Fix roadmap created*
