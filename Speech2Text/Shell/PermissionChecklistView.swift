@@ -67,7 +67,7 @@ private struct PermissionTile: View {
 
             if let actionTitle = item.actionTitle {
                 Button(actionTitle) {
-                    if item.kind == .postEvent {
+                    if item.kind == .postEvent || item.kind == .holdToTranscribe {
                         showsSetupGuide = true
                     } else if item.status == .denied {
                         openRecovery(item.kind)
@@ -80,12 +80,25 @@ private struct PermissionTile: View {
                 .foregroundStyle(Color.accentColor)
                 .accessibilityIdentifier("permission.\(item.kind.rawValue).action")
                 .popover(isPresented: $showsSetupGuide, arrowEdge: .bottom) {
-                    AccessibilitySetupGuide {
-                        showsSetupGuide = false
-                        if item.status == .denied {
-                            openRecovery(item.kind)
+                    Group {
+                        if item.kind == .holdToTranscribe {
+                            InputMonitoringSetupGuide {
+                                showsSetupGuide = false
+                                if item.status == .denied {
+                                    openRecovery(item.kind)
+                                } else {
+                                    requestPermission(item.kind)
+                                }
+                            }
                         } else {
-                            requestPermission(item.kind)
+                            AccessibilitySetupGuide {
+                                showsSetupGuide = false
+                                if item.status == .denied {
+                                    openRecovery(item.kind)
+                                } else {
+                                    requestPermission(item.kind)
+                                }
+                            }
                         }
                     }
                 }
@@ -117,6 +130,34 @@ struct AccessibilitySetupGuide: View {
 
             VStack(alignment: .leading, spacing: 12) {
                 SetupStep(number: 1, text: "Click the + button at the bottom of the app list")
+                SetupStep(number: 2, text: "Find Speech2Text in Applications and click Open")
+                SetupStep(number: 3, text: "Relaunch Speech2Text from your menu bar or Applications")
+            }
+
+            Button("Open Settings & Quit App") {
+                onOpenSettings()
+                NSApp.terminate(nil)
+            }
+            .buttonStyle(.borderedProminent)
+            .frame(maxWidth: .infinity)
+        }
+        .padding(20)
+        .frame(width: 270)
+    }
+}
+
+// MARK: - Input Monitoring setup guide
+
+struct InputMonitoringSetupGuide: View {
+    let onOpenSettings: () -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            Text("How to enable Hold to Transcribe")
+                .font(.headline)
+
+            VStack(alignment: .leading, spacing: 12) {
+                SetupStep(number: 1, text: "Click the + button in the Input Monitoring pane")
                 SetupStep(number: 2, text: "Find Speech2Text in Applications and click Open")
                 SetupStep(number: 3, text: "Relaunch Speech2Text from your menu bar or Applications")
             }
