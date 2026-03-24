@@ -145,7 +145,7 @@ private struct HoldToTranscribeRow: View {
     let requestAccess: () -> Void
     let openRecovery: () -> Void
 
-    @State private var showsAccessibilityGuide = false
+    @State private var showsSetupGuide = false
 
     private var statusColor: Color {
         switch status {
@@ -161,11 +161,11 @@ private struct HoldToTranscribeRow: View {
     private var detailText: String {
         switch status {
         case .authorized:
-            return "Hold to record, release to transcribe."
+            return "Ready — hold to record."
         case .notDetermined:
-            return "Needs Accessibility access."
+            return "Needs keyboard access."
         case .denied:
-            return "Accessibility is blocked."
+            return "Keyboard access is blocked."
         }
     }
 
@@ -174,9 +174,9 @@ private struct HoldToTranscribeRow: View {
         case .authorized:
             return nil
         case .notDetermined:
-            return "Enable Accessibility"
+            return "Enable Hold to Transcribe"
         case .denied:
-            return "Open Accessibility Setup"
+            return "Fix Hold to Transcribe"
         }
     }
 
@@ -194,16 +194,16 @@ private struct HoldToTranscribeRow: View {
 
             if let actionTitle {
                 Button(actionTitle) {
-                    showsAccessibilityGuide = true
+                    showsSetupGuide = true
                 }
                 .accessibilityIdentifier("setupWindow.holdToTranscribe.action")
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .accessibilityIdentifier("setupWindow.holdToTranscribe.row")
-        .popover(isPresented: $showsAccessibilityGuide, arrowEdge: .bottom) {
-            AccessibilitySetupGuide {
-                showsAccessibilityGuide = false
+        .popover(isPresented: $showsSetupGuide, arrowEdge: .bottom) {
+            InputMonitoringSetupGuide {
+                showsSetupGuide = false
                 if status == .denied {
                     openRecovery()
                 } else {
@@ -247,6 +247,7 @@ struct SetupWindowView: View {
     @StateObject private var assistantSettingsViewModel: AIAssistantSettingsViewModel
     @State private var isAdvancedSettingsExpanded = false
     private let postEventPermissionService = PostEventPermissionService.live
+    private let keyboardPermissionService = KeyboardPermissionService.live
     let dismissWindow: () -> Void
 
     private var primaryActionTitle: String {
@@ -290,12 +291,12 @@ struct SetupWindowView: View {
     }
 
     private var holdToTranscribeStatus: PermissionGrantState {
-        postEventPermissionService.currentStatus(hasPrompted: preferences.hasRequestedPostEventPermission)
+        keyboardPermissionService.currentStatus(hasPrompted: preferences.hasRequestedKeyboardPermission)
     }
 
     private func requestHoldToTranscribeAccess() {
-        preferences.recordPostEventPermissionPrompt()
-        _ = postEventPermissionService.requestAccess()
+        preferences.recordKeyboardPermissionPrompt()
+        _ = keyboardPermissionService.requestAccess()
     }
 
     private var alwaysAutoPasteBinding: Binding<Bool> {
@@ -628,7 +629,7 @@ struct SetupWindowView: View {
                             preferences: preferences,
                             status: holdToTranscribeStatus,
                             requestAccess: requestHoldToTranscribeAccess,
-                            openRecovery: { readinessStore.openRecovery(for: .postEvent) }
+                            openRecovery: { readinessStore.openRecovery(for: .holdToTranscribe) }
                         )
                     } label: {
                         Text("Hold to Transcribe:")
