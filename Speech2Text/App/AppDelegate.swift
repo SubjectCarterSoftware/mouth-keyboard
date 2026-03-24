@@ -28,16 +28,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         hotkeyService.start()
         readinessStore.refresh()
 
-        // Auto-prompt Accessibility permission after a short delay so the
-        // Input Monitoring dialog (triggered by hotkeyService.start() above)
-        // does not stack with the Accessibility dialog.
-        if !preferences.hasRequestedPostEventPermission {
+        // Auto-prompt Accessibility once Input Monitoring is already granted.
+        // First launch: IM is not yet granted (hotkeyService.start() just triggered
+        // the IM dialog), so we skip. After user grants IM, macOS quits and relaunches
+        // the app — on that relaunch IM is authorized and we request Accessibility
+        // immediately. No delay needed.
+        if !preferences.hasRequestedPostEventPermission,
+           CGPreflightListenEventAccess() {
             preferences.recordPostEventPermissionPrompt()
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.75) { [weak self] in
-                guard let self else { return }
-                self.postEventService.requestAccess()
-                self.readinessStore.refresh()
-            }
+            postEventService.requestAccess()
+            readinessStore.refresh()
         }
 
         do {
