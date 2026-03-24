@@ -11,7 +11,7 @@ Requirements for this milestone. Each maps to roadmap phases.
 
 - [ ] **HTT-01**: Hold to Transcribe row in Settings checks Input Monitoring permission status (`CGPreflightListenEventAccess`), not Accessibility
 - [ ] **HTT-02**: Clicking "Enable" on the Hold to Transcribe row requests Input Monitoring permission (`CGRequestListenEventAccess`)
-- [ ] **HTT-03**: Recovery action from a denied Hold to Transcribe row opens Privacy > Input Monitoring, not Privacy > Accessibility
+- [x] **HTT-03**: Recovery action from a denied Hold to Transcribe row opens Privacy > Input Monitoring, not Privacy > Accessibility
 
 ### User-Facing Text
 
@@ -20,13 +20,13 @@ Requirements for this milestone. Each maps to roadmap phases.
 
 ### Permission Model
 
-- [ ] **HTT-06**: `PermissionKind` includes a `.keyboard` case with the correct `settingsURL` for `Privacy_ListenEvent`
-- [ ] **HTT-07**: `.postEvent` permission messages reference only Auto Paste — no mention of Hold to Transcribe
+- [x] **HTT-06**: `PermissionKind` includes a `.keyboard` case with the correct `settingsURL` for `Privacy_ListenEvent`
+- [x] **HTT-07**: `.postEvent` permission messages reference only Auto Paste — no mention of Hold to Transcribe
 
 ### Test and Verification
 
 - [ ] **HTT-08**: Existing UI tests are updated to assert the corrected Input Monitoring strings
-- [ ] **HTT-09**: Toggle/tap activation, Auto Paste permission flow, and all unrelated features remain unchanged
+- [x] **HTT-09**: Toggle/tap activation, Auto Paste permission flow, and all unrelated features remain unchanged
 - [ ] **HTT-10**: Hold mode functions end-to-end when Input Monitoring is granted (manual verification — requires system permission)
 
 ## Future Requirements
@@ -50,13 +50,13 @@ Requirements for this milestone. Each maps to roadmap phases.
 |-------------|-------|--------|
 | HTT-01 | Phase 20 | Pending |
 | HTT-02 | Phase 20 | Pending |
-| HTT-03 | Phase 20 | Pending |
+| HTT-03 | Phase 20 | Complete |
 | HTT-04 | Phase 20 | Pending |
 | HTT-05 | Phase 20 | Pending |
-| HTT-06 | Phase 20 | Pending |
-| HTT-07 | Phase 20 | Pending |
+| HTT-06 | Phase 20 | Complete |
+| HTT-07 | Phase 20 | Complete |
 | HTT-08 | Phase 21 | Pending |
-| HTT-09 | Phase 20, 21 | Pending |
+| HTT-09 | Phase 20, 21 | Complete |
 | HTT-10 | Phase 21 | Pending |
 
 **Coverage:**
