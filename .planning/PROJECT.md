@@ -40,16 +40,18 @@ From a single hotkey, the user can dictate and get reliable text into the clipbo
 
 ### Active
 
-## Current Milestone: v1.3 Qwen 3.5 LLM Upgrade
+## Current Milestone: v1.4 Hold-to-Transcribe Permission Fix
 
-**Goal:** Fix the LLM rewrite pipeline to work reliably with Qwen 3.5 models across all tiers and allow users to select between model tiers in settings.
+**Goal:** Wire the Hold to Transcribe UI to the correct macOS permission (Input Monitoring) so the push-and-hold activation mode actually works.
 
 **Target features:**
-- Diagnose and fix Qwen 3.5 model loading/inference failures across all tiers (2B, 4B, 9B)
-- Ensure the LLM rewrite pipeline produces valid output end-to-end with Qwen 3.5
-- Validate the model tier selector in settings works for switching between tiers
-- Improve error visibility so rewrite failures are diagnosable rather than silently falling back
-- Investigate and resolve potential MLX-Swift framework overlap between WhisperKit and MLXLLM
+- Hold to Transcribe row in Settings checks Input Monitoring permission status
+- "Enable" and recovery actions request and open the correct Input Monitoring pane
+- All user-facing labels, descriptions, and setup guides reference Input Monitoring
+- PermissionKind model extended with .keyboard case for Privacy_ListenEvent
+- .postEvent messages decoupled from Hold to Transcribe (only reference Auto Paste)
+- Existing UI tests updated to assert corrected Input Monitoring strings
+- Hold mode functions end-to-end when Input Monitoring is granted
 
 ### Out of Scope
 
@@ -121,4 +123,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-03-23 after v1.3 milestone started*
+*Last updated: 2026-03-24 after v1.4 milestone started*

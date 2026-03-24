@@ -1,33 +1,33 @@
 ---
 gsd_state_version: 1.0
-milestone: v1.3
-milestone_name: Qwen 3.5 LLM Upgrade
+milestone: v1.4
+milestone_name: Hold-to-Transcribe Permission Fix
 status: Defining requirements
 stopped_at: ~
-last_updated: "2026-03-23T15:41:00.000Z"
-last_activity: 2026-03-23 — Milestone v1.3 started
+last_updated: "2026-03-24T16:35:00.000Z"
+last_activity: 2026-03-24 — Milestone v1.4 started
 progress:
-  total_phases: 4
-  completed_phases: 3
-  total_plans: 8
-  completed_plans: 6
+  total_phases: 0
+  completed_phases: 0
+  total_plans: 0
+  completed_plans: 0
 ---
 
 # Project State
 
 ## Project Reference
 
-See: .planning/PROJECT.md (updated 2026-03-20)
+See: .planning/PROJECT.md (updated 2026-03-24)
 
 **Core value:** From a single hotkey, the user can dictate and get reliable text into the clipboard fast enough that it feels close to typing speed.
-**Current focus:** v1.3 Qwen 3.5 LLM Upgrade — fix LLM rewrite pipeline for all Qwen 3.5 model tiers.
+**Current focus:** v1.4 Hold-to-Transcribe Permission Fix — wire hold mode UI to the correct macOS permission (Input Monitoring).
 
 ## Current Position
 
-Phase: 19 — Tier Selector Validation and End-to-End Test
+Phase: Not started (defining requirements)
 Plan: —
-Status: Not started
-Last activity: 2026-03-23 — Phase 18 complete
+Status: Defining requirements
+Last activity: 2026-03-24 — Milestone v1.4 started
 
 ## Performance Metrics
 
