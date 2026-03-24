@@ -9,6 +9,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     private let preferences = ShellPreferences.shared
     private let readinessStore = ReadinessStore.shared
     private let hotkeyService = HotkeyService.shared
+    private let postEventService = PostEventPermissionService.live
     private let activationStore = ActivationStore.shared
     private let audioCaptureService = AudioCaptureService.shared
     private let levelMonitor = AudioLevelMonitor()
@@ -26,6 +27,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
 
         hotkeyService.start()
         readinessStore.refresh()
+
+        // Auto-prompt Accessibility permission after a short delay so the
+        // Input Monitoring dialog (triggered by hotkeyService.start() above)
+        // does not stack with the Accessibility dialog.
+        if !preferences.hasRequestedPostEventPermission {
+            preferences.recordPostEventPermissionPrompt()
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.75) { [weak self] in
+                guard let self else { return }
+                self.postEventService.requestAccess()
+                self.readinessStore.refresh()
+            }
+        }
 
         do {
             try WhisperService.deleteLegacyUnsupportedModelFiles()
