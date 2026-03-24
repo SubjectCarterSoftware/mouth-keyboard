@@ -74,7 +74,7 @@ final class ReadinessStore: ObservableObject {
                 _ = await microphoneService.requestAccess()
                 refresh()
             }
-        case .holdToTranscribe:
+        case .keyboardShortcuts:
             preferences.recordKeyboardPermissionPrompt()
             _ = keyboardService.requestAccess()
             refresh()

@@ -23,7 +23,7 @@ enum PermissionGrantState: String, CaseIterable, Equatable {
 
 enum PermissionKind: String, CaseIterable, Identifiable {
     case microphone
-    case holdToTranscribe
+    case keyboardShortcuts
     case postEvent
 
     var id: String {
@@ -34,8 +34,8 @@ enum PermissionKind: String, CaseIterable, Identifiable {
         switch self {
         case .microphone:
             return "Microphone Access"
-        case .holdToTranscribe:
-            return "Input Monitoring"
+        case .keyboardShortcuts:
+            return "Keyboard Shortcuts"
         case .postEvent:
             return "Auto Paste"
         }
@@ -45,7 +45,7 @@ enum PermissionKind: String, CaseIterable, Identifiable {
         switch self {
         case .microphone:
             return "mic.fill"
-        case .holdToTranscribe:
+        case .keyboardShortcuts:
             return "keyboard.fill"
         case .postEvent:
             return "doc.on.clipboard.fill"
@@ -56,7 +56,7 @@ enum PermissionKind: String, CaseIterable, Identifiable {
         switch self {
         case .microphone:
             return URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Microphone")
-        case .holdToTranscribe:
+        case .keyboardShortcuts:
             return URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_ListenEvent")
         case .postEvent:
             return URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility")
@@ -71,11 +71,11 @@ enum PermissionKind: String, CaseIterable, Identifiable {
             return "Allow microphone access now so the first recording attempt does not surprise the user later."
         case (.microphone, .denied):
             return "Microphone access is denied. Re-enable it in System Settings to move past the blocked state."
-        case (.holdToTranscribe, .authorized):
-            return "Ready — hold to record."
-        case (.holdToTranscribe, .notDetermined):
+        case (.keyboardShortcuts, .authorized):
+            return "Ready — shortcuts enabled."
+        case (.keyboardShortcuts, .notDetermined):
             return "Needs keyboard access."
-        case (.holdToTranscribe, .denied):
+        case (.keyboardShortcuts, .denied):
             return "Keyboard access is blocked."
         case (.postEvent, .authorized):
             return "Auto Paste can insert text into other apps."
@@ -141,9 +141,9 @@ struct ReadinessSnapshot: Equatable {
                 isRequired: true
             ),
             PermissionChecklistItem(
-                kind: .holdToTranscribe,
+                kind: .keyboardShortcuts,
                 status: keyboardStatus,
-                message: PermissionKind.holdToTranscribe.message(for: keyboardStatus),
+                message: PermissionKind.keyboardShortcuts.message(for: keyboardStatus),
                 isRequired: true
             ),
             PermissionChecklistItem(

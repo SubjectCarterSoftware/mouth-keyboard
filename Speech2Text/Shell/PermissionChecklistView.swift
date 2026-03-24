@@ -67,7 +67,7 @@ private struct PermissionTile: View {
 
             if let actionTitle = item.actionTitle {
                 Button(actionTitle) {
-                    if item.kind == .postEvent || item.kind == .holdToTranscribe {
+                    if item.kind == .postEvent || item.kind == .keyboardShortcuts {
                         showsSetupGuide = true
                     } else if item.status == .denied {
                         openRecovery(item.kind)
@@ -81,7 +81,7 @@ private struct PermissionTile: View {
                 .accessibilityIdentifier("permission.\(item.kind.rawValue).action")
                 .popover(isPresented: $showsSetupGuide, arrowEdge: .bottom) {
                     Group {
-                        if item.kind == .holdToTranscribe {
+                        if item.kind == .keyboardShortcuts {
                             InputMonitoringSetupGuide {
                                 showsSetupGuide = false
                                 if item.status == .denied {
@@ -153,7 +153,7 @@ struct InputMonitoringSetupGuide: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
-            Text("How to enable Hold to Transcribe")
+            Text("How to enable Keyboard Shortcuts")
                 .font(.headline)
 
             VStack(alignment: .leading, spacing: 12) {

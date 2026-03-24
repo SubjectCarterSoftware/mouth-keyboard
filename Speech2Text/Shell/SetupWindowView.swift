@@ -68,7 +68,7 @@ private struct HoldShortcutRecorder: View {
                     .padding(.vertical, 4)
                     .frame(minWidth: 90)
             }
-            .accessibilityIdentifier("setupWindow.holdToTranscribe.recorder")
+            .accessibilityIdentifier("setupWindow.keyboardShortcuts.recorder")
             .accessibilityLabel(shortcutName)
 
             if !isRecording {
@@ -139,7 +139,7 @@ private struct HoldShortcutRecorder: View {
     }
 }
 
-private struct HoldToTranscribeRow: View {
+private struct KeyboardShortcutsRow: View {
     @ObservedObject var preferences: ShellPreferences
     let status: PermissionGrantState
     let requestAccess: () -> Void
@@ -161,7 +161,7 @@ private struct HoldToTranscribeRow: View {
     private var detailText: String {
         switch status {
         case .authorized:
-            return "Ready — hold to record."
+            return "Ready — shortcuts enabled."
         case .notDetermined:
             return "Needs keyboard access."
         case .denied:
@@ -174,9 +174,9 @@ private struct HoldToTranscribeRow: View {
         case .authorized:
             return nil
         case .notDetermined:
-            return "Enable Hold to Transcribe"
+            return "Enable Keyboard Shortcuts"
         case .denied:
-            return "Fix Hold to Transcribe"
+            return "Fix Keyboard Shortcuts"
         }
     }
 
@@ -190,17 +190,17 @@ private struct HoldToTranscribeRow: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .multilineTextAlignment(.leading)
                 .fixedSize(horizontal: false, vertical: true)
-                .accessibilityIdentifier("setupWindow.holdToTranscribe.message")
+                .accessibilityIdentifier("setupWindow.keyboardShortcuts.message")
 
             if let actionTitle {
                 Button(actionTitle) {
                     showsSetupGuide = true
                 }
-                .accessibilityIdentifier("setupWindow.holdToTranscribe.action")
+                .accessibilityIdentifier("setupWindow.keyboardShortcuts.action")
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .accessibilityIdentifier("setupWindow.holdToTranscribe.row")
+        .accessibilityIdentifier("setupWindow.keyboardShortcuts.row")
         .popover(isPresented: $showsSetupGuide, arrowEdge: .bottom) {
             InputMonitoringSetupGuide {
                 showsSetupGuide = false
@@ -290,11 +290,11 @@ struct SetupWindowView: View {
         whisperModelLoadState.phase.downloadProgress != nil || whisperModelLoadState.deletingModel != nil
     }
 
-    private var holdToTranscribeStatus: PermissionGrantState {
+    private var keyboardShortcutsStatus: PermissionGrantState {
         keyboardPermissionService.currentStatus(hasPrompted: preferences.hasRequestedKeyboardPermission)
     }
 
-    private func requestHoldToTranscribeAccess() {
+    private func requestKeyboardShortcutsAccess() {
         preferences.recordKeyboardPermissionPrompt()
         _ = keyboardPermissionService.requestAccess()
     }
@@ -625,14 +625,14 @@ struct SetupWindowView: View {
                     KeyboardShortcuts.Recorder("Stop & Auto Paste:", name: .activateAndPaste)
 
                     LabeledContent {
-                        HoldToTranscribeRow(
+                        KeyboardShortcutsRow(
                             preferences: preferences,
-                            status: holdToTranscribeStatus,
-                            requestAccess: requestHoldToTranscribeAccess,
-                            openRecovery: { readinessStore.openRecovery(for: .holdToTranscribe) }
+                            status: keyboardShortcutsStatus,
+                            requestAccess: requestKeyboardShortcutsAccess,
+                            openRecovery: { readinessStore.openRecovery(for: .keyboardShortcuts) }
                         )
                     } label: {
-                        Text("Hold to Transcribe:")
+                        Text("Keyboard Shortcuts:")
                     }
 
                     LabeledContent {
