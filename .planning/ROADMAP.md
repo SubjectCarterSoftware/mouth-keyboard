@@ -130,5 +130,12 @@ Plans:
   4. Hold mode functions end-to-end when Input Monitoring is granted: hold key starts recording, release transcribes, clipboard receives result
 **Plans:** TBD
 
+### Phase 22: Permission Startup Flow and Hotkey Gating
+
+**Goal:** Auto-prompt Accessibility permission at startup (like Input Monitoring already does), and gate global hotkey status on Input Monitoring so the UI accurately reflects that Control+V requires this permission.
+**Requirements**: TBD
+**Depends on:** Phase 20
+**Plans:** TBD
+
 ---
 *Last updated: 2026-03-24 — v1.4 Hold-to-Transcribe Permission Fix roadmap created*

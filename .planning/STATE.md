@@ -81,6 +81,10 @@ Recent decisions affecting current work:
 - [Phase 20]: InputMonitoringSetupGuide follows same structure as AccessibilitySetupGuide with Input Monitoring wording
 - [Phase 20]: PermissionTile uses kind-based popover routing: Group + conditional dispatches .holdToTranscribe vs .postEvent to different guides
 
+### Roadmap Evolution
+
+- Phase 22 added: Permission Startup Flow and Hotkey Gating — auto-prompt Accessibility at startup, gate global hotkey on Input Monitoring
+
 ### Pending Todos
 
 None yet.
