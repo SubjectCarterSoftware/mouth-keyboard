@@ -2,12 +2,12 @@
 gsd_state_version: 1.0
 milestone: v1.4
 milestone_name: Hold-to-Transcribe Permission Fix
-status: Defining requirements
+status: Ready to plan Phase 20
 stopped_at: ~
-last_updated: "2026-03-24T16:35:00.000Z"
-last_activity: 2026-03-24 — Milestone v1.4 started
+last_updated: "2026-03-24T17:00:00.000Z"
+last_activity: 2026-03-24 — Roadmap created for v1.4 (Phases 20-21)
 progress:
-  total_phases: 0
+  total_phases: 2
   completed_phases: 0
   total_plans: 0
   completed_plans: 0
@@ -24,10 +24,12 @@ See: .planning/PROJECT.md (updated 2026-03-24)
 
 ## Current Position
 
-Phase: Not started (defining requirements)
+Phase: 20 of 21 (Permission Model and UI Wiring)
 Plan: —
-Status: Defining requirements
-Last activity: 2026-03-24 — Milestone v1.4 started
+Status: Ready to plan
+Last activity: 2026-03-24 — Roadmap created for v1.4
+
+Progress: [░░░░░░░░░░] 0%
 
 ## Performance Metrics
 
@@ -75,32 +77,6 @@ Recent decisions affecting current work:
 
 - [Milestone v1.2] Named trigger boundary replaces whole-transcript fuzzy command scanning.
 - [Milestone v1.2] Last-occurrence trigger split (`last-name-wins`) avoids false activation from earlier mentions.
-- [Phase 10-fuzzy-intent-detection]: IntentCatalog now drives IntentDetector phrase matching; activationPhraseCandidates removed from ConvertMode.
-- [Phase 10-fuzzy-intent-detection]: Windowed token JW (not full-string JW) aligns individual tokens; 3-token minimum prevents 2-token pattern false positives; exact-match priority in scoreAllZone discards fuzzy competitors when exact wins exist.
-- [Phase 11-01]: UserIntentStore uses actor isolation; all mutation serialized via Swift concurrency.
-- [Phase 11-03]: allEntries() snapshot taken once at session-start; passthrough check updated for custom intents.
-- [Phase 11-03]: Dual-path LLM routing: instructions overload for user-configured intents, mode overload for defaults.
-- [Phase 12]: Trigger identity persistence is isolated in a dedicated file-backed store separate from convert-mode UserDefaults keys.
-- [Phase 12]: ShellPreferences applies trigger profile mutations only after store writes succeed to prevent half-applied runtime state.
-- [Phase 12]: Centralized alias normalization in TriggerAliasNormalizer and routed TriggerProfile normalization through it.
-- [Phase 12]: Calibration aliases apply in ShellPreferences only after TriggerProfileStore write succeeds to avoid half-applied runtime state.
-- [Phase 13]: Parser normalizes active aliases and uses case-insensitive matching before boundary selection.
-- [Phase 13]: Trigger boundaries use whole-word matching so alias substrings do not activate parsing.
-- [Phase 13]: ActivationStore now routes intent detection only from TriggerTranscriptParser validTrigger instruction segments.
-- [Phase 13]: IntentDetector trailing-position heuristics now use matched range lower bounds to avoid false trailing classification.
-- [Phase 14]: Use a dedicated detectPredefinedShortcut path for valid-trigger built-ins instead of changing general detector semantics.
-- [Phase 14]: Reject ambiguous built-in routing when multiple exact built-in commands are present in the post-trigger instruction.
-- [Phase 14]: Preserve custom-intent detection as fallback when no predefined built-in shortcut is selected.
-- [Phase 14-instruction-routing-via-existing-intents]: Used ConvertIntent.effectiveSystemPrompt to carry post-trigger instruction text into rewrite(body:instructions:) fallback.
-- [Phase 14-instruction-routing-via-existing-intents]: Preserved existing custom-intent definition routing when matched; unresolved valid-trigger cases use instruction-text fallback.
-- [Phase 15]: CalibrationCapturingDone error type used as exit sentinel so runSession() terminates cleanly when capturer exhausts samples
-- [Phase 15]: AIAssistantSettingsViewModel pendingSelection tracks sheet state separately from activeTriggerProfile; preset rows show selection without triggering store write
-- [Phase 15]: UI tests use temporary /tmp/Speech2Text.UITests/ store (deleted on each launch) to isolate trigger-profile state from real Application Support store
-- [Phase 15]: -seed-trigger-preset and -seed-trigger-profile-calibrated launch args seed isolated trigger-profile state for UI tests without touching production storage
-- [Phase 15-settings-ux-for-ai-assistant-name]: UI tests use temporary /tmp/Speech2Text.UITests/ store (deleted on each launch) to isolate trigger-profile state from real Application Support store
-- [Phase 15-settings-ux-for-ai-assistant-name]: -seed-trigger-preset and -seed-trigger-profile-calibrated launch args seed isolated trigger-profile state for UI tests without touching production storage
-- [Phase 15-settings-ux-for-ai-assistant-name]: LiveCalibrationSampleCapturer uses @MainActor final class; captureSample returns nil on most errors, throws CalibrationCapturingDone.exhausted only on microphonePermissionDenied
-- [Phase 15-settings-ux-for-ai-assistant-name]: isCalibrationRequired consumed in AIAssistantSettingsView button label as (Recommended) hint to close dead-state anti-pattern
 
 ### Pending Todos
 
@@ -112,6 +88,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-23T15:41:00.000Z
-Stopped at: Milestone v1.3 started — defining requirements
+Last session: 2026-03-24T17:00:00.000Z
+Stopped at: Roadmap created for v1.4 — ready to plan Phase 20
 Resume file: None

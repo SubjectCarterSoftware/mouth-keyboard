@@ -60,6 +60,8 @@ Phases 12-15 shipped (9/9 plans complete). Named trigger boundary, voice calibra
 | 17. Model Loading and Configuration Fix | v1.3 | 2/2 | Complete | 2026-03-23 |
 | 18. Generation Pipeline and Chat Template Fix | v1.3 | 2/2 | Complete | 2026-03-23 |
 | 19. Tier Selector Validation and End-to-End Test | v1.3 | 0/2 | Deferred | — |
+| 20. Permission Model and UI Wiring | v1.4 | 0/? | Not started | - |
+| 21. Test Updates and Verification | v1.4 | 0/? | Not started | - |
 
 ## Phase Details — v1.3 Qwen 3.5 LLM Upgrade
 
@@ -99,5 +101,30 @@ Phases 12-15 shipped (9/9 plans complete). Named trigger boundary, voice calibra
 3. Switching tiers invalidates cached model and loads the new tier on next rewrite
 4. All three tiers produce valid rewrite output when invoked via trigger
 
+## Phase Details — v1.4 Hold-to-Transcribe Permission Fix
+
+### Phase 20: Permission Model and UI Wiring
+**Goal:** Wire the Hold to Transcribe UI to the correct macOS permission (Input Monitoring) so users are guided to grant the permission that `CGEventTap` actually requires.
+**Depends on:** Nothing (standalone fix — prior milestones complete)
+**Requirements:** HTT-01, HTT-02, HTT-03, HTT-04, HTT-05, HTT-06, HTT-07, HTT-09
+**Success Criteria** (what must be TRUE):
+  1. Hold to Transcribe row in Settings reflects Input Monitoring permission status — not Accessibility
+  2. Clicking "Enable" on the Hold to Transcribe row prompts for Input Monitoring permission (`CGRequestListenEventAccess`)
+  3. Recovery action from a denied Hold to Transcribe row opens Privacy > Input Monitoring pane (not Privacy > Accessibility)
+  4. All labels, detail text, action buttons, and setup guide popover reference "Input Monitoring" — no remaining "Accessibility" references in hold-related UI
+  5. `.postEvent` permission messages reference only Auto Paste — no mention of Hold to Transcribe
+**Plans:** TBD
+
+### Phase 21: Test Updates and Verification
+**Goal:** Validate that the corrected permission wiring passes automated tests and that hold mode functions end-to-end with the correct permission granted.
+**Depends on:** Phase 20
+**Requirements:** HTT-08, HTT-09, HTT-10
+**Success Criteria** (what must be TRUE):
+  1. All 3 updated UI tests pass asserting Input Monitoring strings (not Accessibility strings)
+  2. All existing unit tests pass without modification (HotkeyServiceTests, ActivationStoreTests, ShellPreferencesModelTests, PermissionServiceTests, ReadinessStateTests)
+  3. Toggle/tap activation and Auto Paste permission flow remain unchanged — no regressions
+  4. Hold mode functions end-to-end when Input Monitoring is granted: hold key starts recording, release transcribes, clipboard receives result
+**Plans:** TBD
+
 ---
-*Last updated: 2026-03-23 — v1.3 Qwen 3.5 LLM Upgrade roadmap created*
+*Last updated: 2026-03-24 — v1.4 Hold-to-Transcribe Permission Fix roadmap created*
