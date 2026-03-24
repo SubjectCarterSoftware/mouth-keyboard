@@ -5,7 +5,7 @@ final class PermissionRecoveryFlowTests: XCTestCase {
         continueAfterFailure = false
     }
 
-    func testBlockedMicrophoneStateShowsRecoveryAction() {
+    func testBlockedMicrophoneStateShowsRecoveryActionInSetupWindow() {
         let app = XCUIApplication()
         app.launchArguments = [
             "-ui-testing",
@@ -13,85 +13,131 @@ final class PermissionRecoveryFlowTests: XCTestCase {
             "-open-setup-window",
             "-mark-microphone-requested",
             "-mock-microphone-status", "denied",
+            "-mock-postevent-status", "authorized",
             "-mock-keyboard-status", "authorized",
         ]
 
         app.launch()
 
-        XCTAssertTrue(app.staticTexts["statusCard.title"].waitForExistence(timeout: 5))
-        XCTAssertEqual(app.staticTexts["statusCard.title"].value as? String, "Setup Blocked")
+        XCTAssertTrue(app.staticTexts["setupWindow.title"].waitForExistence(timeout: 5))
         XCTAssertTrue(app.buttons["permission.microphone.action"].exists)
     }
 
-    func testKeyboardChecklistShowsOutstandingSetupWork() {
+    func testAccessibilityTileShowsAllowActionWhenUndetermined() {
         let app = XCUIApplication()
         app.launchArguments = [
             "-ui-testing",
             "-reset-shell-preferences",
             "-open-setup-window",
             "-mock-microphone-status", "authorized",
+            "-mock-postevent-status", "notDetermined",
             "-mock-keyboard-status", "notDetermined",
         ]
 
         app.launch()
 
-        let action = app.buttons["permission.keyboardMonitoring.action"]
-        XCTAssertTrue(action.waitForExistence(timeout: 5))
+        XCTAssertTrue(app.staticTexts["setupWindow.title"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.buttons["permission.postEvent.action"].exists)
     }
 
-    func testBlockedKeyboardMonitoringStateShowsRecoveryAction() {
+    func testAccessibilityTileGuideAppearsFromAllowAction() {
         let app = XCUIApplication()
         app.launchArguments = [
             "-ui-testing",
             "-reset-shell-preferences",
             "-open-setup-window",
             "-mock-microphone-status", "authorized",
+            "-mock-postevent-status", "notDetermined",
+            "-mock-keyboard-status", "notDetermined",
+        ]
+
+        app.launch()
+
+        let action = app.buttons["permission.postEvent.action"]
+        XCTAssertTrue(action.waitForExistence(timeout: 5))
+        action.tap()
+
+        XCTAssertTrue(app.staticTexts["How to enable Accessibility access"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.buttons["Open Settings & Quit App"].exists)
+    }
+
+    func testHoldToTranscribeRowShowsEnableActionWhenAccessibilityIsUndetermined() {
+        let app = XCUIApplication()
+        app.launchArguments = [
+            "-ui-testing",
+            "-reset-shell-preferences",
+            "-open-setup-window",
+            "-mock-microphone-status", "authorized",
+            "-mock-postevent-status", "notDetermined",
+            "-mock-keyboard-status", "notDetermined",
+        ]
+
+        app.launch()
+
+        XCTAssertTrue(app.staticTexts["setupWindow.title"].waitForExistence(timeout: 5))
+        // Recorder button inherits row identifier; query by label (default shortcut after reset)
+        XCTAssertTrue(app.buttons["Right ⌥"].exists)
+        XCTAssertTrue(app.buttons["Enable Accessibility"].exists)
+    }
+
+    func testAlwaysAutoPasteSettingAppearsInSetupWindow() {
+        let app = XCUIApplication()
+        app.launchArguments = [
+            "-ui-testing",
+            "-reset-shell-preferences",
+            "-open-setup-window",
+            "-mock-microphone-status", "authorized",
+            "-mock-postevent-status", "authorized",
+            "-mock-keyboard-status", "authorized",
+        ]
+
+        app.launch()
+
+        XCTAssertTrue(app.staticTexts["setupWindow.title"].waitForExistence(timeout: 5))
+        let toggle = app.descendants(matching: .any).matching(identifier: "setupWindow.alwaysAutoPaste.toggle").firstMatch
+        XCTAssertTrue(toggle.exists)
+        XCTAssertTrue(app.staticTexts["setupWindow.alwaysAutoPaste.message"].exists)
+    }
+
+    func testHoldToTranscribeRowShowsRecoveryActionWhenAccessibilityIsBlocked() {
+        let app = XCUIApplication()
+        app.launchArguments = [
+            "-ui-testing",
+            "-reset-shell-preferences",
+            "-open-setup-window",
+            "-mock-microphone-status", "authorized",
+            "-mark-postevent-requested",
+            "-mock-postevent-status", "denied",
             "-mark-keyboard-requested",
             "-mock-keyboard-status", "denied",
         ]
 
         app.launch()
 
-        let row = app.descendants(matching: .group).matching(identifier: "permission.keyboardMonitoring.row").firstMatch
-        XCTAssertTrue(row.waitForExistence(timeout: 5))
-        XCTAssertTrue(app.buttons["permission.keyboardMonitoring.action"].exists)
+        XCTAssertTrue(app.staticTexts["setupWindow.title"].waitForExistence(timeout: 5))
+        // Recorder button inherits row identifier; query by label (default shortcut after reset)
+        XCTAssertTrue(app.buttons["Right ⌥"].exists)
+        XCTAssertTrue(app.buttons["Open Accessibility Setup"].exists)
     }
 
-    func testMicrophonePermissionFailureShowsRecoveryMessageAndActions() {
+    func testHoldToTranscribeActionShowsAccessibilityGuide() {
         let app = XCUIApplication()
         app.launchArguments = [
             "-ui-testing",
-            "-complete-shell-setup",
-            "-ui-testing-open-status-window",
-            "-ui-testing-capture-failure", "microphonePermissionDenied",
+            "-reset-shell-preferences",
+            "-open-setup-window",
             "-mock-microphone-status", "authorized",
-            "-mock-keyboard-status", "authorized",
+            "-mock-postevent-status", "notDetermined",
+            "-mock-keyboard-status", "notDetermined",
         ]
 
         app.launch()
 
-        let recoveryMessage = app.staticTexts["statusMenu.recoveryMessage"]
-        XCTAssertTrue(recoveryMessage.waitForExistence(timeout: 5))
-        XCTAssertTrue(app.buttons["statusMenu.openMicrophoneSettings"].exists)
-        XCTAssertTrue(app.buttons["statusMenu.openMicrophoneRecovery"].exists)
-    }
+        let action = app.buttons["Enable Accessibility"]
+        XCTAssertTrue(action.waitForExistence(timeout: 5))
+        action.tap()
 
-    func testSelectedMicrophoneDisconnectShowsRecoveryRouteWithoutSettingsButton() {
-        let app = XCUIApplication()
-        app.launchArguments = [
-            "-ui-testing",
-            "-complete-shell-setup",
-            "-ui-testing-open-status-window",
-            "-ui-testing-capture-failure", "selectedInputDisconnected",
-            "-mock-microphone-status", "authorized",
-            "-mock-keyboard-status", "authorized",
-        ]
-
-        app.launch()
-
-        let recoveryMessage = app.staticTexts["statusMenu.recoveryMessage"]
-        XCTAssertTrue(recoveryMessage.waitForExistence(timeout: 5))
-        XCTAssertTrue(app.buttons["statusMenu.openMicrophoneRecovery"].exists)
-        XCTAssertFalse(app.buttons["statusMenu.openMicrophoneSettings"].exists)
+        XCTAssertTrue(app.staticTexts["How to enable Accessibility access"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.buttons["Open Settings & Quit App"].exists)
     }
 }

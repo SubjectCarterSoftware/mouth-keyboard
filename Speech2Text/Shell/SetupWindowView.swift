@@ -9,6 +9,234 @@ enum SetupWindowMetrics {
     static let expandedHeight: CGFloat = 820
 }
 
+private struct HoldShortcutRecorder: View {
+    @ObservedObject var preferences: ShellPreferences
+    @State private var isRecording = false
+    @State private var eventMonitor: Any?
+    @State private var pendingModifierKeyCode: Int?
+
+    private static let modifierKeyCodes: Set<Int> = [54, 55, 56, 57, 58, 59, 60, 61, 62, 63]
+
+    private static let modifierKeyNames: [Int: String] = [
+        54: "Right ⌘", 55: "Left ⌘",
+        56: "Left ⇧", 57: "⇪ Caps Lock",
+        58: "Left ⌥", 59: "Left ⌃",
+        60: "Right ⇧", 61: "Right ⌥",
+        62: "Right ⌃", 63: "fn",
+    ]
+
+    private static func modifierFlag(for keyCode: Int) -> NSEvent.ModifierFlags {
+        switch keyCode {
+        case 54, 55: return .command
+        case 56, 60: return .shift
+        case 58, 61: return .option
+        case 59, 62: return .control
+        default: return []
+        }
+    }
+
+    static func displayName(keyCode: Int, modifiers: UInt) -> String {
+        let nsFlags = NSEvent.ModifierFlags(rawValue: modifiers)
+        var symbols = ""
+        if nsFlags.contains(.control) { symbols += "⌃" }
+        if nsFlags.contains(.option) { symbols += "⌥" }
+        if nsFlags.contains(.shift) { symbols += "⇧" }
+        if nsFlags.contains(.command) { symbols += "⌘" }
+
+        if let modName = modifierKeyNames[keyCode] {
+            return symbols.isEmpty ? modName : symbols + " " + modName
+        }
+
+        let key = KeyboardShortcuts.Key(rawValue: keyCode)
+        let shortcut = KeyboardShortcuts.Shortcut(key)
+        let keyChar = shortcut.description.trimmingCharacters(in: .whitespaces)
+        return symbols.isEmpty ? keyChar : symbols + keyChar
+    }
+
+    private var shortcutName: String {
+        Self.displayName(keyCode: preferences.holdShortcutKeyCode, modifiers: preferences.holdShortcutModifiers)
+    }
+
+    var body: some View {
+        HStack(spacing: 6) {
+            Button {
+                if isRecording { stopRecording() } else { startRecording() }
+            } label: {
+                Text(isRecording ? "Record shortcut…" : shortcutName)
+                    .font(.body.weight(.medium))
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 4)
+                    .frame(minWidth: 90)
+            }
+            .accessibilityIdentifier("setupWindow.holdToTranscribe.recorder")
+            .accessibilityLabel(shortcutName)
+
+            if !isRecording {
+                Button {
+                    preferences.holdShortcutKeyCode = 61
+                    preferences.holdShortcutModifiers = 0
+                    HotkeyService.shared.configureHoldTarget()
+                } label: {
+                    Image(systemName: "arrow.counterclockwise")
+                        .font(.caption2)
+                }
+                .buttonStyle(.borderless)
+                .help("Reset to Right ⌥")
+            }
+        }
+        .onDisappear { stopRecording() }
+    }
+
+    private func startRecording() {
+        isRecording = true
+        pendingModifierKeyCode = nil
+        eventMonitor = NSEvent.addLocalMonitorForEvents(matching: [.keyDown, .flagsChanged]) { [self] event in
+            if event.type == .keyDown {
+                if event.keyCode == 53 { // Escape
+                    stopRecording()
+                    return nil
+                }
+                pendingModifierKeyCode = nil
+                let relevantModifiers: NSEvent.ModifierFlags = [.command, .option, .shift, .control]
+                recordKey(keyCode: Int(event.keyCode), modifiers: event.modifierFlags.intersection(relevantModifiers).rawValue)
+                return nil
+            }
+
+            if event.type == .flagsChanged {
+                let keyCode = Int(event.keyCode)
+                if Self.modifierKeyCodes.contains(keyCode) {
+                    let flag = Self.modifierFlag(for: keyCode)
+                    if event.modifierFlags.contains(flag) {
+                        pendingModifierKeyCode = keyCode
+                    } else if pendingModifierKeyCode == keyCode {
+                        let relevantModifiers: NSEvent.ModifierFlags = [.command, .option, .shift, .control]
+                        let remaining = event.modifierFlags.intersection(relevantModifiers)
+                        if remaining.isEmpty {
+                            recordKey(keyCode: keyCode, modifiers: 0)
+                        }
+                        pendingModifierKeyCode = nil
+                    }
+                }
+            }
+            return event
+        }
+    }
+
+    private func recordKey(keyCode: Int, modifiers: UInt) {
+        preferences.holdShortcutKeyCode = keyCode
+        preferences.holdShortcutModifiers = modifiers
+        HotkeyService.shared.configureHoldTarget()
+        stopRecording()
+    }
+
+    private func stopRecording() {
+        if let eventMonitor {
+            NSEvent.removeMonitor(eventMonitor)
+        }
+        eventMonitor = nil
+        pendingModifierKeyCode = nil
+        isRecording = false
+    }
+}
+
+private struct HoldToTranscribeRow: View {
+    @ObservedObject var preferences: ShellPreferences
+    let status: PermissionGrantState
+    let requestAccess: () -> Void
+    let openRecovery: () -> Void
+
+    @State private var showsAccessibilityGuide = false
+
+    private var statusColor: Color {
+        switch status {
+        case .authorized:
+            return .green
+        case .notDetermined:
+            return .orange
+        case .denied:
+            return .red
+        }
+    }
+
+    private var detailText: String {
+        switch status {
+        case .authorized:
+            return "Hold to record, release to transcribe."
+        case .notDetermined:
+            return "Needs Accessibility access."
+        case .denied:
+            return "Accessibility is blocked."
+        }
+    }
+
+    private var actionTitle: String? {
+        switch status {
+        case .authorized:
+            return nil
+        case .notDetermined:
+            return "Enable Accessibility"
+        case .denied:
+            return "Open Accessibility Setup"
+        }
+    }
+
+    var body: some View {
+        HStack(spacing: 12) {
+            HoldShortcutRecorder(preferences: preferences)
+
+            Text(detailText)
+                .font(.caption)
+                .foregroundStyle(status == .authorized ? Color.secondary : statusColor)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .multilineTextAlignment(.leading)
+                .fixedSize(horizontal: false, vertical: true)
+                .accessibilityIdentifier("setupWindow.holdToTranscribe.message")
+
+            if let actionTitle {
+                Button(actionTitle) {
+                    showsAccessibilityGuide = true
+                }
+                .accessibilityIdentifier("setupWindow.holdToTranscribe.action")
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .accessibilityIdentifier("setupWindow.holdToTranscribe.row")
+        .popover(isPresented: $showsAccessibilityGuide, arrowEdge: .bottom) {
+            AccessibilitySetupGuide {
+                showsAccessibilityGuide = false
+                if status == .denied {
+                    openRecovery()
+                } else {
+                    requestAccess()
+                }
+            }
+        }
+    }
+}
+
+private struct AlwaysAutoPasteRow: View {
+    @Binding var isOn: Bool
+
+    var body: some View {
+        HStack(spacing: 12) {
+            Toggle("Always Auto Paste", isOn: $isOn)
+                .labelsHidden()
+                .toggleStyle(.switch)
+                .accessibilityLabel("Always Auto Paste")
+                .accessibilityIdentifier("setupWindow.alwaysAutoPaste.toggle")
+
+            Text("Paste after any successful finish, including Right Option and AI output.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .multilineTextAlignment(.leading)
+                .fixedSize(horizontal: false, vertical: true)
+                .accessibilityIdentifier("setupWindow.alwaysAutoPaste.message")
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+}
+
 struct SetupWindowView: View {
     @ObservedObject var preferences: ShellPreferences
     @ObservedObject var readinessStore: ReadinessStore
@@ -18,6 +246,7 @@ struct SetupWindowView: View {
     @ObservedObject private var audioDeviceService = AudioDeviceService.shared
     @StateObject private var assistantSettingsViewModel: AIAssistantSettingsViewModel
     @State private var isAdvancedSettingsExpanded = false
+    private let postEventPermissionService = PostEventPermissionService.live
     let dismissWindow: () -> Void
 
     private var primaryActionTitle: String {
@@ -58,6 +287,26 @@ struct SetupWindowView: View {
 
     private var isAnyWhisperTransferInFlight: Bool {
         whisperModelLoadState.phase.downloadProgress != nil || whisperModelLoadState.deletingModel != nil
+    }
+
+    private var holdToTranscribeStatus: PermissionGrantState {
+        postEventPermissionService.currentStatus(hasPrompted: preferences.hasRequestedPostEventPermission)
+    }
+
+    private func requestHoldToTranscribeAccess() {
+        preferences.recordPostEventPermissionPrompt()
+        _ = postEventPermissionService.requestAccess()
+    }
+
+    private var alwaysAutoPasteBinding: Binding<Bool> {
+        Binding(
+            get: {
+                preferences.alwaysAutoPaste
+            },
+            set: { newValue in
+                preferences.alwaysAutoPaste = newValue
+            }
+        )
     }
 
     private func shortRamGuidance(for tier: RewriteModelTier) -> String {
@@ -373,6 +622,23 @@ struct SetupWindowView: View {
                     KeyboardShortcuts.Recorder("Start / Stop:", name: .activate)
                     KeyboardShortcuts.Recorder("Stop Only:", name: .stopSession)
                     KeyboardShortcuts.Recorder("Stop & Auto Paste:", name: .activateAndPaste)
+
+                    LabeledContent {
+                        HoldToTranscribeRow(
+                            preferences: preferences,
+                            status: holdToTranscribeStatus,
+                            requestAccess: requestHoldToTranscribeAccess,
+                            openRecovery: { readinessStore.openRecovery(for: .postEvent) }
+                        )
+                    } label: {
+                        Text("Hold to Transcribe:")
+                    }
+
+                    LabeledContent {
+                        AlwaysAutoPasteRow(isOn: alwaysAutoPasteBinding)
+                    } label: {
+                        Text("Always Auto Paste:")
+                    }
 
                     LabeledContent {
                         AIAssistantInlineRowView(

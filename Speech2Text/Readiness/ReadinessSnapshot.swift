@@ -65,11 +65,11 @@ enum PermissionKind: String, CaseIterable, Identifiable {
         case (.microphone, .denied):
             return "Microphone access is denied. Re-enable it in System Settings to move past the blocked state."
         case (.postEvent, .authorized):
-            return "Auto Paste can inject text directly into any active text field."
+            return "Accessibility access can Auto Paste into other apps and enables Hold to Transcribe."
         case (.postEvent, .notDetermined):
-            return "Allow Accessibility access so Auto Paste can type text into other apps."
+            return "Allow Accessibility access so Auto Paste and Hold to Transcribe work across apps."
         case (.postEvent, .denied):
-            return "Accessibility access is blocked. Re-enable it in System Settings to use Auto Paste."
+            return "Accessibility access is blocked. Re-enable it in System Settings to use Auto Paste and Hold to Transcribe."
         }
     }
 }

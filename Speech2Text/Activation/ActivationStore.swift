@@ -50,6 +50,11 @@ extension WhisperModelLoadState: WhisperModelLoadStateProviding {
 
 @MainActor
 final class ActivationStore: ObservableObject {
+    private enum ActivationOrigin {
+        case toggle
+        case hold
+    }
+
     static let shared = ActivationStore(
         preferences: .shared,
         readinessProvider: ReadinessStore.shared,
@@ -83,8 +88,9 @@ final class ActivationStore: ObservableObject {
 
     var onPastePermissionNeeded: () -> Void = {}
 
-    private var pasteOnCompletion = false
+    private var requestsPasteOnCompletion = false
     private var activeSessionID = UUID()
+    private var activeActivationOrigin: ActivationOrigin?
     private var transcriptionTask: Task<Void, Never>?
     private var dismissTask: Task<Void, Never>?
     private var feedbackClearTask: Task<Void, Never>?
@@ -135,66 +141,36 @@ final class ActivationStore: ObservableObject {
             return
         }
 
-        // Ignore activation while transcription is in flight, but allow a new
-        // recording to interrupt terminal feedback instead of waiting for the
-        // auto-dismiss timer to return to idle.
-        guard state == .idle || state.isTerminal else {
-            return
-        }
-
-        // If we're interrupting a terminal state, cancel the dismiss timer and
-        // transition through idle first so observers (AppDelegate) can cleanly
-        // tear down the previous session's resources before starting fresh.
-        if state.isTerminal {
-            invalidateScheduledWork()
-            state = .idle
-        }
-
-        // Require all permissions to be granted, but do NOT require setup to be
-        // "finalized" (hasCompletedInitialSetup). The finalize step is an
-        // onboarding UX gate, not a runtime safety requirement. Recording must
-        // work as soon as microphone and keyboard-monitoring permissions are
-        // authorized, even if the user dismissed the setup window early.
-        let snapshot = readinessProvider.snapshot
-        guard snapshot.permissions.filter(\.isRequired).allSatisfy(\.isAuthorized) else {
-            return
-        }
-
-        soundPlayer.play()
-
-        invalidateScheduledWork()
-        recoveryFeedback = nil
-        activeSessionID = UUID()
-        voiceActivityDetector.reset()
-        state = .recording
-        beginWhisperModelWarmup()
-        beginRewriteModelWarmup()
-
-        // Auto-stop after 5 minutes to prevent runaway recordings.
-        let sessionID = activeSessionID
-        maxDurationTask = Task { [weak self] in
-            try? await Task.sleep(nanoseconds: Self.maxRecordingDuration)
-            guard let self, self.isCurrentSession(sessionID), self.state == .recording else { return }
-            self.finish()
-        }
-
+        _ = beginRecording(origin: .toggle)
     }
 
     /// Arm with paste intent: records then pastes the transcription to the active cursor position.
     func armAndPaste() {
-        guard isPostEventPermissionGranted else {
+        requestsPasteOnCompletion = true
+        if !isPostEventPermissionGranted {
             onPastePermissionNeeded()
+        }
+        if state == .recording {
+            finish()
             return
         }
-        pasteOnCompletion = true
-        arm()
+        _ = beginRecording(origin: .toggle)
+    }
+
+    @discardableResult
+    func beginHoldSession() -> Bool {
+        beginRecording(origin: .hold)
+    }
+
+    func finishHoldSession() {
+        guard state == .recording, activeActivationOrigin == .hold else { return }
+        finish()
     }
 
     /// Finish recording and paste the transcription to the active cursor position.
     func finishAndPaste() {
-        if isPostEventPermissionGranted {
-            pasteOnCompletion = true
-        } else {
+        requestsPasteOnCompletion = true
+        if !isPostEventPermissionGranted {
             onPastePermissionNeeded()
         }
         finish()
@@ -203,6 +179,18 @@ final class ActivationStore: ObservableObject {
     private var isPostEventPermissionGranted: Bool {
         readinessProvider.snapshot.permissions
             .first(where: { $0.kind == .postEvent })?.isAuthorized ?? false
+    }
+
+    private var shouldAlwaysAutoPaste: Bool {
+        preferences.alwaysAutoPaste
+    }
+
+    private var shouldGuideForMissingAutoPastePermission: Bool {
+        (requestsPasteOnCompletion || shouldAlwaysAutoPaste) && !isPostEventPermissionGranted
+    }
+
+    private var shouldPasteOnSuccessfulFinish: Bool {
+        (requestsPasteOnCompletion || shouldAlwaysAutoPaste) && isPostEventPermissionGranted
     }
 
     /// Hard stop — transitions directly to idle without transcribing. Used for cancel (Phase 4).
@@ -231,7 +219,9 @@ final class ActivationStore: ObservableObject {
     func restartCurrentSession() {
         guard state == .recording else { return }
 
+        let currentOrigin = activeActivationOrigin
         invalidateActiveSession()
+        activeActivationOrigin = currentOrigin
         voiceActivityDetector.reset()
         resetSessionMonitoring()
         publishRecoveryFeedback(.restarted)
@@ -257,8 +247,12 @@ final class ActivationStore: ObservableObject {
     /// Finish recording: stops capture and runs the transcription -> clipboard -> dismiss flow.
     func finish() {
         guard state == .recording else { return }
+        if shouldGuideForMissingAutoPastePermission {
+            onPastePermissionNeeded()
+        }
         invalidateScheduledWork()
         recoveryFeedback = nil
+        activeActivationOrigin = nil
         let sessionID = activeSessionID
         state = .processing
         let task = Task { [weak self] in
@@ -290,6 +284,55 @@ final class ActivationStore: ObservableObject {
     }
 
     // MARK: - Private transcription flow
+
+    @discardableResult
+    private func beginRecording(origin: ActivationOrigin) -> Bool {
+        // Ignore activation while transcription is in flight, but allow a new
+        // recording to interrupt terminal feedback instead of waiting for the
+        // auto-dismiss timer to return to idle.
+        guard state == .idle || state.isTerminal else {
+            return false
+        }
+
+        // If we're interrupting a terminal state, cancel the dismiss timer and
+        // transition through idle first so observers (AppDelegate) can cleanly
+        // tear down the previous session's resources before starting fresh.
+        if state.isTerminal {
+            invalidateScheduledWork()
+            state = .idle
+        }
+
+        // Require all permissions to be granted, but do NOT require setup to be
+        // "finalized" (hasCompletedInitialSetup). The finalize step is an
+        // onboarding UX gate, not a runtime safety requirement. Recording must
+        // work as soon as all required permissions are authorized, even if the
+        // user dismissed the setup window early.
+        let snapshot = readinessProvider.snapshot
+        guard snapshot.permissions.filter(\.isRequired).allSatisfy(\.isAuthorized) else {
+            return false
+        }
+
+        soundPlayer.play()
+
+        invalidateScheduledWork()
+        recoveryFeedback = nil
+        activeSessionID = UUID()
+        activeActivationOrigin = origin
+        voiceActivityDetector.reset()
+        state = .recording
+        beginWhisperModelWarmup()
+        beginRewriteModelWarmup()
+
+        // Auto-stop after 5 minutes to prevent runaway recordings.
+        let sessionID = activeSessionID
+        maxDurationTask = Task { [weak self] in
+            try? await Task.sleep(nanoseconds: Self.maxRecordingDuration)
+            guard let self, self.isCurrentSession(sessionID), self.state == .recording else { return }
+            self.finish()
+        }
+
+        return true
+    }
 
     private func finalizeSession(sessionID: UUID) async {
         do {
@@ -340,8 +383,8 @@ final class ActivationStore: ObservableObject {
             }
 
             if !shouldConvert {
-                let didPaste = pasteOnCompletion
-                pasteOnCompletion = false
+                let didPaste = shouldPasteOnSuccessfulFinish
+                requestsPasteOnCompletion = false
                 lastTranscription = trimmed
                 var syntheticPasteSucceeded = false
                 if didPaste {
@@ -359,8 +402,8 @@ final class ActivationStore: ObservableObject {
                 soundPlayer.playSuccess()
                 scheduleDismissToIdle(afterNanoseconds: 1_500_000_000, sessionID: sessionID)
             } else {
-                // Conversion path — paste is not supported for LLM output
-                pasteOnCompletion = false
+                let didPaste = shouldPasteOnSuccessfulFinish
+                requestsPasteOnCompletion = false
 
                 let wordCount = conversionBody
                     .split(separator: " ", omittingEmptySubsequences: true).count
@@ -403,10 +446,16 @@ final class ActivationStore: ObservableObject {
                 }
 
                 guard isCurrentSession(sessionID) else { return }
-                clipboardService.writeToClipboard(rewritten)
+                var syntheticPasteSucceeded = false
+                if didPaste {
+                    let outcome = pasteService.paste(text: rewritten)
+                    syntheticPasteSucceeded = (outcome == .pasted)
+                } else {
+                    clipboardService.writeToClipboard(rewritten)
+                }
                 lastTranscription = trimmed          // raw always stored
                 lastConvertedTranscription = rewritten
-                state = .success(text: rewritten, pasted: false, converted: true)
+                state = .success(text: rewritten, pasted: syntheticPasteSucceeded, converted: true)
                 soundPlayer.playSuccess()
                 scheduleDismissToIdle(afterNanoseconds: 1_500_000_000, sessionID: sessionID)
             }
@@ -433,8 +482,9 @@ final class ActivationStore: ObservableObject {
     }
 
     private func invalidateActiveSession() {
-        pasteOnCompletion = false
+        requestsPasteOnCompletion = false
         activeSessionID = UUID()
+        activeActivationOrigin = nil
         transcriptionTask?.cancel()
         transcriptionTask = nil
         invalidateScheduledWork()

@@ -24,6 +24,53 @@ final class ShellPreferencesModelTests: XCTestCase {
         XCTAssertEqual(preferences.rewriteModelTier, .standard2B)
     }
 
+    func testAlwaysAutoPasteDefaultsToTrue() {
+        let (_, preferences) = makePreferences()
+        XCTAssertTrue(preferences.alwaysAutoPaste)
+    }
+
+    func testAlwaysAutoPastePersistsRoundTrip() {
+        let (defaults, preferences) = makePreferences()
+        preferences.alwaysAutoPaste = false
+
+        let preferences2 = ShellPreferences(userDefaults: defaults)
+        XCTAssertFalse(preferences2.alwaysAutoPaste)
+    }
+
+    func testAlwaysAutoPasteResetRestoresDefault() {
+        let (_, preferences) = makePreferences()
+        preferences.alwaysAutoPaste = false
+        preferences.reset()
+        XCTAssertTrue(preferences.alwaysAutoPaste)
+    }
+
+    // MARK: - holdShortcut tests
+
+    func testHoldShortcutDefaultsToRightOption() {
+        let (_, preferences) = makePreferences()
+        XCTAssertEqual(preferences.holdShortcutKeyCode, 61)
+        XCTAssertEqual(preferences.holdShortcutModifiers, 0)
+    }
+
+    func testHoldShortcutPersistsRoundTrip() {
+        let (defaults, preferences) = makePreferences()
+        preferences.holdShortcutKeyCode = 105
+        preferences.holdShortcutModifiers = NSEvent.ModifierFlags.control.rawValue
+
+        let preferences2 = ShellPreferences(userDefaults: defaults)
+        XCTAssertEqual(preferences2.holdShortcutKeyCode, 105)
+        XCTAssertEqual(preferences2.holdShortcutModifiers, NSEvent.ModifierFlags.control.rawValue)
+    }
+
+    func testHoldShortcutResetRestoresDefault() {
+        let (_, preferences) = makePreferences()
+        preferences.holdShortcutKeyCode = 105
+        preferences.holdShortcutModifiers = 123
+        preferences.reset()
+        XCTAssertEqual(preferences.holdShortcutKeyCode, 61)
+        XCTAssertEqual(preferences.holdShortcutModifiers, 0)
+    }
+
     func testRewriteModelTierPersistsRoundTrip() {
         let (defaults, preferences) = makePreferences()
         preferences.rewriteModelTier = .high9B

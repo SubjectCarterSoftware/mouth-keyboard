@@ -15,6 +15,9 @@ final class ShellPreferences: ObservableObject {
         static let whisperModel = "whisperModel"
         static let launchAtLogin = "launchAtLogin"
         static let rewriteModelTier = "rewriteModelTier"
+        static let alwaysAutoPaste = "alwaysAutoPaste"
+        static let holdShortcutKeyCode = "holdShortcutKeyCode"
+        static let holdShortcutModifiers = "holdShortcutModifiers"
     }
 
     static let shared = makeShared()
@@ -76,6 +79,30 @@ final class ShellPreferences: ObservableObject {
         }
     }
 
+    @Published var alwaysAutoPaste: Bool {
+        didSet {
+            persistIfNeeded {
+                defaults.set(alwaysAutoPaste, forKey: Keys.alwaysAutoPaste)
+            }
+        }
+    }
+
+    @Published var holdShortcutKeyCode: Int {
+        didSet {
+            persistIfNeeded {
+                defaults.set(holdShortcutKeyCode, forKey: Keys.holdShortcutKeyCode)
+            }
+        }
+    }
+
+    @Published var holdShortcutModifiers: UInt {
+        didSet {
+            persistIfNeeded {
+                defaults.set(Int(holdShortcutModifiers), forKey: Keys.holdShortcutModifiers)
+            }
+        }
+    }
+
 
     var shouldPresentSetupOnLaunch: Bool {
         !hasCompletedInitialSetup
@@ -125,6 +152,20 @@ final class ShellPreferences: ObservableObject {
         } else {
             rewriteModelTier = .standard2B
         }
+
+        if userDefaults.object(forKey: Keys.alwaysAutoPaste) == nil {
+            alwaysAutoPaste = true
+        } else {
+            alwaysAutoPaste = userDefaults.bool(forKey: Keys.alwaysAutoPaste)
+        }
+
+        if userDefaults.object(forKey: Keys.holdShortcutKeyCode) == nil {
+            holdShortcutKeyCode = 61
+        } else {
+            holdShortcutKeyCode = userDefaults.integer(forKey: Keys.holdShortcutKeyCode)
+        }
+
+        holdShortcutModifiers = UInt(max(0, userDefaults.integer(forKey: Keys.holdShortcutModifiers)))
 
 
         let loadedTriggerProfile = (initialTriggerProfile ?? TriggerProfileStore.loadSynchronously()).normalized()
@@ -205,6 +246,9 @@ final class ShellPreferences: ObservableObject {
             micDeviceUID = nil
             whisperModel = .baseEN
             rewriteModelTier = .standard2B
+            alwaysAutoPaste = true
+            holdShortcutKeyCode = 61
+            holdShortcutModifiers = 0
             activeTriggerProfile = .defaultProfile
         }
 
@@ -216,6 +260,9 @@ final class ShellPreferences: ObservableObject {
         defaults.removeObject(forKey: Keys.micDeviceUID)
         defaults.removeObject(forKey: Keys.whisperModel)
         defaults.removeObject(forKey: Keys.rewriteModelTier)
+        defaults.removeObject(forKey: Keys.alwaysAutoPaste)
+        defaults.removeObject(forKey: Keys.holdShortcutKeyCode)
+        defaults.removeObject(forKey: Keys.holdShortcutModifiers)
 
         Task { [triggerProfileStore] in
             do {
@@ -271,6 +318,10 @@ final class ShellPreferences: ObservableObject {
 
         if arguments.contains("-mark-keyboard-requested") {
             userDefaults.set(true, forKey: Keys.hasRequestedKeyboardPermission)
+        }
+
+        if arguments.contains("-mark-postevent-requested") {
+            userDefaults.set(true, forKey: Keys.hasRequestedPostEventPermission)
         }
 
         let triggerStore: TriggerProfileStore

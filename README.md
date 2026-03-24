@@ -1,6 +1,6 @@
 # Speech2Text
 
-A lightweight, privacy-first macOS menu bar app that turns your voice into clipboard text. Press a hotkey, speak, press it again — your words are on the clipboard, ready to paste anywhere.
+A lightweight, privacy-first macOS menu bar app that turns your voice into clipboard text. Use toggle hotkeys or hold a configurable key (default: `Right Option`) to capture speech, then paste or reuse the result anywhere.
 
 **No cloud. No subscription. No data leaves your Mac.**
 
@@ -8,7 +8,7 @@ Speech2Text runs [whisper.cpp](https://github.com/ggerganov/whisper.cpp) (OpenAI
 
 ## Features
 
-- 🎙️ **Hotkey-driven** — Ctrl+V to start/stop recording, Ctrl+Shift+V to cancel
+- 🎙️ **Flexible activation** — Ctrl+V to start/stop recording, Ctrl+Shift+V to cancel, or hold a configurable key (default: `Right Option`) to record until release
 - ⚡ **Fast** — Metal GPU acceleration + the tiny.en model = sub-second transcription
 - 🔒 **Private** — 100% on-device, no network requests, no telemetry
 - 🖥️ **Native macOS** — SwiftUI menu bar app, ~5MB total, minimal resource usage
@@ -16,9 +16,9 @@ Speech2Text runs [whisper.cpp](https://github.com/ggerganov/whisper.cpp) (OpenAI
 
 ## How It Works
 
-1. Press **Ctrl+V** — recording starts, a floating pill shows mic levels
+1. Press **Ctrl+V** or hold **Right Option** — recording starts, and a floating pill shows mic levels
 2. Speak naturally
-3. Press **Ctrl+V** again — recording stops, audio is transcribed via Whisper
+3. Press **Ctrl+V** again or release **Right Option** — recording stops and Whisper transcribes the captured audio
 4. Text is automatically copied to your clipboard
 5. Paste anywhere with **⌘V**
 
@@ -28,6 +28,7 @@ Press **Ctrl+Shift+V** at any time to cancel and discard the recording.
 
 - macOS 14.0 (Sonoma) or later
 - Microphone permission
+- Accessibility permission for **Hold to Transcribe** and **Auto Paste**
 
 ## Installation
 
@@ -50,6 +51,8 @@ Click the menu bar icon → **Settings…** to configure:
 |---------|---------|-------------|
 | Activation Hotkey | Ctrl+V | Start/finish recording |
 | Cancellation Hotkey | Ctrl+Shift+V | Cancel and discard |
+| Hold to Transcribe | Configurable (default: Right ⌥) | Press and hold to record, then release to transcribe |
+| Always Auto Paste | On | Paste after any successful finish, including hold-to-transcribe and AI-converted output |
 | Microphone | System Default | Choose a specific input device |
 | Activation Sound | Off | Play a sound when recording starts |
 | Recording Indicator | On | Show the floating pill during recording |

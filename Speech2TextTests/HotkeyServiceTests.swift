@@ -4,6 +4,11 @@ import KeyboardShortcuts
 
 @MainActor
 final class HotkeyServiceTests: XCTestCase {
+    override func setUp() {
+        super.setUp()
+        KeyboardShortcuts.reset(.activate, .activateAndPaste, .stopSession, .cancelSession)
+    }
+
     func testSingleTapArmsImmediately() {
         var armCount = 0
         let service = HotkeyService(
@@ -96,9 +101,105 @@ final class HotkeyServiceTests: XCTestCase {
     }
 
     func testDefaultActivationShortcutIsControlV() {
+        KeyboardShortcuts.reset(.activate)
         let shortcut = KeyboardShortcuts.getShortcut(for: .activate)
 
         XCTAssertEqual(shortcut?.key, .v)
         XCTAssertEqual(shortcut?.modifiers, [.control])
+    }
+
+    func testHoldKeyPressStartsHoldSessionWhenPermissionIsGranted() {
+        var beginHoldCount = 0
+        let service = HotkeyService(
+            currentState: { .idle },
+            onArm: {},
+            onBeginHold: {
+                beginHoldCount += 1
+                return true
+            }
+        )
+
+        service.handleHoldKeyStateChange(isPressed: true)
+
+        XCTAssertEqual(beginHoldCount, 1)
+    }
+
+    func testHoldKeyReleaseStopsOnlyHoldOriginSession() {
+        var finishHoldCount = 0
+        let service = HotkeyService(
+            currentState: { .idle },
+            onArm: {},
+            onBeginHold: { true },
+            onFinishHold: {
+                finishHoldCount += 1
+            }
+        )
+
+        service.handleHoldKeyStateChange(isPressed: true)
+        service.handleHoldKeyStateChange(isPressed: false)
+
+        XCTAssertEqual(finishHoldCount, 1)
+    }
+
+    func testHoldKeyReleaseDoesNotStopToggleRecording() {
+        var finishHoldCount = 0
+        let service = HotkeyService(
+            currentState: { .recording },
+            onArm: {},
+            onBeginHold: { false },
+            onFinishHold: {
+                finishHoldCount += 1
+            }
+        )
+
+        service.handleHoldKeyStateChange(isPressed: true)
+        service.handleHoldKeyStateChange(isPressed: false)
+
+        XCTAssertEqual(finishHoldCount, 0)
+    }
+
+    func testInterferingKeyDownCancelsActiveHoldSession() {
+        var cancelCount = 0
+        var finishHoldCount = 0
+        let service = HotkeyService(
+            currentState: { .recording },
+            onArm: {},
+            onCancel: {
+                cancelCount += 1
+            },
+            onBeginHold: { true },
+            onFinishHold: {
+                finishHoldCount += 1
+            }
+        )
+
+        service.handleHoldKeyStateChange(isPressed: true)
+        service.handleInterferingKeyDown()
+        service.handleHoldKeyStateChange(isPressed: false)
+
+        XCTAssertEqual(cancelCount, 1)
+        XCTAssertEqual(finishHoldCount, 0)
+    }
+
+    func testHoldKeyPressDoesNothingWhenHoldStartIsRejected() {
+        var beginHoldCount = 0
+        var finishHoldCount = 0
+        let service = HotkeyService(
+            currentState: { .idle },
+            onArm: {},
+            onBeginHold: {
+                beginHoldCount += 1
+                return false
+            },
+            onFinishHold: {
+                finishHoldCount += 1
+            }
+        )
+
+        service.handleHoldKeyStateChange(isPressed: true)
+        service.handleHoldKeyStateChange(isPressed: false)
+
+        XCTAssertEqual(beginHoldCount, 1)
+        XCTAssertEqual(finishHoldCount, 0)
     }
 }

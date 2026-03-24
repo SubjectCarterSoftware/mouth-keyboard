@@ -47,6 +47,42 @@ final class ActivationStoreTests: XCTestCase {
         XCTAssertEqual(store.state, .idle)
     }
 
+    func testBeginHoldSessionTransitionsToRecordingSynchronouslyWhenReady() {
+        let store = makeStore(permissionsAuthorized: true)
+
+        let didStart = store.beginHoldSession()
+
+        XCTAssertTrue(didStart)
+        XCTAssertEqual(store.state, .recording)
+    }
+
+    func testBeginHoldSessionReturnsFalseWhenPermissionsNotAuthorized() {
+        let store = makeStore(permissionsAuthorized: false)
+
+        let didStart = store.beginHoldSession()
+
+        XCTAssertFalse(didStart)
+        XCTAssertEqual(store.state, .idle)
+    }
+
+    func testFinishHoldSessionStopsOnlyHoldOriginRecording() {
+        let store = makeStore(permissionsAuthorized: true)
+        XCTAssertTrue(store.beginHoldSession())
+
+        store.finishHoldSession()
+
+        XCTAssertEqual(store.state, .processing)
+    }
+
+    func testFinishHoldSessionIgnoresToggleOriginRecording() {
+        let store = makeStore(permissionsAuthorized: true)
+        store.arm()
+
+        store.finishHoldSession()
+
+        XCTAssertEqual(store.state, .recording)
+    }
+
     // arm() is blocked when permissions are not yet authorized — readiness
     // state alone is not the gate; the individual permission items are checked.
     func testArmDoesNotTransitionWhenPermissionsNotAuthorized() {
@@ -193,6 +229,7 @@ final class ActivationStoreTests: XCTestCase {
         let mockClipboard = ActivationStoreMockClipboard()
         let store = makeStore(
             permissionsAuthorized: true,
+            postEventAuthorized: true,
             transcriber: ActivationStoreMockTranscriber(result: .success("Fallback text")),
             clipboard: mockClipboard,
             pasteService: pasteStub
@@ -212,6 +249,97 @@ final class ActivationStoreTests: XCTestCase {
         }
         XCTAssertEqual(pasteStub.pasteCount, 1)
         XCTAssertEqual(pasteStub.lastText, "Fallback text")
+    }
+
+    func testAlwaysAutoPastePastesRawTranscriptionWhenPermissionIsGranted() async throws {
+        let pasteStub = StubSuccessfulPasteService()
+        let mockClipboard = ActivationStoreMockClipboard()
+        let store = makeStore(
+            permissionsAuthorized: true,
+            postEventAuthorized: true,
+            transcriber: ActivationStoreMockTranscriber(result: .success("Hello world")),
+            clipboard: mockClipboard,
+            pasteService: pasteStub
+        )
+
+        store.arm()
+        store.finish()
+
+        try await Task.sleep(nanoseconds: 200_000_000)
+
+        XCTAssertNil(mockClipboard.lastWrittenText)
+        XCTAssertEqual(pasteStub.pasteCount, 1)
+        XCTAssertEqual(pasteStub.lastText, "Hello world")
+        if case .success(_, let pasted, let converted, _) = store.state {
+            XCTAssertTrue(pasted)
+            XCTAssertFalse(converted)
+        } else {
+            XCTFail("Expected .success state after auto paste")
+        }
+    }
+
+    func testAlwaysAutoPastePastesConvertedOutputWhenPermissionIsGranted() async throws {
+        let pasteStub = StubSuccessfulPasteService()
+        let mockClipboard = ActivationStoreMockClipboard()
+        let store = makeStore(
+            permissionsAuthorized: true,
+            postEventAuthorized: true,
+            transcriber: ActivationStoreMockTranscriber(
+                result: .success("zeus Please schedule a meeting for Friday convert to email")
+            ),
+            llmRewriter: MockLLMRewriter(result: .success("Converted output")),
+            clipboard: mockClipboard,
+            pasteService: pasteStub
+        )
+
+        store.arm()
+        store.finish()
+
+        try await Task.sleep(nanoseconds: 300_000_000)
+
+        XCTAssertNil(mockClipboard.lastWrittenText)
+        XCTAssertEqual(pasteStub.pasteCount, 1)
+        XCTAssertEqual(pasteStub.lastText, "Converted output")
+        if case .success(let text, let pasted, let converted, _) = store.state {
+            XCTAssertEqual(text, "Converted output")
+            XCTAssertTrue(pasted)
+            XCTAssertTrue(converted)
+        } else {
+            XCTFail("Expected .success state after converted auto paste")
+        }
+    }
+
+    func testAlwaysAutoPasteOffKeepsClipboardOnlyBehavior() async throws {
+        let suiteName = "ActivationStoreTests.AlwaysAutoPasteOff.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suiteName) ?? .standard
+        defaults.removePersistentDomain(forName: suiteName)
+        let preferences = ShellPreferences(userDefaults: defaults)
+        preferences.alwaysAutoPaste = false
+
+        let pasteStub = StubSuccessfulPasteService()
+        let mockClipboard = ActivationStoreMockClipboard()
+        let store = makeStore(
+            permissionsAuthorized: true,
+            postEventAuthorized: true,
+            transcriber: ActivationStoreMockTranscriber(result: .success("Clipboard only")),
+            clipboard: mockClipboard,
+            pasteService: pasteStub,
+            preferences: preferences
+        )
+
+        store.arm()
+        store.finish()
+
+        try await Task.sleep(nanoseconds: 200_000_000)
+
+        XCTAssertEqual(mockClipboard.lastWrittenText, "Clipboard only")
+        XCTAssertEqual(pasteStub.pasteCount, 0)
+        if case .success(_, let pasted, let converted, _) = store.state {
+            XCTAssertFalse(pasted)
+            XCTAssertFalse(converted)
+        } else {
+            XCTFail("Expected .success state after clipboard-only finish")
+        }
     }
 
     func testCancelDuringRecordingReturnsToIdleWithoutClipboardWrite() async throws {
@@ -1086,6 +1214,7 @@ final class ActivationStoreTests: XCTestCase {
 
     private func makeStore(
         permissionsAuthorized: Bool,
+        postEventAuthorized: Bool = false,
         transcriber: (any WhisperTranscribing)? = nil,
         llmRewriter: (any LLMRewriting)? = nil,
         whisperModelLoadState: (any WhisperModelLoadStateProviding)? = nil,
@@ -1102,7 +1231,10 @@ final class ActivationStoreTests: XCTestCase {
 
         return ActivationStore(
             preferences: resolvedPreferences,
-            readinessProvider: StubReadinessProvider(permissionsAuthorized: permissionsAuthorized),
+            readinessProvider: StubReadinessProvider(
+                permissionsAuthorized: permissionsAuthorized,
+                postEventAuthorized: postEventAuthorized
+            ),
             whisperModelLoadState: whisperModelLoadState ?? StubWhisperModelLoadState(),
             whisperService: transcriber ?? ActivationStoreMockTranscriber(result: .success("")),
             llmRewriteService: llmRewriter ?? MockLLMRewriter(result: .failure(LLMRewriteError.cancelled)),
@@ -1136,13 +1268,15 @@ final class ActivationStoreTests: XCTestCase {
 @MainActor
 private struct StubReadinessProvider: ReadinessProviding {
     let permissionsAuthorized: Bool
+    let postEventAuthorized: Bool
 
     var snapshot: ReadinessSnapshot {
-        let status: PermissionGrantState = permissionsAuthorized ? .authorized : .denied
-        let permissions = PermissionKind.allCases.map {
-            PermissionChecklistItem(kind: $0, status: status, message: "", isRequired: true)
-        }
-        // state is derived from permission statuses; supply a plausible value.
+        let microphoneStatus: PermissionGrantState = permissionsAuthorized ? .authorized : .denied
+        let postEventStatus: PermissionGrantState = postEventAuthorized ? .authorized : .notDetermined
+        let permissions = [
+            PermissionChecklistItem(kind: .microphone, status: microphoneStatus, message: "", isRequired: true),
+            PermissionChecklistItem(kind: .postEvent, status: postEventStatus, message: "", isRequired: false),
+        ]
         let state: ReadinessState = permissionsAuthorized ? .ready : .blocked
         return ReadinessSnapshot(
             state: state,
@@ -1351,5 +1485,16 @@ final class StubCopyOnlyPasteService: PasteServicing {
         pasteCount += 1
         lastText = text
         return .copiedOnly
+    }
+}
+
+final class StubSuccessfulPasteService: PasteServicing {
+    private(set) var pasteCount = 0
+    private(set) var lastText: String?
+
+    func paste(text: String) -> PasteOutcome {
+        pasteCount += 1
+        lastText = text
+        return .pasted
     }
 }

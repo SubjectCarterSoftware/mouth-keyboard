@@ -80,7 +80,7 @@ private struct PermissionTile: View {
                 .foregroundStyle(Color.accentColor)
                 .accessibilityIdentifier("permission.\(item.kind.rawValue).action")
                 .popover(isPresented: $showsSetupGuide, arrowEdge: .bottom) {
-                    PostEventSetupGuide {
+                    AccessibilitySetupGuide {
                         showsSetupGuide = false
                         if item.status == .denied {
                             openRecovery(item.kind)
@@ -105,14 +105,14 @@ private struct PermissionTile: View {
     }
 }
 
-// MARK: - Auto Paste setup guide
+// MARK: - Accessibility setup guide
 
-private struct PostEventSetupGuide: View {
+struct AccessibilitySetupGuide: View {
     let onOpenSettings: () -> Void
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
-            Text("How to enable Auto Paste")
+            Text("How to enable Accessibility access")
                 .font(.headline)
 
             VStack(alignment: .leading, spacing: 12) {
