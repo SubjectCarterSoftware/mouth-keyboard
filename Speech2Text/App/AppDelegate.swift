@@ -123,6 +123,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     // MARK: - State machine handlers
 
     private func onRecordingStarted() {
+        // Stop any existing capture so restarts don't hit captureBusy.
+        audioCaptureService.stop()
         levelMonitor.reset()
         do {
             try audioCaptureService.start(

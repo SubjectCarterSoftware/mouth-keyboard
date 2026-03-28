@@ -572,7 +572,7 @@ final class ActivationStoreTests: XCTestCase {
         XCTAssertEqual(mockClipboard.writeCount, 1)
     }
 
-    func test_arm_while_recording_calls_finish() async throws {
+    func test_arm_while_recording_is_ignored() async throws {
         let mockTranscriber = ActivationStoreMockTranscriber(result: .success("toggled"))
         let store = makeStore(
             permissionsAuthorized: true,
@@ -582,9 +582,9 @@ final class ActivationStoreTests: XCTestCase {
         store.arm() // -> .recording
         XCTAssertEqual(store.state, .recording)
 
-        store.arm() // second arm while recording should call finish()
+        store.arm() // second arm while recording should be ignored
 
-        XCTAssertEqual(store.state, .processing)
+        XCTAssertEqual(store.state, .recording)
     }
 
     func test_arm_while_processing_is_ignored() async throws {

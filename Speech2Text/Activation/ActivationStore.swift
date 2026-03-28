@@ -135,12 +135,7 @@ final class ActivationStore: ObservableObject {
     // MARK: - Public API
 
     func arm() {
-        // Toggle: if already recording, finish (trigger transcription flow).
-        if state == .recording {
-            finish()
-            return
-        }
-
+        guard state != .recording else { return }
         _ = beginRecording(origin: .toggle)
     }
 
@@ -460,6 +455,11 @@ final class ActivationStore: ObservableObject {
                 scheduleDismissToIdle(afterNanoseconds: 1_500_000_000, sessionID: sessionID)
             }
         } catch TranscriptionError.noSpeechDetected {
+            guard isCurrentSession(sessionID) else { return }
+            state = .failure(reason: .noSpeechDetected)
+            soundPlayer.playFailure()
+            scheduleDismissToIdle(afterNanoseconds: 2_000_000_000, sessionID: sessionID)
+        } catch AudioBufferAccumulatorError.emptyBuffers {
             guard isCurrentSession(sessionID) else { return }
             state = .failure(reason: .noSpeechDetected)
             soundPlayer.playFailure()

@@ -4,9 +4,10 @@ import KeyboardShortcuts
 
 extension KeyboardShortcuts.Name {
     static let activate = Self("activate", default: .init(.v, modifiers: [.control]))
-    static let activateAndPaste = Self("activateAndPaste", default: .init(.b, modifiers: [.control]))
-    static let stopSession = Self("stopSession")
+    static let stopSession = Self("stopSession", default: .init(.v, modifiers: [.control]))
     static let cancelSession = Self("cancelSession", default: .init(.v, modifiers: [.control, .shift]))
+    static let activateAlt = Self("activateAlt")
+    static let stopSessionAlt = Self("stopSessionAlt")
 }
 
 @MainActor
@@ -16,7 +17,6 @@ final class HotkeyService {
         onArm: { ActivationStore.shared.arm() },
         onStop: { ActivationStore.shared.finish() },
         onCancel: { ActivationStore.shared.cancelCurrentSession() },
-        onArmAndPaste: { ActivationStore.shared.armAndPaste() },
         onBeginHold: { ActivationStore.shared.beginHoldSession() },
         onFinishHold: { ActivationStore.shared.finishHoldSession() }
     )
@@ -28,7 +28,6 @@ final class HotkeyService {
     var onArm: () -> Void
     var onStop: () -> Void
     var onCancel: () -> Void
-    var onArmAndPaste: () -> Void
     var onBeginHold: () -> Bool
     var onFinishHold: () -> Void
 
@@ -36,6 +35,7 @@ final class HotkeyService {
 
     private var isListening = false
     private var lastActivationTime: CFAbsoluteTime?
+    private var lastHandledKeypressTime: CFAbsoluteTime = 0
     private var isHoldKeyDown = false
     private var hasActiveHoldSession = false
     private var isHoldInteractionInvalidated = false
@@ -46,7 +46,6 @@ final class HotkeyService {
         onArm: @escaping () -> Void,
         onStop: @escaping () -> Void = {},
         onCancel: @escaping () -> Void = {},
-        onArmAndPaste: @escaping () -> Void = {},
         onBeginHold: @escaping () -> Bool = { false },
         onFinishHold: @escaping () -> Void = {},
         now: @escaping () -> CFAbsoluteTime = CFAbsoluteTimeGetCurrent,
@@ -57,7 +56,6 @@ final class HotkeyService {
         self.onArm = onArm
         self.onStop = onStop
         self.onCancel = onCancel
-        self.onArmAndPaste = onArmAndPaste
         self.onBeginHold = onBeginHold
         self.onFinishHold = onFinishHold
         self.now = now
@@ -140,9 +138,50 @@ final class HotkeyService {
     func start() {
         if !isListening {
             KeyboardShortcuts.onKeyDown(for: .activate) { [weak self] in
+                let fireTime = CFAbsoluteTimeGetCurrent()
                 Task { @MainActor [weak self] in
-                    NSLog("HotkeyService: shortcut fired via KeyboardShortcuts")
-                    _ = self?.handleKeyDown()
+                    guard let self else { return }
+                    guard fireTime - self.lastHandledKeypressTime > 0.05 else { return }
+                    guard self.currentState() != .recording else { return }
+                    self.lastHandledKeypressTime = fireTime
+                    NSLog("HotkeyService: start shortcut fired via KeyboardShortcuts")
+                    _ = self.handleKeyDown()
+                }
+            }
+
+            KeyboardShortcuts.onKeyDown(for: .activateAlt) { [weak self] in
+                let fireTime = CFAbsoluteTimeGetCurrent()
+                Task { @MainActor [weak self] in
+                    guard let self else { return }
+                    guard fireTime - self.lastHandledKeypressTime > 0.05 else { return }
+                    guard self.currentState() != .recording else { return }
+                    self.lastHandledKeypressTime = fireTime
+                    NSLog("HotkeyService: start (alt) shortcut fired via KeyboardShortcuts")
+                    _ = self.handleKeyDown()
+                }
+            }
+
+            KeyboardShortcuts.onKeyDown(for: .stopSession) { [weak self] in
+                let fireTime = CFAbsoluteTimeGetCurrent()
+                Task { @MainActor [weak self] in
+                    guard let self else { return }
+                    guard fireTime - self.lastHandledKeypressTime > 0.05 else { return }
+                    guard self.currentState() == .recording else { return }
+                    self.lastHandledKeypressTime = fireTime
+                    NSLog("HotkeyService: stop shortcut fired via KeyboardShortcuts")
+                    self.onStop()
+                }
+            }
+
+            KeyboardShortcuts.onKeyDown(for: .stopSessionAlt) { [weak self] in
+                let fireTime = CFAbsoluteTimeGetCurrent()
+                Task { @MainActor [weak self] in
+                    guard let self else { return }
+                    guard fireTime - self.lastHandledKeypressTime > 0.05 else { return }
+                    guard self.currentState() == .recording else { return }
+                    self.lastHandledKeypressTime = fireTime
+                    NSLog("HotkeyService: stop (alt) shortcut fired via KeyboardShortcuts")
+                    self.onStop()
                 }
             }
 
@@ -150,20 +189,6 @@ final class HotkeyService {
                 Task { @MainActor [weak self] in
                     NSLog("HotkeyService: cancel shortcut fired via KeyboardShortcuts")
                     self?.onCancel()
-                }
-            }
-
-            KeyboardShortcuts.onKeyDown(for: .activateAndPaste) { [weak self] in
-                Task { @MainActor [weak self] in
-                    NSLog("HotkeyService: activateAndPaste shortcut fired via KeyboardShortcuts")
-                    self?.onArmAndPaste()
-                }
-            }
-
-            KeyboardShortcuts.onKeyDown(for: .stopSession) { [weak self] in
-                Task { @MainActor [weak self] in
-                    NSLog("HotkeyService: stop shortcut fired via KeyboardShortcuts")
-                    self?.onStop()
                 }
             }
 
@@ -178,6 +203,11 @@ final class HotkeyService {
     func configureHoldTarget() {
         let prefs = ShellPreferences.shared
         holdMonitor.updateTarget(keyCode: prefs.holdShortcutKeyCode, modifiers: prefs.holdShortcutModifiers)
+        if prefs.holdShortcutKeyCodeAlt >= 0 {
+            holdMonitor.updateSecondaryTarget(keyCode: prefs.holdShortcutKeyCodeAlt, modifiers: prefs.holdShortcutModifiersAlt)
+        } else {
+            holdMonitor.clearSecondaryTarget()
+        }
     }
 
     func configureHoldTarget(keyCode: Int, modifiers: UInt) {
@@ -185,9 +215,8 @@ final class HotkeyService {
     }
 
     func stop() {
-        KeyboardShortcuts.disable(.activate)
-        KeyboardShortcuts.disable(.activateAndPaste)
-        KeyboardShortcuts.disable(.stopSession)
+        KeyboardShortcuts.disable(.activate, .activateAlt)
+        KeyboardShortcuts.disable(.stopSession, .stopSessionAlt)
         KeyboardShortcuts.disable(.cancelSession)
         holdMonitor.stop()
         clearHoldInteractionState()
@@ -217,6 +246,13 @@ final class HoldToTranscribeMonitor {
     private var targetModifierFlag: CGEventFlags = .maskAlternate
     private var requiredModifiers: CGEventFlags = []
 
+    // Optional secondary target key
+    private var hasSecondaryTarget = false
+    private var secondaryKeyCode: Int64 = -1
+    private var secondaryIsModifier: Bool = false
+    private var secondaryModifierFlag: CGEventFlags = []
+    private var secondaryRequiredModifiers: CGEventFlags = []
+
     private static let modifierKeyCodes: Set<Int64> = [54, 55, 56, 57, 58, 59, 60, 61, 62, 63]
 
     private static func modifierFlag(for keyCode: Int64) -> CGEventFlags {
@@ -243,6 +279,37 @@ final class HoldToTranscribeMonitor {
         if modifiers & (1 << 19) != 0 { cgFlags.insert(.maskAlternate) } // .option
         if modifiers & (1 << 18) != 0 { cgFlags.insert(.maskControl) }   // .control
         requiredModifiers = cgFlags
+
+        if isHoldKeyDown {
+            isHoldKeyDown = false
+        }
+    }
+
+    func updateSecondaryTarget(keyCode: Int, modifiers: UInt) {
+        let code = Int64(keyCode)
+        secondaryKeyCode = code
+        secondaryIsModifier = Self.modifierKeyCodes.contains(code)
+        secondaryModifierFlag = secondaryIsModifier ? Self.modifierFlag(for: code) : []
+
+        var cgFlags: CGEventFlags = []
+        if modifiers & (1 << 20) != 0 { cgFlags.insert(.maskCommand) }
+        if modifiers & (1 << 17) != 0 { cgFlags.insert(.maskShift) }
+        if modifiers & (1 << 19) != 0 { cgFlags.insert(.maskAlternate) }
+        if modifiers & (1 << 18) != 0 { cgFlags.insert(.maskControl) }
+        secondaryRequiredModifiers = cgFlags
+        hasSecondaryTarget = true
+
+        if isHoldKeyDown {
+            isHoldKeyDown = false
+        }
+    }
+
+    func clearSecondaryTarget() {
+        hasSecondaryTarget = false
+        secondaryKeyCode = -1
+        secondaryIsModifier = false
+        secondaryModifierFlag = []
+        secondaryRequiredModifiers = []
 
         if isHoldKeyDown {
             isHoldKeyDown = false
@@ -318,17 +385,24 @@ final class HoldToTranscribeMonitor {
             }
 
         case .flagsChanged:
-            if targetIsModifier {
+            let isAnyModifierTarget = targetIsModifier || (hasSecondaryTarget && secondaryIsModifier)
+            if isAnyModifierTarget {
                 handleModifierTargetFlagsChanged(event)
-            } else if isHoldKeyDown && !requiredModifiers.isEmpty {
-                if !event.flags.contains(requiredModifiers) {
+            }
+            // Check if modifiers released for a regular-key target being held
+            if isHoldKeyDown {
+                if !targetIsModifier && !requiredModifiers.isEmpty && !event.flags.contains(requiredModifiers) {
+                    isHoldKeyDown = false
+                    onHoldKeyReleased?()
+                } else if hasSecondaryTarget && !secondaryIsModifier && !secondaryRequiredModifiers.isEmpty && !event.flags.contains(secondaryRequiredModifiers) {
                     isHoldKeyDown = false
                     onHoldKeyReleased?()
                 }
             }
 
         case .keyDown:
-            if targetIsModifier {
+            let isAnyModifierTarget = targetIsModifier && (!hasSecondaryTarget || secondaryIsModifier)
+            if isAnyModifierTarget {
                 if isHoldKeyDown {
                     onInterferingKeyDown?()
                 }
@@ -337,7 +411,7 @@ final class HoldToTranscribeMonitor {
             }
 
         case .keyUp:
-            if !targetIsModifier {
+            if !targetIsModifier || (hasSecondaryTarget && !secondaryIsModifier) {
                 handleRegularTargetKeyUp(event)
             }
 
@@ -350,23 +424,36 @@ final class HoldToTranscribeMonitor {
 
     private func handleModifierTargetFlagsChanged(_ event: CGEvent) {
         let keyCode = event.getIntegerValueField(.keyboardEventKeycode)
-        guard keyCode == targetKeyCode else { return }
 
-        let isPressed = event.flags.contains(targetModifierFlag)
-        if isPressed == isHoldKeyDown { return }
+        // Check primary modifier target
+        if targetIsModifier && keyCode == targetKeyCode {
+            let isPressed = event.flags.contains(targetModifierFlag)
+            if isPressed != isHoldKeyDown {
+                isHoldKeyDown = isPressed
+                if isPressed { onHoldKeyPressed?() } else { onHoldKeyReleased?() }
+            }
+            return
+        }
 
-        isHoldKeyDown = isPressed
-        if isPressed {
-            onHoldKeyPressed?()
-        } else {
-            onHoldKeyReleased?()
+        // Check secondary modifier target
+        if hasSecondaryTarget && secondaryIsModifier && keyCode == secondaryKeyCode {
+            let isPressed = event.flags.contains(secondaryModifierFlag)
+            if isPressed != isHoldKeyDown {
+                isHoldKeyDown = isPressed
+                if isPressed { onHoldKeyPressed?() } else { onHoldKeyReleased?() }
+            }
         }
     }
 
     private func handleRegularTargetKeyDown(_ event: CGEvent) {
         let keyCode = event.getIntegerValueField(.keyboardEventKeycode)
-        if keyCode == targetKeyCode {
-            if !isHoldKeyDown && (requiredModifiers.isEmpty || event.flags.contains(requiredModifiers)) {
+        let matchesPrimary = !targetIsModifier && keyCode == targetKeyCode
+            && (requiredModifiers.isEmpty || event.flags.contains(requiredModifiers))
+        let matchesSecondary = hasSecondaryTarget && !secondaryIsModifier && keyCode == secondaryKeyCode
+            && (secondaryRequiredModifiers.isEmpty || event.flags.contains(secondaryRequiredModifiers))
+
+        if matchesPrimary || matchesSecondary {
+            if !isHoldKeyDown {
                 isHoldKeyDown = true
                 onHoldKeyPressed?()
             }
@@ -377,7 +464,9 @@ final class HoldToTranscribeMonitor {
 
     private func handleRegularTargetKeyUp(_ event: CGEvent) {
         let keyCode = event.getIntegerValueField(.keyboardEventKeycode)
-        if keyCode == targetKeyCode && isHoldKeyDown {
+        let matchesPrimary = !targetIsModifier && keyCode == targetKeyCode
+        let matchesSecondary = hasSecondaryTarget && !secondaryIsModifier && keyCode == secondaryKeyCode
+        if (matchesPrimary || matchesSecondary) && isHoldKeyDown {
             isHoldKeyDown = false
             onHoldKeyReleased?()
         }

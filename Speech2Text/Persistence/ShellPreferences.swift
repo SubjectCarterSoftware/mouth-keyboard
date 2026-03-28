@@ -18,6 +18,8 @@ final class ShellPreferences: ObservableObject {
         static let alwaysAutoPaste = "alwaysAutoPaste"
         static let holdShortcutKeyCode = "holdShortcutKeyCode"
         static let holdShortcutModifiers = "holdShortcutModifiers"
+        static let holdShortcutKeyCodeAlt = "holdShortcutKeyCodeAlt"
+        static let holdShortcutModifiersAlt = "holdShortcutModifiersAlt"
     }
 
     static let shared = makeShared()
@@ -103,6 +105,23 @@ final class ShellPreferences: ObservableObject {
         }
     }
 
+    /// Alternate hold shortcut. -1 means unset (no binding).
+    @Published var holdShortcutKeyCodeAlt: Int {
+        didSet {
+            persistIfNeeded {
+                defaults.set(holdShortcutKeyCodeAlt, forKey: Keys.holdShortcutKeyCodeAlt)
+            }
+        }
+    }
+
+    @Published var holdShortcutModifiersAlt: UInt {
+        didSet {
+            persistIfNeeded {
+                defaults.set(Int(holdShortcutModifiersAlt), forKey: Keys.holdShortcutModifiersAlt)
+            }
+        }
+    }
+
 
     var shouldPresentSetupOnLaunch: Bool {
         !hasCompletedInitialSetup
@@ -137,7 +156,7 @@ final class ShellPreferences: ObservableObject {
         }
 
         let storedWhisperModel = userDefaults.string(forKey: Keys.whisperModel)
-        let resolvedWhisperModel = WhisperModelChoice.resolvedStoredValue(storedWhisperModel) ?? .baseEN
+        let resolvedWhisperModel = WhisperModelChoice.resolvedStoredValue(storedWhisperModel) ?? .smallEN
         whisperModel = resolvedWhisperModel
 
         if storedWhisperModel == WhisperModelChoice.legacyLargeTurboRawValue {
@@ -166,6 +185,14 @@ final class ShellPreferences: ObservableObject {
         }
 
         holdShortcutModifiers = UInt(max(0, userDefaults.integer(forKey: Keys.holdShortcutModifiers)))
+
+        if userDefaults.object(forKey: Keys.holdShortcutKeyCodeAlt) == nil {
+            holdShortcutKeyCodeAlt = -1
+        } else {
+            holdShortcutKeyCodeAlt = userDefaults.integer(forKey: Keys.holdShortcutKeyCodeAlt)
+        }
+
+        holdShortcutModifiersAlt = UInt(max(0, userDefaults.integer(forKey: Keys.holdShortcutModifiersAlt)))
 
 
         let loadedTriggerProfile = (initialTriggerProfile ?? TriggerProfileStore.loadSynchronously()).normalized()
@@ -244,7 +271,7 @@ final class ShellPreferences: ObservableObject {
             hasRequestedKeyboardPermission = false
             hasRequestedPostEventPermission = false
             micDeviceUID = nil
-            whisperModel = .baseEN
+            whisperModel = .smallEN
             rewriteModelTier = .standard2B
             alwaysAutoPaste = true
             holdShortcutKeyCode = 61

@@ -1,4 +1,5 @@
 import AppKit
+import Carbon.HIToolbox
 import Combine
 import KeyboardShortcuts
 import SwiftUI
@@ -9,11 +10,209 @@ enum SetupWindowMetrics {
     static let expandedHeight: CGFloat = 820
 }
 
-private struct HoldShortcutRecorder: View {
-    @ObservedObject var preferences: ShellPreferences
+// MARK: - Shared shortcut recorder visual field
+
+private struct ShortcutRecorderField: View {
+    let displayText: String
+    let isRecording: Bool
+    let isNonDefault: Bool
+    let isEmpty: Bool
+    let accessibilityID: String
+    let onClear: () -> Void
+    let onStartRecording: () -> Void
+    var onReset: (() -> Void)? = nil
+
+    init(displayText: String, isRecording: Bool, isNonDefault: Bool, isEmpty: Bool = false, accessibilityID: String, onClear: @escaping () -> Void, onStartRecording: @escaping () -> Void, onReset: (() -> Void)? = nil) {
+        self.displayText = displayText
+        self.isRecording = isRecording
+        self.isNonDefault = isNonDefault
+        self.isEmpty = isEmpty
+        self.accessibilityID = accessibilityID
+        self.onClear = onClear
+        self.onStartRecording = onStartRecording
+        self.onReset = onReset
+    }
+
+    var body: some View {
+        HStack(spacing: 4) {
+            Text(isRecording ? "Record Shortcut" : displayText)
+                .font(.body)
+                .foregroundStyle(isRecording ? .secondary : (isEmpty ? .secondary : .primary))
+                .frame(minWidth: 60)
+                .padding(.horizontal, 6)
+                .padding(.vertical, 3)
+                .contentShape(Rectangle())
+                .onTapGesture {
+                    if isEmpty && !isRecording {
+                        onStartRecording()
+                    }
+                }
+                .accessibilityIdentifier(accessibilityID)
+                .accessibilityLabel(displayText)
+
+            if !isRecording {
+                if isNonDefault, let onReset {
+                    Button(action: onReset) {
+                        Image(systemName: "arrow.counterclockwise")
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                    }
+                    .buttonStyle(.plain)
+                    .help("Reset to default")
+                } else if onReset != nil {
+                    // Invisible placeholder to keep width stable
+                    Image(systemName: "arrow.counterclockwise")
+                        .font(.caption2)
+                        .hidden()
+                }
+
+                if !isEmpty {
+                    Button(action: onClear) {
+                        Image(systemName: "xmark.circle.fill")
+                            .font(.body)
+                            .foregroundStyle(.secondary)
+                    }
+                    .buttonStyle(.plain)
+                    .help("Clear shortcut")
+                }
+            }
+        }
+        .padding(.horizontal, 4)
+        .padding(.vertical, 1)
+        .frame(width: 170)
+        .background(
+            RoundedRectangle(cornerRadius: 5)
+                .fill(Color(nsColor: .controlBackgroundColor))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 5)
+                .stroke(Color(nsColor: .separatorColor), lineWidth: 0.5)
+        )
+    }
+}
+
+// MARK: - Key combo recorder (Start / Stop shortcuts)
+
+private struct KeyComboRecorder: View {
+    let name: KeyboardShortcuts.Name
     @State private var isRecording = false
     @State private var eventMonitor: Any?
+    @State private var clickMonitor: Any?
+    @State private var currentShortcut: KeyboardShortcuts.Shortcut?
+    @State private var shortcutBeforeRecording: KeyboardShortcuts.Shortcut?
+    @State private var lastCancelTime: Date = .distantPast
+
+    private var displayText: String {
+        currentShortcut?.description ?? "Not Set"
+    }
+
+    private var isNonDefault: Bool {
+        currentShortcut != name.defaultShortcut
+    }
+
+    var body: some View {
+        ShortcutRecorderField(
+            displayText: displayText,
+            isRecording: isRecording,
+            isNonDefault: isNonDefault,
+            isEmpty: currentShortcut == nil,
+            accessibilityID: "setupWindow.\(name.rawValue).recorder",
+            onClear: {
+                KeyboardShortcuts.setShortcut(nil, for: name)
+                currentShortcut = nil
+            },
+            onStartRecording: {
+                guard Date().timeIntervalSince(lastCancelTime) > 0.3 else { return }
+                startRecording()
+            },
+            onReset: {
+                KeyboardShortcuts.reset(name)
+                currentShortcut = KeyboardShortcuts.getShortcut(for: name)
+            }
+        )
+        .onAppear {
+            currentShortcut = KeyboardShortcuts.getShortcut(for: name)
+        }
+        .onDisappear { cancelRecording() }
+    }
+
+    private func startRecording() {
+        shortcutBeforeRecording = currentShortcut
+        isRecording = true
+        KeyboardShortcuts.disable(.activate, .activateAlt, .stopSession, .stopSessionAlt, .cancelSession)
+        eventMonitor = NSEvent.addLocalMonitorForEvents(matching: [.keyDown]) { event in
+            if event.keyCode == 53 { // Escape — restore previous
+                cancelRecording()
+                return nil
+            }
+
+            let relevantModifiers: NSEvent.ModifierFlags = [.command, .option, .shift, .control]
+            let modifiers = event.modifierFlags.intersection(relevantModifiers)
+            let isFunctionKey = (0x60...0x6F).contains(Int(event.keyCode))
+                || (0x40...0x4F).contains(Int(event.keyCode))
+
+            guard !modifiers.subtracting(.shift).isEmpty || isFunctionKey else {
+                NSSound.beep()
+                return nil
+            }
+
+            if let shortcut = KeyboardShortcuts.Shortcut(event: event) {
+                KeyboardShortcuts.setShortcut(shortcut, for: name)
+                currentShortcut = shortcut
+                finishRecording()
+            }
+            return nil
+        }
+        clickMonitor = NSEvent.addLocalMonitorForEvents(matching: [.leftMouseDown]) { event in
+            cancelRecording()
+            return event
+        }
+    }
+
+    private func cancelRecording() {
+        guard isRecording else { return }
+        if let previous = shortcutBeforeRecording {
+            KeyboardShortcuts.setShortcut(previous, for: name)
+            currentShortcut = previous
+        }
+        lastCancelTime = Date()
+        finishRecording()
+    }
+
+    private func finishRecording() {
+        if let eventMonitor {
+            NSEvent.removeMonitor(eventMonitor)
+        }
+        if let clickMonitor {
+            NSEvent.removeMonitor(clickMonitor)
+        }
+        eventMonitor = nil
+        clickMonitor = nil
+        shortcutBeforeRecording = nil
+        isRecording = false
+        KeyboardShortcuts.enable(.activate, .activateAlt, .stopSession, .stopSessionAlt, .cancelSession)
+    }
+}
+
+// MARK: - Hold-key recorder (modifier-only keys allowed)
+
+private struct HoldShortcutRecorder: View {
+    let keyCode: Int
+    let modifiers: UInt
+    let defaultKeyCode: Int
+    let defaultModifiers: UInt
+    let accessibilityID: String
+    let onRecord: (Int, UInt) -> Void
+    let onClear: () -> Void
+    let onReset: () -> Void
+
+    @State private var isRecording = false
+    @State private var eventMonitor: Any?
+    @State private var clickMonitor: Any?
     @State private var pendingModifierKeyCode: Int?
+    @State private var keyCodeBeforeRecording: Int?
+    @State private var modifiersBeforeRecording: UInt?
+    @State private var lastCancelTime: Date = .distantPast
 
     private static let modifierKeyCodes: Set<Int> = [54, 55, 56, 57, 58, 59, 60, 61, 62, 63]
 
@@ -53,66 +252,73 @@ private struct HoldShortcutRecorder: View {
         return symbols.isEmpty ? keyChar : symbols + keyChar
     }
 
-    private var shortcutName: String {
-        Self.displayName(keyCode: preferences.holdShortcutKeyCode, modifiers: preferences.holdShortcutModifiers)
+    /// True when a binding is set (keyCode >= 0) and differs from the default.
+    private var isNonDefault: Bool {
+        guard keyCode >= 0 else { return false }
+        return keyCode != defaultKeyCode || modifiers != defaultModifiers
+    }
+
+    private var displayText: String {
+        guard keyCode >= 0 else { return "Not Set" }
+        return Self.displayName(keyCode: keyCode, modifiers: modifiers)
     }
 
     var body: some View {
-        HStack(spacing: 6) {
-            Button {
-                if isRecording { stopRecording() } else { startRecording() }
-            } label: {
-                Text(isRecording ? "Record shortcut…" : shortcutName)
-                    .font(.body.weight(.medium))
-                    .padding(.horizontal, 10)
-                    .padding(.vertical, 4)
-                    .frame(minWidth: 90)
+        ShortcutRecorderField(
+            displayText: displayText,
+            isRecording: isRecording,
+            isNonDefault: isNonDefault,
+            isEmpty: keyCode < 0,
+            accessibilityID: accessibilityID,
+            onClear: {
+                onClear()
+            },
+            onStartRecording: {
+                guard Date().timeIntervalSince(lastCancelTime) > 0.3 else { return }
+                startRecording()
+            },
+            onReset: {
+                onReset()
             }
-            .accessibilityIdentifier("setupWindow.keyboardShortcuts.recorder")
-            .accessibilityLabel(shortcutName)
-
-            if !isRecording {
-                Button {
-                    preferences.holdShortcutKeyCode = 61
-                    preferences.holdShortcutModifiers = 0
-                    HotkeyService.shared.configureHoldTarget()
-                } label: {
-                    Image(systemName: "arrow.counterclockwise")
-                        .font(.caption2)
-                }
-                .buttonStyle(.borderless)
-                .help("Reset to Right ⌥")
-            }
-        }
-        .onDisappear { stopRecording() }
+        )
+        .onDisappear { cancelRecording() }
     }
 
     private func startRecording() {
+        keyCodeBeforeRecording = keyCode
+        modifiersBeforeRecording = modifiers
         isRecording = true
+        KeyboardShortcuts.disable(.activate, .activateAlt, .stopSession, .stopSessionAlt, .cancelSession)
         pendingModifierKeyCode = nil
         eventMonitor = NSEvent.addLocalMonitorForEvents(matching: [.keyDown, .flagsChanged]) { [self] event in
             if event.type == .keyDown {
-                if event.keyCode == 53 { // Escape
-                    stopRecording()
+                if event.keyCode == 53 { // Escape — restore previous
+                    cancelRecording()
                     return nil
                 }
                 pendingModifierKeyCode = nil
                 let relevantModifiers: NSEvent.ModifierFlags = [.command, .option, .shift, .control]
-                recordKey(keyCode: Int(event.keyCode), modifiers: event.modifierFlags.intersection(relevantModifiers).rawValue)
+                let kc = Int(event.keyCode)
+                let mods = event.modifierFlags.intersection(relevantModifiers).rawValue
+                if !conflictsWithOtherBindings(keyCode: kc, modifiers: mods) {
+                    recordKey(keyCode: kc, modifiers: mods)
+                } else {
+                    NSSound.beep()
+                }
                 return nil
             }
 
             if event.type == .flagsChanged {
-                let keyCode = Int(event.keyCode)
-                if Self.modifierKeyCodes.contains(keyCode) {
-                    let flag = Self.modifierFlag(for: keyCode)
+                let kc = Int(event.keyCode)
+                if Self.modifierKeyCodes.contains(kc) {
+                    let flag = Self.modifierFlag(for: kc)
                     if event.modifierFlags.contains(flag) {
-                        pendingModifierKeyCode = keyCode
-                    } else if pendingModifierKeyCode == keyCode {
+                        pendingModifierKeyCode = kc
+                    } else if pendingModifierKeyCode == kc {
                         let relevantModifiers: NSEvent.ModifierFlags = [.command, .option, .shift, .control]
                         let remaining = event.modifierFlags.intersection(relevantModifiers)
                         if remaining.isEmpty {
-                            recordKey(keyCode: keyCode, modifiers: 0)
+                            recordKey(keyCode: kc, modifiers: 0)
                         }
                         pendingModifierKeyCode = nil
                     }
@@ -120,99 +326,112 @@ private struct HoldShortcutRecorder: View {
             }
             return event
         }
+        clickMonitor = NSEvent.addLocalMonitorForEvents(matching: [.leftMouseDown]) { event in
+            cancelRecording()
+            return event
+        }
+    }
+
+    private func conflictsWithOtherBindings(keyCode: Int, modifiers: UInt) -> Bool {
+        let candidate = KeyboardShortcuts.Shortcut(
+            KeyboardShortcuts.Key(rawValue: keyCode),
+            modifiers: NSEvent.ModifierFlags(rawValue: modifiers)
+        )
+        let names: [KeyboardShortcuts.Name] = [.activate, .activateAlt, .stopSession, .stopSessionAlt]
+        for name in names {
+            if let shortcut = KeyboardShortcuts.getShortcut(for: name), shortcut == candidate {
+                return true
+            }
+        }
+        return false
     }
 
     private func recordKey(keyCode: Int, modifiers: UInt) {
-        preferences.holdShortcutKeyCode = keyCode
-        preferences.holdShortcutModifiers = modifiers
-        HotkeyService.shared.configureHoldTarget()
-        stopRecording()
+        onRecord(keyCode, modifiers)
+        finishRecording()
     }
 
-    private func stopRecording() {
+    private func cancelRecording() {
+        guard isRecording else { return }
+        if let kc = keyCodeBeforeRecording, let mods = modifiersBeforeRecording {
+            onRecord(kc, mods)
+        }
+        lastCancelTime = Date()
+        finishRecording()
+    }
+
+    private func finishRecording() {
         if let eventMonitor {
             NSEvent.removeMonitor(eventMonitor)
         }
+        if let clickMonitor {
+            NSEvent.removeMonitor(clickMonitor)
+        }
         eventMonitor = nil
+        clickMonitor = nil
         pendingModifierKeyCode = nil
+        keyCodeBeforeRecording = nil
+        modifiersBeforeRecording = nil
         isRecording = false
+        KeyboardShortcuts.enable(.activate, .activateAlt, .stopSession, .stopSessionAlt, .cancelSession)
     }
 }
 
 private struct KeyboardShortcutsRow: View {
     @ObservedObject var preferences: ShellPreferences
-    let status: PermissionGrantState
-    let requestAccess: () -> Void
-    let openRecovery: () -> Void
-
-    @State private var showsSetupGuide = false
-
-    private var statusColor: Color {
-        switch status {
-        case .authorized:
-            return .green
-        case .notDetermined:
-            return .orange
-        case .denied:
-            return .red
-        }
-    }
-
-    private var detailText: String {
-        switch status {
-        case .authorized:
-            return "Ready — shortcuts enabled."
-        case .notDetermined:
-            return "Needs keyboard access."
-        case .denied:
-            return "Keyboard access is blocked."
-        }
-    }
-
-    private var actionTitle: String? {
-        switch status {
-        case .authorized:
-            return nil
-        case .notDetermined:
-            return "Enable Hold to Transcribe"
-        case .denied:
-            return "Fix Hold to Transcribe"
-        }
-    }
 
     var body: some View {
         LabeledContent("Hold to Transcribe:") {
             HStack(spacing: 12) {
-                HoldShortcutRecorder(preferences: preferences)
-
-                Text(detailText)
-                    .font(.caption)
-                    .foregroundStyle(status == .authorized ? Color.secondary : statusColor)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .multilineTextAlignment(.leading)
-                    .fixedSize(horizontal: false, vertical: true)
-                    .accessibilityIdentifier("setupWindow.keyboardShortcuts.message")
-
-                if let actionTitle {
-                    Button(actionTitle) {
-                        showsSetupGuide = true
+                HoldShortcutRecorder(
+                    keyCode: preferences.holdShortcutKeyCode,
+                    modifiers: preferences.holdShortcutModifiers,
+                    defaultKeyCode: 61,
+                    defaultModifiers: 0,
+                    accessibilityID: "setupWindow.holdShortcut.recorder",
+                    onRecord: { kc, mods in
+                        preferences.holdShortcutKeyCode = kc
+                        preferences.holdShortcutModifiers = mods
+                        HotkeyService.shared.configureHoldTarget()
+                    },
+                    onClear: {
+                        preferences.holdShortcutKeyCode = -1
+                        preferences.holdShortcutModifiers = 0
+                        HotkeyService.shared.configureHoldTarget()
+                    },
+                    onReset: {
+                        preferences.holdShortcutKeyCode = 61
+                        preferences.holdShortcutModifiers = 0
+                        HotkeyService.shared.configureHoldTarget()
                     }
-                    .accessibilityIdentifier("setupWindow.keyboardShortcuts.action")
-                }
+                )
+
+                HoldShortcutRecorder(
+                    keyCode: preferences.holdShortcutKeyCodeAlt,
+                    modifiers: preferences.holdShortcutModifiersAlt,
+                    defaultKeyCode: -1,
+                    defaultModifiers: 0,
+                    accessibilityID: "setupWindow.holdShortcutAlt.recorder",
+                    onRecord: { kc, mods in
+                        preferences.holdShortcutKeyCodeAlt = kc
+                        preferences.holdShortcutModifiersAlt = mods
+                        HotkeyService.shared.configureHoldTarget()
+                    },
+                    onClear: {
+                        preferences.holdShortcutKeyCodeAlt = -1
+                        preferences.holdShortcutModifiersAlt = 0
+                        HotkeyService.shared.configureHoldTarget()
+                    },
+                    onReset: {
+                        preferences.holdShortcutKeyCodeAlt = -1
+                        preferences.holdShortcutModifiersAlt = 0
+                        HotkeyService.shared.configureHoldTarget()
+                    }
+                )
             }
             .frame(maxWidth: .infinity, alignment: .leading)
         }
         .accessibilityIdentifier("setupWindow.keyboardShortcuts.row")
-        .popover(isPresented: $showsSetupGuide, arrowEdge: .bottom) {
-            InputMonitoringSetupGuide {
-                showsSetupGuide = false
-                if status == .denied {
-                    openRecovery()
-                } else {
-                    requestAccess()
-                }
-            }
-        }
     }
 }
 
@@ -220,20 +439,14 @@ private struct AlwaysAutoPasteRow: View {
     @Binding var isOn: Bool
 
     var body: some View {
-        HStack(spacing: 12) {
-            Toggle("Always Auto Paste", isOn: $isOn)
+        HStack(alignment: .center, spacing: 12) {
+            Toggle("Auto Paste", isOn: $isOn)
                 .labelsHidden()
                 .toggleStyle(.switch)
-                .accessibilityLabel("Always Auto Paste")
+                .scaleEffect(0.8, anchor: .leading)
+                .frame(height: 22)
+                .accessibilityLabel("Auto Paste")
                 .accessibilityIdentifier("setupWindow.alwaysAutoPaste.toggle")
-
-            Text("Paste after any successful finish, including Right Option and AI output.")
-                .font(.caption)
-                .foregroundStyle(.secondary)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .multilineTextAlignment(.leading)
-                .fixedSize(horizontal: false, vertical: true)
-                .accessibilityIdentifier("setupWindow.alwaysAutoPaste.message")
         }
         .frame(maxWidth: .infinity, alignment: .leading)
     }
@@ -622,21 +835,27 @@ struct SetupWindowView: View {
                     }
                     .pickerStyle(.menu)
 
-                    KeyboardShortcuts.Recorder("Start / Stop:", name: .activate)
-                    KeyboardShortcuts.Recorder("Stop Only:", name: .stopSession)
-                    KeyboardShortcuts.Recorder("Stop & Auto Paste:", name: .activateAndPaste)
+                    LabeledContent("Start:") {
+                        HStack(spacing: 12) {
+                            KeyComboRecorder(name: .activate)
+                            KeyComboRecorder(name: .activateAlt)
+                        }
+                    }
+                    LabeledContent("Stop:") {
+                        HStack(spacing: 12) {
+                            KeyComboRecorder(name: .stopSession)
+                            KeyComboRecorder(name: .stopSessionAlt)
+                        }
+                    }
 
                     KeyboardShortcutsRow(
-                        preferences: preferences,
-                        status: keyboardShortcutsStatus,
-                        requestAccess: requestKeyboardShortcutsAccess,
-                        openRecovery: { readinessStore.openRecovery(for: .keyboardShortcuts) }
+                        preferences: preferences
                     )
 
                     LabeledContent {
                         AlwaysAutoPasteRow(isOn: alwaysAutoPasteBinding)
                     } label: {
-                        Text("Always Auto Paste:")
+                        Text("Auto Paste:")
                     }
 
                     LabeledContent {
@@ -751,9 +970,14 @@ struct SetupWindowView: View {
                     Spacer()
 
                     Button("Reset") {
-                        KeyboardShortcuts.reset(.activate, .stopSession, .activateAndPaste)
+                        KeyboardShortcuts.reset(.activate, .activateAlt, .stopSession, .stopSessionAlt)
+                        preferences.holdShortcutKeyCode = Int(kVK_RightOption)
+                        preferences.holdShortcutModifiers = 0
+                        preferences.holdShortcutKeyCodeAlt = -1
+                        preferences.holdShortcutModifiersAlt = 0
+                        HotkeyService.shared.configureHoldTarget()
                         preferences.micDeviceUID = nil
-                        preferences.whisperModel = .baseEN
+                        preferences.whisperModel = .smallEN
                     }
 
                     Button(primaryActionTitle) {

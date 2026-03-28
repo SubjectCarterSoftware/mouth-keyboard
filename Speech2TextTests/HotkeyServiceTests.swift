@@ -6,7 +6,7 @@ import KeyboardShortcuts
 final class HotkeyServiceTests: XCTestCase {
     override func setUp() {
         super.setUp()
-        KeyboardShortcuts.reset(.activate, .activateAndPaste, .stopSession, .cancelSession)
+        KeyboardShortcuts.reset(.activate, .activateAlt, .stopSession, .stopSessionAlt, .cancelSession)
     }
 
     func testSingleTapArmsImmediately() {

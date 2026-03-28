@@ -169,7 +169,7 @@ private struct RecordingPillViewWrapper: View {
             recordingState: activationStore.state,
             recoveryFeedback: activationStore.recoveryFeedback,
             silenceWarningActive: levelMonitor.silenceWarningActive,
-            onFinish: { activationStore.arm() },
+            onFinish: { activationStore.finish() },
             onCancel: { activationStore.cancelCurrentSession() },
             onRestart: { activationStore.restartCurrentSession() },
             onFinishAndPaste: { activationStore.finishAndPaste() }

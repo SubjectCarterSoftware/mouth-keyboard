@@ -69,6 +69,8 @@ struct RecordingPillView: View {
                     Image(systemName: "checkmark.circle.fill")
                         .font(.system(size: 18, weight: .semibold))
                         .foregroundStyle(Color.green)
+                        .frame(width: 30, height: 30)
+                        .contentShape(Circle())
                 }
                 .buttonStyle(.plain)
                 .accessibilityIdentifier("pill.finish")
@@ -90,6 +92,8 @@ struct RecordingPillView: View {
                     Image(systemName: "xmark.circle.fill")
                         .font(.system(size: 18, weight: .semibold))
                         .foregroundStyle(Color.red)
+                        .frame(width: 30, height: 30)
+                        .contentShape(Circle())
                 }
                 .buttonStyle(.plain)
                 .accessibilityIdentifier("pill.cancel")
@@ -122,10 +126,12 @@ struct RecordingPillView: View {
                     Image(systemName: "arrow.clockwise.circle.fill")
                         .font(.system(size: 18, weight: .semibold))
                         .foregroundStyle(Color.orange)
+                        .frame(width: 30, height: 30)
+                        .contentShape(Circle())
                 }
                 .buttonStyle(.plain)
                 .accessibilityIdentifier("pill.restart")
-                .padding(.trailing, 10)
+                .padding(.trailing, 6)
             }
         }
         .frame(width: 220, height: 44)
