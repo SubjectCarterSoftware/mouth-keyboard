@@ -7,6 +7,7 @@ struct StatusMenuView: View {
     let lastTranscription: String?
     @ObservedObject var preferences: ShellPreferences
     @ObservedObject var readinessStore: ReadinessStore
+    @ObservedObject var audioDeviceService: AudioDeviceService
     let recoveryActionPerformer: RecoveryActionPerformer = .live
     let cancelSession: () -> Void
     let restartSession: () -> Void
@@ -14,6 +15,7 @@ struct StatusMenuView: View {
     let copyLastTranscription: () -> Void
     let lastConvertedTranscription: String?
     let copyLastConvertedTranscription: () -> Void
+    let setMicDevice: (String?) -> Void
     let openSetup: () -> Void
     let quitApp: () -> Void
 
@@ -181,6 +183,40 @@ struct StatusMenuView: View {
                     .accessibilityIdentifier("statusMenu.openMicrophoneSettings")
                 }
 
+                Menu {
+                    Button(action: { setMicDevice(nil) }) {
+                        HStack {
+                            if preferences.micDeviceUID == nil {
+                                Image(systemName: "checkmark")
+                            }
+                            Text("System Default")
+                        }
+                    }
+                    .accessibilityIdentifier("statusMenu.mic.systemDefault")
+
+                    if !audioDeviceService.availableDevices.isEmpty {
+                        Divider()
+                        ForEach(audioDeviceService.availableDevices) { device in
+                            Button(action: { setMicDevice(device.uid) }) {
+                                HStack {
+                                    if preferences.micDeviceUID == device.uid {
+                                        Image(systemName: "checkmark")
+                                    }
+                                    Text(device.name)
+                                }
+                            }
+                            .accessibilityIdentifier("statusMenu.mic.\(device.uid)")
+                        }
+                    }
+                } label: {
+                    HStack(spacing: 6) {
+                        Image(systemName: "mic")
+                        Text("Microphone")
+                    }
+                }
+                .disabled(canCancelSession)
+                .accessibilityIdentifier("statusMenu.microphoneMenu")
+
                 Button("Hotkeys & Settings…", action: openSetup)
                     .keyboardShortcut(",", modifiers: .command)
                     .accessibilityIdentifier("statusMenu.primaryAction")
@@ -207,6 +243,7 @@ struct StatusMenuView: View {
         .frame(width: 280)
         .onAppear {
             readinessStore.refresh()
+            audioDeviceService.refresh()
         }
     }
 
