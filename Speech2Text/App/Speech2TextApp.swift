@@ -8,14 +8,17 @@ struct Speech2TextApp: App {
     @StateObject private var activationStore: ActivationStore
     @StateObject private var preferences: ShellPreferences
     @StateObject private var readinessStore: ReadinessStore
+    @StateObject private var audioDeviceService: AudioDeviceService
 
     init() {
         let activationStore = ActivationStore.shared
         let preferences = ShellPreferences.shared
         let readinessStore = ReadinessStore.shared
+        let audioDeviceService = AudioDeviceService.shared
         _activationStore = StateObject(wrappedValue: activationStore)
         _preferences = StateObject(wrappedValue: preferences)
         _readinessStore = StateObject(wrappedValue: readinessStore)
+        _audioDeviceService = StateObject(wrappedValue: audioDeviceService)
     }
 
     var body: some Scene {
@@ -26,11 +29,15 @@ struct Speech2TextApp: App {
                 lastTranscription: activationStore.lastTranscription,
                 preferences: preferences,
                 readinessStore: readinessStore,
+                audioDeviceService: audioDeviceService,
                 cancelSession: {
                     activationStore.cancelCurrentSession()
                 },
                 restartSession: {
                     activationStore.restartCurrentSession()
+                },
+                startRecording: {
+                    activationStore.arm()
                 },
                 copyLastTranscription: {
                     activationStore.copyLastTranscription()
@@ -38,6 +45,9 @@ struct Speech2TextApp: App {
                 lastConvertedTranscription: activationStore.lastConvertedTranscription,
                 copyLastConvertedTranscription: {
                     activationStore.copyLastConvertedTranscription()
+                },
+                setMicDevice: { uid in
+                    preferences.micDeviceUID = uid
                 },
                 openSetup: {
                     appDelegate.presentSetupWindow()

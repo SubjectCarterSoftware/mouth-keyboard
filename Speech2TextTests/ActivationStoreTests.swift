@@ -607,7 +607,7 @@ final class ActivationStoreTests: XCTestCase {
             transcriber: ActivationStoreMockTranscriber(result: .success("ready")),
             clipboard: ActivationStoreMockClipboard()
         )
-        var timestamps = [0.0, 0.1, 0.2, 0.7].makeIterator()
+        var timestamps = [0.0, 0.2, 0.7].makeIterator()
         let hotkeyService = HotkeyService(
             minimumActivationInterval: 0.35,
             currentState: {
@@ -622,7 +622,10 @@ final class ActivationStoreTests: XCTestCase {
         )
 
         XCTAssertTrue(hotkeyService.handleKeyDown()) // start
-        XCTAssertTrue(hotkeyService.handleKeyDown()) // finish
+
+        // In production the same physical Ctrl-V press routes through the
+        // separate .stopSession shortcut handler while recording.
+        store.finish()
 
         try await Task.sleep(nanoseconds: 200_000_000)
 
