@@ -1,4 +1,5 @@
 import XCTest
+import KeyboardShortcuts
 @testable import Speech2Text
 
 @MainActor
@@ -76,5 +77,24 @@ final class HoldKeyDisplayFormatterTests: XCTestCase {
         // Modifier-only keyCode paths return the bare symbol regardless of the bitmask
         let optionBit: UInt = 1 << 19
         XCTAssertEqual(HoldKeyDisplayFormatter.symbol(keyCode: 61, modifiers: optionBit), "⌥")
+    }
+
+    func testStatusMenuTapKeyHintUsesShortcutDescriptionForPrimaryStartShortcut() {
+        let shortcut = KeyboardShortcuts.Shortcut(.j, modifiers: [.control, .shift])
+
+        XCTAssertEqual(
+            StatusMenuShortcutFormatter.tapKeyHint(from: shortcut),
+            "⌃⇧J"
+        )
+    }
+
+    func testStatusMenuStartRecordingTitleIncludesPrimaryStartShortcutHint() {
+        XCTAssertEqual(
+            StatusMenuShortcutFormatter.startRecordingTitle(
+                holdKeyHint: "⌥",
+                tapKeyHint: "⌃J"
+            ),
+            "Start Recording  Hold ⌥  ·  ⌃J"
+        )
     }
 }

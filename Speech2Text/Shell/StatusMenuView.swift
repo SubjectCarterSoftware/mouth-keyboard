@@ -1,6 +1,20 @@
 import SwiftUI
 import KeyboardShortcuts
 
+enum StatusMenuShortcutFormatter {
+    static func tapKeyHint(from shortcut: KeyboardShortcuts.Shortcut?) -> String {
+        shortcut?.description.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+    }
+
+    static func startRecordingTitle(holdKeyHint: String, tapKeyHint: String) -> String {
+        var title = "Start Recording  Hold \(holdKeyHint)"
+        if !tapKeyHint.isEmpty {
+            title += "  ·  \(tapKeyHint)"
+        }
+        return title
+    }
+}
+
 struct StatusMenuView: View {
     let recordingState: RecordingState
     let recoveryFeedback: RecordingState.RecoveryFeedback?
@@ -43,16 +57,14 @@ struct StatusMenuView: View {
     }
 
     private var tapKeyHint: String {
-        guard let shortcut = KeyboardShortcuts.getShortcut(for: .activate) else { return "" }
-        var result = ""
-        if shortcut.modifiers.contains(.control) { result += "⌃" }
-        if shortcut.modifiers.contains(.option)  { result += "⌥" }
-        if shortcut.modifiers.contains(.shift)   { result += "⇧" }
-        if shortcut.modifiers.contains(.command) { result += "⌘" }
-        if let key = shortcut.key {
-            result += HoldKeyDisplayFormatter.keyCharacter(for: key.rawValue)
-        }
-        return result
+        StatusMenuShortcutFormatter.tapKeyHint(from: KeyboardShortcuts.getShortcut(for: .activate))
+    }
+
+    private var startRecordingTitle: String {
+        StatusMenuShortcutFormatter.startRecordingTitle(
+            holdKeyHint: holdKeyHint,
+            tapKeyHint: tapKeyHint
+        )
     }
 
     private var recoveryStatusText: String? {
@@ -134,21 +146,7 @@ struct StatusMenuView: View {
                 .accessibilityIdentifier("statusMenu.primaryAction")
             } else {
                 if canStartSession {
-                    Button(action: startRecording) {
-                        HStack {
-                            Text("Start Recording")
-                            Spacer()
-                            HStack(spacing: 4) {
-                                Text("Hold \(holdKeyHint)")
-                                if !tapKeyHint.isEmpty {
-                                    Text("·")
-                                    Text(tapKeyHint)
-                                }
-                            }
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                        }
-                    }
+                    Button(startRecordingTitle, action: startRecording)
                     .accessibilityIdentifier("statusMenu.startRecording")
                 }
 
