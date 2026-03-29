@@ -56,7 +56,7 @@ final class HoldKeyDisplayFormatterTests: XCTestCase {
     // Unknown key code should not crash and return non-empty string
     func testUnknownKeyCodeFallsBack() {
         let result = HoldKeyDisplayFormatter.symbol(keyCode: 999, modifiers: 0)
-        XCTAssertFalse(result.isEmpty)
+        XCTAssertEqual(result, "?")
     }
 
     // keyCharacter is used by StatusMenuView for tap shortcut hints
@@ -69,6 +69,12 @@ final class HoldKeyDisplayFormatterTests: XCTestCase {
     }
 
     func testKeyCharacterForUnknown() {
-        XCTAssertFalse(HoldKeyDisplayFormatter.keyCharacter(for: 999).isEmpty)
+        XCTAssertEqual(HoldKeyDisplayFormatter.keyCharacter(for: 999), "?")
+    }
+
+    func testModifierOnlyKeyIgnoresBitmask() {
+        // Modifier-only keyCode paths return the bare symbol regardless of the bitmask
+        let optionBit: UInt = 1 << 19
+        XCTAssertEqual(HoldKeyDisplayFormatter.symbol(keyCode: 61, modifiers: optionBit), "⌥")
     }
 }
