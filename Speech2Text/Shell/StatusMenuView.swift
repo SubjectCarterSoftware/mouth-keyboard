@@ -1,20 +1,6 @@
 import SwiftUI
 import KeyboardShortcuts
 
-enum StatusMenuShortcutFormatter {
-    static func tapKeyHint(from shortcut: KeyboardShortcuts.Shortcut?) -> String {
-        shortcut?.description.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-    }
-
-    static func startRecordingTitle(holdKeyHint: String, tapKeyHint: String) -> String {
-        var title = "Start Recording  Hold \(holdKeyHint)"
-        if !tapKeyHint.isEmpty {
-            title += "  ·  \(tapKeyHint)"
-        }
-        return title
-    }
-}
-
 struct StatusMenuView: View {
     let recordingState: RecordingState
     let recoveryFeedback: RecordingState.RecoveryFeedback?
@@ -49,22 +35,8 @@ struct StatusMenuView: View {
         recordingState == .idle
     }
 
-    private var holdKeyHint: String {
-        HoldKeyDisplayFormatter.symbol(
-            keyCode: preferences.holdShortcutKeyCode,
-            modifiers: preferences.holdShortcutModifiers
-        )
-    }
-
-    private var tapKeyHint: String {
-        StatusMenuShortcutFormatter.tapKeyHint(from: KeyboardShortcuts.getShortcut(for: .activate))
-    }
-
-    private var startRecordingTitle: String {
-        StatusMenuShortcutFormatter.startRecordingTitle(
-            holdKeyHint: holdKeyHint,
-            tapKeyHint: tapKeyHint
-        )
+    private var startRecordingKeyboardShortcut: KeyboardShortcut? {
+        KeyboardShortcuts.getShortcut(for: .activate)?.swiftUIKeyboardShortcut
     }
 
     private var recoveryStatusText: String? {
@@ -146,8 +118,14 @@ struct StatusMenuView: View {
                 .accessibilityIdentifier("statusMenu.primaryAction")
             } else {
                 if canStartSession {
-                    Button(startRecordingTitle, action: startRecording)
-                    .accessibilityIdentifier("statusMenu.startRecording")
+                    if let startRecordingKeyboardShortcut {
+                        Button("Start Recording", action: startRecording)
+                            .keyboardShortcut(startRecordingKeyboardShortcut)
+                            .accessibilityIdentifier("statusMenu.startRecording")
+                    } else {
+                        Button("Start Recording", action: startRecording)
+                            .accessibilityIdentifier("statusMenu.startRecording")
+                    }
                 }
 
                 if canCancelSession {
@@ -280,4 +258,139 @@ struct StatusMenuView: View {
         }
     }
 
+}
+
+private extension NSEvent.ModifierFlags {
+    var swiftUIEventModifiers: EventModifiers {
+        var result: EventModifiers = []
+
+        if contains(.control) {
+            result.insert(.control)
+        }
+
+        if contains(.option) {
+            result.insert(.option)
+        }
+
+        if contains(.shift) {
+            result.insert(.shift)
+        }
+
+        if contains(.command) {
+            result.insert(.command)
+        }
+
+        return result
+    }
+}
+
+private extension KeyboardShortcuts.Shortcut {
+    var swiftUIKeyboardShortcut: KeyboardShortcut? {
+        guard let keyEquivalent = key?.swiftUIKeyEquivalent else {
+            return nil
+        }
+
+        return KeyboardShortcut(keyEquivalent, modifiers: modifiers.swiftUIEventModifiers)
+    }
+}
+
+private extension KeyboardShortcuts.Key {
+    var swiftUIKeyEquivalent: KeyEquivalent? {
+        switch self {
+        case .a: return keyEquivalent("a")
+        case .b: return keyEquivalent("b")
+        case .c: return keyEquivalent("c")
+        case .d: return keyEquivalent("d")
+        case .e: return keyEquivalent("e")
+        case .f: return keyEquivalent("f")
+        case .g: return keyEquivalent("g")
+        case .h: return keyEquivalent("h")
+        case .i: return keyEquivalent("i")
+        case .j: return keyEquivalent("j")
+        case .k: return keyEquivalent("k")
+        case .l: return keyEquivalent("l")
+        case .m: return keyEquivalent("m")
+        case .n: return keyEquivalent("n")
+        case .o: return keyEquivalent("o")
+        case .p: return keyEquivalent("p")
+        case .q: return keyEquivalent("q")
+        case .r: return keyEquivalent("r")
+        case .s: return keyEquivalent("s")
+        case .t: return keyEquivalent("t")
+        case .u: return keyEquivalent("u")
+        case .v: return keyEquivalent("v")
+        case .w: return keyEquivalent("w")
+        case .x: return keyEquivalent("x")
+        case .y: return keyEquivalent("y")
+        case .z: return keyEquivalent("z")
+        case .zero: return keyEquivalent("0")
+        case .one: return keyEquivalent("1")
+        case .two: return keyEquivalent("2")
+        case .three: return keyEquivalent("3")
+        case .four: return keyEquivalent("4")
+        case .five: return keyEquivalent("5")
+        case .six: return keyEquivalent("6")
+        case .seven: return keyEquivalent("7")
+        case .eight: return keyEquivalent("8")
+        case .nine: return keyEquivalent("9")
+        case .backslash: return keyEquivalent("\\")
+        case .backtick: return keyEquivalent("`")
+        case .comma: return keyEquivalent(",")
+        case .equal: return keyEquivalent("=")
+        case .minus: return keyEquivalent("-")
+        case .period: return keyEquivalent(".")
+        case .quote: return keyEquivalent("'")
+        case .semicolon: return keyEquivalent(";")
+        case .slash: return keyEquivalent("/")
+        case .leftBracket: return keyEquivalent("[")
+        case .rightBracket: return keyEquivalent("]")
+        case .space: return .space
+        case .tab: return .tab
+        case .return: return .return
+        case .delete: return .delete
+        case .deleteForward: return .deleteForward
+        case .home: return .home
+        case .end: return .end
+        case .pageUp: return .pageUp
+        case .pageDown: return .pageDown
+        case .upArrow: return .upArrow
+        case .rightArrow: return .rightArrow
+        case .downArrow: return .downArrow
+        case .leftArrow: return .leftArrow
+        case .escape: return .escape
+        case .f1: return functionKeyEquivalent(NSF1FunctionKey)
+        case .f2: return functionKeyEquivalent(NSF2FunctionKey)
+        case .f3: return functionKeyEquivalent(NSF3FunctionKey)
+        case .f4: return functionKeyEquivalent(NSF4FunctionKey)
+        case .f5: return functionKeyEquivalent(NSF5FunctionKey)
+        case .f6: return functionKeyEquivalent(NSF6FunctionKey)
+        case .f7: return functionKeyEquivalent(NSF7FunctionKey)
+        case .f8: return functionKeyEquivalent(NSF8FunctionKey)
+        case .f9: return functionKeyEquivalent(NSF9FunctionKey)
+        case .f10: return functionKeyEquivalent(NSF10FunctionKey)
+        case .f11: return functionKeyEquivalent(NSF11FunctionKey)
+        case .f12: return functionKeyEquivalent(NSF12FunctionKey)
+        case .f13: return functionKeyEquivalent(NSF13FunctionKey)
+        case .f14: return functionKeyEquivalent(NSF14FunctionKey)
+        case .f15: return functionKeyEquivalent(NSF15FunctionKey)
+        case .f16: return functionKeyEquivalent(NSF16FunctionKey)
+        case .f17: return functionKeyEquivalent(NSF17FunctionKey)
+        case .f18: return functionKeyEquivalent(NSF18FunctionKey)
+        case .f19: return functionKeyEquivalent(NSF19FunctionKey)
+        case .f20: return functionKeyEquivalent(NSF20FunctionKey)
+        default: return nil
+        }
+    }
+
+    private func keyEquivalent(_ character: Character) -> KeyEquivalent {
+        KeyEquivalent(character)
+    }
+
+    private func functionKeyEquivalent(_ scalarValue: Int) -> KeyEquivalent? {
+        guard let scalar = UnicodeScalar(scalarValue) else {
+            return nil
+        }
+
+        return KeyEquivalent(Character(scalar))
+    }
 }
