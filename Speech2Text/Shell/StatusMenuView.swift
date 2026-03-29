@@ -154,6 +154,7 @@ struct StatusMenuView: View {
 
                 if canCancelSession {
                     Button("Cancel Session", action: cancelSession)
+                        .keyboardShortcut("v", modifiers: [.control, .shift])
                         .accessibilityIdentifier("statusMenu.cancelSession")
                 }
 
@@ -216,6 +217,16 @@ struct StatusMenuView: View {
                 }
                 .disabled(canCancelSession)
                 .accessibilityIdentifier("statusMenu.microphoneMenu")
+
+                Button(action: { preferences.alwaysAutoPaste.toggle() }) {
+                    HStack {
+                        if preferences.alwaysAutoPaste {
+                            Image(systemName: "checkmark")
+                        }
+                        Text("Auto-paste")
+                    }
+                }
+                .accessibilityIdentifier("statusMenu.autoPaste")
 
                 Button("Hotkeys & Settings…", action: openSetup)
                     .keyboardShortcut(",", modifiers: .command)
