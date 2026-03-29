@@ -80,6 +80,8 @@
 		A00000010000000000000053 /* AIAssistantSettingsViewModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000020000000000000053 /* AIAssistantSettingsViewModelTests.swift */; };
 		A00000010000000000000055 /* AIAssistantSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000020000000000000055 /* AIAssistantSettingsView.swift */; };
 		A00000010000000000000058 /* LiveCalibrationSampleCapturer.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000020000000000000058 /* LiveCalibrationSampleCapturer.swift */; };
+		A00000010000000000000067 /* HoldKeyDisplayFormatter.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000020000000000000063 /* HoldKeyDisplayFormatter.swift */; };
+		A00000010000000000000068 /* HoldKeyDisplayFormatterTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000020000000000000064 /* HoldKeyDisplayFormatterTests.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -173,6 +175,8 @@
 		A00000020000000000000053 /* AIAssistantSettingsViewModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AIAssistantSettingsViewModelTests.swift; sourceTree = "<group>"; };
 		A00000020000000000000055 /* AIAssistantSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AIAssistantSettingsView.swift; sourceTree = "<group>"; };
 		A00000020000000000000058 /* LiveCalibrationSampleCapturer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LiveCalibrationSampleCapturer.swift; sourceTree = "<group>"; };
+		A00000020000000000000063 /* HoldKeyDisplayFormatter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HoldKeyDisplayFormatter.swift; sourceTree = "<group>"; };
+		A00000020000000000000064 /* HoldKeyDisplayFormatterTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HoldKeyDisplayFormatterTests.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -261,6 +265,7 @@
 			isa = PBXGroup;
 			children = (
 				A0000002000000000000000C /* PermissionChecklistView.swift */,
+				A00000020000000000000063 /* HoldKeyDisplayFormatter.swift */,
 				A00000020000000000000021 /* RecordingPillPanel.swift */,
 				A00000020000000000000020 /* RecordingPillView.swift */,
 				A0000002000000000000000D /* RecoveryActions.swift */,
@@ -305,6 +310,7 @@
 			isa = PBXGroup;
 			children = (
 				A00000020000000000000015 /* ActivationStoreTests.swift */,
+				A00000020000000000000064 /* HoldKeyDisplayFormatterTests.swift */,
 				A0000002000000000000001B /* AudioCaptureServiceTests.swift */,
 				A0000002000000000000002B /* AudioBufferAccumulatorTests.swift */,
 				A00000020000000000000032 /* VoiceActivityDetectorTests.swift */,
@@ -575,6 +581,7 @@
 				A00000010000000000000005 /* ShellPreferences.swift in Sources */,
 				A00000010000000000000055 /* AIAssistantSettingsView.swift in Sources */,
 				A00000010000000000000058 /* LiveCalibrationSampleCapturer.swift in Sources */,
+				A00000010000000000000067 /* HoldKeyDisplayFormatter.swift in Sources */,
 				A00000010000000000000004 /* SetupWindowView.swift in Sources */,
 				A00000010000000000000001 /* Speech2TextApp.swift in Sources */,
 				A0000001000000000000000C /* StatusCardView.swift in Sources */,
@@ -596,6 +603,7 @@
 				A0000001000000000000001B /* AudioDeviceServiceTests.swift in Sources */,
 				A00000010000000000000027 /* ClipboardServiceTests.swift in Sources */,
 				A00000010000000000000015 /* HotkeyServiceTests.swift in Sources */,
+				A00000010000000000000068 /* HoldKeyDisplayFormatterTests.swift in Sources */,
 				A00000010000000000000042 /* StringSimilarityTests.swift in Sources */,
 				A0000001000000000000003D /* LLMRewriteServiceTests.swift in Sources */,
 				A0000001000000000000003E /* LLMRewriteServiceIntegrationTests.swift in Sources */,
