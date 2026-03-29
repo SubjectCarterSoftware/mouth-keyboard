@@ -99,9 +99,10 @@ struct StatusMenuView: View {
                     HStack(spacing: 6) {
                         Image(systemName: "exclamationmark.circle.fill")
                             .foregroundStyle(.red)
-                        Text("Settings — Setup Required")
+                        Text("Setup — Permissions Required")
                     }
                 }
+                .keyboardShortcut(",", modifiers: .command)
                 .accessibilityIdentifier("statusMenu.primaryAction")
             } else {
                 if canCancelSession {
@@ -135,23 +136,27 @@ struct StatusMenuView: View {
                     .accessibilityIdentifier("statusMenu.openMicrophoneSettings")
                 }
 
-                Button("Settings…", action: openSetup)
+                Button("Hotkeys & Settings…", action: openSetup)
+                    .keyboardShortcut(",", modifiers: .command)
                     .accessibilityIdentifier("statusMenu.primaryAction")
+
+                Divider()
+
+                if lastTranscription != nil {
+                    Button("Copy Last Transcription", action: copyLastTranscription)
+                        .accessibilityIdentifier("statusMenu.copyLastTranscription")
+                }
+
+                Button("Copy Last AI Converted Transcription",
+                       action: copyLastConvertedTranscription)
+                    .disabled(lastConvertedTranscription == nil)
+                    .accessibilityIdentifier("statusMenu.copyLastConvertedTranscription")
             }
 
             Divider()
 
-            if lastTranscription != nil {
-                Button("Copy Last Transcription", action: copyLastTranscription)
-                    .accessibilityIdentifier("statusMenu.copyLastTranscription")
-            }
-
-            Button("Copy Last AI Converted Transcription",
-                   action: copyLastConvertedTranscription)
-                .disabled(lastConvertedTranscription == nil)
-                .accessibilityIdentifier("statusMenu.copyLastConvertedTranscription")
-
             Button("Quit Speech2Text", action: quitApp)
+                .keyboardShortcut("q", modifiers: .command)
         }
         .padding(14)
         .frame(width: 280)
