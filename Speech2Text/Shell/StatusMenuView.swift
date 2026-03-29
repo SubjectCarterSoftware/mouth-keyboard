@@ -243,7 +243,9 @@ struct StatusMenuView: View {
         .frame(width: 280)
         .onAppear {
             readinessStore.refresh()
-            audioDeviceService.refresh()
+            if !needsSetup {
+                audioDeviceService.refresh()
+            }
         }
     }
 
