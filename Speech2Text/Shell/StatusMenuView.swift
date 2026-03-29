@@ -1,4 +1,5 @@
 import SwiftUI
+import KeyboardShortcuts
 
 struct StatusMenuView: View {
     let recordingState: RecordingState
@@ -9,6 +10,7 @@ struct StatusMenuView: View {
     let recoveryActionPerformer: RecoveryActionPerformer = .live
     let cancelSession: () -> Void
     let restartSession: () -> Void
+    let startRecording: () -> Void
     let copyLastTranscription: () -> Void
     let lastConvertedTranscription: String?
     let copyLastConvertedTranscription: () -> Void
@@ -25,6 +27,30 @@ struct StatusMenuView: View {
 
     private var canRestartSession: Bool {
         recordingState == .recording
+    }
+
+    private var canStartSession: Bool {
+        recordingState == .idle
+    }
+
+    private var holdKeyHint: String {
+        HoldKeyDisplayFormatter.symbol(
+            keyCode: preferences.holdShortcutKeyCode,
+            modifiers: preferences.holdShortcutModifiers
+        )
+    }
+
+    private var tapKeyHint: String {
+        guard let shortcut = KeyboardShortcuts.getShortcut(for: .activate) else { return "" }
+        var result = ""
+        if shortcut.modifiers.contains(.control) { result += "⌃" }
+        if shortcut.modifiers.contains(.option)  { result += "⌥" }
+        if shortcut.modifiers.contains(.shift)   { result += "⇧" }
+        if shortcut.modifiers.contains(.command) { result += "⌘" }
+        if let key = shortcut.key {
+            result += HoldKeyDisplayFormatter.keyCharacter(for: key.rawValue)
+        }
+        return result
     }
 
     private var recoveryStatusText: String? {
@@ -105,6 +131,25 @@ struct StatusMenuView: View {
                 .keyboardShortcut(",", modifiers: .command)
                 .accessibilityIdentifier("statusMenu.primaryAction")
             } else {
+                if canStartSession {
+                    Button(action: startRecording) {
+                        HStack {
+                            Text("Start Recording")
+                            Spacer()
+                            HStack(spacing: 4) {
+                                Text("Hold \(holdKeyHint)")
+                                if !tapKeyHint.isEmpty {
+                                    Text("·")
+                                    Text(tapKeyHint)
+                                }
+                            }
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                        }
+                    }
+                    .accessibilityIdentifier("statusMenu.startRecording")
+                }
+
                 if canCancelSession {
                     Button("Cancel Session", action: cancelSession)
                         .accessibilityIdentifier("statusMenu.cancelSession")
