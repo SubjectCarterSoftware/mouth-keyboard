@@ -40,6 +40,34 @@ final class LLMRewriteServiceIntegrationTests: XCTestCase {
         let count = await loadCounter.value()
         XCTAssertEqual(count, 1, "Expected model loaded once; was loaded \(count) times")
     }
+
+    func testRewriteWith4BTierProducesNonEmptyOutput() async throws {
+        let service = LLMRewriteService(tier: .standard4B)
+
+        let result = try await service.rewrite(
+            body: "weekly product update",
+            instructions: "Turn this into a short executive summary."
+        )
+
+        XCTAssertFalse(result.isEmpty)
+        XCTAssertEqual(result, result.trimmingCharacters(in: .whitespacesAndNewlines))
+    }
+
+    func testRewriteWith4BTierUsingDirectHubLoaderProducesNonEmptyOutput() async throws {
+        let service = LLMRewriteService(
+            tier: .standard4B,
+            loader: LLMRewriteService.makeDefaultLoader(tier: .standard4B)
+        )
+
+        let result = try await service.rewrite(
+            body: "weekly product update",
+            instructions: "Turn this into a short executive summary."
+        )
+
+        XCTAssertFalse(result.isEmpty)
+        XCTAssertEqual(result, result.trimmingCharacters(in: .whitespacesAndNewlines))
+    }
+
 }
 
 private actor IntegrationLoadCounter {

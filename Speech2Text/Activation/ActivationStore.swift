@@ -132,6 +132,19 @@ final class ActivationStore: ObservableObject {
         self.resetSessionMonitoring = resetSessionMonitoring
     }
 
+    /// Returns the cloud service when cloud LLM is enabled, otherwise the local on-device service.
+    /// Rebuilds the cloud service each call to pick up any config changes between sessions.
+    private var activeRewriteService: any LLMRewriting {
+        let config = preferences.cloudLLMConfig
+        guard config.isEnabled, !config.modelID.isEmpty else {
+            return llmRewriteService
+        }
+        guard let apiKey = CloudLLMKeychain.loadAPIKey(for: config.provider), !apiKey.isEmpty else {
+            return llmRewriteService
+        }
+        return CloudLLMRewriteService(config: config, apiKey: apiKey)
+    }
+
     // MARK: - Public API
 
     func arm() {
@@ -416,11 +429,11 @@ final class ActivationStore: ObservableObject {
                 guard isCurrentSession(sessionID) else { return }
                 state = .converting
 
-                // LLM call — rewrite() hops to LLMRewriteService actor automatically
+                // LLM call — routes to cloud or local service based on config
                 let rewritten: String
                 do {
                     if let instructions = conversionInstructions {
-                        rewritten = try await llmRewriteService.rewrite(
+                        rewritten = try await activeRewriteService.rewrite(
                             body: conversionBody,
                             instructions: instructions
                         )
@@ -587,6 +600,8 @@ final class ActivationStore: ObservableObject {
     }
 
     private func beginRewriteModelWarmup() {
+        // Cloud mode has no local model to warm up.
+        guard !preferences.cloudLLMConfig.isEnabled else { return }
         Task { [weak self] in
             guard let self else { return }
             await self.llmRewriteService.cancelScheduledUnload()
@@ -596,6 +611,7 @@ final class ActivationStore: ObservableObject {
     }
 
     private func scheduleRewriteModelIdleUnload() {
+        guard !preferences.cloudLLMConfig.isEnabled else { return }
         Task { [llmRewriteService] in
             await llmRewriteService.scheduleIdleUnload(
                 afterNanoseconds: Self.rewriteModelIdleUnloadDelay

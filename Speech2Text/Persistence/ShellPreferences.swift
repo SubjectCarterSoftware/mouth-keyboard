@@ -20,6 +20,7 @@ final class ShellPreferences: ObservableObject {
         static let holdShortcutModifiers = "holdShortcutModifiers"
         static let holdShortcutKeyCodeAlt = "holdShortcutKeyCodeAlt"
         static let holdShortcutModifiersAlt = "holdShortcutModifiersAlt"
+        static let cloudLLMConfig = "cloudLLMConfig"
     }
 
     static let shared = makeShared()
@@ -122,6 +123,15 @@ final class ShellPreferences: ObservableObject {
         }
     }
 
+    @Published var cloudLLMConfig: CloudLLMConfig {
+        didSet {
+            persistIfNeeded {
+                if let data = try? JSONEncoder().encode(cloudLLMConfig) {
+                    defaults.set(data, forKey: Keys.cloudLLMConfig)
+                }
+            }
+        }
+    }
 
     var shouldPresentSetupOnLaunch: Bool {
         !hasCompletedInitialSetup
@@ -194,6 +204,12 @@ final class ShellPreferences: ObservableObject {
 
         holdShortcutModifiersAlt = UInt(max(0, userDefaults.integer(forKey: Keys.holdShortcutModifiersAlt)))
 
+        if let configData = userDefaults.data(forKey: Keys.cloudLLMConfig),
+           let decoded = try? JSONDecoder().decode(CloudLLMConfig.self, from: configData) {
+            cloudLLMConfig = decoded
+        } else {
+            cloudLLMConfig = .default
+        }
 
         let loadedTriggerProfile = (initialTriggerProfile ?? TriggerProfileStore.loadSynchronously()).normalized()
         let migratedTriggerProfile = Self.migratedTriggerProfile(loadedTriggerProfile)
@@ -276,6 +292,7 @@ final class ShellPreferences: ObservableObject {
             alwaysAutoPaste = true
             holdShortcutKeyCode = 61
             holdShortcutModifiers = 0
+            cloudLLMConfig = .default
             activeTriggerProfile = .defaultProfile
         }
 
@@ -290,6 +307,7 @@ final class ShellPreferences: ObservableObject {
         defaults.removeObject(forKey: Keys.alwaysAutoPaste)
         defaults.removeObject(forKey: Keys.holdShortcutKeyCode)
         defaults.removeObject(forKey: Keys.holdShortcutModifiers)
+        defaults.removeObject(forKey: Keys.cloudLLMConfig)
 
         Task { [triggerProfileStore] in
             do {

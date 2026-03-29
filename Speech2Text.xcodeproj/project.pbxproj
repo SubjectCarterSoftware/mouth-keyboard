@@ -82,6 +82,11 @@
 		A00000010000000000000058 /* LiveCalibrationSampleCapturer.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000020000000000000058 /* LiveCalibrationSampleCapturer.swift */; };
 		A00000010000000000000067 /* HoldKeyDisplayFormatter.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000020000000000000063 /* HoldKeyDisplayFormatter.swift */; };
 		A00000010000000000000068 /* HoldKeyDisplayFormatterTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000020000000000000064 /* HoldKeyDisplayFormatterTests.swift */; };
+		A00000010000000000000074 /* CloudLLMProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000020000000000000070 /* CloudLLMProvider.swift */; };
+		A00000010000000000000075 /* CloudLLMRewriteService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000020000000000000071 /* CloudLLMRewriteService.swift */; };
+		A00000010000000000000076 /* CloudModelListService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000020000000000000072 /* CloudModelListService.swift */; };
+		A00000010000000000000077 /* CloudLLMKeychain.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000020000000000000073 /* CloudLLMKeychain.swift */; };
+		A00000010000000000000078 /* CloudLLMTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000020000000000000078 /* CloudLLMTests.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -177,6 +182,11 @@
 		A00000020000000000000058 /* LiveCalibrationSampleCapturer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LiveCalibrationSampleCapturer.swift; sourceTree = "<group>"; };
 		A00000020000000000000063 /* HoldKeyDisplayFormatter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HoldKeyDisplayFormatter.swift; sourceTree = "<group>"; };
 		A00000020000000000000064 /* HoldKeyDisplayFormatterTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HoldKeyDisplayFormatterTests.swift; sourceTree = "<group>"; };
+		A00000020000000000000070 /* CloudLLMProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CloudLLMProvider.swift; sourceTree = "<group>"; };
+		A00000020000000000000071 /* CloudLLMRewriteService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CloudLLMRewriteService.swift; sourceTree = "<group>"; };
+		A00000020000000000000072 /* CloudModelListService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CloudModelListService.swift; sourceTree = "<group>"; };
+		A00000020000000000000073 /* CloudLLMKeychain.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CloudLLMKeychain.swift; sourceTree = "<group>"; };
+		A00000020000000000000078 /* CloudLLMTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CloudLLMTests.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -283,6 +293,7 @@
 				A00000020000000000000007 /* ShellPreferences.swift */,
 				A00000020000000000000061 /* StoreURLResolver.swift */,
 				A00000020000000000000062 /* StoreQuarantine.swift */,
+				A00000020000000000000073 /* CloudLLMKeychain.swift */,
 			);
 			path = Persistence;
 			sourceTree = "<group>";
@@ -329,6 +340,7 @@
 				A0000002000000000000004C /* TriggerAliasNormalizerTests.swift */,
 				A00000020000000000000050 /* TriggerTranscriptParserTests.swift */,
 				A00000020000000000000053 /* AIAssistantSettingsViewModelTests.swift */,
+				A00000020000000000000078 /* CloudLLMTests.swift */,
 			);
 			path = Speech2TextTests;
 			sourceTree = "<group>";
@@ -399,6 +411,9 @@
 				A00000020000000000000059 /* RewriteModelTier.swift */,
 				A00000020000000000000060 /* RewriteModelLoadState.swift */,
 				A00000020000000000000041 /* StringSimilarity.swift */,
+				A00000020000000000000070 /* CloudLLMProvider.swift */,
+				A00000020000000000000071 /* CloudLLMRewriteService.swift */,
+				A00000020000000000000072 /* CloudModelListService.swift */,
 			);
 			path = Conversion;
 			sourceTree = "<group>";
@@ -589,6 +604,10 @@
 				A00000010000000000000020 /* TranscriptionResult.swift in Sources */,
 				A00000010000000000000021 /* WhisperService.swift in Sources */,
 				A0000001000000000000002B /* WhisperModelChoice.swift in Sources */,
+				A00000010000000000000074 /* CloudLLMProvider.swift in Sources */,
+				A00000010000000000000075 /* CloudLLMRewriteService.swift in Sources */,
+				A00000010000000000000076 /* CloudModelListService.swift in Sources */,
+				A00000010000000000000077 /* CloudLLMKeychain.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -616,6 +635,7 @@
 				A0000001000000000000004C /* TriggerAliasNormalizerTests.swift in Sources */,
 				A00000010000000000000050 /* TriggerTranscriptParserTests.swift in Sources */,
 				A00000010000000000000053 /* AIAssistantSettingsViewModelTests.swift in Sources */,
+				A00000010000000000000078 /* CloudLLMTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

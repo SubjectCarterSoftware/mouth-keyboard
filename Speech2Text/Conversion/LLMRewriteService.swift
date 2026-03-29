@@ -11,6 +11,10 @@ enum LLMRewriteError: LocalizedError, Equatable {
     case cancelled
     case outputTruncated
     case emptyOutput
+    case networkError(String)
+    case authenticationFailed
+    case rateLimited
+    case providerError(String)
 
     var errorDescription: String? {
         switch self {
@@ -26,6 +30,14 @@ enum LLMRewriteError: LocalizedError, Equatable {
             return "Rewrite output hit the token limit."
         case .emptyOutput:
             return "Rewrite model returned empty output."
+        case .networkError(let detail):
+            return "Network error: \(detail)"
+        case .authenticationFailed:
+            return "Invalid API key — check your cloud LLM settings."
+        case .rateLimited:
+            return "Rate limited by the API provider — try again shortly."
+        case .providerError(let detail):
+            return "Cloud LLM error: \(detail)"
         }
     }
 }
@@ -261,10 +273,6 @@ actor LLMRewriteService: LLMRewriting {
         idleUnloadTask?.cancel()
         idleUnloadTask = nil
 
-        // Set conservative MLX GPU cache limit to leave room for WhisperKit
-        // 3GB cache limit helps prevent OOM crashes when both are loaded
-        MLX.GPU.set(cacheLimit: 3 * 1024 * 1024 * 1024)
-
         if let cachedModel {
             return cachedModel
         }
@@ -483,10 +491,15 @@ actor LLMRewriteService: LLMRewriting {
             throw LLMRewriteError.generationFailed
         }
 
-        let rewritePrompt = makeRewritePrompt(body: body, instructions: instructions)
+        let rewriteInstructions = makeRewriteInstructions(instructions)
+        let rewriteBody = body.trimmingCharacters(in: .whitespacesAndNewlines)
         let session = ChatSession(
             container,
+            instructions: rewriteInstructions,
             generateParameters: parameters,
+            // The 4B Qwen 3.5 template defaults to thinking mode when the flag is omitted,
+            // which causes rewrite generation to terminate early on this path.
+            additionalContext: ["enable_thinking": false],
             tools: []
         )
 
@@ -494,7 +507,7 @@ actor LLMRewriteService: LLMRewriting {
             let task = Task {
                 do {
                     var stripper = ThinkStripper()
-                    for try await generation in session.streamDetails(to: rewritePrompt, images: [], videos: []) {
+                    for try await generation in session.streamDetails(to: rewriteBody, images: [], videos: []) {
                         switch generation {
                         case .chunk(let text):
                             let visible = stripper.process(text)
@@ -528,8 +541,7 @@ actor LLMRewriteService: LLMRewriting {
         }
     }
 
-    static func makeRewritePrompt(body: String, instructions: String) -> String {
-        let trimmedBody = body.trimmingCharacters(in: .whitespacesAndNewlines)
+    static func makeRewriteInstructions(_ instructions: String) -> String {
         let trimmedInstructions = instructions.trimmingCharacters(in: .whitespacesAndNewlines)
         let effectiveInstructions: String
         if trimmedInstructions.isEmpty {
@@ -547,6 +559,15 @@ actor LLMRewriteService: LLMRewriting {
 
         Rewrite instructions:
         \(effectiveInstructions)
+        """
+    }
+
+    static func makeRewritePrompt(body: String, instructions: String) -> String {
+        let trimmedBody = body.trimmingCharacters(in: .whitespacesAndNewlines)
+        let rewriteInstructions = makeRewriteInstructions(instructions)
+
+        return """
+        \(rewriteInstructions)
 
         Source text:
         \(trimmedBody)

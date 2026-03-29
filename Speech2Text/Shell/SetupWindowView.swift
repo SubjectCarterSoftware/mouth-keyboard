@@ -10,6 +10,11 @@ enum SetupWindowMetrics {
     static let expandedHeight: CGFloat = 820
 }
 
+enum CloudConnectionTestResult: Equatable {
+    case success
+    case failed(String)
+}
+
 // MARK: - Shared shortcut recorder visual field
 
 private struct ShortcutRecorderField: View {
@@ -461,6 +466,12 @@ struct SetupWindowView: View {
     @ObservedObject private var audioDeviceService = AudioDeviceService.shared
     @StateObject private var assistantSettingsViewModel: AIAssistantSettingsViewModel
     @State private var isAdvancedSettingsExpanded = false
+    @State private var cloudAPIKey = ""
+    @State private var cloudAPIKeyLoaded = false
+    @State private var cloudModels: [CloudModelInfo] = []
+    @State private var isLoadingCloudModels = false
+    @State private var cloudModelFetchError: String?
+    @State private var cloudConnectionTestResult: CloudConnectionTestResult?
     private let postEventPermissionService = PostEventPermissionService.live
     private let keyboardPermissionService = KeyboardPermissionService.live
     let dismissWindow: () -> Void
@@ -791,6 +802,270 @@ struct SetupWindowView: View {
         )
     }
 
+    // MARK: - Cloud LLM Settings
+
+    @ViewBuilder
+    private var cloudLLMSettingsSection: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(alignment: .firstTextBaseline, spacing: 12) {
+                Text("Cloud LLM")
+                    .font(.body)
+
+                Spacer()
+
+                Text("Use a cloud API instead of on-device models")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .multilineTextAlignment(.trailing)
+            }
+
+            Toggle("Enable cloud LLM for conversion", isOn: Binding(
+                get: { preferences.cloudLLMConfig.isEnabled },
+                set: { newValue in
+                    preferences.cloudLLMConfig.isEnabled = newValue
+                }
+            ))
+            .toggleStyle(.switch)
+            .controlSize(.small)
+            .accessibilityIdentifier("cloudLLM.enableToggle")
+
+            if preferences.cloudLLMConfig.isEnabled {
+                VStack(alignment: .leading, spacing: 10) {
+                    // Provider picker
+                    HStack(spacing: 8) {
+                        Text("Provider:")
+                            .font(.body)
+                            .frame(width: 70, alignment: .trailing)
+
+                        Picker("", selection: Binding(
+                            get: { preferences.cloudLLMConfig.provider },
+                            set: { newProvider in
+                                preferences.cloudLLMConfig.provider = newProvider
+                                preferences.cloudLLMConfig.baseURL = newProvider.defaultBaseURL
+                                preferences.cloudLLMConfig.modelID = ""
+                                cloudModels = []
+                                cloudModelFetchError = nil
+                                cloudConnectionTestResult = nil
+                            }
+                        )) {
+                            ForEach(CloudLLMProvider.allCases) { provider in
+                                Text(provider.displayName).tag(provider)
+                            }
+                        }
+                        .pickerStyle(.segmented)
+                        .accessibilityIdentifier("cloudLLM.providerPicker")
+                    }
+
+                    // Base URL
+                    HStack(spacing: 8) {
+                        Text("Base URL:")
+                            .font(.body)
+                            .frame(width: 70, alignment: .trailing)
+
+                        TextField(
+                            "https://api.example.com/v1",
+                            text: Binding(
+                                get: { preferences.cloudLLMConfig.baseURL },
+                                set: { preferences.cloudLLMConfig.baseURL = $0 }
+                            )
+                        )
+                        .textFieldStyle(.roundedBorder)
+                        .font(.system(.body, design: .monospaced))
+                        .accessibilityIdentifier("cloudLLM.baseURL")
+
+                        if preferences.cloudLLMConfig.baseURL != preferences.cloudLLMConfig.provider.defaultBaseURL,
+                           !preferences.cloudLLMConfig.provider.defaultBaseURL.isEmpty {
+                            Button {
+                                preferences.cloudLLMConfig.baseURL = preferences.cloudLLMConfig.provider.defaultBaseURL
+                            } label: {
+                                Image(systemName: "arrow.counterclockwise")
+                                    .font(.caption2)
+                                    .foregroundStyle(.secondary)
+                            }
+                            .buttonStyle(.plain)
+                            .help("Reset to default URL")
+                        }
+                    }
+
+                    // API Key
+                    HStack(spacing: 8) {
+                        Text("API Key:")
+                            .font(.body)
+                            .frame(width: 70, alignment: .trailing)
+
+                        SecureField("Enter API key", text: $cloudAPIKey)
+                            .textFieldStyle(.roundedBorder)
+                            .font(.system(.body, design: .monospaced))
+                            .onChange(of: cloudAPIKey) { _, newValue in
+                                let provider = preferences.cloudLLMConfig.provider
+                                _ = CloudLLMKeychain.saveAPIKey(newValue, for: provider)
+                                cloudConnectionTestResult = nil
+                            }
+                            .accessibilityIdentifier("cloudLLM.apiKey")
+
+                        if !cloudAPIKey.isEmpty {
+                            Image(systemName: "checkmark.circle.fill")
+                                .foregroundStyle(.green)
+                                .font(.body)
+                        }
+                    }
+
+                    // Model picker
+                    HStack(spacing: 8) {
+                        Text("Model:")
+                            .font(.body)
+                            .frame(width: 70, alignment: .trailing)
+
+                        if cloudModels.isEmpty {
+                            TextField(
+                                "Model ID (e.g. gpt-4o)",
+                                text: Binding(
+                                    get: { preferences.cloudLLMConfig.modelID },
+                                    set: { preferences.cloudLLMConfig.modelID = $0 }
+                                )
+                            )
+                            .textFieldStyle(.roundedBorder)
+                            .font(.system(.body, design: .monospaced))
+                            .accessibilityIdentifier("cloudLLM.modelIDField")
+                        } else {
+                            Picker("", selection: Binding(
+                                get: { preferences.cloudLLMConfig.modelID },
+                                set: { preferences.cloudLLMConfig.modelID = $0 }
+                            )) {
+                                Text("Select a model").tag("")
+                                ForEach(cloudModels) { model in
+                                    Text(model.displayName).tag(model.id)
+                                }
+                            }
+                            .labelsHidden()
+                            .accessibilityIdentifier("cloudLLM.modelPicker")
+                        }
+
+                        if isLoadingCloudModels {
+                            ProgressView()
+                                .controlSize(.small)
+                        } else if !cloudAPIKey.isEmpty {
+                            Button("Fetch Models") {
+                                fetchCloudModels()
+                            }
+                            .controlSize(.small)
+                            .accessibilityIdentifier("cloudLLM.fetchModels")
+                        }
+                    }
+
+                    if let error = cloudModelFetchError {
+                        Text(error)
+                            .font(.caption)
+                            .foregroundStyle(.red)
+                    }
+
+                    // Max tokens
+                    HStack(spacing: 8) {
+                        Text("Max tokens:")
+                            .font(.body)
+                            .frame(width: 70, alignment: .trailing)
+
+                        TextField("", value: Binding(
+                            get: { preferences.cloudLLMConfig.maxTokens },
+                            set: { preferences.cloudLLMConfig.maxTokens = max(256, min(8192, $0)) }
+                        ), format: .number)
+                        .textFieldStyle(.roundedBorder)
+                        .frame(width: 80)
+                        .accessibilityIdentifier("cloudLLM.maxTokens")
+
+                        Stepper("", value: Binding(
+                            get: { preferences.cloudLLMConfig.maxTokens },
+                            set: { preferences.cloudLLMConfig.maxTokens = max(256, min(8192, $0)) }
+                        ), in: 256...8192, step: 256)
+                        .labelsHidden()
+
+                        Spacer()
+                    }
+
+                    // Test connection
+                    HStack(spacing: 8) {
+                        Spacer()
+                            .frame(width: 70)
+
+                        Button("Test Connection") {
+                            testCloudConnection()
+                        }
+                        .controlSize(.small)
+                        .disabled(cloudAPIKey.isEmpty || preferences.cloudLLMConfig.modelID.isEmpty)
+                        .accessibilityIdentifier("cloudLLM.testConnection")
+
+                        if let result = cloudConnectionTestResult {
+                            switch result {
+                            case .success:
+                                HStack(spacing: 4) {
+                                    Image(systemName: "checkmark.circle.fill")
+                                        .foregroundStyle(.green)
+                                    Text("Connected")
+                                        .font(.caption)
+                                        .foregroundStyle(.green)
+                                }
+                            case .failed(let message):
+                                Text(message)
+                                    .font(.caption)
+                                    .foregroundStyle(.red)
+                                    .lineLimit(2)
+                            }
+                        }
+
+                        Spacer()
+                    }
+                }
+                .padding(.leading, 4)
+            }
+        }
+    }
+
+    private func loadCloudAPIKeyIfNeeded() {
+        guard !cloudAPIKeyLoaded else { return }
+        cloudAPIKeyLoaded = true
+        let provider = preferences.cloudLLMConfig.provider
+        cloudAPIKey = CloudLLMKeychain.loadAPIKey(for: provider) ?? ""
+    }
+
+    private func fetchCloudModels() {
+        let config = preferences.cloudLLMConfig
+        let apiKey = cloudAPIKey
+        isLoadingCloudModels = true
+        cloudModelFetchError = nil
+
+        Task {
+            do {
+                let models = try await CloudModelListService.fetchModels(
+                    provider: config.provider,
+                    baseURL: config.baseURL,
+                    apiKey: apiKey
+                )
+                cloudModels = models
+                isLoadingCloudModels = false
+            } catch {
+                cloudModelFetchError = error.localizedDescription
+                isLoadingCloudModels = false
+            }
+        }
+    }
+
+    private func testCloudConnection() {
+        let config = preferences.cloudLLMConfig
+        let apiKey = cloudAPIKey
+        cloudConnectionTestResult = nil
+
+        Task {
+            let service = CloudLLMRewriteService(config: config, apiKey: apiKey)
+            do {
+                _ = try await service.rewrite(body: "Hello", instructions: "Return the text exactly as written.")
+                cloudConnectionTestResult = .success
+            } catch {
+                let message = (error as? LLMRewriteError)?.errorDescription ?? error.localizedDescription
+                cloudConnectionTestResult = .failed(message)
+            }
+        }
+    }
+
     private func updateSetupWindowSize(forAdvancedSettingsExpanded isExpanded: Bool) {
         guard let window = NSApp.windows.first(where: {
             $0.identifier == NSUserInterfaceItemIdentifier("Speech2TextSetupWindow")
@@ -954,6 +1229,12 @@ struct SetupWindowView: View {
                                         .foregroundStyle(.secondary)
                                 }
                             }
+                            .opacity(preferences.cloudLLMConfig.isEnabled ? 0.5 : 1.0)
+                            .disabled(preferences.cloudLLMConfig.isEnabled)
+
+                            Divider()
+
+                            cloudLLMSettingsSection
                         }
                         .padding(.top, 10)
                     }
@@ -995,8 +1276,7 @@ struct SetupWindowView: View {
         .frame(
             minWidth: SetupWindowMetrics.width,
             maxWidth: SetupWindowMetrics.width,
-            minHeight: SetupWindowMetrics.collapsedHeight,
-            maxHeight: SetupWindowMetrics.expandedHeight
+            minHeight: SetupWindowMetrics.collapsedHeight
         )
         .background(.regularMaterial)
         .onAppear {
@@ -1005,6 +1285,7 @@ struct SetupWindowView: View {
             modelLoadState.refreshStatus()
             whisperModelLoadState.refreshStatus()
             updateSetupWindowSize(forAdvancedSettingsExpanded: isAdvancedSettingsExpanded)
+            loadCloudAPIKeyIfNeeded()
             NSApp.activate(ignoringOtherApps: true)
         }
         .onReceive(Timer.publish(every: 3, on: .main, in: .common).autoconnect()) { _ in
@@ -1020,6 +1301,13 @@ struct SetupWindowView: View {
         }
         .onChange(of: isAdvancedSettingsExpanded) { _, isExpanded in
             updateSetupWindowSize(forAdvancedSettingsExpanded: isExpanded)
+        }
+        .onChange(of: preferences.cloudLLMConfig.provider) { _, _ in
+            cloudAPIKeyLoaded = false
+            loadCloudAPIKeyIfNeeded()
+            cloudModels = []
+            cloudModelFetchError = nil
+            cloudConnectionTestResult = nil
         }
     }
 }
