@@ -226,6 +226,7 @@ struct StatusMenuView: View {
                         Text("Auto-paste")
                     }
                 }
+                .disabled(canCancelSession)
                 .accessibilityIdentifier("statusMenu.autoPaste")
 
                 Button("Hotkeys & Settings…", action: openSetup)
