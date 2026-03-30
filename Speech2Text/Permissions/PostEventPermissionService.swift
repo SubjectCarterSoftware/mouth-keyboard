@@ -1,3 +1,4 @@
+import ApplicationServices
 import CoreGraphics
 import Foundation
 
@@ -43,10 +44,11 @@ private extension PostEventPermissionService {
         return Self(
             adapter: Adapter(
                 isAuthorized: {
-                    CGPreflightPostEventAccess()
+                    CGPreflightPostEventAccess() || AXIsProcessTrusted()
                 },
                 requestAccess: {
-                    CGRequestPostEventAccess()
+                    let options = [kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String: true] as CFDictionary
+                    return AXIsProcessTrustedWithOptions(options)
                 }
             )
         )

@@ -1,17 +1,23 @@
 import SwiftUI
 import KeyboardShortcuts
 
+private enum StatusMenuMetrics {
+    static let width: CGFloat = 280
+    static let padding: CGFloat = 14
+    static let rowHeight: CGFloat = 18
+    static let rowSpacing: CGFloat = 12
+}
+
 struct StatusMenuView: View {
     let recordingState: RecordingState
-    let recoveryFeedback: RecordingState.RecoveryFeedback?
     let lastTranscription: String?
     @ObservedObject var preferences: ShellPreferences
     @ObservedObject var readinessStore: ReadinessStore
     @ObservedObject var audioDeviceService: AudioDeviceService
-    let recoveryActionPerformer: RecoveryActionPerformer = .live
     let cancelSession: () -> Void
     let restartSession: () -> Void
     let startRecording: () -> Void
+    let finishRecording: () -> Void
     let copyLastTranscription: () -> Void
     let lastConvertedTranscription: String?
     let copyLastConvertedTranscription: () -> Void
@@ -31,74 +37,32 @@ struct StatusMenuView: View {
         recordingState == .recording
     }
 
+    private var canFinishSession: Bool {
+        recordingState == .recording
+    }
+
     private var canStartSession: Bool {
-        recordingState == .idle
+        recordingState == .idle || recordingState.isTerminal
     }
 
     private var startRecordingKeyboardShortcut: KeyboardShortcut? {
         KeyboardShortcuts.getShortcut(for: .activate)?.swiftUIKeyboardShortcut
     }
 
-    private var recoveryStatusText: String? {
-        if let recoveryFeedback {
-            switch recoveryFeedback {
-            case .canceled:
-                return "Last session canceled."
-            case .restarted:
-                return "Recording restarted from a clean buffer."
-            }
-        }
-
-        switch recordingState {
-        case .recording:
-            return "Recording is active. Use Restart to clear the current buffer or Cancel to discard it."
-        case .processing:
-            return "Processing is active. Cancel stops the session and preserves the existing clipboard."
-        case .modelDownloading(let model, _):
-            return "\(model.displayName) is still downloading. Cancel stops the session and preserves the existing clipboard."
-        case .failure(let reason):
-            return failureMessage(for: reason)
-        case .idle, .success, .converting:
-            return nil
-        }
+    private var finishRecordingKeyboardShortcut: KeyboardShortcut? {
+        KeyboardShortcuts.getShortcut(for: .stopSession)?.swiftUIKeyboardShortcut
     }
 
-
-    private var showsMicrophoneSettingsAction: Bool {
-        guard case .failure(let reason) = recordingState else {
-            return false
+    private var primaryHoldShortcutText: String {
+        if let primary = holdShortcutSymbol(
+            keyCode: preferences.holdShortcutKeyCode,
+            modifiers: preferences.holdShortcutModifiers
+        ) {
+            return primary
         }
 
-        switch reason {
-        case .microphonePermissionDenied:
-            return true
-        case .noSpeechDetected,
-             .microphoneUnavailable,
-             .selectedMicrophoneUnavailable,
-             .selectedMicrophoneDisconnected,
-             .modelError,
-             .silenceTimeout,
-             .wordLimitExceeded:
-            return false
-        }
+        return "Not set"
     }
-
-    private var showsMicrophoneRecoveryAction: Bool {
-        guard case .failure(let reason) = recordingState else {
-            return false
-        }
-
-        switch reason {
-        case .microphonePermissionDenied,
-             .microphoneUnavailable,
-             .selectedMicrophoneUnavailable,
-             .selectedMicrophoneDisconnected:
-            return true
-        case .noSpeechDetected, .modelError, .silenceTimeout, .wordLimitExceeded:
-            return false
-        }
-    }
-
 
     private var needsSetup: Bool {
         readinessStore.snapshot.state != .ready
@@ -117,48 +81,68 @@ struct StatusMenuView: View {
                 .keyboardShortcut(",", modifiers: .command)
                 .accessibilityIdentifier("statusMenu.primaryAction")
             } else {
-                if canStartSession {
-                    if let startRecordingKeyboardShortcut {
-                        Button("Start Recording", action: startRecording)
-                            .keyboardShortcut(startRecordingKeyboardShortcut)
-                            .accessibilityIdentifier("statusMenu.startRecording")
-                    } else {
-                        Button("Start Recording", action: startRecording)
-                            .accessibilityIdentifier("statusMenu.startRecording")
+                if let startRecordingKeyboardShortcut {
+                    Button("Start Recording", action: startRecording)
+                        .keyboardShortcut(startRecordingKeyboardShortcut)
+                        .disabled(!canStartSession)
+                        .accessibilityIdentifier("statusMenu.startRecording")
+                } else {
+                    Button("Start Recording", action: startRecording)
+                        .disabled(!canStartSession)
+                        .accessibilityIdentifier("statusMenu.startRecording")
+                }
+
+                if let finishRecordingKeyboardShortcut {
+                    Button("Finish Recording", action: finishRecording)
+                        .keyboardShortcut(finishRecordingKeyboardShortcut)
+                        .disabled(!canFinishSession)
+                        .accessibilityIdentifier("statusMenu.finishRecording")
+                } else {
+                    Button("Finish Recording", action: finishRecording)
+                        .disabled(!canFinishSession)
+                        .accessibilityIdentifier("statusMenu.finishRecording")
+                }
+
+                Button("Cancel Session", action: cancelSession)
+                    .keyboardShortcut("v", modifiers: [.control, .shift])
+                    .disabled(!canCancelSession)
+                    .accessibilityIdentifier("statusMenu.cancelSession")
+
+                Button("Restart Recording", action: restartSession)
+                    .disabled(!canRestartSession)
+                    .accessibilityIdentifier("statusMenu.restartSession")
+
+                PassiveMenuShortcutRow(
+                    title: "Hold to Transcribe",
+                    shortcutText: primaryHoldShortcutText,
+                    accessibilityIdentifier: "statusMenu.holdShortcutHint"
+                )
+
+                Divider()
+
+                Button(action: { preferences.alwaysAutoPaste.toggle() }) {
+                    HStack {
+                        if preferences.alwaysAutoPaste {
+                            Image(systemName: "checkmark")
+                        }
+                        Text("Auto-paste")
                     }
                 }
+                .disabled(canCancelSession)
+                .accessibilityIdentifier("statusMenu.autoPaste")
 
-                if canCancelSession {
-                    Button("Cancel Session", action: cancelSession)
-                        .keyboardShortcut("v", modifiers: [.control, .shift])
-                        .accessibilityIdentifier("statusMenu.cancelSession")
-                }
-
-                if canRestartSession {
-                    Button("Restart Recording", action: restartSession)
-                        .accessibilityIdentifier("statusMenu.restartSession")
-                }
-
-                if let recoveryStatusText {
-                    Text(recoveryStatusText)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                        .fixedSize(horizontal: false, vertical: true)
-                        .accessibilityLabel(recoveryStatusText)
-                        .accessibilityIdentifier("statusMenu.recoveryMessage")
-                }
-
-                if showsMicrophoneRecoveryAction {
-                    Button("Open Microphone Recovery", action: openSetup)
-                        .accessibilityIdentifier("statusMenu.openMicrophoneRecovery")
-                }
-
-                if showsMicrophoneSettingsAction {
-                    Button("Open Microphone Settings") {
-                        recoveryActionPerformer.openMicrophoneSettings()
+                Button(action: { preferences.allowClipboardAccess.toggle() }) {
+                    HStack {
+                        if preferences.allowClipboardAccess {
+                            Image(systemName: "checkmark")
+                        }
+                        Text("Clipboard access")
                     }
-                    .accessibilityIdentifier("statusMenu.openMicrophoneSettings")
                 }
+                .disabled(canCancelSession)
+                .accessibilityIdentifier("statusMenu.clipboardAccess")
+
+                Divider()
 
                 Menu {
                     Button(action: { setMicDevice(nil) }) {
@@ -194,43 +178,18 @@ struct StatusMenuView: View {
                 .disabled(canCancelSession)
                 .accessibilityIdentifier("statusMenu.microphoneMenu")
 
-                Button(action: { preferences.alwaysAutoPaste.toggle() }) {
-                    HStack {
-                        if preferences.alwaysAutoPaste {
-                            Image(systemName: "checkmark")
-                        }
-                        Text("Auto-paste")
-                    }
-                }
-                .disabled(canCancelSession)
-                .accessibilityIdentifier("statusMenu.autoPaste")
-
-                Button(action: { preferences.allowClipboardAccess.toggle() }) {
-                    HStack {
-                        if preferences.allowClipboardAccess {
-                            Image(systemName: "checkmark")
-                        }
-                        Text("Clipboard access")
-                    }
-                }
-                .disabled(canCancelSession)
-                .accessibilityIdentifier("statusMenu.clipboardAccess")
-
-                Button("Hotkeys & Settings…", action: openSetup)
+                Button("Settings & Hotkeys…", action: openSetup)
                     .keyboardShortcut(",", modifiers: .command)
                     .accessibilityIdentifier("statusMenu.primaryAction")
-
-                Divider()
-
-                if lastTranscription != nil {
-                    Button("Copy Last Transcription", action: copyLastTranscription)
-                        .accessibilityIdentifier("statusMenu.copyLastTranscription")
-                }
 
                 Button("Copy Last AI Converted Transcription",
                        action: copyLastConvertedTranscription)
                     .disabled(lastConvertedTranscription == nil)
                     .accessibilityIdentifier("statusMenu.copyLastConvertedTranscription")
+
+                Button("Copy Last Transcription", action: copyLastTranscription)
+                    .disabled(lastTranscription == nil)
+                    .accessibilityIdentifier("statusMenu.copyLastTranscription")
             }
 
             Divider()
@@ -238,8 +197,8 @@ struct StatusMenuView: View {
             Button("Quit Speech2Text", action: quitApp)
                 .keyboardShortcut("q", modifiers: .command)
         }
-        .padding(14)
-        .frame(width: 280)
+        .padding(StatusMenuMetrics.padding)
+        .frame(width: StatusMenuMetrics.width)
         .onAppear {
             readinessStore.refresh()
             if !needsSetup {
@@ -248,27 +207,91 @@ struct StatusMenuView: View {
         }
     }
 
-    private func failureMessage(for reason: RecordingState.FailureReason) -> String {
-        switch reason {
-        case .microphonePermissionDenied:
-            return "Microphone access is blocked. Open Settings to re-enable it, or open Setup to review recovery."
-        case .microphoneUnavailable:
-            return "No microphone is available. Connect one, then open Setup to review the input choice."
-        case .selectedMicrophoneUnavailable:
-            return "The selected microphone is unavailable. Reconnect it or open Setup to choose another one."
-        case .selectedMicrophoneDisconnected:
-            return "The selected microphone disconnected. Reconnect it or open Setup to choose another input."
-        case .noSpeechDetected:
-            return "No speech was detected. Try again when you are ready to speak."
-        case .modelError:
-            return "Transcription failed. Try the session again after recovery."
-        case .silenceTimeout:
-            return "The session timed out after extended silence."
-        case .wordLimitExceeded:
-            return "Dictation is too long to convert. Raw text copied to clipboard."
-        }
+}
+
+private func holdShortcutSymbol(keyCode: Int, modifiers: UInt) -> String? {
+    guard keyCode >= 0 else {
+        return nil
     }
 
+    return HoldKeyDisplayFormatter.symbol(keyCode: keyCode, modifiers: modifiers)
+}
+
+private struct PassiveMenuShortcutRow: NSViewRepresentable {
+    let title: String
+    let shortcutText: String
+    let accessibilityIdentifier: String
+
+    func makeNSView(context: Context) -> PassiveMenuShortcutRowView {
+        let view = PassiveMenuShortcutRowView()
+        view.setAccessibilityIdentifier(accessibilityIdentifier)
+        return view
+    }
+
+    func updateNSView(_ nsView: PassiveMenuShortcutRowView, context: Context) {
+        nsView.configure(title: title, shortcutText: shortcutText)
+    }
+}
+
+private final class PassiveMenuShortcutRowView: NSView {
+    private let titleField = NSTextField(labelWithString: "")
+    private let shortcutField = NSTextField(labelWithString: "")
+
+    override var intrinsicContentSize: NSSize {
+        NSSize(
+            width: StatusMenuMetrics.width - (StatusMenuMetrics.padding * 2),
+            height: StatusMenuMetrics.rowHeight
+        )
+    }
+
+    override init(frame frameRect: NSRect) {
+        super.init(frame: frameRect)
+        setup()
+    }
+
+    @available(*, unavailable)
+    required init?(coder: NSCoder) {
+        fatalError("init(coder:) has not been implemented")
+    }
+
+    func configure(title: String, shortcutText: String) {
+        titleField.stringValue = title
+        shortcutField.stringValue = shortcutText
+    }
+
+    private func setup() {
+        translatesAutoresizingMaskIntoConstraints = false
+
+        [titleField, shortcutField].forEach { field in
+            field.translatesAutoresizingMaskIntoConstraints = false
+            field.isBezeled = false
+            field.drawsBackground = false
+            field.isEditable = false
+            field.isSelectable = false
+            field.font = NSFont.menuFont(ofSize: 0)
+            field.textColor = NSColor.disabledControlTextColor
+            addSubview(field)
+        }
+
+        titleField.lineBreakMode = .byTruncatingTail
+        titleField.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
+
+        shortcutField.alignment = .right
+        shortcutField.lineBreakMode = .byClipping
+        shortcutField.setContentCompressionResistancePriority(.required, for: .horizontal)
+
+        NSLayoutConstraint.activate([
+            heightAnchor.constraint(equalToConstant: StatusMenuMetrics.rowHeight),
+            widthAnchor.constraint(equalToConstant: StatusMenuMetrics.width - (StatusMenuMetrics.padding * 2)),
+
+            titleField.leadingAnchor.constraint(equalTo: leadingAnchor),
+            titleField.centerYAnchor.constraint(equalTo: centerYAnchor),
+
+            shortcutField.leadingAnchor.constraint(greaterThanOrEqualTo: titleField.trailingAnchor, constant: StatusMenuMetrics.rowSpacing),
+            shortcutField.trailingAnchor.constraint(equalTo: trailingAnchor),
+            shortcutField.centerYAnchor.constraint(equalTo: centerYAnchor),
+        ])
+    }
 }
 
 private extension NSEvent.ModifierFlags {

@@ -25,7 +25,6 @@ struct Speech2TextApp: App {
         MenuBarExtra("Speech2Text", systemImage: "waveform") {
             StatusMenuView(
                 recordingState: activationStore.state,
-                recoveryFeedback: activationStore.recoveryFeedback,
                 lastTranscription: activationStore.lastTranscription,
                 preferences: preferences,
                 readinessStore: readinessStore,
@@ -38,6 +37,9 @@ struct Speech2TextApp: App {
                 },
                 startRecording: {
                     activationStore.arm()
+                },
+                finishRecording: {
+                    activationStore.finish()
                 },
                 copyLastTranscription: {
                     activationStore.copyLastTranscription()

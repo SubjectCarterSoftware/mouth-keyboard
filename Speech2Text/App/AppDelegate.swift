@@ -9,6 +9,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     private let preferences = ShellPreferences.shared
     private let readinessStore = ReadinessStore.shared
     private let hotkeyService = HotkeyService.shared
+    private let microphoneService = MicrophonePermissionService.live
+    private let keyboardService = KeyboardPermissionService.live
     private let postEventService = PostEventPermissionService.live
     private let activationStore = ActivationStore.shared
     private let audioCaptureService = AudioCaptureService.shared
@@ -18,6 +20,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     private var pillPanel: RecordingPillPanel?
     private var stateObservation: AnyCancellable?
     private var statusItem: NSStatusItem?
+    private var launchPermissionTask: Task<Void, Never>?
+    private var isDeferringHotkeyStartup = false
+
+    private lazy var launchPermissionBootstrap = LaunchPermissionBootstrap(
+        preferences: preferences,
+        readinessStore: readinessStore,
+        microphoneService: microphoneService,
+        keyboardService: keyboardService,
+        postEventService: postEventService,
+        startHotkeys: { [hotkeyService] in
+            hotkeyService.start()
+        }
+    )
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         let isUITesting = ProcessInfo.processInfo.arguments.contains("-ui-testing")
@@ -25,20 +40,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             NSApp.setActivationPolicy(.accessory)
         }
 
-        hotkeyService.start()
         readinessStore.refresh()
-
-        // Auto-prompt Accessibility once Input Monitoring is already granted.
-        // First launch: IM is not yet granted (hotkeyService.start() just triggered
-        // the IM dialog), so we skip. After user grants IM, macOS quits and relaunches
-        // the app — on that relaunch IM is authorized and we request Accessibility
-        // immediately. No delay needed.
-        if !preferences.hasRequestedPostEventPermission,
-           CGPreflightListenEventAccess() {
-            preferences.recordPostEventPermissionPrompt()
-            postEventService.requestAccess()
-            readinessStore.refresh()
-        }
+        beginLaunchPermissionBootstrap()
 
         do {
             try WhisperService.deleteLegacyUnsupportedModelFiles()
@@ -110,14 +113,37 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     }
 
     func applicationWillTerminate(_ notification: Notification) {
+        launchPermissionTask?.cancel()
         hotkeyService.stop()
         stateObservation?.cancel()
     }
 
     func applicationDidBecomeActive(_ notification: Notification) {
         readinessStore.refresh()
-        // Retry hotkey registration in case settings changed while the app was inactive.
+        guard !isDeferringHotkeyStartup else {
+            return
+        }
+
+        // Retry registration in case settings changed while the app was inactive.
         hotkeyService.start()
+        launchPermissionBootstrap.promptAccessibilityIfEligible()
+    }
+
+    private func beginLaunchPermissionBootstrap() {
+        launchPermissionTask?.cancel()
+        isDeferringHotkeyStartup = launchPermissionBootstrap.shouldDeferHotkeyStartup
+
+        guard isDeferringHotkeyStartup else {
+            hotkeyService.start()
+            launchPermissionBootstrap.promptAccessibilityIfEligible()
+            return
+        }
+
+        launchPermissionTask = Task { @MainActor [weak self] in
+            guard let self else { return }
+            await self.launchPermissionBootstrap.run()
+            self.isDeferringHotkeyStartup = false
+        }
     }
 
     // MARK: - State machine handlers
@@ -326,5 +352,56 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         default:
             return nil
         }
+    }
+}
+
+@MainActor
+struct LaunchPermissionBootstrap {
+    let preferences: ShellPreferences
+    let readinessStore: ReadinessStore
+    let microphoneService: MicrophonePermissionService
+    let keyboardService: KeyboardPermissionService
+    let postEventService: PostEventPermissionService
+    let startHotkeys: () -> Void
+
+    var shouldDeferHotkeyStartup: Bool {
+        microphoneService.currentStatus() == .notDetermined
+            || keyboardService.currentStatus(hasPrompted: preferences.hasRequestedKeyboardPermission) == .notDetermined
+    }
+
+    func run() async {
+        if microphoneService.currentStatus() == .notDetermined {
+            preferences.recordMicrophonePermissionPrompt()
+            _ = await microphoneService.requestAccess()
+            readinessStore.refresh()
+        }
+
+        if keyboardService.currentStatus(hasPrompted: preferences.hasRequestedKeyboardPermission) == .notDetermined {
+            preferences.recordKeyboardPermissionPrompt()
+            _ = keyboardService.requestAccess()
+            readinessStore.refresh()
+        }
+
+        startHotkeys()
+        readinessStore.refresh()
+        promptAccessibilityIfEligible()
+    }
+
+    func promptAccessibilityIfEligible() {
+        guard keyboardService.currentStatus(hasPrompted: false) == .authorized else {
+            return
+        }
+
+        guard !preferences.hasRequestedPostEventPermission else {
+            return
+        }
+
+        guard postEventService.currentStatus(hasPrompted: false) != .authorized else {
+            return
+        }
+
+        preferences.recordPostEventPermissionPrompt()
+        _ = postEventService.requestAccess()
+        readinessStore.refresh()
     }
 }
