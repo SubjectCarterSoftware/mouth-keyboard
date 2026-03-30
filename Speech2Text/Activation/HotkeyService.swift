@@ -239,6 +239,8 @@ final class HoldToTranscribeMonitor {
     private var eventTap: CFMachPort?
     private var runLoopSource: CFRunLoopSource?
     private var isHoldKeyDown = false
+    private var pendingModifierRelease: DispatchWorkItem?
+    private static let modifierReleaseDebounce: TimeInterval = 0.05
 
     // Configurable target key
     private var targetKeyCode: Int64 = 61
@@ -284,6 +286,8 @@ final class HoldToTranscribeMonitor {
         if modifiers & (1 << 18) != 0 { cgFlags.insert(.maskControl) }   // .control
         requiredModifiers = cgFlags
 
+        pendingModifierRelease?.cancel()
+        pendingModifierRelease = nil
         if isHoldKeyDown {
             isHoldKeyDown = false
         }
@@ -303,6 +307,8 @@ final class HoldToTranscribeMonitor {
         secondaryRequiredModifiers = cgFlags
         hasSecondaryTarget = true
 
+        pendingModifierRelease?.cancel()
+        pendingModifierRelease = nil
         if isHoldKeyDown {
             isHoldKeyDown = false
         }
@@ -315,6 +321,8 @@ final class HoldToTranscribeMonitor {
         secondaryModifierFlag = []
         secondaryRequiredModifiers = []
 
+        pendingModifierRelease?.cancel()
+        pendingModifierRelease = nil
         if isHoldKeyDown {
             isHoldKeyDown = false
         }
@@ -368,6 +376,9 @@ final class HoldToTranscribeMonitor {
     }
 
     func stop() {
+        pendingModifierRelease?.cancel()
+        pendingModifierRelease = nil
+
         if let runLoopSource {
             CFRunLoopRemoveSource(CFRunLoopGetMain(), runLoopSource, .commonModes)
             self.runLoopSource = nil
@@ -436,20 +447,45 @@ final class HoldToTranscribeMonitor {
         // Check primary modifier target
         if targetIsModifier && keyCode == targetKeyCode {
             let isPressed = event.flags.contains(targetModifierFlag)
-            if isPressed != isHoldKeyDown {
-                isHoldKeyDown = isPressed
-                if isPressed { onHoldKeyPressed?() } else { onHoldKeyReleased?() }
-            }
+            applyDebouncedModifierState(isPressed: isPressed)
             return
         }
 
         // Check secondary modifier target
         if hasSecondaryTarget && secondaryIsModifier && keyCode == secondaryKeyCode {
             let isPressed = event.flags.contains(secondaryModifierFlag)
-            if isPressed != isHoldKeyDown {
-                isHoldKeyDown = isPressed
-                if isPressed { onHoldKeyPressed?() } else { onHoldKeyReleased?() }
+            applyDebouncedModifierState(isPressed: isPressed)
+        }
+    }
+
+    /// Debounce modifier releases to absorb brief flag flicker that some apps
+    /// cause (e.g. Secure Input transitions, custom keyboard handling).
+    /// Press events are applied immediately; releases are deferred by
+    /// ``modifierReleaseDebounce`` so a quick drop-and-restore of the flag
+    /// is silently absorbed instead of creating a spurious release→press cycle.
+    private func applyDebouncedModifierState(isPressed: Bool) {
+        if isPressed {
+            if let pending = pendingModifierRelease {
+                // Flag reappeared within the debounce window — absorb the flicker.
+                pending.cancel()
+                pendingModifierRelease = nil
+                return
             }
+            guard !isHoldKeyDown else { return }
+            isHoldKeyDown = true
+            onHoldKeyPressed?()
+        } else {
+            guard isHoldKeyDown else { return }
+            // Defer the release so a brief flag flicker doesn't end the session.
+            pendingModifierRelease?.cancel()
+            let workItem = DispatchWorkItem { [weak self] in
+                guard let self else { return }
+                self.pendingModifierRelease = nil
+                self.isHoldKeyDown = false
+                self.onHoldKeyReleased?()
+            }
+            pendingModifierRelease = workItem
+            DispatchQueue.main.asyncAfter(deadline: .now() + Self.modifierReleaseDebounce, execute: workItem)
         }
     }
 

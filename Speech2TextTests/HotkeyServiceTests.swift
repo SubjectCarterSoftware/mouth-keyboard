@@ -216,4 +216,21 @@ final class HotkeyServiceTests: XCTestCase {
 
         XCTAssertTrue(HoldToTranscribeMonitor.isAutoRepeatKeyDownEvent(event!))
     }
+
+    func testDuplicateHoldPressWhileAlreadyHeldDoesNotRetrigger() {
+        var beginCount = 0
+        let service = HotkeyService(
+            currentState: { .idle },
+            onArm: {},
+            onBeginHold: {
+                beginCount += 1
+                return true
+            }
+        )
+
+        service.handleHoldKeyStateChange(isPressed: true)
+        service.handleHoldKeyStateChange(isPressed: true)
+
+        XCTAssertEqual(beginCount, 1)
+    }
 }
