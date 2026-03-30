@@ -12,4 +12,8 @@ class ClipboardService {
         pasteboard.clearContents()
         return pasteboard.setString(text, forType: .string)
     }
+
+    func readFromClipboard() -> String? {
+        pasteboard.string(forType: .string)
+    }
 }

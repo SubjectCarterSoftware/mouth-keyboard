@@ -46,8 +46,8 @@ struct RecordingPillView: View {
             processingContent
         case .modelDownloading(let model, let progress):
             modelDownloadingContent(model: model, progress: progress)
-        case .success(_, let pasted, let converted, let noMatchPassthrough):
-            successContent(pasted: pasted, converted: converted, noMatchPassthrough: noMatchPassthrough)
+        case .success(_, let pasted, let converted, let noMatchPassthrough, let clipboardInjected):
+            successContent(pasted: pasted, converted: converted, noMatchPassthrough: noMatchPassthrough, clipboardInjected: clipboardInjected)
         case .converting:
             convertingContent
         case .failure(let reason):
@@ -241,7 +241,7 @@ struct RecordingPillView: View {
 
     // MARK: - Success state
 
-    private func successContent(pasted: Bool, converted: Bool, noMatchPassthrough: Bool = false) -> some View {
+    private func successContent(pasted: Bool, converted: Bool, noMatchPassthrough: Bool = false, clipboardInjected: Bool = false) -> some View {
         // No-match passthrough: fuzzy detection fired but found no matching mode.
         if noMatchPassthrough {
             let label = pasted ? "No match \u{00B7} Pasted" : "No match \u{00B7} Copied"
@@ -289,8 +289,14 @@ struct RecordingPillView: View {
                 Text(label)
                     .font(.system(size: 13, weight: .semibold))
                     .foregroundStyle(.white)
+
+                if clipboardInjected {
+                    Image(systemName: "doc.on.clipboard")
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundStyle(.white.opacity(0.7))
+                }
             }
-            .frame(width: 160, height: 44)
+            .frame(width: clipboardInjected ? 200 : 160, height: 44)
             .preferredColorScheme(.dark)
         )
     }

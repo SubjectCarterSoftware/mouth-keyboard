@@ -205,6 +205,17 @@ struct StatusMenuView: View {
                 .disabled(canCancelSession)
                 .accessibilityIdentifier("statusMenu.autoPaste")
 
+                Button(action: { preferences.allowClipboardAccess.toggle() }) {
+                    HStack {
+                        if preferences.allowClipboardAccess {
+                            Image(systemName: "checkmark")
+                        }
+                        Text("Clipboard access")
+                    }
+                }
+                .disabled(canCancelSession)
+                .accessibilityIdentifier("statusMenu.clipboardAccess")
+
                 Button("Hotkeys & Settings…", action: openSetup)
                     .keyboardShortcut(",", modifiers: .command)
                     .accessibilityIdentifier("statusMenu.primaryAction")

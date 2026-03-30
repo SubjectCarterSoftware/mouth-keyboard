@@ -1,3 +1,4 @@
+import CoreGraphics
 import XCTest
 import KeyboardShortcuts
 @testable import Speech2Text
@@ -201,5 +202,18 @@ final class HotkeyServiceTests: XCTestCase {
 
         XCTAssertEqual(beginHoldCount, 1)
         XCTAssertEqual(finishHoldCount, 0)
+    }
+
+    func testHoldMonitorTreatsAutoRepeatKeyDownAsRepeat() {
+        let event = CGEvent(
+            keyboardEventSource: nil,
+            virtualKey: 12,
+            keyDown: true
+        )
+
+        XCTAssertNotNil(event)
+        event?.setIntegerValueField(.keyboardEventAutorepeat, value: 1)
+
+        XCTAssertTrue(HoldToTranscribeMonitor.isAutoRepeatKeyDownEvent(event!))
     }
 }

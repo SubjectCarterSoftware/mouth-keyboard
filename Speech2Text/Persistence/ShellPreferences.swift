@@ -21,6 +21,7 @@ final class ShellPreferences: ObservableObject {
         static let holdShortcutKeyCodeAlt = "holdShortcutKeyCodeAlt"
         static let holdShortcutModifiersAlt = "holdShortcutModifiersAlt"
         static let cloudLLMConfig = "cloudLLMConfig"
+        static let allowClipboardAccess = "allowClipboardAccess"
     }
 
     static let shared = makeShared()
@@ -133,6 +134,14 @@ final class ShellPreferences: ObservableObject {
         }
     }
 
+    @Published var allowClipboardAccess: Bool {
+        didSet {
+            persistIfNeeded {
+                defaults.set(allowClipboardAccess, forKey: Keys.allowClipboardAccess)
+            }
+        }
+    }
+
     var shouldPresentSetupOnLaunch: Bool {
         !hasCompletedInitialSetup
     }
@@ -209,6 +218,12 @@ final class ShellPreferences: ObservableObject {
             cloudLLMConfig = decoded
         } else {
             cloudLLMConfig = .default
+        }
+
+        if userDefaults.object(forKey: Keys.allowClipboardAccess) == nil {
+            allowClipboardAccess = true
+        } else {
+            allowClipboardAccess = userDefaults.bool(forKey: Keys.allowClipboardAccess)
         }
 
         let loadedTriggerProfile = (initialTriggerProfile ?? TriggerProfileStore.loadSynchronously()).normalized()
@@ -290,6 +305,7 @@ final class ShellPreferences: ObservableObject {
             whisperModel = .smallEN
             rewriteModelTier = .standard2B
             alwaysAutoPaste = true
+            allowClipboardAccess = true
             holdShortcutKeyCode = 61
             holdShortcutModifiers = 0
             cloudLLMConfig = .default
@@ -305,6 +321,7 @@ final class ShellPreferences: ObservableObject {
         defaults.removeObject(forKey: Keys.whisperModel)
         defaults.removeObject(forKey: Keys.rewriteModelTier)
         defaults.removeObject(forKey: Keys.alwaysAutoPaste)
+        defaults.removeObject(forKey: Keys.allowClipboardAccess)
         defaults.removeObject(forKey: Keys.holdShortcutKeyCode)
         defaults.removeObject(forKey: Keys.holdShortcutModifiers)
         defaults.removeObject(forKey: Keys.cloudLLMConfig)

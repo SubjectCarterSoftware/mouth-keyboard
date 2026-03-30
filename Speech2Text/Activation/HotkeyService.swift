@@ -266,6 +266,10 @@ final class HoldToTranscribeMonitor {
         }
     }
 
+    static func isAutoRepeatKeyDownEvent(_ event: CGEvent) -> Bool {
+        event.getIntegerValueField(.keyboardEventAutorepeat) != 0
+    }
+
     func updateTarget(keyCode: Int, modifiers: UInt) {
         let code = Int64(keyCode)
         targetKeyCode = code
@@ -401,6 +405,10 @@ final class HoldToTranscribeMonitor {
             }
 
         case .keyDown:
+            if Self.isAutoRepeatKeyDownEvent(event) {
+                break
+            }
+
             let isAnyModifierTarget = targetIsModifier && (!hasSecondaryTarget || secondaryIsModifier)
             if isAnyModifierTarget {
                 if isHoldKeyDown {

@@ -87,6 +87,8 @@
 		A00000010000000000000076 /* CloudModelListService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000020000000000000072 /* CloudModelListService.swift */; };
 		A00000010000000000000077 /* CloudLLMKeychain.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000020000000000000073 /* CloudLLMKeychain.swift */; };
 		A00000010000000000000078 /* CloudLLMTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000020000000000000078 /* CloudLLMTests.swift */; };
+		A00000010000000000000079 /* ClipboardIntentClassifier.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000020000000000000079 /* ClipboardIntentClassifier.swift */; };
+		A00000010000000000000080 /* ClipboardAwarePromptBuilder.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000020000000000000080 /* ClipboardAwarePromptBuilder.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -187,6 +189,8 @@
 		A00000020000000000000072 /* CloudModelListService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CloudModelListService.swift; sourceTree = "<group>"; };
 		A00000020000000000000073 /* CloudLLMKeychain.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CloudLLMKeychain.swift; sourceTree = "<group>"; };
 		A00000020000000000000078 /* CloudLLMTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CloudLLMTests.swift; sourceTree = "<group>"; };
+		A00000020000000000000079 /* ClipboardIntentClassifier.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClipboardIntentClassifier.swift; sourceTree = "<group>"; };
+		A00000020000000000000080 /* ClipboardAwarePromptBuilder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClipboardAwarePromptBuilder.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -414,6 +418,8 @@
 				A00000020000000000000070 /* CloudLLMProvider.swift */,
 				A00000020000000000000071 /* CloudLLMRewriteService.swift */,
 				A00000020000000000000072 /* CloudModelListService.swift */,
+				A00000020000000000000079 /* ClipboardIntentClassifier.swift */,
+				A00000020000000000000080 /* ClipboardAwarePromptBuilder.swift */,
 			);
 			path = Conversion;
 			sourceTree = "<group>";
@@ -608,6 +614,8 @@
 				A00000010000000000000075 /* CloudLLMRewriteService.swift in Sources */,
 				A00000010000000000000076 /* CloudModelListService.swift in Sources */,
 				A00000010000000000000077 /* CloudLLMKeychain.swift in Sources */,
+				A00000010000000000000079 /* ClipboardIntentClassifier.swift in Sources */,
+				A00000010000000000000080 /* ClipboardAwarePromptBuilder.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

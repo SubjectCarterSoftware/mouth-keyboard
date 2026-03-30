@@ -457,6 +457,23 @@ private struct AlwaysAutoPasteRow: View {
     }
 }
 
+private struct AllowClipboardAccessRow: View {
+    @Binding var isOn: Bool
+
+    var body: some View {
+        HStack(alignment: .center, spacing: 12) {
+            Toggle("Clipboard Access", isOn: $isOn)
+                .labelsHidden()
+                .toggleStyle(.switch)
+                .scaleEffect(0.8, anchor: .leading)
+                .frame(height: 22)
+                .accessibilityLabel("Clipboard Access")
+                .accessibilityIdentifier("setupWindow.allowClipboardAccess.toggle")
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+}
+
 struct SetupWindowView: View {
     @ObservedObject var preferences: ShellPreferences
     @ObservedObject var readinessStore: ReadinessStore
@@ -536,6 +553,17 @@ struct SetupWindowView: View {
         )
     }
 
+    private var allowClipboardAccessBinding: Binding<Bool> {
+        Binding(
+            get: {
+                preferences.allowClipboardAccess
+            },
+            set: { newValue in
+                preferences.allowClipboardAccess = newValue
+            }
+        )
+    }
+
     private func shortRamGuidance(for tier: RewriteModelTier) -> String {
         switch tier {
         case .standard2B:
@@ -549,8 +577,7 @@ struct SetupWindowView: View {
 
     private func conversionModelDetailText(
         for tier: RewriteModelTier,
-        status: RewriteModelLoadState.TierStatus,
-        isSelected: Bool
+        status: RewriteModelLoadState.TierStatus
     ) -> String {
         var details = [
             "\(String(format: "%.1f", tier.approximateDownloadSizeGB)) GB",
@@ -561,18 +588,12 @@ struct SetupWindowView: View {
             details.append("Downloading")
         } else if status.isDeleting {
             details.append("Deleting")
-        } else if status.isDownloaded {
-            details.append("Downloaded")
-        } else {
-            details.append("Download first")
-        }
-
-        if status.isWarm {
+        } else if status.isWarm {
             details.append("Warm")
-        }
-
-        if isSelected {
-            details.append(status.isDownloaded ? "Active" : "Configured")
+        } else if status.isDownloaded {
+            details.append("Cold")
+        } else {
+            details.append("Not Downloaded")
         }
 
         return details.joined(separator: " · ")
@@ -639,7 +660,7 @@ struct SetupWindowView: View {
 
                     Spacer(minLength: 12)
 
-                    Text(conversionModelDetailText(for: tier, status: status, isSelected: isSelected))
+                    Text(conversionModelDetailText(for: tier, status: status))
                         .font(.caption)
                         .foregroundStyle(.secondary)
                         .lineLimit(1)
@@ -674,8 +695,7 @@ struct SetupWindowView: View {
 
     private func whisperModelDetailText(
         for model: WhisperModelChoice,
-        status: WhisperModelLoadState.ModelStatus,
-        isSelected: Bool
+        status: WhisperModelLoadState.ModelStatus
     ) -> String {
         var details = [model.detailSummary]
 
@@ -685,18 +705,12 @@ struct SetupWindowView: View {
             details.append("Deleting")
         } else if status.isLoading {
             details.append("Loading")
-        } else if status.isDownloaded {
-            details.append("Downloaded")
-        } else {
-            details.append("Download first")
-        }
-
-        if status.isWarm {
+        } else if status.isWarm {
             details.append("Warm")
-        }
-
-        if isSelected {
-            details.append(status.isDownloaded ? "Active" : "Configured")
+        } else if status.isDownloaded {
+            details.append("Cold")
+        } else {
+            details.append("Not Downloaded")
         }
 
         return details.joined(separator: " · ")
@@ -761,7 +775,7 @@ struct SetupWindowView: View {
 
                     Spacer(minLength: 12)
 
-                    Text(whisperModelDetailText(for: model, status: status, isSelected: isSelected))
+                    Text(whisperModelDetailText(for: model, status: status))
                         .font(.caption)
                         .foregroundStyle(.secondary)
                         .lineLimit(1)
@@ -1131,6 +1145,12 @@ struct SetupWindowView: View {
                         AlwaysAutoPasteRow(isOn: alwaysAutoPasteBinding)
                     } label: {
                         Text("Auto Paste:")
+                    }
+
+                    LabeledContent {
+                        AllowClipboardAccessRow(isOn: allowClipboardAccessBinding)
+                    } label: {
+                        Text("Clipboard Access:")
                     }
 
                     LabeledContent {

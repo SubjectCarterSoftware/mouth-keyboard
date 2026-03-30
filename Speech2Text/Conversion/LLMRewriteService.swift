@@ -46,6 +46,8 @@ protocol LLMRewriting: Sendable {
     func setTier(_ newTier: RewriteModelTier) async
     func prewarm() async throws
     func rewrite(body: String, instructions: String) async throws -> String
+    /// Raw generation with a caller-supplied system prompt. No rewrite framing is added.
+    func generate(prompt: String, systemPrompt: String) async throws -> String
     func loadedTier() async -> RewriteModelTier?
     func scheduleIdleUnload(afterNanoseconds duration: UInt64) async
     func cancelScheduledUnload() async
@@ -56,6 +58,9 @@ protocol LLMRewriting: Sendable {
 extension LLMRewriting {
     func setTier(_ newTier: RewriteModelTier) async {}
     func prewarm() async throws {}
+    func generate(prompt: String, systemPrompt: String) async throws -> String {
+        try await rewrite(body: prompt, instructions: systemPrompt)
+    }
     func loadedTier() async -> RewriteModelTier? { nil }
     func scheduleIdleUnload(afterNanoseconds duration: UInt64) async {}
     func cancelScheduledUnload() async {}
@@ -192,6 +197,10 @@ actor LLMRewriteService: LLMRewriting {
         try await rewriteCore(body: body, instructions: instructions)
     }
 
+    func generate(prompt: String, systemPrompt: String) async throws -> String {
+        try await generateCore(prompt: prompt, systemPrompt: systemPrompt)
+    }
+
     func loadedTier() async -> RewriteModelTier? {
         cachedModel == nil ? nil : tier
     }
@@ -220,6 +229,79 @@ actor LLMRewriteService: LLMRewriting {
                 body,
                 instructions,
                 generationParameters
+            )
+
+            var output = ""
+            var completion: GenerateStopReason?
+
+            for try await event in stream {
+                switch event {
+                case .chunk(let chunk):
+                    output += chunk
+                case .completion(let reason):
+                    completion = reason
+                }
+            }
+
+            if Task.isCancelled {
+                throw LLMRewriteError.cancelled
+            }
+
+            guard let completion else {
+                throw LLMRewriteError.generationFailed
+            }
+
+            switch completion {
+            case .cancelled:
+                throw LLMRewriteError.cancelled
+            case .length:
+                throw LLMRewriteError.outputTruncated
+            case .stop:
+                break
+            }
+
+            let trimmed = output.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !trimmed.isEmpty else {
+                throw LLMRewriteError.emptyOutput
+            }
+            await rewriteExecutionGate.release()
+            return trimmed
+        } catch let error as LLMRewriteError {
+            await rewriteExecutionGate.release()
+            throw error
+        } catch is CancellationError {
+            await rewriteExecutionGate.release()
+            throw LLMRewriteError.cancelled
+        } catch {
+            await rewriteExecutionGate.release()
+            throw LLMRewriteError.generationFailed
+        }
+    }
+
+    private func generateCore(prompt: String, systemPrompt: String) async throws -> String {
+        if Task.isCancelled {
+            throw LLMRewriteError.cancelled
+        }
+
+        let model: RewriteModel
+        do {
+            model = try await resolveModel()
+        } catch is CancellationError {
+            throw LLMRewriteError.cancelled
+        } catch let rewriteError as LLMRewriteError {
+            throw rewriteError
+        } catch {
+            throw LLMRewriteError.modelLoadFailed
+        }
+
+        await rewriteExecutionGate.acquire()
+
+        do {
+            let stream = try Self.rawStreamFactory(
+                model: model,
+                prompt: prompt,
+                systemPrompt: systemPrompt,
+                parameters: generationParameters
             )
 
             var output = ""
@@ -531,6 +613,63 @@ actor LLMRewriteService: LLMRewriting {
                     continuation.finish()
                 } catch {
                     NSLog("Speech2Text: assistant rewrite stream failed: \(error.localizedDescription)")
+                    continuation.finish(throwing: error)
+                }
+            }
+
+            continuation.onTermination = { _ in
+                task.cancel()
+            }
+        }
+    }
+
+    private static func rawStreamFactory(
+        model: RewriteModel,
+        prompt: String,
+        systemPrompt: String,
+        parameters: GenerateParameters
+    ) throws -> AsyncThrowingStream<RewriteEvent, Error> {
+        guard let container = model.container else {
+            throw LLMRewriteError.generationFailed
+        }
+
+        let trimmedPrompt = prompt.trimmingCharacters(in: .whitespacesAndNewlines)
+        let session = ChatSession(
+            container,
+            instructions: systemPrompt,
+            generateParameters: parameters,
+            additionalContext: ["enable_thinking": false],
+            tools: []
+        )
+
+        return AsyncThrowingStream { continuation in
+            let task = Task {
+                do {
+                    var stripper = ThinkStripper()
+                    for try await generation in session.streamDetails(to: trimmedPrompt, images: [], videos: []) {
+                        switch generation {
+                        case .chunk(let text):
+                            let visible = stripper.process(text)
+                            if !visible.isEmpty {
+                                continuation.yield(.chunk(visible))
+                            }
+                        case .info(let info):
+                            let remaining = stripper.flush()
+                            if !remaining.isEmpty {
+                                continuation.yield(.chunk(remaining))
+                            }
+                            continuation.yield(.completion(info.stopReason))
+                        case .toolCall:
+                            break
+                        }
+                    }
+                    let remaining = stripper.flush()
+                    if !remaining.isEmpty {
+                        continuation.yield(.chunk(remaining))
+                    }
+                    continuation.finish()
+                } catch {
+                    NSLog("Speech2Text: raw generation stream failed: \(error.localizedDescription)")
                     continuation.finish(throwing: error)
                 }
             }

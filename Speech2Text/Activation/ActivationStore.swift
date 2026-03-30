@@ -413,11 +413,39 @@ final class ActivationStore: ObservableObject {
                 let didPaste = shouldPasteOnSuccessfulFinish
                 requestsPasteOnCompletion = false
 
-                let wordCount = conversionBody
-                    .split(separator: " ", omittingEmptySubsequences: true).count
-                guard wordCount <= 350 else {
+                guard isCurrentSession(sessionID) else { return }
+                state = .converting
+
+                // Clipboard-aware content injection
+                var effectiveBody = conversionBody
+                var clipboardWasInjected = false
+
+                if let instructions = conversionInstructions, preferences.allowClipboardAccess {
+                    let intent = await ClipboardIntentClassifier.classify(
+                        instruction: instructions,
+                        using: llmRewriteService
+                    )
+
                     guard isCurrentSession(sessionID) else { return }
-                    clipboardService.writeToClipboard(trimmed)  // raw transcript to clipboard first
+
+                    if intent == .detected {
+                        if let clipboardText = clipboardService.readFromClipboard(),
+                           !clipboardText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                            effectiveBody = ClipboardAwarePromptBuilder.buildBody(
+                                dictatedContent: conversionBody,
+                                clipboardContent: clipboardText
+                            )
+                            clipboardWasInjected = true
+                        }
+                    }
+                }
+
+                // Apply word limit to the effective body (including any clipboard content)
+                let effectiveWordCount = effectiveBody
+                    .split(separator: " ", omittingEmptySubsequences: true).count
+                guard effectiveWordCount <= 350 else {
+                    guard isCurrentSession(sessionID) else { return }
+                    clipboardService.writeToClipboard(trimmed)
                     lastTranscription = trimmed
                     let failureSessionID = activeSessionID
                     state = .failure(reason: .wordLimitExceeded)
@@ -426,15 +454,12 @@ final class ActivationStore: ObservableObject {
                     return
                 }
 
-                guard isCurrentSession(sessionID) else { return }
-                state = .converting
-
                 // LLM call — routes to cloud or local service based on config
                 let rewritten: String
                 do {
                     if let instructions = conversionInstructions {
                         rewritten = try await activeRewriteService.rewrite(
-                            body: conversionBody,
+                            body: effectiveBody,
                             instructions: instructions
                         )
                     } else {
@@ -463,7 +488,7 @@ final class ActivationStore: ObservableObject {
                 }
                 lastTranscription = trimmed          // raw always stored
                 lastConvertedTranscription = rewritten
-                state = .success(text: rewritten, pasted: syntheticPasteSucceeded, converted: true)
+                state = .success(text: rewritten, pasted: syntheticPasteSucceeded, converted: true, clipboardInjected: clipboardWasInjected)
                 soundPlayer.playSuccess()
                 scheduleDismissToIdle(afterNanoseconds: 1_500_000_000, sessionID: sessionID)
             }

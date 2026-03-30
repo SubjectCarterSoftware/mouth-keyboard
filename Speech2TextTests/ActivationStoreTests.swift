@@ -153,7 +153,7 @@ final class ActivationStoreTests: XCTestCase {
         try await Task.sleep(nanoseconds: 350_000_000)
 
         XCTAssertEqual(store.lastTranscription, "Hello world")
-        if case .success(let text, _, _, _) = store.state {
+        if case .success(let text, _, _, _, _) = store.state {
             XCTAssertEqual(text, "Hello world")
         } else {
             XCTFail("Expected .success state after prepare completed, got \(store.state)")
@@ -217,7 +217,7 @@ final class ActivationStoreTests: XCTestCase {
 
         XCTAssertEqual(mockClipboard.lastWrittenText, "Hello world")
         XCTAssertEqual(store.lastTranscription, "Hello world")
-        if case .success(let text, _, _, _) = store.state {
+        if case .success(let text, _, _, _, _) = store.state {
             XCTAssertEqual(text, "Hello world")
         } else {
             XCTFail("Expected .success state, got \(store.state)")
@@ -241,7 +241,7 @@ final class ActivationStoreTests: XCTestCase {
         try await Task.sleep(nanoseconds: 200_000_000)
 
         XCTAssertNil(mockClipboard.lastWrittenText)
-        if case .success(_, let pasted, let converted, _) = store.state {
+        if case .success(_, let pasted, let converted, _, _) = store.state {
             XCTAssertFalse(pasted, "Synthetic paste failed so UI should show copied-only state")
             XCTAssertFalse(converted)
         } else {
@@ -270,7 +270,7 @@ final class ActivationStoreTests: XCTestCase {
         XCTAssertNil(mockClipboard.lastWrittenText)
         XCTAssertEqual(pasteStub.pasteCount, 1)
         XCTAssertEqual(pasteStub.lastText, "Hello world")
-        if case .success(_, let pasted, let converted, _) = store.state {
+        if case .success(_, let pasted, let converted, _, _) = store.state {
             XCTAssertTrue(pasted)
             XCTAssertFalse(converted)
         } else {
@@ -300,7 +300,7 @@ final class ActivationStoreTests: XCTestCase {
         XCTAssertNil(mockClipboard.lastWrittenText)
         XCTAssertEqual(pasteStub.pasteCount, 1)
         XCTAssertEqual(pasteStub.lastText, "Converted output")
-        if case .success(let text, let pasted, let converted, _) = store.state {
+        if case .success(let text, let pasted, let converted, _, _) = store.state {
             XCTAssertEqual(text, "Converted output")
             XCTAssertTrue(pasted)
             XCTAssertTrue(converted)
@@ -334,7 +334,7 @@ final class ActivationStoreTests: XCTestCase {
 
         XCTAssertEqual(mockClipboard.lastWrittenText, "Clipboard only")
         XCTAssertEqual(pasteStub.pasteCount, 0)
-        if case .success(_, let pasted, let converted, _) = store.state {
+        if case .success(_, let pasted, let converted, _, _) = store.state {
             XCTAssertFalse(pasted)
             XCTAssertFalse(converted)
         } else {
@@ -629,14 +629,14 @@ final class ActivationStoreTests: XCTestCase {
 
         try await Task.sleep(nanoseconds: 200_000_000)
 
-        if case .success(let text, _, _, _) = store.state {
+        if case .success(let text, _, _, _, _) = store.state {
             XCTAssertEqual(text, "ready")
         } else {
             XCTFail("Expected .success state, got \(store.state)")
         }
 
         XCTAssertTrue(hotkeyService.handleKeyDown()) // stale repeat should be ignored
-        if case .success(let text, _, _, _) = store.state {
+        if case .success(let text, _, _, _, _) = store.state {
             XCTAssertEqual(text, "ready")
         } else {
             XCTFail("Expected .success state after ignored repeat, got \(store.state)")
@@ -662,7 +662,7 @@ final class ActivationStoreTests: XCTestCase {
 
         try await Task.sleep(nanoseconds: 200_000_000)
 
-        if case .success(let text, _, _, _) = store.state {
+        if case .success(let text, _, _, _, _) = store.state {
             XCTAssertEqual(text, "first")
         } else {
             XCTFail("Expected .success state, got \(store.state)")
@@ -727,7 +727,7 @@ final class ActivationStoreTests: XCTestCase {
         try await Task.sleep(nanoseconds: 300_000_000)
         XCTAssertEqual(mockClipboard.lastWrittenText, "Subject: Meeting Request\n\nPlease schedule...")
         XCTAssertEqual(store.lastConvertedTranscription, "Subject: Meeting Request\n\nPlease schedule...")
-        if case .success(_, _, let converted, _) = store.state {
+        if case .success(_, _, let converted, _, _) = store.state {
             XCTAssertTrue(converted)
         } else {
             XCTFail("Expected .success state, got \(store.state)")
@@ -776,7 +776,7 @@ final class ActivationStoreTests: XCTestCase {
         try await Task.sleep(nanoseconds: 200_000_000)
         XCTAssertEqual(mockClipboard.lastWrittenText, "Hello world")
         XCTAssertNil(store.lastConvertedTranscription)
-        if case .success(_, _, let converted, _) = store.state {
+        if case .success(_, _, let converted, _, _) = store.state {
             XCTAssertFalse(converted)
         } else {
             XCTFail("Expected .success state, got \(store.state)")
@@ -802,7 +802,7 @@ final class ActivationStoreTests: XCTestCase {
         try await Task.sleep(nanoseconds: 200_000_000)
 
         XCTAssertEqual(mockClipboard.lastWrittenText, "Hello world")
-        if case .success(_, _, let converted, _) = store.state {
+        if case .success(_, _, let converted, _, _) = store.state {
             XCTAssertFalse(converted)
         } else {
             XCTFail("Expected .success state, got \(store.state)")
@@ -885,7 +885,7 @@ final class ActivationStoreTests: XCTestCase {
 
         XCTAssertNil(mockRewriter.lastCalledOverload)
         XCTAssertEqual(mockClipboard.lastWrittenText, transcript)
-        if case .success(_, _, let converted, _) = store.state {
+        if case .success(_, _, let converted, _, _) = store.state {
             XCTAssertFalse(converted)
         } else {
             XCTFail("Expected .success state, got \(store.state)")
@@ -915,7 +915,7 @@ final class ActivationStoreTests: XCTestCase {
 
         XCTAssertNil(mockRewriter.lastCalledOverload)
         XCTAssertEqual(mockClipboard.lastWrittenText, transcript)
-        if case .success(_, _, let converted, _) = store.state {
+        if case .success(_, _, let converted, _, _) = store.state {
             XCTAssertFalse(converted)
         } else {
             XCTFail("Expected .success state, got \(store.state)")
@@ -975,7 +975,7 @@ final class ActivationStoreTests: XCTestCase {
         XCTAssertEqual(mockRewriter.lastBody, "weekly team update")
         XCTAssertEqual(mockRewriter.lastInstructions, "convert to email send this update to the team")
         XCTAssertEqual(mockClipboard.lastWrittenText, "Custom rewrite output")
-        if case .success(let text, _, let converted, _) = store.state {
+        if case .success(let text, _, let converted, _, _) = store.state {
             XCTAssertEqual(text, "Custom rewrite output")
             XCTAssertTrue(converted)
         } else {
@@ -1008,7 +1008,7 @@ final class ActivationStoreTests: XCTestCase {
         XCTAssertEqual(mockRewriter.lastBody, "status update for engineering")
         XCTAssertEqual(mockRewriter.lastInstructions, "convert to email or convert to slack")
         XCTAssertEqual(mockClipboard.lastWrittenText, "Ambiguous custom rewrite output")
-        if case .success(let text, _, let converted, _) = store.state {
+        if case .success(let text, _, let converted, _, _) = store.state {
             XCTAssertEqual(text, "Ambiguous custom rewrite output")
             XCTAssertTrue(converted)
         } else {
@@ -1045,6 +1045,7 @@ final class ActivationStoreTests: XCTestCase {
     func test_finalize_validTrigger_customFallback_preserves350WordGate() async throws {
         let preferences = makePreferencesWithTriggerStore()
         preferences.setCustomTrigger(primary: "Atlas", aliases: [])
+        preferences.allowClipboardAccess = false
         try await Task.sleep(nanoseconds: 80_000_000)
 
         let longBody = Array(repeating: "word", count: 351).joined(separator: " ")
@@ -1067,6 +1068,144 @@ final class ActivationStoreTests: XCTestCase {
         XCTAssertEqual(store.state, .failure(reason: .wordLimitExceeded))
         XCTAssertEqual(mockClipboard.lastWrittenText, transcript)
         XCTAssertNil(mockRewriter.lastCalledOverload)
+    }
+
+    // MARK: - Clipboard-aware assistant tests
+
+    func test_clipboardIntent_detected_injectsClipboardContent() async throws {
+        let preferences = makePreferencesWithTriggerStore()
+        preferences.allowClipboardAccess = true
+        try await Task.sleep(nanoseconds: 80_000_000)
+
+        let transcript = "zeus format what I copied"
+        let mockTranscriber = ActivationStoreMockTranscriber(result: .success(transcript))
+        let mockRewriter = MockLLMRewriter(result: .success("Formatted clipboard text"))
+        mockRewriter.generateResult = .success("YES")
+        let mockClipboard = ActivationStoreMockClipboard()
+        mockClipboard.stubbedClipboardContent = "some raw clipboard text"
+        let store = makeStore(
+            permissionsAuthorized: true,
+            transcriber: mockTranscriber,
+            llmRewriter: mockRewriter,
+            clipboard: mockClipboard,
+            preferences: preferences
+        )
+
+        store.arm()
+        store.finish()
+        try await Task.sleep(nanoseconds: 300_000_000)
+
+        // Classifier used generate(), rewrite used rewrite()
+        XCTAssertEqual(mockRewriter.generateCallCount, 1)
+        XCTAssertNotNil(mockRewriter.lastBody)
+        XCTAssertTrue(mockRewriter.lastBody!.contains("Clipboard content:"))
+        XCTAssertTrue(mockRewriter.lastBody!.contains("some raw clipboard text"))
+
+        if case .success(let text, _, _, _, let clipboardInjected) = store.state {
+            XCTAssertEqual(text, "Formatted clipboard text")
+            XCTAssertTrue(clipboardInjected)
+        } else {
+            XCTFail("Expected success state, got \(store.state)")
+        }
+    }
+
+    func test_clipboardIntent_notDetected_skipsClipboard() async throws {
+        let preferences = makePreferencesWithTriggerStore()
+        preferences.allowClipboardAccess = true
+        try await Task.sleep(nanoseconds: 80_000_000)
+
+        let transcript = "zeus make this more formal"
+        let mockTranscriber = ActivationStoreMockTranscriber(result: .success(transcript))
+        let mockRewriter = MockLLMRewriter(result: .success("Formal output"))
+        mockRewriter.generateResult = .success("NO")
+        let mockClipboard = ActivationStoreMockClipboard()
+        mockClipboard.stubbedClipboardContent = "should not appear"
+        let store = makeStore(
+            permissionsAuthorized: true,
+            transcriber: mockTranscriber,
+            llmRewriter: mockRewriter,
+            clipboard: mockClipboard,
+            preferences: preferences
+        )
+
+        store.arm()
+        store.finish()
+        try await Task.sleep(nanoseconds: 300_000_000)
+
+        // Classifier ran but said NO — rewrite body should NOT contain clipboard
+        XCTAssertEqual(mockRewriter.generateCallCount, 1)
+        XCTAssertFalse(mockRewriter.lastBody?.contains("Clipboard content:") ?? true)
+
+        if case .success(_, _, _, _, let clipboardInjected) = store.state {
+            XCTAssertFalse(clipboardInjected)
+        } else {
+            XCTFail("Expected success state, got \(store.state)")
+        }
+    }
+
+    func test_clipboardAccess_disabled_skipsClassification() async throws {
+        let preferences = makePreferencesWithTriggerStore()
+        preferences.allowClipboardAccess = false
+        try await Task.sleep(nanoseconds: 80_000_000)
+
+        let transcript = "zeus format what I copied"
+        let mockTranscriber = ActivationStoreMockTranscriber(result: .success(transcript))
+        let mockRewriter = MockLLMRewriter(result: .success("Plain rewrite"))
+        let mockClipboard = ActivationStoreMockClipboard()
+        mockClipboard.stubbedClipboardContent = "should not be read"
+        let store = makeStore(
+            permissionsAuthorized: true,
+            transcriber: mockTranscriber,
+            llmRewriter: mockRewriter,
+            clipboard: mockClipboard,
+            preferences: preferences
+        )
+
+        store.arm()
+        store.finish()
+        try await Task.sleep(nanoseconds: 300_000_000)
+
+        // No classification call, only the rewrite
+        XCTAssertEqual(mockRewriter.generateCallCount, 0)
+        XCTAssertFalse(mockRewriter.lastBody?.contains("Clipboard content:") ?? true)
+
+        if case .success(_, _, _, _, let clipboardInjected) = store.state {
+            XCTAssertFalse(clipboardInjected)
+        } else {
+            XCTFail("Expected success state, got \(store.state)")
+        }
+    }
+
+    func test_clipboardIntent_detected_emptyClipboard_proceedsNormally() async throws {
+        let preferences = makePreferencesWithTriggerStore()
+        preferences.allowClipboardAccess = true
+        try await Task.sleep(nanoseconds: 80_000_000)
+
+        let transcript = "zeus format what I copied"
+        let mockTranscriber = ActivationStoreMockTranscriber(result: .success(transcript))
+        let mockRewriter = MockLLMRewriter(result: .success("Rewrite of empty input"))
+        mockRewriter.generateResult = .success("YES")
+        let mockClipboard = ActivationStoreMockClipboard()
+        mockClipboard.stubbedClipboardContent = nil  // empty clipboard
+        let store = makeStore(
+            permissionsAuthorized: true,
+            transcriber: mockTranscriber,
+            llmRewriter: mockRewriter,
+            clipboard: mockClipboard,
+            preferences: preferences
+        )
+
+        store.arm()
+        store.finish()
+        try await Task.sleep(nanoseconds: 300_000_000)
+
+        // Classifier detected but clipboard was empty — proceed without injection
+        XCTAssertEqual(mockRewriter.generateCallCount, 1)
+        if case .success(_, _, _, _, let clipboardInjected) = store.state {
+            XCTAssertFalse(clipboardInjected)
+        } else {
+            XCTFail("Expected success state, got \(store.state)")
+        }
     }
 
     func test_finalize_validTrigger_llmFailure_silentlyFallsBackToRawClipboard() async throws {
@@ -1377,6 +1516,7 @@ final class DelayedPrepareWhisperTranscriber: WhisperTranscribing, @unchecked Se
 class ActivationStoreMockClipboard: ClipboardService {
     private(set) var lastWrittenText: String?
     private(set) var writeCount = 0
+    var stubbedClipboardContent: String?
 
     init() {
         // Use a named pasteboard to avoid polluting the general pasteboard
@@ -1389,6 +1529,10 @@ class ActivationStoreMockClipboard: ClipboardService {
         writeCount += 1
         lastWrittenText = text
         return true
+    }
+
+    override func readFromClipboard() -> String? {
+        stubbedClipboardContent
     }
 
     func clearWriteCount() {
@@ -1427,9 +1571,12 @@ final class MockLLMRewriter: LLMRewriting, @unchecked Sendable {
     enum MockResult { case success(String); case failure(Error) }
     enum CalledOverload: Equatable { case instructionsOverload }
     private let result: MockResult
+    var generateResult: MockResult?
     private(set) var lastBody: String?
     private(set) var lastInstructions: String?
     private(set) var lastCalledOverload: CalledOverload?
+    private(set) var generateCallCount = 0
+    private(set) var lastGeneratePrompt: String?
     private(set) var setTierCalls: [RewriteModelTier] = []
     private(set) var prewarmCallCount = 0
     private(set) var scheduledIdleUnloadDurations: [UInt64] = []
@@ -1446,6 +1593,15 @@ final class MockLLMRewriter: LLMRewriting, @unchecked Sendable {
         lastBody = body
         lastInstructions = instructions
         switch result {
+        case .success(let text): return text
+        case .failure(let error): throw error
+        }
+    }
+    func generate(prompt: String, systemPrompt: String) async throws -> String {
+        generateCallCount += 1
+        lastGeneratePrompt = prompt
+        let effectiveResult = generateResult ?? result
+        switch effectiveResult {
         case .success(let text): return text
         case .failure(let error): throw error
         }
