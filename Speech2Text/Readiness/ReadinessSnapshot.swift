@@ -35,9 +35,9 @@ enum PermissionKind: String, CaseIterable, Identifiable {
         case .microphone:
             return "Microphone Access"
         case .keyboardShortcuts:
-            return "Input Monitoring"
+            return "Keyboard Shortcuts"
         case .postEvent:
-            return "Accessibility"
+            return "Auto Paste"
         }
     }
 
@@ -72,17 +72,17 @@ enum PermissionKind: String, CaseIterable, Identifiable {
         case (.microphone, .denied):
             return "Microphone access is denied. Re-enable it in System Settings to move past the blocked state."
         case (.keyboardShortcuts, .authorized):
-            return "Ready — Hold to Transcribe can monitor the configured key."
+            return "Ready — shortcuts enabled."
         case (.keyboardShortcuts, .notDetermined):
-            return "Allow Input Monitoring so Hold to Transcribe can listen for the configured key."
+            return "Needs keyboard access."
         case (.keyboardShortcuts, .denied):
-            return "Input Monitoring is blocked. Re-enable it in System Settings to use Hold to Transcribe."
+            return "Keyboard access is blocked."
         case (.postEvent, .authorized):
             return "Auto Paste can insert text into other apps."
         case (.postEvent, .notDetermined):
-            return "Allow Accessibility so Auto Paste can paste into other apps."
+            return "Allow Accessibility access so Auto Paste works across apps."
         case (.postEvent, .denied):
-            return "Accessibility is blocked. Re-enable it in System Settings to use Auto Paste."
+            return "Accessibility access is blocked. Re-enable it in System Settings to use Auto Paste."
         }
     }
 }

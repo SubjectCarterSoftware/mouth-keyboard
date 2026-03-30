@@ -129,20 +129,20 @@ struct AccessibilitySetupGuide: View {
                 .font(.headline)
 
             VStack(alignment: .leading, spacing: 12) {
-                SetupStep(number: 1, text: "Open the Accessibility pane")
-                SetupStep(number: 2, text: "Turn on Speech2Text in the app list")
-                SetupStep(number: 3, text: "If Speech2Text is missing, click + and add it from Applications")
-                SetupStep(number: 4, text: "Return to Speech2Text. If Auto Paste still shows blocked, relaunch the app once")
+                SetupStep(number: 1, text: "Click the + button at the bottom of the app list")
+                SetupStep(number: 2, text: "Find Speech2Text in Applications and click Open")
+                SetupStep(number: 3, text: "Relaunch Speech2Text from your menu bar or Applications")
             }
 
-            Button("Open Accessibility Settings") {
+            Button("Open Settings & Quit App") {
                 onOpenSettings()
+                NSApp.terminate(nil)
             }
             .buttonStyle(.borderedProminent)
             .frame(maxWidth: .infinity)
         }
         .padding(20)
-        .frame(width: 320)
+        .frame(width: 270)
     }
 }
 
@@ -153,24 +153,24 @@ struct InputMonitoringSetupGuide: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
-            Text("How to enable Input Monitoring")
+            Text("How to enable Hold to Transcribe")
                 .font(.headline)
 
             VStack(alignment: .leading, spacing: 12) {
-                SetupStep(number: 1, text: "Open the Input Monitoring pane")
-                SetupStep(number: 2, text: "Turn on Speech2Text in the app list")
-                SetupStep(number: 3, text: "If Speech2Text is missing, click + and add it from Applications")
-                SetupStep(number: 4, text: "macOS should relaunch Speech2Text after you enable it")
+                SetupStep(number: 1, text: "Click the + button in the Input Monitoring pane")
+                SetupStep(number: 2, text: "Find Speech2Text in Applications and click Open")
+                SetupStep(number: 3, text: "Relaunch Speech2Text from your menu bar or Applications")
             }
 
-            Button("Open Input Monitoring Settings") {
+            Button("Open Settings & Quit App") {
                 onOpenSettings()
+                NSApp.terminate(nil)
             }
             .buttonStyle(.borderedProminent)
             .frame(maxWidth: .infinity)
         }
         .padding(20)
-        .frame(width: 320)
+        .frame(width: 270)
     }
 }
 

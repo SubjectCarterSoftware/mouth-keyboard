@@ -28,8 +28,7 @@ Press **Ctrl+Shift+V** at any time to cancel and discard the recording.
 
 - macOS 14.0 (Sonoma) or later
 - Microphone permission
-- Input Monitoring permission for **Hold to Transcribe**
-- Accessibility permission for **Auto Paste**
+- Accessibility permission for **Hold to Transcribe** and **Auto Paste**
 
 ## Installation
 

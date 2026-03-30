@@ -12,7 +12,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     private let hotkeyService = HotkeyService.shared
     private let microphoneService = MicrophonePermissionService.live
     private let keyboardService = KeyboardPermissionService.live
-    private let postEventService = PostEventPermissionService.live
     private let activationStore = ActivationStore.shared
     private let audioCaptureService = AudioCaptureService.shared
     private let levelMonitor = AudioLevelMonitor()
@@ -20,8 +19,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
 
     private var pillPanel: RecordingPillPanel?
     private var stateObservation: AnyCancellable?
-    private var launchPermissionTask: Task<Void, Never>?
-    private var isDeferringHotkeyStartup = false
+    private var permissionStartupTask: Task<Void, Never>?
+    private var hasPendingKeyboardPromptAfterMicrophoneGrant = false
+    private var hasRequestedAccessibilityPromptThisRun = false
     private lazy var statusMenuController = StatusMenuController(
         preferences: preferences,
         readinessStore: readinessStore,
@@ -35,17 +35,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         }
     )
 
-    private lazy var launchPermissionBootstrap = LaunchPermissionBootstrap(
-        preferences: preferences,
-        readinessStore: readinessStore,
-        microphoneService: microphoneService,
-        keyboardService: keyboardService,
-        postEventService: postEventService,
-        startHotkeys: { [hotkeyService] in
-            hotkeyService.start()
-        }
-    )
-
     func applicationDidFinishLaunching(_ notification: Notification) {
         let isUITesting = ProcessInfo.processInfo.arguments.contains("-ui-testing")
         if !isUITesting {
@@ -54,7 +43,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
 
         readinessStore.refresh()
         statusMenuController.install()
-        beginLaunchPermissionBootstrap()
+        requestMicrophoneThenStartHotkeysIfAllowed()
 
         do {
             try WhisperService.deleteLegacyUnsupportedModelFiles()
@@ -126,37 +115,123 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     }
 
     func applicationWillTerminate(_ notification: Notification) {
-        launchPermissionTask?.cancel()
+        permissionStartupTask?.cancel()
         hotkeyService.stop()
         stateObservation?.cancel()
     }
 
     func applicationDidBecomeActive(_ notification: Notification) {
         readinessStore.refresh()
-        guard !isDeferringHotkeyStartup else {
+        if handlePendingKeyboardPromptAfterMicrophoneGrantIfNeeded() {
             return
         }
 
         // Retry registration in case settings changed while the app was inactive.
-        hotkeyService.start()
-        launchPermissionBootstrap.promptAccessibilityIfEligible()
+        requestMicrophoneThenStartHotkeysIfAllowed()
     }
 
-    private func beginLaunchPermissionBootstrap() {
-        launchPermissionTask?.cancel()
-        isDeferringHotkeyStartup = launchPermissionBootstrap.shouldDeferHotkeyStartup
-
-        guard isDeferringHotkeyStartup else {
-            hotkeyService.start()
-            launchPermissionBootstrap.promptAccessibilityIfEligible()
+    private func requestMicrophoneThenStartHotkeysIfAllowed() {
+        guard permissionStartupTask == nil else {
             return
         }
 
-        launchPermissionTask = Task { @MainActor [weak self] in
+        // Defer the permission/startup chain off the launch callback to preserve
+        // the old Input Monitoring prompt timing that was working reliably.
+        permissionStartupTask = Task { @MainActor [weak self] in
             guard let self else { return }
-            await self.launchPermissionBootstrap.run()
-            self.isDeferringHotkeyStartup = false
+            let initialMicrophoneStatus = self.microphoneService.currentStatus()
+            let shouldStartHotkeys: Bool
+
+            if initialMicrophoneStatus == .notDetermined {
+                shouldStartHotkeys = await Self.shouldStartHotkeysAfterMicrophoneCheck(
+                    initialStatus: .notDetermined,
+                    recordPrompt: {
+                        self.preferences.recordMicrophonePermissionPrompt()
+                    },
+                    requestAccess: {
+                        await self.microphoneService.requestAccess()
+                    }
+                )
+            } else {
+                shouldStartHotkeys = initialMicrophoneStatus == .authorized
+            }
+
+            self.readinessStore.refresh()
+            if shouldStartHotkeys {
+                let keyboardStatus = self.keyboardService.currentStatus(
+                    hasPrompted: self.preferences.hasRequestedKeyboardPermission
+                )
+
+                if Self.shouldDeferKeyboardPermissionUntilNextActivation(
+                    initialMicrophoneStatus: initialMicrophoneStatus,
+                    keyboardStatus: keyboardStatus
+                ) {
+                    self.hasPendingKeyboardPromptAfterMicrophoneGrant = true
+                } else {
+                    self.requestKeyboardShortcutsIfEligible()
+                    self.hotkeyService.start()
+                    self.requestAccessibilityIfEligible()
+                }
+            }
+            self.permissionStartupTask = nil
         }
+    }
+
+    private func handlePendingKeyboardPromptAfterMicrophoneGrantIfNeeded() -> Bool {
+        guard hasPendingKeyboardPromptAfterMicrophoneGrant else {
+            return false
+        }
+
+        hasPendingKeyboardPromptAfterMicrophoneGrant = false
+
+        guard microphoneService.currentStatus() == .authorized else {
+            return true
+        }
+
+        requestKeyboardShortcutsIfEligible()
+        hotkeyService.start()
+        requestAccessibilityIfEligible()
+        return true
+    }
+
+    private func requestKeyboardShortcutsIfEligible() {
+        let keyboardStatus = keyboardService.currentStatus(
+            hasPrompted: preferences.hasRequestedKeyboardPermission
+        )
+
+        guard Self.shouldRequestKeyboardPermission(
+            microphoneStatus: microphoneService.currentStatus(),
+            keyboardStatus: keyboardStatus
+        ) else {
+            return
+        }
+
+        preferences.recordKeyboardPermissionPrompt()
+        _ = keyboardService.requestAccess()
+        readinessStore.refresh()
+    }
+
+    private func requestAccessibilityIfEligible() {
+        guard !ProcessInfo.processInfo.arguments.contains("-ui-testing") else {
+            return
+        }
+
+        let keyboardStatus = readinessStore.snapshot.permissions
+            .first(where: { $0.kind == .keyboardShortcuts })?.status ?? .notDetermined
+        let postEventStatus = readinessStore.snapshot.permissions
+            .first(where: { $0.kind == .postEvent })?.status ?? .notDetermined
+
+        guard Self.shouldRequestAccessibilityPrompt(
+            microphoneStatus: microphoneService.currentStatus(),
+            keyboardStatus: keyboardStatus,
+            postEventStatus: postEventStatus,
+            hasPromptedThisRun: hasRequestedAccessibilityPromptThisRun
+        ) else {
+            return
+        }
+
+        hasRequestedAccessibilityPromptThisRun = true
+        readinessStore.requestPermission(for: .postEvent)
     }
 
     // MARK: - State machine handlers
@@ -330,55 +405,55 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             return nil
         }
     }
-}
-
-@MainActor
-struct LaunchPermissionBootstrap {
-    let preferences: ShellPreferences
-    let readinessStore: ReadinessStore
-    let microphoneService: MicrophonePermissionService
-    let keyboardService: KeyboardPermissionService
-    let postEventService: PostEventPermissionService
-    let startHotkeys: () -> Void
-
-    var shouldDeferHotkeyStartup: Bool {
-        microphoneService.currentStatus() == .notDetermined
-            || keyboardService.currentStatus(hasPrompted: preferences.hasRequestedKeyboardPermission) == .notDetermined
+    
+    static func shouldStartHotkeysAfterMicrophoneCheck(
+        initialStatus: PermissionGrantState,
+        recordPrompt: () -> Void,
+        requestAccess: @escaping () async -> PermissionGrantState
+    ) async -> Bool {
+        switch initialStatus {
+        case .authorized:
+            return true
+        case .denied:
+            return false
+        case .notDetermined:
+            recordPrompt()
+            return await requestAccess() == .authorized
+        }
     }
 
-    func run() async {
-        if microphoneService.currentStatus() == .notDetermined {
-            preferences.recordMicrophonePermissionPrompt()
-            _ = await microphoneService.requestAccess()
-            readinessStore.refresh()
+    static func shouldRequestAccessibilityPrompt(
+        microphoneStatus: PermissionGrantState,
+        keyboardStatus: PermissionGrantState,
+        postEventStatus: PermissionGrantState,
+        hasPromptedThisRun: Bool
+    ) -> Bool {
+        guard !hasPromptedThisRun else {
+            return false
         }
 
-        if keyboardService.currentStatus(hasPrompted: preferences.hasRequestedKeyboardPermission) == .notDetermined {
-            preferences.recordKeyboardPermissionPrompt()
-            _ = keyboardService.requestAccess()
-            readinessStore.refresh()
+        guard microphoneStatus == .authorized, keyboardStatus == .authorized else {
+            return false
         }
 
-        startHotkeys()
-        readinessStore.refresh()
-        promptAccessibilityIfEligible()
+        return postEventStatus != .authorized
     }
 
-    func promptAccessibilityIfEligible() {
-        guard keyboardService.currentStatus(hasPrompted: false) == .authorized else {
-            return
+    static func shouldRequestKeyboardPermission(
+        microphoneStatus: PermissionGrantState,
+        keyboardStatus: PermissionGrantState
+    ) -> Bool {
+        guard microphoneStatus == .authorized else {
+            return false
         }
 
-        guard !preferences.hasRequestedPostEventPermission else {
-            return
-        }
+        return keyboardStatus != .authorized
+    }
 
-        guard postEventService.currentStatus(hasPrompted: false) != .authorized else {
-            return
-        }
-
-        preferences.recordPostEventPermissionPrompt()
-        _ = postEventService.requestAccess()
-        readinessStore.refresh()
+    static func shouldDeferKeyboardPermissionUntilNextActivation(
+        initialMicrophoneStatus: PermissionGrantState,
+        keyboardStatus: PermissionGrantState
+    ) -> Bool {
+        initialMicrophoneStatus == .notDetermined && keyboardStatus != .authorized
     }
 }

@@ -83,129 +83,177 @@ final class PermissionServiceTests: XCTestCase {
         XCTAssertEqual(requestCount, 1)
     }
 
-    func testLaunchBootstrapRequestsMicrophoneBeforeInputMonitoring() async {
-        let preferences = makePreferences()
-        var order: [String] = []
-        var microphoneStatus: PermissionGrantState = .notDetermined
+    func testMicrophoneGateAllowsImmediateHotkeyStartupWhenAlreadyAuthorized() async {
+        var didRecordPrompt = false
+        var requestCount = 0
 
-        let microphoneService = MicrophonePermissionService(
-            statusProvider: { microphoneStatus },
-            requestHandler: {
-                order.append("microphone")
-                microphoneStatus = .authorized
+        let shouldStart = await AppDelegate.shouldStartHotkeysAfterMicrophoneCheck(
+            initialStatus: .authorized,
+            recordPrompt: {
+                didRecordPrompt = true
+            },
+            requestAccess: {
+                requestCount += 1
                 return .authorized
             }
         )
 
-        let keyboardService = KeyboardPermissionService(
-            adapter: .init(
-                isAuthorized: { false },
-                requestAccess: {
-                    order.append("inputMonitoring")
-                    return false
-                }
-            )
-        )
+        XCTAssertTrue(shouldStart)
+        XCTAssertFalse(didRecordPrompt)
+        XCTAssertEqual(requestCount, 0)
+    }
 
-        let postEventService = PostEventPermissionService(
-            adapter: .init(
-                isAuthorized: { false },
-                requestAccess: {
-                    order.append("accessibility")
-                    return false
-                }
-            )
-        )
+    func testMicrophoneGateBlocksHotkeyStartupWhenAlreadyDenied() async {
+        var didRecordPrompt = false
+        var requestCount = 0
 
-        let readinessStore = ReadinessStore(
-            preferences: preferences,
-            microphoneService: microphoneService,
-            keyboardService: keyboardService,
-            postEventService: postEventService,
-            recoveryActionPerformer: .init(openURL: { _ in })
-        )
-
-        let bootstrap = LaunchPermissionBootstrap(
-            preferences: preferences,
-            readinessStore: readinessStore,
-            microphoneService: microphoneService,
-            keyboardService: keyboardService,
-            postEventService: postEventService,
-            startHotkeys: {
-                order.append("hotkeys")
+        let shouldStart = await AppDelegate.shouldStartHotkeysAfterMicrophoneCheck(
+            initialStatus: .denied,
+            recordPrompt: {
+                didRecordPrompt = true
+            },
+            requestAccess: {
+                requestCount += 1
+                return .authorized
             }
         )
 
-        await bootstrap.run()
-
-        XCTAssertEqual(order, ["microphone", "inputMonitoring", "hotkeys"])
-        XCTAssertTrue(preferences.hasRequestedMicrophonePermission)
-        XCTAssertTrue(preferences.hasRequestedKeyboardPermission)
-        XCTAssertFalse(preferences.hasRequestedPostEventPermission)
+        XCTAssertFalse(shouldStart)
+        XCTAssertFalse(didRecordPrompt)
+        XCTAssertEqual(requestCount, 0)
     }
 
-    func testLaunchBootstrapPromptsAccessibilityAfterInputMonitoringIsAuthorized() async {
-        let preferences = makePreferences()
-        var order: [String] = []
+    func testMicrophoneGatePromptsThenAllowsHotkeyStartupWhenAccessGranted() async {
+        var events: [String] = []
 
-        let microphoneService = MicrophonePermissionService(
-            statusProvider: { .authorized },
-            requestHandler: { .authorized }
-        )
-
-        let keyboardService = KeyboardPermissionService(
-            adapter: .init(
-                isAuthorized: { true },
-                requestAccess: {
-                    order.append("inputMonitoring")
-                    return true
-                }
-            )
-        )
-
-        let postEventService = PostEventPermissionService(
-            adapter: .init(
-                isAuthorized: { false },
-                requestAccess: {
-                    order.append("accessibility")
-                    return false
-                }
-            )
-        )
-
-        let readinessStore = ReadinessStore(
-            preferences: preferences,
-            microphoneService: microphoneService,
-            keyboardService: keyboardService,
-            postEventService: postEventService,
-            recoveryActionPerformer: .init(openURL: { _ in })
-        )
-
-        let bootstrap = LaunchPermissionBootstrap(
-            preferences: preferences,
-            readinessStore: readinessStore,
-            microphoneService: microphoneService,
-            keyboardService: keyboardService,
-            postEventService: postEventService,
-            startHotkeys: {
-                order.append("hotkeys")
+        let shouldStart = await AppDelegate.shouldStartHotkeysAfterMicrophoneCheck(
+            initialStatus: .notDetermined,
+            recordPrompt: {
+                events.append("recordPrompt")
+            },
+            requestAccess: {
+                events.append("requestAccess")
+                return .authorized
             }
         )
 
-        await bootstrap.run()
-
-        XCTAssertEqual(order, ["hotkeys", "accessibility"])
-        XCTAssertTrue(preferences.hasRequestedPostEventPermission)
+        XCTAssertTrue(shouldStart)
+        XCTAssertEqual(events, ["recordPrompt", "requestAccess"])
     }
 
-    private func makePreferences(file: StaticString = #filePath, line: UInt = #line) -> ShellPreferences {
-        let suiteName = "PermissionServiceTests.\(UUID().uuidString)"
-        guard let defaults = UserDefaults(suiteName: suiteName) else {
-            XCTFail("Unable to create test defaults", file: file, line: line)
-            fatalError("Unable to create test defaults")
-        }
+    func testMicrophoneGatePromptsThenBlocksHotkeyStartupWhenAccessDenied() async {
+        var events: [String] = []
 
-        defaults.removePersistentDomain(forName: suiteName)
-        return ShellPreferences(userDefaults: defaults)
+        let shouldStart = await AppDelegate.shouldStartHotkeysAfterMicrophoneCheck(
+            initialStatus: .notDetermined,
+            recordPrompt: {
+                events.append("recordPrompt")
+            },
+            requestAccess: {
+                events.append("requestAccess")
+                return .denied
+            }
+        )
+
+        XCTAssertFalse(shouldStart)
+        XCTAssertEqual(events, ["recordPrompt", "requestAccess"])
+    }
+
+    func testAccessibilityGateRequestsPromptWhenMicAndKeyboardAreAuthorized() {
+        let shouldPrompt = AppDelegate.shouldRequestAccessibilityPrompt(
+            microphoneStatus: .authorized,
+            keyboardStatus: .authorized,
+            postEventStatus: .notDetermined,
+            hasPromptedThisRun: false
+        )
+
+        XCTAssertTrue(shouldPrompt)
+    }
+
+    func testAccessibilityGateDoesNotPromptBeforeKeyboardPermissionIsAuthorized() {
+        let shouldPrompt = AppDelegate.shouldRequestAccessibilityPrompt(
+            microphoneStatus: .authorized,
+            keyboardStatus: .notDetermined,
+            postEventStatus: .notDetermined,
+            hasPromptedThisRun: false
+        )
+
+        XCTAssertFalse(shouldPrompt)
+    }
+
+    func testAccessibilityGateDoesNotPromptWhenAlreadyAuthorized() {
+        let shouldPrompt = AppDelegate.shouldRequestAccessibilityPrompt(
+            microphoneStatus: .authorized,
+            keyboardStatus: .authorized,
+            postEventStatus: .authorized,
+            hasPromptedThisRun: false
+        )
+
+        XCTAssertFalse(shouldPrompt)
+    }
+
+    func testAccessibilityGateDoesNotPromptTwiceInOneRun() {
+        let shouldPrompt = AppDelegate.shouldRequestAccessibilityPrompt(
+            microphoneStatus: .authorized,
+            keyboardStatus: .authorized,
+            postEventStatus: .denied,
+            hasPromptedThisRun: true
+        )
+
+        XCTAssertFalse(shouldPrompt)
+    }
+
+    func testKeyboardGateRequestsInputMonitoringOnlyAfterMicrophoneIsAuthorized() {
+        let shouldRequest = AppDelegate.shouldRequestKeyboardPermission(
+            microphoneStatus: .authorized,
+            keyboardStatus: .notDetermined
+        )
+
+        XCTAssertTrue(shouldRequest)
+    }
+
+    func testKeyboardGateDoesNotRequestInputMonitoringBeforeMicrophoneIsAuthorized() {
+        let shouldRequest = AppDelegate.shouldRequestKeyboardPermission(
+            microphoneStatus: .notDetermined,
+            keyboardStatus: .notDetermined
+        )
+
+        XCTAssertFalse(shouldRequest)
+    }
+
+    func testKeyboardGateRequestsInputMonitoringAgainWhenStillNotAuthorized() {
+        let shouldRequest = AppDelegate.shouldRequestKeyboardPermission(
+            microphoneStatus: .authorized,
+            keyboardStatus: .denied
+        )
+
+        XCTAssertTrue(shouldRequest)
+    }
+
+    func testKeyboardGateDoesNotRequestInputMonitoringWhenAlreadyAuthorized() {
+        let shouldRequest = AppDelegate.shouldRequestKeyboardPermission(
+            microphoneStatus: .authorized,
+            keyboardStatus: .authorized
+        )
+
+        XCTAssertFalse(shouldRequest)
+    }
+
+    func testKeyboardPromptDefersUntilNextActivationAfterMicWasJustGranted() {
+        let shouldDefer = AppDelegate.shouldDeferKeyboardPermissionUntilNextActivation(
+            initialMicrophoneStatus: .notDetermined,
+            keyboardStatus: .notDetermined
+        )
+
+        XCTAssertTrue(shouldDefer)
+    }
+
+    func testKeyboardPromptDoesNotDeferWhenMicWasAlreadyAuthorized() {
+        let shouldDefer = AppDelegate.shouldDeferKeyboardPermissionUntilNextActivation(
+            initialMicrophoneStatus: .authorized,
+            keyboardStatus: .notDetermined
+        )
+
+        XCTAssertFalse(shouldDefer)
     }
 }
