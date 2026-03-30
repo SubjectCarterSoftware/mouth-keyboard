@@ -239,21 +239,4 @@ final class PermissionServiceTests: XCTestCase {
         XCTAssertFalse(shouldRequest)
     }
 
-    func testKeyboardPromptDefersUntilNextActivationAfterMicWasJustGranted() {
-        let shouldDefer = AppDelegate.shouldDeferKeyboardPermissionUntilNextActivation(
-            initialMicrophoneStatus: .notDetermined,
-            keyboardStatus: .notDetermined
-        )
-
-        XCTAssertTrue(shouldDefer)
-    }
-
-    func testKeyboardPromptDoesNotDeferWhenMicWasAlreadyAuthorized() {
-        let shouldDefer = AppDelegate.shouldDeferKeyboardPermissionUntilNextActivation(
-            initialMicrophoneStatus: .authorized,
-            keyboardStatus: .notDetermined
-        )
-
-        XCTAssertFalse(shouldDefer)
-    }
 }

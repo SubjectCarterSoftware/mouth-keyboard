@@ -20,7 +20,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     private var pillPanel: RecordingPillPanel?
     private var stateObservation: AnyCancellable?
     private var permissionStartupTask: Task<Void, Never>?
-    private var hasPendingKeyboardPromptAfterMicrophoneGrant = false
     private var hasRequestedAccessibilityPromptThisRun = false
     private lazy var statusMenuController = StatusMenuController(
         preferences: preferences,
@@ -122,9 +121,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
 
     func applicationDidBecomeActive(_ notification: Notification) {
         readinessStore.refresh()
-        if handlePendingKeyboardPromptAfterMicrophoneGrantIfNeeded() {
-            return
-        }
 
         // Retry registration in case settings changed while the app was inactive.
         requestMicrophoneThenStartHotkeysIfAllowed()
@@ -158,40 +154,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
 
             self.readinessStore.refresh()
             if shouldStartHotkeys {
-                let keyboardStatus = self.keyboardService.currentStatus(
-                    hasPrompted: self.preferences.hasRequestedKeyboardPermission
-                )
-
-                if Self.shouldDeferKeyboardPermissionUntilNextActivation(
-                    initialMicrophoneStatus: initialMicrophoneStatus,
-                    keyboardStatus: keyboardStatus
-                ) {
-                    self.hasPendingKeyboardPromptAfterMicrophoneGrant = true
-                } else {
-                    self.requestKeyboardShortcutsIfEligible()
-                    self.hotkeyService.start()
-                    self.requestAccessibilityIfEligible()
-                }
+                self.requestKeyboardShortcutsIfEligible()
+                self.hotkeyService.start()
+                self.requestAccessibilityIfEligible()
             }
             self.permissionStartupTask = nil
         }
-    }
-
-    private func handlePendingKeyboardPromptAfterMicrophoneGrantIfNeeded() -> Bool {
-        guard hasPendingKeyboardPromptAfterMicrophoneGrant else {
-            return false
-        }
-
-        hasPendingKeyboardPromptAfterMicrophoneGrant = false
-
-        guard microphoneService.currentStatus() == .authorized else {
-            return true
-        }
-
-        requestKeyboardShortcutsIfEligible()
-        hotkeyService.start()
-        requestAccessibilityIfEligible()
-        return true
     }
 
     private func requestKeyboardShortcutsIfEligible() {
@@ -450,10 +418,4 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         return keyboardStatus != .authorized
     }
 
-    static func shouldDeferKeyboardPermissionUntilNextActivation(
-        initialMicrophoneStatus: PermissionGrantState,
-        keyboardStatus: PermissionGrantState
-    ) -> Bool {
-        initialMicrophoneStatus == .notDetermined && keyboardStatus != .authorized
-    }
 }

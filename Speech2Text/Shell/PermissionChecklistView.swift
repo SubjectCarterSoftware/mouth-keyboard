@@ -67,7 +67,9 @@ private struct PermissionTile: View {
 
             if let actionTitle = item.actionTitle {
                 Button(actionTitle) {
-                    if item.kind == .postEvent || item.kind == .keyboardShortcuts {
+                    if item.kind == .postEvent {
+                        showsSetupGuide = true
+                    } else if item.kind == .keyboardShortcuts && item.status == .denied {
                         showsSetupGuide = true
                     } else if item.status == .denied {
                         openRecovery(item.kind)
