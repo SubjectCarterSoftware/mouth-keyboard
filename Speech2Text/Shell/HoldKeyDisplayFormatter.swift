@@ -19,8 +19,8 @@ enum HoldKeyDisplayFormatter {
     }
 
     /// Returns the display character for a Carbon key code.
-    /// Exposed internally so StatusMenuView can reuse it for tap-shortcut hints
-    /// derived from `KeyboardShortcuts.Key.rawValue`.
+    /// Exposed internally so menu code can reuse it for shortcut hints derived
+    /// from `KeyboardShortcuts.Key.rawValue`.
     static func keyCharacter(for keyCode: Int) -> String {
         let map: [Int: String] = [
             0: "A",  1: "S",  2: "D",  3: "F",  4: "H",  5: "G",

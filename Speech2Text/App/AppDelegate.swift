@@ -8,6 +8,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     private var setupWindow: NSWindow?
     private let preferences = ShellPreferences.shared
     private let readinessStore = ReadinessStore.shared
+    private let audioDeviceService = AudioDeviceService.shared
     private let hotkeyService = HotkeyService.shared
     private let microphoneService = MicrophonePermissionService.live
     private let keyboardService = KeyboardPermissionService.live
@@ -19,9 +20,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
 
     private var pillPanel: RecordingPillPanel?
     private var stateObservation: AnyCancellable?
-    private var statusItem: NSStatusItem?
     private var launchPermissionTask: Task<Void, Never>?
     private var isDeferringHotkeyStartup = false
+    private lazy var statusMenuController = StatusMenuController(
+        preferences: preferences,
+        readinessStore: readinessStore,
+        audioDeviceService: audioDeviceService,
+        activationStore: activationStore,
+        openSetup: { [weak self] in
+            self?.presentSetupWindow()
+        },
+        quitApp: {
+            NSApp.terminate(nil)
+        }
+    )
 
     private lazy var launchPermissionBootstrap = LaunchPermissionBootstrap(
         preferences: preferences,
@@ -41,6 +53,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         }
 
         readinessStore.refresh()
+        statusMenuController.install()
         beginLaunchPermissionBootstrap()
 
         do {
@@ -211,43 +224,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     // MARK: - Menu bar icon
 
     private func updateMenuBarIcon(state: RecordingState) {
-        let symbolName: String
-        let description: String
-
-        switch state {
-        case .idle:
-            symbolName = "waveform"
-            description = "Speech2Text"
-        case .recording:
-            symbolName = "mic.fill"
-            description = "Recording"
-        case .processing:
-            symbolName = "ellipsis.circle"
-            description = "Processing"
-        case .modelDownloading:
-            symbolName = "arrow.down.circle"
-            description = "Downloading model"
-        case .converting:
-            symbolName = "ellipsis.circle"
-            description = "Converting"
-        case .success:
-            symbolName = "checkmark.circle.fill"
-            description = "Transcribed"
-        case .failure:
-            symbolName = "exclamationmark.circle.fill"
-            description = "Failed"
-        }
-
-        // MenuBarExtra is managed by SwiftUI's scene. We reach its window by
-        // finding all NSWindow objects at the status bar window level and
-        // updating any NSButton at that level.
-        // This is deliberately lightweight — the icon update is best-effort UI.
-        let image = NSImage(systemSymbolName: symbolName, accessibilityDescription: description)
-        for window in NSApp.windows where Int(window.level.rawValue) >= Int(NSWindow.Level.statusBar.rawValue) {
-            if let button = window.contentView?.subviews.compactMap({ $0 as? NSButton }).first {
-                button.image = image
-            }
-        }
+        statusMenuController.updateIcon(for: state)
     }
 
     // MARK: - Setup window
