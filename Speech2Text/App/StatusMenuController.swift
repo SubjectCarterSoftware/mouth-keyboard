@@ -147,7 +147,8 @@ final class StatusMenuController: NSObject, NSMenuDelegate {
                     title: "Start Transcription",
                     action: #selector(startRecordingFromMenu),
                     shortcut: KeyboardShortcuts.getShortcut(for: .activate),
-                    enabled: canStartSession
+                    enabled: canStartSession,
+                    symbolNames: ["record.circle", "play.circle"]
                 )
             )
             menu.addItem(
@@ -155,7 +156,8 @@ final class StatusMenuController: NSObject, NSMenuDelegate {
                     title: "Finish Transcription",
                     action: #selector(finishRecordingFromMenu),
                     shortcut: KeyboardShortcuts.getShortcut(for: .stopSession),
-                    enabled: canFinishSession
+                    enabled: canFinishSession,
+                    symbolNames: ["stop.circle", "stop.fill"]
                 )
             )
             menu.addItem(
@@ -164,20 +166,23 @@ final class StatusMenuController: NSObject, NSMenuDelegate {
                     action: #selector(cancelSessionFromMenu),
                     shortcut: KeyboardShortcuts.getShortcut(for: .cancelSession)
                         ?? KeyboardShortcuts.Shortcut(.v, modifiers: [.control, .shift]),
-                    enabled: canCancelSession
+                    enabled: canCancelSession,
+                    symbolNames: ["xmark.circle", "xmark"]
                 )
             )
             menu.addItem(
                 actionItem(
                     title: "Restart Transcription",
                     action: #selector(restartRecordingFromMenu),
-                    enabled: canRestartSession
+                    enabled: canRestartSession,
+                    symbolNames: ["arrow.clockwise.circle", "arrow.clockwise"]
                 )
             )
             menu.addItem(passiveShortcutItem(
                 title: "Hold to Transcribe",
                 shortcutText: primaryHoldShortcutText,
-                accessibilityIdentifier: "statusMenu.holdShortcutHint"
+                accessibilityIdentifier: "statusMenu.holdShortcutHint",
+                symbolNames: ["hand.raised.circle", "hand.raised"]
             ))
 
             menu.addItem(.separator())
@@ -186,27 +191,31 @@ final class StatusMenuController: NSObject, NSMenuDelegate {
                 actionItem(
                     title: "Copy Last AI Converted Transcription",
                     action: #selector(copyLastConvertedTranscriptionFromMenu),
-                    enabled: activationStore.lastConvertedTranscription != nil
+                    enabled: activationStore.lastConvertedTranscription != nil,
+                    symbolNames: ["sparkles", "wand.and.stars"]
                 )
             )
             menu.addItem(
                 actionItem(
                     title: "Copy Last Transcription",
                     action: #selector(copyLastTranscriptionFromMenu),
-                    enabled: activationStore.lastTranscription != nil
+                    enabled: activationStore.lastTranscription != nil,
+                    symbolNames: ["doc.on.doc", "doc.on.clipboard"]
                 )
             )
             menu.addItem(toggleItem(
                 title: "Auto Paste",
                 action: #selector(toggleAutoPasteFromMenu),
                 isOn: preferences.alwaysAutoPaste,
-                enabled: !canCancelSession
+                enabled: !canCancelSession,
+                symbolNames: ["text.insert", "arrow.right.doc.on.clipboard"]
             ))
             menu.addItem(toggleItem(
                 title: "Clipboard Access",
                 action: #selector(toggleClipboardAccessFromMenu),
                 isOn: preferences.allowClipboardAccess,
-                enabled: !canCancelSession
+                enabled: !canCancelSession,
+                symbolNames: ["list.clipboard", "doc.on.clipboard"]
             ))
             menu.addItem(.separator())
             menu.addItem(microphoneMenuItem())
@@ -215,7 +224,8 @@ final class StatusMenuController: NSObject, NSMenuDelegate {
                     title: "Settings & Hotkeys…",
                     action: #selector(openSetupFromMenu),
                     shortcut: KeyboardShortcuts.Shortcut(.comma, modifiers: [.command]),
-                    enabled: true
+                    enabled: true,
+                    symbolNames: ["gearshape", "gear"]
                 )
             )
         }
@@ -226,7 +236,8 @@ final class StatusMenuController: NSObject, NSMenuDelegate {
                 title: "Quit Speech-to-Text",
                 action: #selector(quitFromMenu),
                 shortcut: KeyboardShortcuts.Shortcut(.q, modifiers: [.command]),
-                enabled: true
+                enabled: true,
+                symbolNames: ["power", "xmark.circle"]
             )
         )
     }
@@ -235,11 +246,13 @@ final class StatusMenuController: NSObject, NSMenuDelegate {
         title: String,
         action: Selector,
         shortcut: KeyboardShortcuts.Shortcut? = nil,
-        enabled: Bool
+        enabled: Bool,
+        symbolNames: [String] = []
     ) -> NSMenuItem {
         let item = NSMenuItem(title: title, action: action, keyEquivalent: "")
         item.target = self
         item.isEnabled = enabled
+        item.image = menuItemImage(symbolNames: symbolNames, accessibilityDescription: title)
 
         if let shortcut {
             item.keyEquivalent = shortcut.menuKeyEquivalent ?? ""
@@ -253,9 +266,15 @@ final class StatusMenuController: NSObject, NSMenuDelegate {
         title: String,
         action: Selector,
         isOn: Bool,
-        enabled: Bool
+        enabled: Bool,
+        symbolNames: [String] = []
     ) -> NSMenuItem {
-        let item = actionItem(title: title, action: action, enabled: enabled)
+        let item = actionItem(
+            title: title,
+            action: action,
+            enabled: enabled,
+            symbolNames: symbolNames
+        )
         item.state = isOn ? .on : .off
         return item
     }
@@ -263,6 +282,10 @@ final class StatusMenuController: NSObject, NSMenuDelegate {
     private func microphoneMenuItem() -> NSMenuItem {
         let item = NSMenuItem(title: "Microphone", action: nil, keyEquivalent: "")
         item.isEnabled = !canCancelSession
+        item.image = menuItemImage(
+            symbolNames: ["mic", "mic.fill"],
+            accessibilityDescription: "Microphone"
+        )
 
         let submenu = NSMenu(title: "Microphone")
         submenu.autoenablesItems = false
@@ -298,10 +321,12 @@ final class StatusMenuController: NSObject, NSMenuDelegate {
     private func passiveShortcutItem(
         title: String,
         shortcutText _: String,
-        accessibilityIdentifier _: String
+        accessibilityIdentifier _: String,
+        symbolNames: [String] = []
     ) -> NSMenuItem {
         let item = NSMenuItem(title: title, action: nil, keyEquivalent: "")
         item.isEnabled = false
+        item.image = menuItemImage(symbolNames: symbolNames, accessibilityDescription: title)
 
         if let shortcut = primaryHoldMenuShortcut {
             item.keyEquivalent = shortcut.keyEquivalent
@@ -309,6 +334,29 @@ final class StatusMenuController: NSObject, NSMenuDelegate {
         }
 
         return item
+    }
+
+    private func menuItemImage(symbolNames: [String], accessibilityDescription: String) -> NSImage? {
+        for symbolName in symbolNames {
+            guard let image = NSImage(
+                systemSymbolName: symbolName,
+                accessibilityDescription: accessibilityDescription
+            ) else {
+                continue
+            }
+
+            image.isTemplate = true
+            if let configuredImage = image.withSymbolConfiguration(
+                NSImage.SymbolConfiguration(pointSize: 16, weight: .regular)
+            ) {
+                configuredImage.isTemplate = true
+                return configuredImage
+            }
+
+            return image
+        }
+
+        return nil
     }
 
     private var primaryHoldMenuShortcut: NativeMenuShortcut? {
