@@ -41,9 +41,9 @@
             skipped = "NO">
             <BuildableReference
                BuildableIdentifier = "primary"
-               BlueprintIdentifier = "A00000050000000000000002"
-               BuildableName = "Speech2TextTests.xctest"
-               BlueprintName = "Speech2TextTests"
+               BlueprintIdentifier = "A00000050000000000000003"
+               BuildableName = "Speech2TextUITests.xctest"
+               BlueprintName = "Speech2TextUITests"
                ReferencedContainer = "container:Speech2Text.xcodeproj">
             </BuildableReference>
          </TestableReference>

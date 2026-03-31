@@ -432,6 +432,113 @@ final class ActivationStoreTests: XCTestCase {
         XCTAssertNil(mockClipboard.lastWrittenText)
     }
 
+    func testImmediateRewriteHoldsConvertingStateBeforeSuccess() async throws {
+        let transcript = "team update zeus make this concise and direct"
+        let mockTranscriber = ActivationStoreMockTranscriber(result: .success(transcript))
+        let mockClipboard = ActivationStoreMockClipboard()
+        let store = makeStore(
+            permissionsAuthorized: true,
+            transcriber: mockTranscriber,
+            llmRewriter: MockLLMRewriter(result: .success("Refined output")),
+            clipboard: mockClipboard
+        )
+
+        store.arm()
+        store.finish()
+
+        try await Task.sleep(nanoseconds: 150_000_000)
+        XCTAssertEqual(store.state, .converting)
+        XCTAssertNil(mockClipboard.lastWrittenText)
+
+        try await Task.sleep(nanoseconds: 120_000_000)
+        XCTAssertEqual(mockClipboard.lastWrittenText, "Refined output")
+        if case .success(let text, _, let converted, _, _) = store.state {
+            XCTAssertEqual(text, "Refined output")
+            XCTAssertTrue(converted)
+        } else {
+            XCTFail("Expected .success state after minimum converting display")
+        }
+    }
+
+    func testDelayedRewriteDoesNotAddExtraDelayAfterMinimumConvertingDisplay() async throws {
+        let transcript = "team update zeus make this concise and direct"
+        let mockTranscriber = ActivationStoreMockTranscriber(result: .success(transcript))
+        let mockClipboard = ActivationStoreMockClipboard()
+        let delayedRewriter = DelayedLLMRewriter(
+            delayNanoseconds: 300_000_000,
+            result: .success("Delayed refined output")
+        )
+        let store = makeStore(
+            permissionsAuthorized: true,
+            transcriber: mockTranscriber,
+            llmRewriter: delayedRewriter,
+            clipboard: mockClipboard
+        )
+
+        store.arm()
+        store.finish()
+
+        let enteredConverting = try await waitUntil(timeoutNanoseconds: 400_000_000) {
+            await MainActor.run {
+                store.state == .converting
+            }
+        }
+        XCTAssertTrue(enteredConverting, "Expected assistant-triggered flow to enter .converting")
+
+        let reachedSuccess = try await waitUntil(timeoutNanoseconds: 900_000_000) {
+            await MainActor.run {
+                if case .success = store.state {
+                    return true
+                }
+                return false
+            }
+        }
+        XCTAssertTrue(
+            reachedSuccess,
+            "Expected delayed rewrite to complete without an extra minimum-display delay"
+        )
+
+        guard let rewriteCompletedAt = delayedRewriter.lastCompletionUptimeNanoseconds else {
+            XCTFail("Expected delayed rewriter to record its completion time")
+            return
+        }
+
+        let successObservedAt = DispatchTime.now().uptimeNanoseconds
+        XCTAssertLessThan(successObservedAt - rewriteCompletedAt, 180_000_000)
+        XCTAssertEqual(mockClipboard.lastWrittenText, "Delayed refined output")
+        if case .success(let text, _, let converted, _, _) = store.state {
+            XCTAssertEqual(text, "Delayed refined output")
+            XCTAssertTrue(converted)
+        } else {
+            XCTFail("Expected .success state once delayed rewrite completed")
+        }
+    }
+
+    func testCancelDuringMinimumConvertingDisplaySuppressesClipboardWrite() async throws {
+        let transcript = "team update zeus make this concise and direct"
+        let mockTranscriber = ActivationStoreMockTranscriber(result: .success(transcript))
+        let mockClipboard = ActivationStoreMockClipboard()
+        let store = makeStore(
+            permissionsAuthorized: true,
+            transcriber: mockTranscriber,
+            llmRewriter: MockLLMRewriter(result: .success("Refined output")),
+            clipboard: mockClipboard
+        )
+
+        store.arm()
+        store.finish()
+
+        try await Task.sleep(nanoseconds: 80_000_000)
+        XCTAssertEqual(store.state, .converting)
+
+        store.cancelCurrentSession()
+        try await Task.sleep(nanoseconds: 220_000_000)
+
+        XCTAssertEqual(store.state, .idle)
+        XCTAssertEqual(store.recoveryFeedback, .canceled)
+        XCTAssertNil(mockClipboard.lastWrittenText)
+    }
+
     func testRestartKeepsRecordingResetsBufferAndClearsFeedback() async throws {
         let buffer = TrackingBufferAccumulator()
         let resetTracker = ResetHookTracker()
@@ -1403,6 +1510,22 @@ final class ActivationStoreTests: XCTestCase {
             initialTriggerProfile: .defaultProfile
         )
     }
+
+    private nonisolated func waitUntil(
+        timeoutNanoseconds: UInt64,
+        pollingNanoseconds: UInt64 = 20_000_000,
+        condition: @escaping @Sendable () async -> Bool
+    ) async throws -> Bool {
+        let deadline = DispatchTime.now().uptimeNanoseconds + timeoutNanoseconds
+        while DispatchTime.now().uptimeNanoseconds < deadline {
+            if await condition() {
+                return true
+            }
+            try await Task.sleep(nanoseconds: pollingNanoseconds)
+        }
+
+        return await condition()
+    }
 }
 
 // MARK: - Stubs / Mocks
@@ -1617,6 +1740,14 @@ final class MockLLMRewriter: LLMRewriting, @unchecked Sendable {
 final class DelayedLLMRewriter: LLMRewriting, @unchecked Sendable {
     private let delayNanoseconds: UInt64
     private let result: MockLLMRewriter.MockResult
+    private let timingLock = NSLock()
+    private var _lastCompletionUptimeNanoseconds: UInt64?
+
+    var lastCompletionUptimeNanoseconds: UInt64? {
+        timingLock.lock()
+        defer { timingLock.unlock() }
+        return _lastCompletionUptimeNanoseconds
+    }
 
     init(delayNanoseconds: UInt64, result: MockLLMRewriter.MockResult) {
         self.delayNanoseconds = delayNanoseconds
@@ -1632,7 +1763,11 @@ final class DelayedLLMRewriter: LLMRewriting, @unchecked Sendable {
 
     func rewrite(body: String, instructions: String) async throws -> String {
         try await Task.sleep(nanoseconds: delayNanoseconds)
-        return try complete()
+        let output = try complete()
+        timingLock.lock()
+        _lastCompletionUptimeNanoseconds = DispatchTime.now().uptimeNanoseconds
+        timingLock.unlock()
+        return output
     }
 }
 
