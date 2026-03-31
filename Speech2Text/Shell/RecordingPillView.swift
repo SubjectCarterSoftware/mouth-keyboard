@@ -151,27 +151,12 @@ struct RecordingPillView: View {
     // MARK: - Processing state
 
     private var processingContent: some View {
-        HStack(spacing: 6) {
-            ForEach(0..<3, id: \.self) { index in
-                Circle()
-                    .fill(Color.white.opacity(pulseOpacity))
-                    .frame(width: 8, height: 8)
-                    .animation(
-                        .easeInOut(duration: 0.8)
-                            .repeatForever(autoreverses: true)
-                            .delay(Double(index) * 0.2),
-                        value: pulseOpacity
-                    )
-            }
+        pipelineStateContent {
+            processingTimeline
         }
-        .frame(width: 160, height: 44)
         .preferredColorScheme(.dark)
-        .onAppear {
-            pulseOpacity = 1.0
-        }
-        .onDisappear {
-            pulseOpacity = 0.3
-        }
+        .onAppear { pulseOpacity = 1.0 }
+        .onDisappear { pulseOpacity = 0.3 }
     }
 
     private func modelDownloadingContent(model: WhisperModelChoice, progress: Double) -> some View {
@@ -207,36 +192,80 @@ struct RecordingPillView: View {
     // MARK: - Converting state
 
     private var convertingContent: some View {
-        ZStack {
-            HStack(spacing: 6) {
-                ForEach(0..<3, id: \.self) { index in
-                    Circle()
-                        .fill(Color.blue.opacity(0.85))
-                        .frame(width: 8, height: 8)
-                        .scaleEffect(pulseOpacity > 0.5 ? 1.15 : 0.85)
-                        .animation(
-                            Animation.easeInOut(duration: 0.6)
-                                .repeatForever(autoreverses: true)
-                                .delay(Double(index) * 0.2),
-                            value: pulseOpacity
-                        )
-                }
-            }
-            HStack {
-                Spacer()
-                Button(action: { onCancel?() }) {
-                    Image(systemName: "xmark.circle.fill")
-                        .font(.system(size: 18, weight: .semibold))
-                        .foregroundStyle(Color.red)
-                }
-                .buttonStyle(.plain)
-                .accessibilityIdentifier("pill.cancel")
-                .padding(.trailing, 10)
-            }
+        pipelineStateContent {
+            convertingTimeline
         }
-        .frame(width: 220, height: 44)
         .preferredColorScheme(.dark)
         .onAppear { pulseOpacity = 1.0 }
+        .onDisappear { pulseOpacity = 0.3 }
+    }
+
+    private func pipelineStateContent<Timeline: View>(
+        @ViewBuilder timeline: () -> Timeline
+    ) -> some View {
+        ZStack {
+            HStack(spacing: 10) {
+                pipelineMicAnchor
+                timeline()
+                    .frame(maxWidth: .infinity)
+                pipelineClipboardAnchor
+            }
+            .padding(.leading, 14)
+            .padding(.trailing, 42)
+
+            trailingCancelButton
+        }
+        .frame(width: 220, height: 44)
+    }
+
+    private var processingTimeline: some View {
+        GeometryReader { geometry in
+            let count = adaptiveDotCount(for: geometry.size.width)
+            let spacing = adaptiveDotSpacing(for: count, availableWidth: geometry.size.width)
+
+            animatedDotStrip(
+                count: count,
+                tint: .white,
+                diameter: 5,
+                spacing: spacing,
+                minimumOpacity: 0.3,
+                maximumScale: 1.18
+            )
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+        }
+        .frame(height: 16)
+    }
+
+    private var convertingTimeline: some View {
+        GeometryReader { geometry in
+            let segmentWidth = max(0, (geometry.size.width - 22) / 2)
+            let count = adaptiveDotCount(for: segmentWidth)
+            let spacing = adaptiveDotSpacing(for: count, availableWidth: segmentWidth)
+
+            HStack(spacing: 0) {
+                settledDotStrip(
+                    count: count,
+                    tint: .white.opacity(0.32),
+                    diameter: 5,
+                    spacing: spacing
+                )
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+
+                aiBadge
+
+                animatedDotStrip(
+                    count: count,
+                    tint: .blue,
+                    diameter: 5,
+                    spacing: spacing,
+                    minimumOpacity: 0.45,
+                    maximumScale: 1.2
+                )
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+        }
+        .frame(height: 22)
     }
 
     // MARK: - Success state
@@ -262,8 +291,8 @@ struct RecordingPillView: View {
 
         let label: String
         switch (converted, pasted) {
-        case (true, true):   label = "Converted & Pasted"
-        case (true, false):  label = "Converted"
+        case (true, true):   label = "Refined + Pasted"
+        case (true, false):  label = "Refined + Copied"
         case (false, true):  label = "Pasted"
         case (false, false): label = "Copied"
         }
@@ -296,9 +325,110 @@ struct RecordingPillView: View {
                         .foregroundStyle(.white.opacity(0.7))
                 }
             }
-            .frame(width: clipboardInjected ? 200 : 160, height: 44)
+            .frame(width: (converted || clipboardInjected) ? 220 : 160, height: 44)
             .preferredColorScheme(.dark)
         )
+    }
+
+    private var pipelineMicAnchor: some View {
+        Image(systemName: "mic.fill")
+            .font(.system(size: 12, weight: .semibold))
+            .foregroundStyle(Color.white.opacity(0.9))
+            .frame(width: 16, height: 16)
+    }
+
+    private var pipelineClipboardAnchor: some View {
+        Image(systemName: "clipboard.fill")
+            .font(.system(size: 12, weight: .semibold))
+            .foregroundStyle(Color.white.opacity(0.85))
+            .frame(width: 16, height: 16)
+    }
+
+    private var aiBadge: some View {
+        ZStack {
+            Circle()
+                .fill(
+                    LinearGradient(
+                        colors: [Color.cyan.opacity(0.95), Color.blue.opacity(0.9)],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    )
+                )
+            Image(systemName: "sparkles")
+                .font(.system(size: 10, weight: .semibold))
+                .foregroundStyle(.white)
+        }
+        .frame(width: 22, height: 22)
+    }
+
+    private var trailingCancelButton: some View {
+        HStack {
+            Spacer()
+            Button(action: { onCancel?() }) {
+                Image(systemName: "xmark.circle.fill")
+                    .font(.system(size: 18, weight: .semibold))
+                    .foregroundStyle(Color.red)
+                    .frame(width: 24, height: 24)
+            }
+            .buttonStyle(.plain)
+            .accessibilityIdentifier("pill.cancel")
+            .padding(.trailing, 10)
+        }
+    }
+
+    private func animatedDotStrip(
+        count: Int,
+        tint: Color,
+        diameter: CGFloat,
+        spacing: CGFloat,
+        minimumOpacity: Double,
+        maximumScale: CGFloat
+    ) -> some View {
+        HStack(spacing: spacing) {
+            ForEach(0..<count, id: \.self) { index in
+                Circle()
+                    .fill(tint.opacity(max(minimumOpacity, pulseOpacity)))
+                    .frame(width: diameter, height: diameter)
+                    .scaleEffect(pulseOpacity > 0.5 ? maximumScale : 0.78)
+                    .animation(
+                        .easeInOut(duration: 0.7)
+                            .repeatForever(autoreverses: true)
+                            .delay(Double(index) * 0.06),
+                        value: pulseOpacity
+                    )
+            }
+        }
+    }
+
+    private func settledDotStrip(
+        count: Int,
+        tint: Color,
+        diameter: CGFloat,
+        spacing: CGFloat
+    ) -> some View {
+        HStack(spacing: spacing) {
+            ForEach(0..<count, id: \.self) { _ in
+                Circle()
+                    .fill(tint)
+                    .frame(width: diameter, height: diameter)
+            }
+        }
+    }
+
+    private func adaptiveDotCount(for availableWidth: CGFloat) -> Int {
+        max(1, Int((availableWidth / 10).rounded(.down)))
+    }
+
+    private func adaptiveDotSpacing(
+        for count: Int,
+        availableWidth: CGFloat,
+        diameter: CGFloat = 5,
+        minimumSpacing: CGFloat = 3,
+        maximumSpacing: CGFloat = 6
+    ) -> CGFloat {
+        guard count > 1 else { return 0 }
+        let naturalSpacing = (availableWidth - (CGFloat(count) * diameter)) / CGFloat(count - 1)
+        return max(minimumSpacing, min(maximumSpacing, naturalSpacing))
     }
 
     private func recoveryContent(feedback: RecordingState.RecoveryFeedback) -> some View {

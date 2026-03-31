@@ -100,8 +100,8 @@ final class RecordingPillPanel: NSPanel {
             if selectedVisibleFrame == nil {
                 selectedVisibleFrame = chooseVisibleFrame()
             }
-            // Enable mouse events only during recording so the finish/cancel buttons work
-            let interactive = (state == .recording || state == .converting)
+            // Enable mouse events during interactive states so the finish/cancel buttons work.
+            let interactive = (state == .recording || state == .processing || state == .converting)
             if ignoresMouseEvents == interactive {
                 ignoresMouseEvents = !interactive
             }
@@ -125,8 +125,10 @@ final class RecordingPillPanel: NSPanel {
         }
 
         switch state {
-        case .recording, .modelDownloading, .converting:
+        case .recording, .processing, .modelDownloading, .converting:
             return RecordingPillPanel.recordingSize
+        case .success(_, _, let converted, _, _):
+            return converted ? RecordingPillPanel.recordingSize : RecordingPillPanel.defaultSize
         case .failure:
             return RecordingPillPanel.failureSize
         default:

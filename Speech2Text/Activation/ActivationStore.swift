@@ -83,6 +83,7 @@ final class ActivationStore: ObservableObject {
     let voiceActivityDetector: VoiceActivityDetector
     var soundPlayer: ActivationSoundPlayer = .init()
     private static let maxRecordingDuration: UInt64 = 5 * 60 * 1_000_000_000 // 5 minutes
+    private static let minimumConvertingDisplayDuration: UInt64 = 200_000_000
     private static let whisperModelIdleUnloadDelay: UInt64 = WhisperService.idleUnloadDelayNanoseconds
     private static let rewriteModelIdleUnloadDelay: UInt64 = LLMRewriteService.idleUnloadDelayNanoseconds
 
@@ -415,6 +416,7 @@ final class ActivationStore: ObservableObject {
 
                 guard isCurrentSession(sessionID) else { return }
                 state = .converting
+                let convertingStartedAt = DispatchTime.now().uptimeNanoseconds
 
                 // Clipboard-aware content injection
                 var effectiveBody = conversionBody
@@ -476,6 +478,14 @@ final class ActivationStore: ObservableObject {
                     soundPlayer.playFailure()
                     scheduleDismissToIdle(afterNanoseconds: 2_000_000_000, sessionID: sessionID)
                     return
+                }
+
+                guard isCurrentSession(sessionID) else { return }
+                let elapsed = DispatchTime.now().uptimeNanoseconds - convertingStartedAt
+                if elapsed < Self.minimumConvertingDisplayDuration {
+                    try? await Task.sleep(
+                        nanoseconds: Self.minimumConvertingDisplayDuration - elapsed
+                    )
                 }
 
                 guard isCurrentSession(sessionID) else { return }
