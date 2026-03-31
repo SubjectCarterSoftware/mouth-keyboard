@@ -144,7 +144,7 @@ final class StatusMenuController: NSObject, NSMenuDelegate {
         } else {
             menu.addItem(
                 actionItem(
-                    title: "Start Recording",
+                    title: "Start Transcription",
                     action: #selector(startRecordingFromMenu),
                     shortcut: KeyboardShortcuts.getShortcut(for: .activate),
                     enabled: canStartSession
@@ -152,7 +152,7 @@ final class StatusMenuController: NSObject, NSMenuDelegate {
             )
             menu.addItem(
                 actionItem(
-                    title: "Finish Recording",
+                    title: "Finish Transcription",
                     action: #selector(finishRecordingFromMenu),
                     shortcut: KeyboardShortcuts.getShortcut(for: .stopSession),
                     enabled: canFinishSession
@@ -160,7 +160,7 @@ final class StatusMenuController: NSObject, NSMenuDelegate {
             )
             menu.addItem(
                 actionItem(
-                    title: "Cancel Session",
+                    title: "Cancel Transcription",
                     action: #selector(cancelSessionFromMenu),
                     shortcut: KeyboardShortcuts.getShortcut(for: .cancelSession)
                         ?? KeyboardShortcuts.Shortcut(.v, modifiers: [.control, .shift]),
@@ -169,7 +169,7 @@ final class StatusMenuController: NSObject, NSMenuDelegate {
             )
             menu.addItem(
                 actionItem(
-                    title: "Restart Recording",
+                    title: "Restart Transcription",
                     action: #selector(restartRecordingFromMenu),
                     enabled: canRestartSession
                 )
@@ -182,30 +182,6 @@ final class StatusMenuController: NSObject, NSMenuDelegate {
 
             menu.addItem(.separator())
 
-            menu.addItem(toggleItem(
-                title: "Auto-paste",
-                action: #selector(toggleAutoPasteFromMenu),
-                isOn: preferences.alwaysAutoPaste,
-                enabled: !canCancelSession
-            ))
-            menu.addItem(toggleItem(
-                title: "Clipboard access",
-                action: #selector(toggleClipboardAccessFromMenu),
-                isOn: preferences.allowClipboardAccess,
-                enabled: !canCancelSession
-            ))
-
-            menu.addItem(.separator())
-            menu.addItem(microphoneMenuItem())
-
-            menu.addItem(
-                actionItem(
-                    title: "Settings & Hotkeys…",
-                    action: #selector(openSetupFromMenu),
-                    shortcut: KeyboardShortcuts.Shortcut(.comma, modifiers: [.command]),
-                    enabled: true
-                )
-            )
             menu.addItem(
                 actionItem(
                     title: "Copy Last AI Converted Transcription",
@@ -220,12 +196,34 @@ final class StatusMenuController: NSObject, NSMenuDelegate {
                     enabled: activationStore.lastTranscription != nil
                 )
             )
+            menu.addItem(toggleItem(
+                title: "Auto Paste",
+                action: #selector(toggleAutoPasteFromMenu),
+                isOn: preferences.alwaysAutoPaste,
+                enabled: !canCancelSession
+            ))
+            menu.addItem(toggleItem(
+                title: "Clipboard Access",
+                action: #selector(toggleClipboardAccessFromMenu),
+                isOn: preferences.allowClipboardAccess,
+                enabled: !canCancelSession
+            ))
+            menu.addItem(.separator())
+            menu.addItem(microphoneMenuItem())
+            menu.addItem(
+                actionItem(
+                    title: "Settings & Hotkeys…",
+                    action: #selector(openSetupFromMenu),
+                    shortcut: KeyboardShortcuts.Shortcut(.comma, modifiers: [.command]),
+                    enabled: true
+                )
+            )
         }
 
         menu.addItem(.separator())
         menu.addItem(
             actionItem(
-                title: "Quit Speech2Text",
+                title: "Quit Speech-to-Text",
                 action: #selector(quitFromMenu),
                 shortcut: KeyboardShortcuts.Shortcut(.q, modifiers: [.command]),
                 enabled: true
