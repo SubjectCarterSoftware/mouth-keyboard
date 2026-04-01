@@ -5,9 +5,8 @@ import KeyboardShortcuts
 import SwiftUI
 
 enum SetupWindowMetrics {
-    static let width: CGFloat = 560
-    static let collapsedHeight: CGFloat = 620
-    static let expandedHeight: CGFloat = 820
+    static let width: CGFloat = 672
+    static let collapsedHeight: CGFloat = 750
 }
 
 enum CloudConnectionTestResult: Equatable {
@@ -382,11 +381,67 @@ private struct HoldShortcutRecorder: View {
     }
 }
 
+private enum SetupSectionMetrics {
+    static let rowLabelWidth: CGFloat = 150
+    static let rowIndent: CGFloat = 12
+}
+
+private struct SetupSection<Content: View>: View {
+    let title: String
+    let content: Content
+
+    init(title: String, @ViewBuilder content: () -> Content) {
+        self.title = title
+        self.content = content()
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text(title)
+                .font(.headline)
+
+            VStack(alignment: .leading, spacing: 16) {
+                content
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
+    }
+}
+
+private struct SetupFieldRow<Content: View>: View {
+    let title: String
+    let alignment: VerticalAlignment
+    let content: Content
+
+    init(
+        title: String,
+        alignment: VerticalAlignment = .center,
+        @ViewBuilder content: () -> Content
+    ) {
+        self.title = title
+        self.alignment = alignment
+        self.content = content()
+    }
+
+    var body: some View {
+        HStack(alignment: alignment, spacing: 16) {
+            Text(title)
+                .font(.body)
+                .frame(width: SetupSectionMetrics.rowLabelWidth, alignment: .leading)
+
+            content
+                .frame(maxWidth: .infinity, alignment: .leading)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.leading, SetupSectionMetrics.rowIndent)
+    }
+}
+
 private struct KeyboardShortcutsRow: View {
     @ObservedObject var preferences: ShellPreferences
 
     var body: some View {
-        LabeledContent("Hold to Transcribe:") {
+        SetupFieldRow(title: "Hold to Transcribe:") {
             HStack(spacing: 12) {
                 HoldShortcutRecorder(
                     keyCode: preferences.holdShortcutKeyCode,
@@ -445,12 +500,12 @@ private struct AlwaysAutoPasteRow: View {
 
     var body: some View {
         HStack(alignment: .center, spacing: 12) {
-            Toggle("Auto Paste", isOn: $isOn)
+            Toggle("Always Auto Paste", isOn: $isOn)
                 .labelsHidden()
                 .toggleStyle(.switch)
                 .scaleEffect(0.8, anchor: .leading)
                 .frame(height: 22)
-                .accessibilityLabel("Auto Paste")
+                .accessibilityLabel("Always Auto Paste")
                 .accessibilityIdentifier("setupWindow.alwaysAutoPaste.toggle")
         }
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -459,18 +514,176 @@ private struct AlwaysAutoPasteRow: View {
 
 private struct AllowClipboardAccessRow: View {
     @Binding var isOn: Bool
+    let helperText: String?
 
     var body: some View {
-        HStack(alignment: .center, spacing: 12) {
-            Toggle("Clipboard Access", isOn: $isOn)
-                .labelsHidden()
-                .toggleStyle(.switch)
-                .scaleEffect(0.8, anchor: .leading)
-                .frame(height: 22)
-                .accessibilityLabel("Clipboard Access")
-                .accessibilityIdentifier("setupWindow.allowClipboardAccess.toggle")
+        HStack(alignment: .center, spacing: 16) {
+            Text("Clipboard Access:")
+                .font(.body)
+                .frame(width: SetupSectionMetrics.rowLabelWidth, height: 22, alignment: .leading)
+
+            HStack(alignment: .center, spacing: 8) {
+                Toggle("Clipboard Access", isOn: $isOn)
+                    .labelsHidden()
+                    .toggleStyle(.switch)
+                    .scaleEffect(0.8, anchor: .leading)
+                    .frame(height: 22)
+                    .fixedSize()
+                    .accessibilityLabel("Clipboard Access")
+                    .accessibilityIdentifier("setupWindow.allowClipboardAccess.toggle")
+
+                if let helperText {
+                    ImmediateHelpIcon(text: helperText)
+                        .accessibilityIdentifier("setupWindow.allowClipboardAccess.info")
+                }
+            }
+            .frame(height: 22, alignment: .leading)
+            .frame(maxWidth: .infinity, alignment: .leading)
         }
+        .frame(height: 22, alignment: .leading)
         .frame(maxWidth: .infinity, alignment: .leading)
+    }
+}
+
+private struct AssistantActivationGuidanceView: View {
+    let assistantName: String
+    @Binding var allowClipboardAccess: Bool
+    private let subsectionIndent: CGFloat = 10
+    private let contentIndent: CGFloat = 24
+    private let readableWidth: CGFloat = 560
+
+    private var resolvedAssistantName: String {
+        let trimmed = assistantName.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.isEmpty ? "Zeus" : trimmed
+    }
+
+    private var examplePromptText: String {
+        "\"You free Monday? \(resolvedAssistantName) make this a Slack message to Tim\""
+    }
+
+    private var exampleResultText: String {
+        "\"Hey Tim, are you free this Monday?\""
+    }
+
+    private var triggerWordText: Text {
+        Text("Your assistant name is ").foregroundColor(.primary)
+        + Text(resolvedAssistantName).bold().foregroundColor(.accentColor)
+        + Text(", say your assistant name, then say your instruction").foregroundColor(.primary)
+    }
+
+    private var examplePromptLine: Text {
+        Text("You: ").bold().foregroundColor(.primary)
+        + Text(examplePromptText).foregroundColor(.primary)
+    }
+
+    private var exampleResultLine: Text {
+        Text("Result: ").bold().foregroundColor(.primary)
+        + Text(exampleResultText).foregroundColor(.primary)
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            Text("Assistant Trigger Word")
+                .font(.headline)
+                .accessibilityIdentifier("setupWindow.assistantActivation.title")
+
+            VStack(alignment: .leading, spacing: 8) {
+                triggerWordText
+                    .font(.body)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .padding(.leading, contentIndent)
+
+                AssistantActivationSupportingText(text: "Anything after the assistant name is passed directly as instructions")
+                    .padding(.leading, contentIndent)
+            }
+
+            VStack(alignment: .leading, spacing: 8) {
+                Text("Example")
+                    .font(.body.weight(.semibold))
+                    .padding(.leading, subsectionIndent)
+
+                VStack(alignment: .leading, spacing: 8) {
+                    examplePromptLine
+                        .font(.body)
+                        .fixedSize(horizontal: false, vertical: true)
+
+                    exampleResultLine
+                        .font(.body)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                .padding(12)
+                .background(Color(nsColor: .controlBackgroundColor), in: RoundedRectangle(cornerRadius: 10))
+                .overlay {
+                    RoundedRectangle(cornerRadius: 10)
+                        .stroke(Color(nsColor: .separatorColor), lineWidth: 0.5)
+                }
+                .padding(.leading, contentIndent)
+            }
+
+            VStack(alignment: .leading, spacing: 6) {
+                Text("Assistant Clipboard Passthrough")
+                    .font(.body.weight(.semibold))
+                    .padding(.leading, subsectionIndent)
+
+                AllowClipboardAccessRow(
+                    isOn: $allowClipboardAccess,
+                    helperText: "Mention your clipboard in the instructions to pass in its contents"
+                )
+            }
+        }
+        .frame(maxWidth: readableWidth, alignment: .leading)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier("setupWindow.assistantActivation.section")
+    }
+}
+
+private struct AssistantActivationSupportingText: View {
+    let text: String
+
+    var body: some View {
+        Text(text)
+            .font(.body)
+            .foregroundStyle(.secondary)
+            .fixedSize(horizontal: false, vertical: true)
+    }
+}
+
+private struct ImmediateHelpIcon: View {
+    let text: String
+    @State private var isHovering = false
+    private let tooltipWidth: CGFloat = 240
+
+    var body: some View {
+        Image(systemName: "info.circle")
+            .font(.system(size: 13, weight: .medium))
+            .foregroundStyle(.secondary)
+            .onHover { hovering in
+                withAnimation(.easeOut(duration: 0.08)) {
+                    isHovering = hovering
+                }
+            }
+            .overlay(alignment: .topLeading) {
+                if isHovering {
+                    Text(text)
+                        .font(.caption)
+                        .foregroundStyle(.primary)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .frame(width: tooltipWidth, alignment: .leading)
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 8)
+                        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 8))
+                        .overlay {
+                            RoundedRectangle(cornerRadius: 8)
+                                .stroke(Color(nsColor: .separatorColor), lineWidth: 0.5)
+                        }
+                        .shadow(color: Color.black.opacity(0.12), radius: 10, y: 4)
+                        .offset(x: 16, y: -12)
+                        .allowsHitTesting(false)
+                }
+            }
+            .accessibilityLabel(text)
+            .zIndex(isHovering ? 1 : 0)
     }
 }
 
@@ -1080,7 +1293,7 @@ struct SetupWindowView: View {
         }
     }
 
-    private func updateSetupWindowSize(forAdvancedSettingsExpanded isExpanded: Bool) {
+    private func configureSetupWindowSize() {
         guard let window = NSApp.windows.first(where: {
             $0.identifier == NSUserInterfaceItemIdentifier("Speech2TextSetupWindow")
         }) else {
@@ -1090,209 +1303,240 @@ struct SetupWindowView: View {
         window.setContentSize(
             NSSize(
                 width: SetupWindowMetrics.width,
-                height: isExpanded ? SetupWindowMetrics.expandedHeight : SetupWindowMetrics.collapsedHeight
+                height: SetupWindowMetrics.collapsedHeight
             )
         )
     }
 
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 16) {
-                Text("Speech2Text Settings")
-                    .font(.title2.weight(.semibold))
-                    .accessibilityIdentifier("setupWindow.title")
+        VStack(spacing: 0) {
+            ScrollView {
+                VStack(alignment: .leading, spacing: 18) {
+                    Text("Speech2Text Settings")
+                        .font(.title2.weight(.semibold))
+                        .accessibilityIdentifier("setupWindow.title")
 
-                PermissionChecklistView(
-                    permissions: readinessStore.snapshot.permissions,
-                    requestPermission: { kind in readinessStore.requestPermission(for: kind) },
-                    openRecovery: { kind in readinessStore.openRecovery(for: kind) },
-                    launchAtLoginEnabled: preferences.launchAtLogin,
-                    onToggleLaunchAtLogin: { preferences.setLaunchAtLogin($0) }
-                )
-
-                Divider()
-
-                Form {
-                    Picker("Microphone", selection: microphoneSelection) {
-                        Text("System Default").tag(Optional<String>.none)
-                        ForEach(audioDeviceService.availableDevices) { device in
-                            Text(device.name).tag(Optional(device.uid))
-                        }
-                        if let unavailableSelectedMicrophoneUID {
-                            Text("Selected Microphone (Unavailable)").tag(Optional(unavailableSelectedMicrophoneUID))
-                        }
-                    }
-                    .pickerStyle(.menu)
-
-                    LabeledContent("Start:") {
-                        HStack(spacing: 12) {
-                            KeyComboRecorder(name: .activate)
-                            KeyComboRecorder(name: .activateAlt)
-                        }
-                    }
-                    LabeledContent("Stop:") {
-                        HStack(spacing: 12) {
-                            KeyComboRecorder(name: .stopSession)
-                            KeyComboRecorder(name: .stopSessionAlt)
-                        }
-                    }
-
-                    KeyboardShortcutsRow(
-                        preferences: preferences
+                    PermissionChecklistView(
+                        permissions: readinessStore.snapshot.permissions,
+                        requestPermission: { kind in readinessStore.requestPermission(for: kind) },
+                        openRecovery: { kind in readinessStore.openRecovery(for: kind) },
+                        launchAtLoginEnabled: preferences.launchAtLogin,
+                        onToggleLaunchAtLogin: { preferences.setLaunchAtLogin($0) }
                     )
 
-                    LabeledContent {
-                        AlwaysAutoPasteRow(isOn: alwaysAutoPasteBinding)
-                    } label: {
-                        Text("Auto Paste:")
-                    }
+                    Divider()
 
-                    LabeledContent {
-                        AllowClipboardAccessRow(isOn: allowClipboardAccessBinding)
-                    } label: {
-                        Text("Clipboard Access:")
-                    }
-
-                    LabeledContent {
-                        AIAssistantInlineRowView(
-                            viewModel: assistantSettingsViewModel
+                    VStack(alignment: .leading, spacing: 10) {
+                        AssistantActivationGuidanceView(
+                            assistantName: assistantSettingsViewModel.activeName,
+                            allowClipboardAccess: allowClipboardAccessBinding
                         )
-                    } label: {
-                        Text("Assistant name:")
-                    }
-                }
-                .formStyle(.columns)
+                        .padding(.leading, SetupSectionMetrics.rowIndent)
 
-                Divider()
+                        Divider()
 
-                VStack(alignment: .leading, spacing: 0) {
-                    Button {
-                        withAnimation(.easeInOut(duration: 0.15)) {
-                            isAdvancedSettingsExpanded.toggle()
+                        HStack(alignment: .center, spacing: 16) {
+                            Text("Assistant Name:")
+                                .font(.headline)
+                                .frame(width: SetupSectionMetrics.rowLabelWidth, alignment: .leading)
+
+                            HStack(alignment: .center, spacing: 8) {
+                                AssistantDisplayedNameChip(
+                                    name: assistantSettingsViewModel.displayedName,
+                                    isPreviewing: assistantSettingsViewModel.isPreviewingRecordedName
+                                )
+                                .accessibilityIdentifier("assistantRow.activeName")
+
+                                Spacer(minLength: 12)
+
+                                AIAssistantInlineRowView(
+                                    viewModel: assistantSettingsViewModel,
+                                    showsActiveName: false
+                                )
+                            }
+                            .frame(maxWidth: .infinity, alignment: .leading)
                         }
-                    } label: {
-                        HStack(alignment: .firstTextBaseline, spacing: 12) {
-                            Text("Advanced")
-                                .font(.body)
+                        .padding(.leading, SetupSectionMetrics.rowIndent)
 
-                            Spacer()
-
-                            Text("Model downloads and selection")
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                                .multilineTextAlignment(.trailing)
-
-                            Image(systemName: isAdvancedSettingsExpanded ? "chevron.down" : "chevron.right")
-                                .font(.caption.weight(.semibold))
-                                .foregroundStyle(.secondary)
-                        }
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .contentShape(Rectangle())
+                        Divider()
                     }
-                    .buttonStyle(.plain)
-                    .accessibilityIdentifier("setupWindow.advancedDisclosure")
 
-                    if isAdvancedSettingsExpanded {
-                        VStack(alignment: .leading, spacing: 16) {
-                            VStack(alignment: .leading, spacing: 8) {
-                                HStack(alignment: .firstTextBaseline, spacing: 12) {
-                                    Text("Speech Transcription Model")
-                                        .font(.body)
-
-                                    Spacer()
-
-                                    Text("Select a downloaded model. Use the icon to download it or remove its files.")
-                                        .font(.caption)
-                                        .foregroundStyle(.secondary)
-                                        .multilineTextAlignment(.trailing)
+                    VStack(alignment: .leading, spacing: 10) {
+                        SetupFieldRow(title: "Microphone:") {
+                            Picker("", selection: microphoneSelection) {
+                                Text("System Default").tag(Optional<String>.none)
+                                ForEach(audioDeviceService.availableDevices) { device in
+                                    Text(device.name).tag(Optional(device.uid))
                                 }
-
-                                ForEach(WhisperModelChoice.allCases) { model in
-                                    whisperModelRow(for: model)
-                                }
-
-                                if case .failed(_, let message) = whisperModelLoadState.phase {
-                                    Text(message)
-                                        .font(.caption)
-                                        .foregroundStyle(.red)
+                                if let unavailableSelectedMicrophoneUID {
+                                    Text("Selected Microphone (Unavailable)").tag(Optional(unavailableSelectedMicrophoneUID))
                                 }
                             }
+                            .labelsHidden()
+                            .pickerStyle(.menu)
+                        }
 
-                            Divider()
+                        SetupFieldRow(title: "Always Auto Paste:") {
+                            AlwaysAutoPasteRow(isOn: alwaysAutoPasteBinding)
+                        }
+                    }
 
-                            VStack(alignment: .leading, spacing: 8) {
-                                HStack(alignment: .firstTextBaseline, spacing: 12) {
-                                    Text("Conversion Model")
-                                        .font(.body)
+                    Divider()
 
-                                    Spacer()
-
-                                    Text("Select a downloaded model. Use the icon to download it or remove its files.")
-                                        .font(.caption)
-                                        .foregroundStyle(.secondary)
-                                        .multilineTextAlignment(.trailing)
-                                }
-
-                                ForEach(RewriteModelTier.allCases) { tier in
-                                    conversionModelRow(for: tier)
-                                }
-
-                                if case .failed(_, let message) = modelLoadState.phase {
-                                    Text(message)
-                                        .font(.caption)
-                                        .foregroundStyle(.red)
-                                }
-
-                                if !canManageConversionModels {
-                                    Text("Wait for the current recording or transcription to finish before downloading, deleting, or switching conversion models.")
-                                        .font(.caption)
-                                        .foregroundStyle(.secondary)
-                                }
+                    VStack(alignment: .leading, spacing: 10) {
+                        SetupFieldRow(title: "Start Transcription:") {
+                            HStack(spacing: 12) {
+                                KeyComboRecorder(name: .activate)
+                                KeyComboRecorder(name: .activateAlt)
                             }
-                            .opacity(preferences.cloudLLMConfig.isEnabled ? 0.5 : 1.0)
-                            .disabled(preferences.cloudLLMConfig.isEnabled)
-
-                            Divider()
-
-                            cloudLLMSettingsSection
                         }
-                        .padding(.top, 10)
+
+                        SetupFieldRow(title: "Stop Transcription:") {
+                            HStack(spacing: 12) {
+                                KeyComboRecorder(name: .stopSession)
+                                KeyComboRecorder(name: .stopSessionAlt)
+                            }
+                        }
+
+                        KeyboardShortcutsRow(
+                            preferences: preferences
+                        )
+                    }
+
+                    Divider()
+
+                    VStack(alignment: .leading, spacing: 0) {
+                        Button {
+                            withAnimation(.easeInOut(duration: 0.15)) {
+                                isAdvancedSettingsExpanded.toggle()
+                            }
+                        } label: {
+                            HStack(alignment: .firstTextBaseline, spacing: 12) {
+                                Text("Advanced")
+                                    .font(.headline)
+
+                                Spacer()
+
+                                Image(systemName: isAdvancedSettingsExpanded ? "chevron.down" : "chevron.right")
+                                    .font(.caption.weight(.semibold))
+                                    .foregroundStyle(.secondary)
+                            }
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .contentShape(Rectangle())
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityIdentifier("setupWindow.advancedDisclosure")
+
+                        if isAdvancedSettingsExpanded {
+                            VStack(alignment: .leading, spacing: 16) {
+                                Divider()
+                                    .padding(.top, 16)
+
+                                VStack(alignment: .leading, spacing: 8) {
+                                    HStack(alignment: .firstTextBaseline, spacing: 12) {
+                                        Text("Speech Transcription Model")
+                                            .font(.body)
+
+                                        Spacer()
+
+                                        Text("Select a downloaded model. Use the icon to download it or remove its files.")
+                                            .font(.caption)
+                                            .foregroundStyle(.secondary)
+                                            .multilineTextAlignment(.trailing)
+                                    }
+
+                                    ForEach(WhisperModelChoice.allCases) { model in
+                                        whisperModelRow(for: model)
+                                    }
+
+                                    if case .failed(_, let message) = whisperModelLoadState.phase {
+                                        Text(message)
+                                            .font(.caption)
+                                            .foregroundStyle(.red)
+                                    }
+                                }
+
+                                Divider()
+
+                                VStack(alignment: .leading, spacing: 8) {
+                                    HStack(alignment: .firstTextBaseline, spacing: 12) {
+                                        Text("Conversion Model")
+                                            .font(.body)
+
+                                        Spacer()
+
+                                        Text("Select a downloaded model. Use the icon to download it or remove its files.")
+                                            .font(.caption)
+                                            .foregroundStyle(.secondary)
+                                            .multilineTextAlignment(.trailing)
+                                    }
+
+                                    ForEach(RewriteModelTier.allCases) { tier in
+                                        conversionModelRow(for: tier)
+                                    }
+
+                                    if case .failed(_, let message) = modelLoadState.phase {
+                                        Text(message)
+                                            .font(.caption)
+                                            .foregroundStyle(.red)
+                                    }
+
+                                    if !canManageConversionModels {
+                                        Text("Wait for the current recording or transcription to finish before downloading, deleting, or switching conversion models.")
+                                            .font(.caption)
+                                            .foregroundStyle(.secondary)
+                                    }
+                                }
+                                .opacity(preferences.cloudLLMConfig.isEnabled ? 0.5 : 1.0)
+                                .disabled(preferences.cloudLLMConfig.isEnabled)
+
+                                Divider()
+
+                                cloudLLMSettingsSection
+                            }
+                        }
                     }
                 }
-
-                Divider()
-
-                HStack(spacing: 12) {
-                    Button("Shut Down App") {
-                        NSApp.terminate(nil)
-                    }
-                    .foregroundStyle(.red)
-
-                    Spacer()
-
-                    Button("Reset") {
-                        KeyboardShortcuts.reset(.activate, .activateAlt, .stopSession, .stopSessionAlt)
-                        preferences.holdShortcutKeyCode = Int(kVK_RightOption)
-                        preferences.holdShortcutModifiers = 0
-                        preferences.holdShortcutKeyCodeAlt = -1
-                        preferences.holdShortcutModifiersAlt = 0
-                        HotkeyService.shared.configureHoldTarget()
-                        preferences.micDeviceUID = nil
-                        preferences.whisperModel = .smallEN
-                    }
-
-                    Button(primaryActionTitle) {
-                        if readinessStore.canFinishSetup {
-                            _ = readinessStore.finalizeSetup()
-                        }
-                        dismissWindow()
-                    }
-                    .keyboardShortcut(.defaultAction)
-                    .accessibilityIdentifier("setupWindow.primaryAction")
-                }
+                .padding(24)
+                .frame(maxWidth: .infinity, alignment: .leading)
             }
-            .padding(24)
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+
+            Divider()
+
+            HStack(spacing: 12) {
+                Button("Shut Down App") {
+                    NSApp.terminate(nil)
+                }
+                .foregroundStyle(.red)
+
+                Spacer()
+
+                Button("Reset") {
+                    KeyboardShortcuts.reset(.activate, .activateAlt, .stopSession, .stopSessionAlt)
+                    preferences.holdShortcutKeyCode = Int(kVK_RightOption)
+                    preferences.holdShortcutModifiers = 0
+                    preferences.holdShortcutKeyCodeAlt = -1
+                    preferences.holdShortcutModifiersAlt = 0
+                    HotkeyService.shared.configureHoldTarget()
+                    preferences.micDeviceUID = nil
+                    preferences.whisperModel = .smallEN
+                }
+
+                Button(primaryActionTitle) {
+                    if readinessStore.canFinishSetup {
+                        _ = readinessStore.finalizeSetup()
+                    }
+                    dismissWindow()
+                }
+                .keyboardShortcut(.defaultAction)
+                .accessibilityIdentifier("setupWindow.primaryAction")
+            }
+            .padding(.horizontal, 24)
+            .padding(.vertical, 16)
+            .background(.regularMaterial)
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .frame(
             minWidth: SetupWindowMetrics.width,
             maxWidth: SetupWindowMetrics.width,
@@ -1304,7 +1548,7 @@ struct SetupWindowView: View {
             readinessStore.refresh()
             modelLoadState.refreshStatus()
             whisperModelLoadState.refreshStatus()
-            updateSetupWindowSize(forAdvancedSettingsExpanded: isAdvancedSettingsExpanded)
+            configureSetupWindowSize()
             loadCloudAPIKeyIfNeeded()
             NSApp.activate(ignoringOtherApps: true)
         }
@@ -1318,9 +1562,6 @@ struct SetupWindowView: View {
         }
         .onChange(of: preferences.whisperModel) { _ in
             whisperModelLoadState.refreshStatus()
-        }
-        .onChange(of: isAdvancedSettingsExpanded) { _, isExpanded in
-            updateSetupWindowSize(forAdvancedSettingsExpanded: isExpanded)
         }
         .onChange(of: preferences.cloudLLMConfig.provider) { _, _ in
             cloudAPIKeyLoaded = false

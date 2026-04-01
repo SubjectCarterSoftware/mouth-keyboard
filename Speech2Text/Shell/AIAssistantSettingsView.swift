@@ -350,8 +350,37 @@ private struct HoldToRecordNameControl: View {
     }
 }
 
+struct AssistantDisplayedNameChip: View {
+    let name: String
+    let isPreviewing: Bool
+
+    private var backgroundColor: Color {
+        isPreviewing
+            ? Color.accentColor.opacity(0.12)
+            : Color(nsColor: .controlBackgroundColor)
+    }
+
+    var body: some View {
+        Text(name)
+            .font(.body.weight(.medium))
+            .foregroundStyle(isPreviewing ? Color.accentColor : Color.primary)
+            .lineLimit(1)
+            .truncationMode(.tail)
+            .padding(.horizontal, 12)
+            .padding(.vertical, 6)
+            .background(backgroundColor, in: Capsule())
+            .overlay {
+                if isPreviewing {
+                    Capsule()
+                        .stroke(Color.accentColor, lineWidth: 1)
+                }
+            }
+    }
+}
+
 struct AIAssistantInlineRowView: View {
     @ObservedObject var viewModel: AIAssistantSettingsViewModel
+    var showsActiveName: Bool = true
 
     @ViewBuilder
     private var recordControlSlot: some View {
@@ -437,33 +466,19 @@ struct AIAssistantInlineRowView: View {
         }
     }
 
-    private var nameChipBackground: Color {
-        viewModel.isPreviewingRecordedName
-            ? Color.accentColor.opacity(0.12)
-            : Color(nsColor: .controlBackgroundColor)
-    }
-
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
             HStack(spacing: 12) {
-                Text(viewModel.displayedName)
-                    .font(.body.weight(.medium))
-                    .foregroundStyle(viewModel.isPreviewingRecordedName ? Color.accentColor : Color.primary)
-                    .lineLimit(1)
-                    .truncationMode(.tail)
+                if showsActiveName {
+                    AssistantDisplayedNameChip(
+                        name: viewModel.displayedName,
+                        isPreviewing: viewModel.isPreviewingRecordedName
+                    )
                     .layoutPriority(1)
-                    .padding(.horizontal, 12)
-                    .padding(.vertical, 6)
-                    .background(nameChipBackground, in: Capsule())
-                    .overlay {
-                        if viewModel.isPreviewingRecordedName {
-                            Capsule()
-                                .stroke(Color.accentColor, lineWidth: 1)
-                        }
-                    }
                     .accessibilityIdentifier("assistantRow.activeName")
 
-                Spacer(minLength: 12)
+                    Spacer(minLength: 12)
+                }
 
                 actionContent
             }
@@ -475,7 +490,7 @@ struct AIAssistantInlineRowView: View {
                     .accessibilityIdentifier("assistantRow.captureMessage")
             }
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
+        .frame(maxWidth: showsActiveName ? .infinity : nil, alignment: .leading)
         .accessibilityIdentifier("assistantRow")
     }
 }

@@ -19,6 +19,7 @@ final class MenuBarShellSmokeTests: XCTestCase {
 
         XCTAssertTrue(app.staticTexts["setupWindow.title"].waitForExistence(timeout: 5))
         XCTAssertTrue(app.buttons["setupWindow.primaryAction"].exists)
+        XCTAssertTrue(app.staticTexts["setupWindow.assistantActivation.title"].exists)
     }
 
     func testCompletedSetupSuppressesSetupWindowOnLaunch() {

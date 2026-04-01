@@ -302,7 +302,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         )
         window.contentMaxSize = NSSize(
             width: SetupWindowMetrics.width,
-            height: SetupWindowMetrics.expandedHeight
+            height: SetupWindowMetrics.collapsedHeight
         )
         window.contentViewController = NSHostingController(
             rootView: SetupWindowView(
