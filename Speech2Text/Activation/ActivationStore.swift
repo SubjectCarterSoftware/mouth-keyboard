@@ -55,6 +55,17 @@ final class ActivationStore: ObservableObject {
         case hold
     }
 
+    private enum PipelineTimeoutError: LocalizedError {
+        case stepTimedOut(String)
+
+        var errorDescription: String? {
+            switch self {
+            case .stepTimedOut(let step):
+                return "\(step) timed out."
+            }
+        }
+    }
+
     static let shared = ActivationStore(
         preferences: .shared,
         readinessProvider: ReadinessStore.shared,
@@ -86,6 +97,10 @@ final class ActivationStore: ObservableObject {
     private static let minimumConvertingDisplayDuration: UInt64 = 200_000_000
     private static let whisperModelIdleUnloadDelay: UInt64 = WhisperService.idleUnloadDelayNanoseconds
     private static let rewriteModelIdleUnloadDelay: UInt64 = LLMRewriteService.idleUnloadDelayNanoseconds
+    private static let whisperPrepareTimeout: UInt64 = 20_000_000_000
+    private static let whisperTranscriptionTimeout: UInt64 = 45_000_000_000
+    private static let clipboardIntentTimeout: UInt64 = 8_000_000_000
+    private static let rewriteTimeout: UInt64 = 45_000_000_000
 
     var onPastePermissionNeeded: () -> Void = {}
 
@@ -348,6 +363,7 @@ final class ActivationStore: ObservableObject {
             guard isCurrentSession(sessionID) else { return }
 
             let selectedModel = preferences.whisperModel
+            NSLog("Speech2Text: finalize session started (\(sessionID.uuidString.prefix(8))) using Whisper \(selectedModel.rawValue)")
             do {
                 let downloadObserver = observeWhisperModelDownloadProgress(
                     for: selectedModel,
@@ -358,12 +374,22 @@ final class ActivationStore: ObservableObject {
                     syncWhisperModelDownloadState(for: selectedModel, phase: .idle, sessionID: sessionID)
                 }
 
-                try await prepareWhisperModel(model: selectedModel)
+                try await runWithTimeout(
+                    nanoseconds: Self.whisperPrepareTimeout,
+                    step: "Whisper model prepare"
+                ) { [whisperService] in
+                    try await whisperService.prepare(model: selectedModel)
+                }
             }
             guard isCurrentSession(sessionID) else { return }
 
             let samples = try bufferAccumulator.convertToWhisperFormat()
-            let text = try await whisperService.transcribe(samples: samples)
+            let text = try await runWithTimeout(
+                nanoseconds: Self.whisperTranscriptionTimeout,
+                step: "Whisper transcription"
+            ) { [whisperService] in
+                try await whisperService.transcribe(samples: samples)
+            }
             let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
             let triggerAliases = TriggerAliasNormalizer.normalize(preferences.activeTriggerProfile.activeAliases)
 
@@ -423,10 +449,15 @@ final class ActivationStore: ObservableObject {
                 var clipboardWasInjected = false
 
                 if let instructions = conversionInstructions, preferences.allowClipboardAccess {
-                    let intent = await ClipboardIntentClassifier.classify(
-                        instruction: instructions,
-                        using: llmRewriteService
-                    )
+                    let intent = try await runWithTimeout(
+                        nanoseconds: Self.clipboardIntentTimeout,
+                        step: "Clipboard intent classification"
+                    ) { [llmRewriteService] in
+                        await ClipboardIntentClassifier.classify(
+                            instruction: instructions,
+                            using: llmRewriteService
+                        )
+                    }
 
                     guard isCurrentSession(sessionID) else { return }
 
@@ -460,10 +491,15 @@ final class ActivationStore: ObservableObject {
                 let rewritten: String
                 do {
                     if let instructions = conversionInstructions {
-                        rewritten = try await activeRewriteService.rewrite(
-                            body: effectiveBody,
-                            instructions: instructions
-                        )
+                        rewritten = try await runWithTimeout(
+                            nanoseconds: Self.rewriteTimeout,
+                            step: "Assistant rewrite"
+                        ) { [activeRewriteService] in
+                            try await activeRewriteService.rewrite(
+                                body: effectiveBody,
+                                instructions: instructions
+                            )
+                        }
                     } else {
                         rewritten = conversionBody
                     }
@@ -580,6 +616,28 @@ final class ActivationStore: ObservableObject {
         !Task.isCancelled && sessionID == activeSessionID
     }
 
+    private func runWithTimeout<T>(
+        nanoseconds: UInt64,
+        step: String,
+        operation: @Sendable @escaping () async throws -> T
+    ) async throws -> T {
+        try await withThrowingTaskGroup(of: T.self) { group in
+            group.addTask {
+                try await operation()
+            }
+            group.addTask {
+                try await Task.sleep(nanoseconds: nanoseconds)
+                throw PipelineTimeoutError.stepTimedOut(step)
+            }
+
+            defer { group.cancelAll() }
+            guard let result = try await group.next() else {
+                throw PipelineTimeoutError.stepTimedOut(step)
+            }
+            return result
+        }
+    }
+
     private func beginWhisperModelWarmup() {
         Task { [weak self] in
             guard let self else { return }
@@ -594,14 +652,6 @@ final class ActivationStore: ObservableObject {
                 afterNanoseconds: Self.whisperModelIdleUnloadDelay
             )
         }
-    }
-
-    private func prepareWhisperModel() async throws {
-        try await whisperService.prepare(model: preferences.whisperModel)
-    }
-
-    private func prepareWhisperModel(model: WhisperModelChoice) async throws {
-        try await whisperService.prepare(model: model)
     }
 
     private func observeWhisperModelDownloadProgress(

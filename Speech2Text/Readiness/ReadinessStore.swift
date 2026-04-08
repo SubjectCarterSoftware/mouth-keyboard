@@ -44,10 +44,6 @@ final class ReadinessStore: ObservableObject {
         previousState = initialSnapshot.state
     }
 
-    var canFinishSetup: Bool {
-        snapshot.permissions.filter(\.isRequired).allSatisfy(\.isAuthorized)
-    }
-
     func refresh() {
         let newSnapshot = ReadinessSnapshot.derive(
             isSetupComplete: preferences.hasCompletedInitialSetup,
@@ -87,18 +83,6 @@ final class ReadinessStore: ObservableObject {
 
     func openRecovery(for kind: PermissionKind) {
         recoveryActionPerformer.openSettings(for: kind)
-    }
-
-    @discardableResult
-    func finalizeSetup() -> Bool {
-        guard canFinishSetup else {
-            return false
-        }
-
-        preferences.completeInitialSetup()
-        preferences.setLaunchAtLogin(true)
-        refresh()
-        return true
     }
 
     func resetSetup() {

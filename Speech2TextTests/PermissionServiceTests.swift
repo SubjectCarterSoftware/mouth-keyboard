@@ -159,10 +159,9 @@ final class PermissionServiceTests: XCTestCase {
         XCTAssertEqual(events, ["recordPrompt", "requestAccess"])
     }
 
-    func testAccessibilityGateRequestsPromptWhenMicAndKeyboardAreAuthorized() {
+    func testAccessibilityGateRequestsPromptWhenMicIsAuthorized() {
         let shouldPrompt = AppDelegate.shouldRequestAccessibilityPrompt(
             microphoneStatus: .authorized,
-            keyboardStatus: .authorized,
             postEventStatus: .notDetermined,
             hasPromptedThisRun: false
         )
@@ -170,10 +169,19 @@ final class PermissionServiceTests: XCTestCase {
         XCTAssertTrue(shouldPrompt)
     }
 
-    func testAccessibilityGateDoesNotPromptBeforeKeyboardPermissionIsAuthorized() {
+    func testAccessibilityGateStillRequestsPromptBeforeKeyboardPermissionIsAuthorized() {
         let shouldPrompt = AppDelegate.shouldRequestAccessibilityPrompt(
             microphoneStatus: .authorized,
-            keyboardStatus: .notDetermined,
+            postEventStatus: .notDetermined,
+            hasPromptedThisRun: false
+        )
+
+        XCTAssertTrue(shouldPrompt)
+    }
+
+    func testAccessibilityGateDoesNotPromptBeforeMicrophonePermissionIsAuthorized() {
+        let shouldPrompt = AppDelegate.shouldRequestAccessibilityPrompt(
+            microphoneStatus: .notDetermined,
             postEventStatus: .notDetermined,
             hasPromptedThisRun: false
         )
@@ -184,7 +192,6 @@ final class PermissionServiceTests: XCTestCase {
     func testAccessibilityGateDoesNotPromptWhenAlreadyAuthorized() {
         let shouldPrompt = AppDelegate.shouldRequestAccessibilityPrompt(
             microphoneStatus: .authorized,
-            keyboardStatus: .authorized,
             postEventStatus: .authorized,
             hasPromptedThisRun: false
         )
@@ -195,12 +202,85 @@ final class PermissionServiceTests: XCTestCase {
     func testAccessibilityGateDoesNotPromptTwiceInOneRun() {
         let shouldPrompt = AppDelegate.shouldRequestAccessibilityPrompt(
             microphoneStatus: .authorized,
-            keyboardStatus: .authorized,
             postEventStatus: .denied,
             hasPromptedThisRun: true
         )
 
         XCTAssertFalse(shouldPrompt)
+    }
+
+    func testLaunchSetupWindowGatePresentsWhenReadinessNeedsSetup() {
+        let shouldPresent = AppDelegate.shouldPresentSetupWindowOnLaunch(
+            readinessState: .needsSetup,
+            forcePresentSetupOnLaunch: false
+        )
+
+        XCTAssertTrue(shouldPresent)
+    }
+
+    func testLaunchSetupWindowGatePresentsWhenReadinessIsBlocked() {
+        let shouldPresent = AppDelegate.shouldPresentSetupWindowOnLaunch(
+            readinessState: .blocked,
+            forcePresentSetupOnLaunch: false
+        )
+
+        XCTAssertTrue(shouldPresent)
+    }
+
+    func testLaunchSetupWindowGateStaysQuietWhenReadyAndNotForced() {
+        let shouldPresent = AppDelegate.shouldPresentSetupWindowOnLaunch(
+            readinessState: .ready,
+            forcePresentSetupOnLaunch: false
+        )
+
+        XCTAssertFalse(shouldPresent)
+    }
+
+    func testLaunchSetupWindowGateHonorsForceFlag() {
+        let shouldPresent = AppDelegate.shouldPresentSetupWindowOnLaunch(
+            readinessState: .ready,
+            forcePresentSetupOnLaunch: true
+        )
+
+        XCTAssertTrue(shouldPresent)
+    }
+
+    func testLaunchSetupCheckEnablesLaunchAtLoginWhileSetupIsIncomplete() {
+        let shouldEnable = AppDelegate.shouldEnableLaunchAtLoginDuringSetup(
+            isSetupComplete: false,
+            launchAtLoginEnabled: false
+        )
+
+        XCTAssertTrue(shouldEnable)
+    }
+
+    func testLaunchSetupCheckDoesNotEnableLaunchAtLoginAfterSetupCompletes() {
+        let shouldEnable = AppDelegate.shouldEnableLaunchAtLoginDuringSetup(
+            isSetupComplete: true,
+            launchAtLoginEnabled: false
+        )
+
+        XCTAssertFalse(shouldEnable)
+    }
+
+    func testLaunchSetupCheckAutoCompletesWhenEveryPermissionTileIsGreen() {
+        let shouldComplete = AppDelegate.shouldAutoCompleteSetupOnLaunch(
+            isSetupComplete: false,
+            launchAtLoginEnabled: true,
+            permissionStatuses: [.authorized, .authorized, .authorized]
+        )
+
+        XCTAssertTrue(shouldComplete)
+    }
+
+    func testLaunchSetupCheckDoesNotAutoCompleteWhenAnyPermissionTileIsPending() {
+        let shouldComplete = AppDelegate.shouldAutoCompleteSetupOnLaunch(
+            isSetupComplete: false,
+            launchAtLoginEnabled: true,
+            permissionStatuses: [.authorized, .notDetermined, .authorized]
+        )
+
+        XCTAssertFalse(shouldComplete)
     }
 
     func testKeyboardGateRequestsInputMonitoringOnlyAfterMicrophoneIsAuthorized() {

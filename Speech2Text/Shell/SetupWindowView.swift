@@ -706,14 +706,6 @@ struct SetupWindowView: View {
     private let keyboardPermissionService = KeyboardPermissionService.live
     let dismissWindow: () -> Void
 
-    private var primaryActionTitle: String {
-        if preferences.hasCompletedInitialSetup {
-            return "Close"
-        }
-
-        return readinessStore.canFinishSetup ? "Finish Setup" : "Done Later"
-    }
-
     private var microphoneSelection: Binding<String?> {
         Binding(
             get: {
@@ -1523,10 +1515,7 @@ struct SetupWindowView: View {
                     preferences.whisperModel = .smallEN
                 }
 
-                Button(primaryActionTitle) {
-                    if readinessStore.canFinishSetup {
-                        _ = readinessStore.finalizeSetup()
-                    }
+                Button("Close") {
                     dismissWindow()
                 }
                 .keyboardShortcut(.defaultAction)

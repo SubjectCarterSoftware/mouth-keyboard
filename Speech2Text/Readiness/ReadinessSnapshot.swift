@@ -35,9 +35,9 @@ enum PermissionKind: String, CaseIterable, Identifiable {
         case .microphone:
             return "Microphone Access"
         case .keyboardShortcuts:
-            return "Keyboard Shortcuts"
+            return "Input Monitoring"
         case .postEvent:
-            return "Auto Paste"
+            return "Accessibility"
         }
     }
 
@@ -124,7 +124,6 @@ struct ReadinessSnapshot: Equatable {
     let state: ReadinessState
     let title: String
     let message: String
-    let primaryActionTitle: String
     let permissions: [PermissionChecklistItem]
 
     static func derive(
@@ -161,20 +160,15 @@ struct ReadinessSnapshot: Equatable {
                 state: .blocked,
                 title: "Setup Blocked",
                 message: "Speech2Text still needs permission recovery before it can be considered ready.",
-                primaryActionTitle: "Fix Setup",
                 permissions: permissions
             )
         }
 
         if !isSetupComplete || requiredPermissions.contains(where: { $0.status == .notDetermined }) {
-            let allPermissionsGranted = requiredPermissions.allSatisfy(\.isAuthorized)
             return Self(
                 state: .needsSetup,
-                title: allPermissionsGranted ? "Finish Setup" : "Setup Needed",
-                message: allPermissionsGranted
-                    ? "Everything required is available. Finish setup once and the app will stay in the menu bar afterward."
-                    : "Grant the remaining permissions so Speech2Text can tell the user it is ready before recording exists.",
-                primaryActionTitle: allPermissionsGranted ? "Finish Setup" : "Review Setup",
+                title: "Setup Needed",
+                message: "Complete the remaining setup items so Speech2Text can confirm it is ready before recording exists.",
                 permissions: permissions
             )
         }
@@ -183,7 +177,6 @@ struct ReadinessSnapshot: Equatable {
             state: .ready,
             title: "Shell Ready",
             message: "Speech2Text can stay quiet in the menu bar until you trigger recording, with background Escape available for recovery.",
-            primaryActionTitle: "Open Setup",
             permissions: permissions
         )
     }

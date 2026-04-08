@@ -12,7 +12,7 @@ final class ReadinessStateTests: XCTestCase {
         )
 
         XCTAssertEqual(snapshot.state, .needsSetup)
-        XCTAssertEqual(snapshot.primaryActionTitle, "Review Setup")
+        XCTAssertEqual(snapshot.title, "Setup Needed")
     }
 
     func testBlockedStateWhenPromptedPermissionRemainsDenied() {
@@ -43,7 +43,7 @@ final class ReadinessStateTests: XCTestCase {
         store.refresh()
 
         XCTAssertEqual(store.snapshot.state, .blocked)
-        XCTAssertEqual(store.snapshot.primaryActionTitle, "Fix Setup")
+        XCTAssertEqual(store.snapshot.title, "Setup Blocked")
     }
 
     func testReadyWhenSetupIsCompleteAndPermissionsAreGranted() {
@@ -55,7 +55,7 @@ final class ReadinessStateTests: XCTestCase {
         )
 
         XCTAssertEqual(snapshot.state, .ready)
-        XCTAssertEqual(snapshot.primaryActionTitle, "Open Setup")
+        XCTAssertEqual(snapshot.title, "Shell Ready")
     }
 
     func testReadyConfirmationAppearsAfterBlockedStateClears() {

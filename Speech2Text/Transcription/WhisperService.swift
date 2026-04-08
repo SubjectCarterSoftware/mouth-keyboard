@@ -249,6 +249,12 @@ actor WhisperService: WhisperTranscribing {
                 return try await loader(model, Self.downloadedModelDirectory(for: model))
             }
 
+            // Prefer already-downloaded local artifacts to avoid stalling on
+            // remote snapshot checks when the model is already present.
+            if !hasCustomLoader && !hasCustomFileDownloader && Self.isModelDownloaded(model) {
+                return try await loader(model, Self.downloadedModelDirectory(for: model))
+            }
+
             let directory = try await self.downloadFiles(for: model)
             return try await loader(model, directory)
         }

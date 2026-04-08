@@ -182,7 +182,12 @@ final class ShellPreferences: ObservableObject {
             userDefaults.set(resolvedWhisperModel.rawValue, forKey: Keys.whisperModel)
         }
 
-        launchAtLogin = SMAppService.mainApp.status == .enabled
+        let isUITesting = ProcessInfo.processInfo.arguments.contains("-ui-testing")
+        if isUITesting {
+            launchAtLogin = userDefaults.object(forKey: Keys.launchAtLogin) as? Bool ?? false
+        } else {
+            launchAtLogin = SMAppService.mainApp.status == .enabled
+        }
 
         if let storedTier = userDefaults.string(forKey: Keys.rewriteModelTier),
            let tier = RewriteModelTier(rawValue: storedTier) {
@@ -258,6 +263,12 @@ final class ShellPreferences: ObservableObject {
     }
 
     func setLaunchAtLogin(_ enabled: Bool) {
+        if ProcessInfo.processInfo.arguments.contains("-ui-testing") {
+            defaults.set(enabled, forKey: Keys.launchAtLogin)
+            launchAtLogin = enabled
+            return
+        }
+
         do {
             if enabled {
                 try SMAppService.mainApp.register()
@@ -301,6 +312,7 @@ final class ShellPreferences: ObservableObject {
             hasRequestedMicrophonePermission = false
             hasRequestedKeyboardPermission = false
             hasRequestedPostEventPermission = false
+            launchAtLogin = false
             micDeviceUID = nil
             whisperModel = .smallEN
             rewriteModelTier = .standard2B
@@ -317,6 +329,7 @@ final class ShellPreferences: ObservableObject {
         defaults.removeObject(forKey: Keys.hasRequestedMicrophonePermission)
         defaults.removeObject(forKey: Keys.hasRequestedKeyboardPermission)
         defaults.removeObject(forKey: Keys.hasRequestedPostEventPermission)
+        defaults.removeObject(forKey: Keys.launchAtLogin)
         defaults.removeObject(forKey: Keys.micDeviceUID)
         defaults.removeObject(forKey: Keys.whisperModel)
         defaults.removeObject(forKey: Keys.rewriteModelTier)
@@ -368,6 +381,7 @@ final class ShellPreferences: ObservableObject {
 
         if arguments.contains("-complete-shell-setup") {
             userDefaults.set(true, forKey: Keys.hasCompletedInitialSetup)
+            userDefaults.set(true, forKey: Keys.launchAtLogin)
         }
 
         if arguments.contains("-hide-menu-hints") {

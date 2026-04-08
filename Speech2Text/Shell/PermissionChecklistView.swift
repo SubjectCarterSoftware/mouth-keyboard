@@ -11,20 +11,27 @@ struct PermissionChecklistView: View {
     let launchAtLoginEnabled: Bool
     let onToggleLaunchAtLogin: (Bool) -> Void
 
+    private var orderedPermissions: [PermissionChecklistItem] {
+        let orderedKinds: [PermissionKind] = [.microphone, .postEvent, .keyboardShortcuts]
+        return orderedKinds.compactMap { kind in
+            permissions.first(where: { $0.kind == kind })
+        }
+    }
+
     var body: some View {
         HStack(spacing: 12) {
-            ForEach(permissions) { item in
+            LaunchAtLoginTile(
+                isEnabled: launchAtLoginEnabled,
+                onToggle: onToggleLaunchAtLogin
+            )
+
+            ForEach(orderedPermissions) { item in
                 PermissionTile(
                     item: item,
                     requestPermission: requestPermission,
                     openRecovery: openRecovery
                 )
             }
-
-            LaunchAtLoginTile(
-                isEnabled: launchAtLoginEnabled,
-                onToggle: onToggleLaunchAtLogin
-            )
         }
     }
 }
@@ -133,12 +140,11 @@ struct AccessibilitySetupGuide: View {
             VStack(alignment: .leading, spacing: 12) {
                 SetupStep(number: 1, text: "Click the + button at the bottom of the app list")
                 SetupStep(number: 2, text: "Find Speech2Text in Applications and click Open")
-                SetupStep(number: 3, text: "Relaunch Speech2Text from your menu bar or Applications")
+                SetupStep(number: 3, text: "Return to Speech2Text. The Accessibility tile should turn green without restarting the app.")
             }
 
-            Button("Open Settings & Quit App") {
+            Button("Open Settings") {
                 onOpenSettings()
-                NSApp.terminate(nil)
             }
             .buttonStyle(.borderedProminent)
             .frame(maxWidth: .infinity)
@@ -161,12 +167,11 @@ struct InputMonitoringSetupGuide: View {
             VStack(alignment: .leading, spacing: 12) {
                 SetupStep(number: 1, text: "Click the + button in the Input Monitoring pane")
                 SetupStep(number: 2, text: "Find Speech2Text in Applications and click Open")
-                SetupStep(number: 3, text: "Relaunch Speech2Text from your menu bar or Applications")
+                SetupStep(number: 3, text: "If macOS asks to quit and reopen Speech2Text, allow that restart there.")
             }
 
-            Button("Open Settings & Quit App") {
+            Button("Open Settings") {
                 onOpenSettings()
-                NSApp.terminate(nil)
             }
             .buttonStyle(.borderedProminent)
             .frame(maxWidth: .infinity)

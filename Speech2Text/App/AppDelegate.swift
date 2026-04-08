@@ -42,7 +42,21 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
 
         readinessStore.refresh()
         statusMenuController.install()
-        requestMicrophoneThenStartHotkeysIfAllowed()
+        let shouldPresentSetupWindowOnLaunch = Self.shouldPresentSetupWindowOnLaunch(
+            readinessState: readinessStore.snapshot.state,
+            forcePresentSetupOnLaunch: forcePresentSetupOnLaunch
+        )
+        performInitialSetupCompletionCheck()
+
+        if shouldPresentSetupWindowOnLaunch {
+            DispatchQueue.main.async { [weak self] in
+                guard let self else { return }
+                self.presentSetupWindow()
+                self.requestMicrophoneThenStartHotkeysIfAllowed()
+            }
+        } else {
+            requestMicrophoneThenStartHotkeysIfAllowed()
+        }
 
         do {
             try WhisperService.deleteLegacyUnsupportedModelFiles()
@@ -103,13 +117,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
                 }
             }
 
-        if preferences.shouldPresentSetupOnLaunch || forcePresentSetupOnLaunch || !preferences.hasCompletedInitialSetup {
-            DispatchQueue.main.async { [weak self] in
-                NSApp.activate(ignoringOtherApps: true)
-                self?.presentSetupWindow()
-            }
-        }
-
         applyUITestingOverrides()
     }
 
@@ -154,12 +161,34 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
 
             self.readinessStore.refresh()
             if shouldStartHotkeys {
+                self.requestAccessibilityIfEligible()
                 self.requestKeyboardShortcutsIfEligible()
                 self.hotkeyService.start()
-                self.requestAccessibilityIfEligible()
             }
             self.permissionStartupTask = nil
         }
+    }
+
+    private func performInitialSetupCompletionCheck() {
+        if Self.shouldEnableLaunchAtLoginDuringSetup(
+            isSetupComplete: preferences.hasCompletedInitialSetup,
+            launchAtLoginEnabled: preferences.launchAtLogin
+        ) {
+            preferences.setLaunchAtLogin(true)
+        }
+
+        readinessStore.refresh()
+
+        guard Self.shouldAutoCompleteSetupOnLaunch(
+            isSetupComplete: preferences.hasCompletedInitialSetup,
+            launchAtLoginEnabled: preferences.launchAtLogin,
+            permissionStatuses: readinessStore.snapshot.permissions.map(\.status)
+        ) else {
+            return
+        }
+
+        preferences.completeInitialSetup()
+        readinessStore.refresh()
     }
 
     private func requestKeyboardShortcutsIfEligible() {
@@ -184,14 +213,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             return
         }
 
-        let keyboardStatus = readinessStore.snapshot.permissions
-            .first(where: { $0.kind == .keyboardShortcuts })?.status ?? .notDetermined
         let postEventStatus = readinessStore.snapshot.permissions
             .first(where: { $0.kind == .postEvent })?.status ?? .notDetermined
 
         guard Self.shouldRequestAccessibilityPrompt(
             microphoneStatus: microphoneService.currentStatus(),
-            keyboardStatus: keyboardStatus,
             postEventStatus: postEventStatus,
             hasPromptedThisRun: hasRequestedAccessibilityPromptThisRun
         ) else {
@@ -390,9 +416,38 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         }
     }
 
+    static func shouldPresentSetupWindowOnLaunch(
+        readinessState: ReadinessState,
+        forcePresentSetupOnLaunch: Bool
+    ) -> Bool {
+        forcePresentSetupOnLaunch || readinessState != .ready
+    }
+
+    static func shouldEnableLaunchAtLoginDuringSetup(
+        isSetupComplete: Bool,
+        launchAtLoginEnabled: Bool
+    ) -> Bool {
+        !isSetupComplete && !launchAtLoginEnabled
+    }
+
+    static func shouldAutoCompleteSetupOnLaunch(
+        isSetupComplete: Bool,
+        launchAtLoginEnabled: Bool,
+        permissionStatuses: [PermissionGrantState]
+    ) -> Bool {
+        guard !isSetupComplete, launchAtLoginEnabled else {
+            return false
+        }
+
+        guard !permissionStatuses.isEmpty else {
+            return false
+        }
+
+        return permissionStatuses.allSatisfy { $0 == .authorized }
+    }
+
     static func shouldRequestAccessibilityPrompt(
         microphoneStatus: PermissionGrantState,
-        keyboardStatus: PermissionGrantState,
         postEventStatus: PermissionGrantState,
         hasPromptedThisRun: Bool
     ) -> Bool {
@@ -400,7 +455,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             return false
         }
 
-        guard microphoneStatus == .authorized, keyboardStatus == .authorized else {
+        guard microphoneStatus == .authorized else {
             return false
         }
 

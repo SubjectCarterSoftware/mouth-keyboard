@@ -131,14 +131,14 @@ final class StatusMenuController: NSObject, NSMenuDelegate {
 
         if needsSetup {
             let setupItem = actionItem(
-                title: "Setup - Permissions Required",
+                title: "Setup Required",
                 action: #selector(openSetupFromMenu),
                 shortcut: KeyboardShortcuts.Shortcut(.comma, modifiers: [.command]),
                 enabled: true
             )
             setupItem.image = NSImage(
                 systemSymbolName: "exclamationmark.circle.fill",
-                accessibilityDescription: "Permissions Required"
+                accessibilityDescription: "Setup Required"
             )
             menu.addItem(setupItem)
         } else {

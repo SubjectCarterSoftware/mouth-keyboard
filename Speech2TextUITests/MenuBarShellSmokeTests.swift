@@ -10,7 +10,6 @@ final class MenuBarShellSmokeTests: XCTestCase {
         app.launchArguments = [
             "-ui-testing",
             "-reset-shell-preferences",
-            "-open-setup-window",
             "-mock-microphone-status", "notDetermined",
             "-mock-keyboard-status", "notDetermined",
         ]

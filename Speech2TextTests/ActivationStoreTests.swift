@@ -93,9 +93,9 @@ final class ActivationStoreTests: XCTestCase {
         XCTAssertEqual(store.state, .idle)
     }
 
-    // arm() succeeds when all permissions are authorized, even if the user has
-    // not yet pressed "Finish Setup" (hasCompletedInitialSetup == false).
-    // The setup-finalize step is an onboarding UX gate, not a runtime gate.
+    // arm() succeeds when all permissions are authorized, even if the initial
+    // setup launch check has not marked onboarding complete yet.
+    // Setup completion is an onboarding UX gate, not a runtime gate.
     func testArmSucceedsWhenPermissionsAuthorizedRegardlessOfSetupCompletion() {
         let store = makeStore(permissionsAuthorized: true)
 
@@ -1547,7 +1547,6 @@ private struct StubReadinessProvider: ReadinessProviding {
             state: state,
             title: "",
             message: "",
-            primaryActionTitle: "",
             permissions: permissions
         )
     }

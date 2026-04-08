@@ -372,14 +372,27 @@ actor LLMRewriteService: LLMRewriting {
                 return try await loader(hub)
             }
 
-            let directory = try await self.downloadFiles(
-                for: tier,
-                progressHandler: loadProgressHandler
-            )
-
             if hasCustomLoader {
+                let _ = try await self.downloadFiles(
+                    for: tier,
+                    progressHandler: loadProgressHandler
+                )
                 let hub = try hubFactory()
                 return try await loader(hub)
+            }
+
+            // Prefer local artifacts when already complete to avoid remote
+            // snapshot checks on every cold load.
+            let directory: URL
+            if !hasCustomFileDownloader,
+               Self.isModelDownloaded(tier, fileManager: .default),
+               let localDirectory = try? Self.downloadedModelDirectory(for: tier, fileManager: .default) {
+                directory = localDirectory
+            } else {
+                directory = try await self.downloadFiles(
+                    for: tier,
+                    progressHandler: loadProgressHandler
+                )
             }
 
             let hub = try hubFactory()

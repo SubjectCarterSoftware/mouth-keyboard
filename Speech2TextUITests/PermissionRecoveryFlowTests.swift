@@ -58,7 +58,7 @@ final class PermissionRecoveryFlowTests: XCTestCase {
         action.tap()
 
         XCTAssertTrue(app.staticTexts["How to enable Accessibility access"].waitForExistence(timeout: 5))
-        XCTAssertTrue(app.buttons["Open Settings & Quit App"].exists)
+        XCTAssertTrue(app.buttons["Open Settings"].exists)
     }
 
     func testHoldToTranscribeRowShowsEnableActionWhenAccessibilityIsUndetermined() {
@@ -138,6 +138,6 @@ final class PermissionRecoveryFlowTests: XCTestCase {
         action.tap()
 
         XCTAssertTrue(app.staticTexts["How to enable Accessibility access"].waitForExistence(timeout: 5))
-        XCTAssertTrue(app.buttons["Open Settings & Quit App"].exists)
+        XCTAssertTrue(app.buttons["Open Settings"].exists)
     }
 }
