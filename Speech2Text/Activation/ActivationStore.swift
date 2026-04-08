@@ -491,13 +491,16 @@ final class ActivationStore: ObservableObject {
                 let rewritten: String
                 do {
                     if let instructions = conversionInstructions {
+                        let rewriteBody = effectiveBody
+                        let promptPrefix = preferences.rewriteSystemPromptPrefix
                         rewritten = try await runWithTimeout(
                             nanoseconds: Self.rewriteTimeout,
                             step: "Assistant rewrite"
                         ) { [activeRewriteService] in
                             try await activeRewriteService.rewrite(
-                                body: effectiveBody,
-                                instructions: instructions
+                                body: rewriteBody,
+                                instructions: instructions,
+                                promptPrefix: promptPrefix
                             )
                         }
                     } else {

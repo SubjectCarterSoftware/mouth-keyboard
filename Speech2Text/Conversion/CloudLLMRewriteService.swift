@@ -12,11 +12,22 @@ actor CloudLLMRewriteService: LLMRewriting {
     }
 
     func rewrite(body: String, instructions: String) async throws -> String {
+        try await rewrite(
+            body: body,
+            instructions: instructions,
+            promptPrefix: LLMRewriteService.defaultRewritePromptPrefix
+        )
+    }
+
+    func rewrite(body: String, instructions: String, promptPrefix: String) async throws -> String {
         guard !apiKey.isEmpty else {
             throw LLMRewriteError.authenticationFailed
         }
 
-        let systemPrompt = LLMRewriteService.makeRewriteInstructions(instructions)
+        let systemPrompt = LLMRewriteService.makeRewriteInstructions(
+            promptPrefix: promptPrefix,
+            instructions: instructions
+        )
         let userMessage = body.trimmingCharacters(in: .whitespacesAndNewlines)
 
         let request = try buildRequest(systemPrompt: systemPrompt, userMessage: userMessage)

@@ -21,6 +21,29 @@ final class MenuBarShellSmokeTests: XCTestCase {
         XCTAssertTrue(app.staticTexts["setupWindow.assistantActivation.title"].exists)
     }
 
+    func testAdvancedSettingsExposeRewriteSystemPromptEditor() {
+        let app = XCUIApplication()
+        app.launchArguments = [
+            "-ui-testing",
+            "-reset-shell-preferences",
+            "-mock-microphone-status", "authorized",
+            "-mock-keyboard-status", "authorized",
+        ]
+
+        app.launch()
+
+        XCTAssertTrue(app.staticTexts["setupWindow.title"].waitForExistence(timeout: 5))
+        app.buttons["setupWindow.advancedDisclosure"].click()
+
+        let editor = app.descendants(matching: .any)
+            .matching(identifier: "setupWindow.rewriteSystemPrompt.editor")
+            .firstMatch
+        XCTAssertTrue(editor.waitForExistence(timeout: 2))
+
+        let resetButton = app.buttons["setupWindow.rewriteSystemPrompt.reset"]
+        XCTAssertTrue(resetButton.exists)
+    }
+
     func testCompletedSetupSuppressesSetupWindowOnLaunch() {
         let app = XCUIApplication()
         app.launchArguments = [

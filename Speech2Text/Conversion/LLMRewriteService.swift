@@ -45,6 +45,7 @@ enum LLMRewriteError: LocalizedError, Equatable {
 protocol LLMRewriting: Sendable {
     func setTier(_ newTier: RewriteModelTier) async
     func prewarm() async throws
+    func rewrite(body: String, instructions: String, promptPrefix: String) async throws -> String
     func rewrite(body: String, instructions: String) async throws -> String
     /// Raw generation with a caller-supplied system prompt. No rewrite framing is added.
     func generate(prompt: String, systemPrompt: String) async throws -> String
@@ -58,6 +59,13 @@ protocol LLMRewriting: Sendable {
 extension LLMRewriting {
     func setTier(_ newTier: RewriteModelTier) async {}
     func prewarm() async throws {}
+    func rewrite(body: String, instructions: String) async throws -> String {
+        try await rewrite(
+            body: body,
+            instructions: instructions,
+            promptPrefix: LLMRewriteService.defaultRewritePromptPrefix
+        )
+    }
     func generate(prompt: String, systemPrompt: String) async throws -> String {
         try await rewrite(body: prompt, instructions: systemPrompt)
     }
@@ -94,6 +102,13 @@ private actor RewriteExecutionGate {
 
 actor LLMRewriteService: LLMRewriting {
     static let idleUnloadDelayNanoseconds: UInt64 = 30 * 1_000_000_000
+    static let defaultRewritePromptPrefix = """
+    You are a local text rewriting assistant.
+    Follow the rewrite instructions exactly.
+    Return only the final rewritten text.
+    Do not explain your changes.
+    Do not include labels, quotes, code fences, or <think> tags.
+    """
 
     struct RewriteModel: Sendable {
         let token: UUID
@@ -194,7 +209,15 @@ actor LLMRewriteService: LLMRewriting {
     }
 
     func rewrite(body: String, instructions: String) async throws -> String {
-        try await rewriteCore(body: body, instructions: instructions)
+        try await rewrite(
+            body: body,
+            instructions: instructions,
+            promptPrefix: Self.defaultRewritePromptPrefix
+        )
+    }
+
+    func rewrite(body: String, instructions: String, promptPrefix: String) async throws -> String {
+        try await rewriteCore(body: body, instructions: instructions, promptPrefix: promptPrefix)
     }
 
     func generate(prompt: String, systemPrompt: String) async throws -> String {
@@ -205,7 +228,7 @@ actor LLMRewriteService: LLMRewriting {
         cachedModel == nil ? nil : tier
     }
 
-    private func rewriteCore(body: String, instructions: String) async throws -> String {
+    private func rewriteCore(body: String, instructions: String, promptPrefix: String) async throws -> String {
         if Task.isCancelled {
             throw LLMRewriteError.cancelled
         }
@@ -227,7 +250,7 @@ actor LLMRewriteService: LLMRewriting {
             let stream = try streamFactory(
                 model,
                 body,
-                instructions,
+                Self.makeRewriteInstructions(promptPrefix: promptPrefix, instructions: instructions),
                 generationParameters
             )
 
@@ -586,11 +609,10 @@ actor LLMRewriteService: LLMRewriting {
             throw LLMRewriteError.generationFailed
         }
 
-        let rewriteInstructions = makeRewriteInstructions(instructions)
         let rewriteBody = body.trimmingCharacters(in: .whitespacesAndNewlines)
         let session = ChatSession(
             container,
-            instructions: rewriteInstructions,
+            instructions: instructions,
             generateParameters: parameters,
             // The 4B Qwen 3.5 template defaults to thinking mode when the flag is omitted,
             // which causes rewrite generation to terminate early on this path.
@@ -693,7 +715,18 @@ actor LLMRewriteService: LLMRewriting {
         }
     }
 
-    static func makeRewriteInstructions(_ instructions: String) -> String {
+    static func normalizeRewritePromptPrefix(_ promptPrefix: String) -> String {
+        let trimmedPromptPrefix = promptPrefix.trimmingCharacters(in: .whitespacesAndNewlines)
+        if trimmedPromptPrefix.isEmpty {
+            return defaultRewritePromptPrefix
+        }
+        return trimmedPromptPrefix
+    }
+
+    static func makeRewriteInstructions(
+        promptPrefix: String = defaultRewritePromptPrefix,
+        instructions: String
+    ) -> String {
         let trimmedInstructions = instructions.trimmingCharacters(in: .whitespacesAndNewlines)
         let effectiveInstructions: String
         if trimmedInstructions.isEmpty {
@@ -701,22 +734,26 @@ actor LLMRewriteService: LLMRewriting {
         } else {
             effectiveInstructions = trimmedInstructions
         }
+        let effectivePromptPrefix = normalizeRewritePromptPrefix(promptPrefix)
 
         return """
-        You are a local text rewriting assistant.
-        Follow the rewrite instructions exactly.
-        Return only the final rewritten text.
-        Do not explain your changes.
-        Do not include labels, quotes, code fences, or <think> tags.
+        \(effectivePromptPrefix)
 
         Rewrite instructions:
         \(effectiveInstructions)
         """
     }
 
-    static func makeRewritePrompt(body: String, instructions: String) -> String {
+    static func makeRewritePrompt(
+        body: String,
+        instructions: String,
+        promptPrefix: String = defaultRewritePromptPrefix
+    ) -> String {
         let trimmedBody = body.trimmingCharacters(in: .whitespacesAndNewlines)
-        let rewriteInstructions = makeRewriteInstructions(instructions)
+        let rewriteInstructions = makeRewriteInstructions(
+            promptPrefix: promptPrefix,
+            instructions: instructions
+        )
 
         return """
         \(rewriteInstructions)

@@ -268,7 +268,7 @@ final class LLMRewriteServiceTests: XCTestCase {
     // MARK: - rewrite(body:instructions:) overload tests (Phase 11-02)
 
     func testRewriteWithInstructionsOverloadExists() async throws {
-        // Verifies the overload compiles, is callable, and passes instructions to the stream factory.
+        // Verifies the overload compiles, is callable, and passes the built system prompt to the stream factory.
         var capturedInstructions: String?
         let service = makeService { _, _, instructions, _ in
             capturedInstructions = instructions
@@ -276,8 +276,10 @@ final class LLMRewriteServiceTests: XCTestCase {
         }
         let result = try await service.rewrite(body: "raw", instructions: "Be brief.")
         XCTAssertEqual(result, "rewritten")
-        XCTAssertEqual(capturedInstructions, "Be brief.",
-                       "rewrite(body:instructions:) should pass instructions directly to streamFactory")
+        XCTAssertEqual(
+            capturedInstructions,
+            LLMRewriteService.makeRewriteInstructions(instructions: "Be brief.")
+        )
     }
 
     func testMakeRewritePromptIncludesInstructionsAndBody() {
@@ -292,6 +294,17 @@ final class LLMRewriteServiceTests: XCTestCase {
         XCTAssertTrue(prompt.contains("Do not include labels, quotes, code fences, or <think> tags."))
     }
 
+    func testMakeRewriteInstructionsUsesCustomPromptPrefix() {
+        let prompt = LLMRewriteService.makeRewriteInstructions(
+            promptPrefix: "Custom prefix.\nStay concise.",
+            instructions: "Turn this into a short email."
+        )
+
+        XCTAssertTrue(prompt.contains("Custom prefix.\nStay concise."))
+        XCTAssertTrue(prompt.contains("Rewrite instructions:\nTurn this into a short email."))
+        XCTAssertFalse(prompt.contains("You are a local text rewriting assistant."))
+    }
+
     func testMakeRewritePromptUsesSafeDefaultWhenInstructionsAreEmpty() {
         let prompt = LLMRewriteService.makeRewritePrompt(
             body: "Keep this exactly.",
@@ -300,6 +313,16 @@ final class LLMRewriteServiceTests: XCTestCase {
 
         XCTAssertTrue(prompt.contains("Rewrite instructions:\nReturn the source text exactly as written."))
         XCTAssertTrue(prompt.contains("Source text:\nKeep this exactly."))
+    }
+
+    func testBlankPromptPrefixFallsBackToDefaultPrefix() {
+        let prompt = LLMRewriteService.makeRewriteInstructions(
+            promptPrefix: "   ",
+            instructions: "Keep this tidy."
+        )
+
+        XCTAssertTrue(prompt.contains(LLMRewriteService.defaultRewritePromptPrefix))
+        XCTAssertTrue(prompt.contains("Rewrite instructions:\nKeep this tidy."))
     }
 
     // MARK: - setTier tests (Phase 2)

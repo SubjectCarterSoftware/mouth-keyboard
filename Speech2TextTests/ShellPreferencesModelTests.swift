@@ -44,6 +44,44 @@ final class ShellPreferencesModelTests: XCTestCase {
         XCTAssertTrue(preferences.alwaysAutoPaste)
     }
 
+    func testRewriteSystemPromptPrefixDefaultsToBuiltInPrompt() {
+        let (_, preferences) = makePreferences()
+        XCTAssertEqual(
+            preferences.rewriteSystemPromptPrefix,
+            LLMRewriteService.defaultRewritePromptPrefix
+        )
+    }
+
+    func testRewriteSystemPromptPrefixPersistsRoundTrip() {
+        let (defaults, preferences) = makePreferences()
+        preferences.rewriteSystemPromptPrefix = "Custom system prompt"
+
+        let preferences2 = ShellPreferences(userDefaults: defaults)
+        XCTAssertEqual(preferences2.rewriteSystemPromptPrefix, "Custom system prompt")
+    }
+
+    func testRewriteSystemPromptPrefixResetRestoresDefault() {
+        let (_, preferences) = makePreferences()
+        preferences.rewriteSystemPromptPrefix = "Custom system prompt"
+        preferences.reset()
+
+        XCTAssertEqual(
+            preferences.rewriteSystemPromptPrefix,
+            LLMRewriteService.defaultRewritePromptPrefix
+        )
+    }
+
+    func testBlankStoredRewriteSystemPromptPrefixResolvesToDefault() {
+        let (defaults, _) = makePreferences()
+        defaults.set("   ", forKey: ShellPreferences.Keys.rewriteSystemPromptPrefix)
+
+        let preferences = ShellPreferences(userDefaults: defaults)
+        XCTAssertEqual(
+            preferences.rewriteSystemPromptPrefix,
+            LLMRewriteService.defaultRewritePromptPrefix
+        )
+    }
+
     // MARK: - holdShortcut tests
 
     func testHoldShortcutDefaultsToRightOption() {

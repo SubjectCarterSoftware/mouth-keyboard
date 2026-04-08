@@ -841,6 +841,32 @@ final class ActivationStoreTests: XCTestCase {
         }
     }
 
+    func testConfiguredRewriteSystemPromptPrefixIsPassedToRewriteService() async throws {
+        let suiteName = "ActivationStoreTests.RewritePromptPrefix.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suiteName) ?? .standard
+        defaults.removePersistentDomain(forName: suiteName)
+        let preferences = ShellPreferences(userDefaults: defaults)
+        preferences.rewriteSystemPromptPrefix = "Custom rewrite prefix"
+
+        let mockTranscriber = ActivationStoreMockTranscriber(
+            result: .success("zeus Please schedule a meeting for Friday convert to email")
+        )
+        let mockRewriter = MockLLMRewriter(result: .success("Converted output"))
+        let store = makeStore(
+            permissionsAuthorized: true,
+            transcriber: mockTranscriber,
+            llmRewriter: mockRewriter,
+            clipboard: ActivationStoreMockClipboard(),
+            preferences: preferences
+        )
+
+        store.arm()
+        store.finish()
+        try await Task.sleep(nanoseconds: 300_000_000)
+
+        XCTAssertEqual(mockRewriter.lastPromptPrefix, "Custom rewrite prefix")
+    }
+
     func test_finalize_rewrite_failure_surfaces_model_error_not_silent_success() async throws {
         let transcript = "team update zeus make this concise and direct"
         let mockTranscriber = ActivationStoreMockTranscriber(result: .success(transcript))
@@ -1204,6 +1230,8 @@ final class ActivationStoreTests: XCTestCase {
 
         // Classifier used generate(), rewrite used rewrite()
         XCTAssertEqual(mockRewriter.generateCallCount, 1)
+        XCTAssertNotNil(mockRewriter.lastGenerateSystemPrompt)
+        XCTAssertTrue(mockRewriter.lastGenerateSystemPrompt?.contains("binary intent classifier") ?? false)
         XCTAssertNotNil(mockRewriter.lastBody)
         XCTAssertTrue(mockRewriter.lastBody!.contains("Clipboard content:"))
         XCTAssertTrue(mockRewriter.lastBody!.contains("some raw clipboard text"))
@@ -1696,9 +1724,11 @@ final class MockLLMRewriter: LLMRewriting, @unchecked Sendable {
     var generateResult: MockResult?
     private(set) var lastBody: String?
     private(set) var lastInstructions: String?
+    private(set) var lastPromptPrefix: String?
     private(set) var lastCalledOverload: CalledOverload?
     private(set) var generateCallCount = 0
     private(set) var lastGeneratePrompt: String?
+    private(set) var lastGenerateSystemPrompt: String?
     private(set) var setTierCalls: [RewriteModelTier] = []
     private(set) var prewarmCallCount = 0
     private(set) var scheduledIdleUnloadDurations: [UInt64] = []
@@ -1710,10 +1740,11 @@ final class MockLLMRewriter: LLMRewriting, @unchecked Sendable {
     func prewarm() async throws {
         prewarmCallCount += 1
     }
-    func rewrite(body: String, instructions: String) async throws -> String {
+    func rewrite(body: String, instructions: String, promptPrefix: String) async throws -> String {
         lastCalledOverload = .instructionsOverload
         lastBody = body
         lastInstructions = instructions
+        lastPromptPrefix = promptPrefix
         switch result {
         case .success(let text): return text
         case .failure(let error): throw error
@@ -1722,6 +1753,7 @@ final class MockLLMRewriter: LLMRewriting, @unchecked Sendable {
     func generate(prompt: String, systemPrompt: String) async throws -> String {
         generateCallCount += 1
         lastGeneratePrompt = prompt
+        lastGenerateSystemPrompt = systemPrompt
         let effectiveResult = generateResult ?? result
         switch effectiveResult {
         case .success(let text): return text
@@ -1760,7 +1792,7 @@ final class DelayedLLMRewriter: LLMRewriting, @unchecked Sendable {
         }
     }
 
-    func rewrite(body: String, instructions: String) async throws -> String {
+    func rewrite(body: String, instructions: String, promptPrefix: String) async throws -> String {
         try await Task.sleep(nanoseconds: delayNanoseconds)
         let output = try complete()
         timingLock.lock()

@@ -14,6 +14,10 @@ enum CloudConnectionTestResult: Equatable {
     case failed(String)
 }
 
+private enum RewriteSystemPromptSectionMetrics {
+    static let editorHeight: CGFloat = 150
+}
+
 // MARK: - Shared shortcut recorder visual field
 
 private struct ShortcutRecorderField: View {
@@ -706,6 +710,17 @@ struct SetupWindowView: View {
     private let keyboardPermissionService = KeyboardPermissionService.live
     let dismissWindow: () -> Void
 
+    private var rewriteSystemPromptBinding: Binding<String> {
+        Binding(
+            get: {
+                preferences.rewriteSystemPromptPrefix
+            },
+            set: { newValue in
+                preferences.rewriteSystemPromptPrefix = newValue
+            }
+        )
+    }
+
     private var microphoneSelection: Binding<String?> {
         Binding(
             get: {
@@ -1239,6 +1254,55 @@ struct SetupWindowView: View {
         }
     }
 
+    @ViewBuilder
+    private var rewriteSystemPromptSection: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(alignment: .firstTextBaseline, spacing: 12) {
+                Text("Rewrite System Prompt")
+                    .font(.body)
+
+                Spacer()
+
+                Text("Applies to both on-device and cloud AI conversions")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .multilineTextAlignment(.trailing)
+            }
+
+            Text("Your spoken command is appended automatically under `Rewrite instructions:`.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+
+            TextEditor(text: rewriteSystemPromptBinding)
+                .font(.system(.body, design: .monospaced))
+                .scrollContentBackground(.hidden)
+                .padding(8)
+                .frame(minHeight: RewriteSystemPromptSectionMetrics.editorHeight)
+                .background(
+                    RoundedRectangle(cornerRadius: 8)
+                        .fill(Color(nsColor: .textBackgroundColor))
+                )
+                .overlay(
+                    RoundedRectangle(cornerRadius: 8)
+                        .stroke(Color(nsColor: .separatorColor), lineWidth: 0.5)
+                )
+                .accessibilityIdentifier("setupWindow.rewriteSystemPrompt.editor")
+
+            HStack {
+                Spacer()
+
+                Button("Reset Prompt") {
+                    preferences.rewriteSystemPromptPrefix = LLMRewriteService.defaultRewritePromptPrefix
+                }
+                .controlSize(.small)
+                .disabled(
+                    preferences.rewriteSystemPromptPrefix == LLMRewriteService.defaultRewritePromptPrefix
+                )
+                .accessibilityIdentifier("setupWindow.rewriteSystemPrompt.reset")
+            }
+        }
+    }
+
     private func loadCloudAPIKeyIfNeeded() {
         guard !cloudAPIKeyLoaded else { return }
         cloudAPIKeyLoaded = true
@@ -1276,7 +1340,11 @@ struct SetupWindowView: View {
         Task {
             let service = CloudLLMRewriteService(config: config, apiKey: apiKey)
             do {
-                _ = try await service.rewrite(body: "Hello", instructions: "Return the text exactly as written.")
+                _ = try await service.rewrite(
+                    body: "Hello",
+                    instructions: "Return the text exactly as written.",
+                    promptPrefix: preferences.rewriteSystemPromptPrefix
+                )
                 cloudConnectionTestResult = .success
             } catch {
                 let message = (error as? LLMRewriteError)?.errorDescription ?? error.localizedDescription
@@ -1481,6 +1549,10 @@ struct SetupWindowView: View {
                                 }
                                 .opacity(preferences.cloudLLMConfig.isEnabled ? 0.5 : 1.0)
                                 .disabled(preferences.cloudLLMConfig.isEnabled)
+
+                                Divider()
+
+                                rewriteSystemPromptSection
 
                                 Divider()
 

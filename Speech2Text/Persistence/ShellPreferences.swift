@@ -22,6 +22,7 @@ final class ShellPreferences: ObservableObject {
         static let holdShortcutModifiersAlt = "holdShortcutModifiersAlt"
         static let cloudLLMConfig = "cloudLLMConfig"
         static let allowClipboardAccess = "allowClipboardAccess"
+        static let rewriteSystemPromptPrefix = "rewriteSystemPromptPrefix"
     }
 
     static let shared = makeShared()
@@ -142,6 +143,20 @@ final class ShellPreferences: ObservableObject {
         }
     }
 
+    @Published var rewriteSystemPromptPrefix: String {
+        didSet {
+            let normalized = Self.normalizedRewritePromptPrefix(rewriteSystemPromptPrefix)
+            if rewriteSystemPromptPrefix != normalized {
+                rewriteSystemPromptPrefix = normalized
+                return
+            }
+
+            persistIfNeeded {
+                defaults.set(rewriteSystemPromptPrefix, forKey: Keys.rewriteSystemPromptPrefix)
+            }
+        }
+    }
+
     var shouldPresentSetupOnLaunch: Bool {
         !hasCompletedInitialSetup
     }
@@ -231,6 +246,11 @@ final class ShellPreferences: ObservableObject {
             allowClipboardAccess = userDefaults.bool(forKey: Keys.allowClipboardAccess)
         }
 
+        rewriteSystemPromptPrefix = Self.normalizedRewritePromptPrefix(
+            userDefaults.string(forKey: Keys.rewriteSystemPromptPrefix)
+            ?? LLMRewriteService.defaultRewritePromptPrefix
+        )
+
         let loadedTriggerProfile = (initialTriggerProfile ?? TriggerProfileStore.loadSynchronously()).normalized()
         let migratedTriggerProfile = Self.migratedTriggerProfile(loadedTriggerProfile)
         activeTriggerProfile = migratedTriggerProfile
@@ -318,6 +338,7 @@ final class ShellPreferences: ObservableObject {
             rewriteModelTier = .standard2B
             alwaysAutoPaste = true
             allowClipboardAccess = true
+            rewriteSystemPromptPrefix = LLMRewriteService.defaultRewritePromptPrefix
             holdShortcutKeyCode = 61
             holdShortcutModifiers = 0
             cloudLLMConfig = .default
@@ -335,6 +356,7 @@ final class ShellPreferences: ObservableObject {
         defaults.removeObject(forKey: Keys.rewriteModelTier)
         defaults.removeObject(forKey: Keys.alwaysAutoPaste)
         defaults.removeObject(forKey: Keys.allowClipboardAccess)
+        defaults.removeObject(forKey: Keys.rewriteSystemPromptPrefix)
         defaults.removeObject(forKey: Keys.holdShortcutKeyCode)
         defaults.removeObject(forKey: Keys.holdShortcutModifiers)
         defaults.removeObject(forKey: Keys.cloudLLMConfig)
@@ -368,6 +390,10 @@ final class ShellPreferences: ObservableObject {
         case .zeus, .custom:
             return profile
         }
+    }
+
+    private static func normalizedRewritePromptPrefix(_ value: String) -> String {
+        LLMRewriteService.normalizeRewritePromptPrefix(value)
     }
 
     private static func makeShared() -> ShellPreferences {

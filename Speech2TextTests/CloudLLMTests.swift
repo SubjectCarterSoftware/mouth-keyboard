@@ -100,6 +100,16 @@ final class CloudLLMRewriteServiceTests: XCTestCase {
         XCTAssertEqual(request.httpMethod, "POST")
         XCTAssertTrue(request.url!.absoluteString.contains("/chat/completions"))
         XCTAssertEqual(request.value(forHTTPHeaderField: "Authorization"), "Bearer sk-test")
+        let requestBody = try XCTUnwrap(extractRequestBody(from: request))
+        let payload = try XCTUnwrap(
+            JSONSerialization.jsonObject(with: requestBody) as? [String: Any]
+        )
+        let messages = try XCTUnwrap(payload["messages"] as? [[String: Any]])
+        let systemMessage = try XCTUnwrap(messages.first)
+        XCTAssertEqual(
+            systemMessage["content"] as? String,
+            LLMRewriteService.makeRewriteInstructions(instructions: "Echo.")
+        )
     }
 
     func testAnthropicRequestFormat() async throws {
@@ -118,6 +128,14 @@ final class CloudLLMRewriteServiceTests: XCTestCase {
         XCTAssertTrue(request.url!.absoluteString.contains("/messages"))
         XCTAssertEqual(request.value(forHTTPHeaderField: "x-api-key"), "sk-ant-test")
         XCTAssertEqual(request.value(forHTTPHeaderField: "anthropic-version"), "2023-06-01")
+        let requestBody = try XCTUnwrap(extractRequestBody(from: request))
+        let payload = try XCTUnwrap(
+            JSONSerialization.jsonObject(with: requestBody) as? [String: Any]
+        )
+        XCTAssertEqual(
+            payload["system"] as? String,
+            LLMRewriteService.makeRewriteInstructions(instructions: "Echo.")
+        )
     }
 
     func testGoogleRequestFormat() async throws {
@@ -135,6 +153,47 @@ final class CloudLLMRewriteServiceTests: XCTestCase {
         let request = MockURLProtocol.lastRequest!
         XCTAssertTrue(request.url!.absoluteString.contains("generateContent"))
         XCTAssertTrue(request.url!.absoluteString.contains("key=AIza-test"))
+        let requestBody = try XCTUnwrap(extractRequestBody(from: request))
+        let payload = try XCTUnwrap(
+            JSONSerialization.jsonObject(with: requestBody) as? [String: Any]
+        )
+        let systemInstruction = try XCTUnwrap(payload["system_instruction"] as? [String: Any])
+        let parts = try XCTUnwrap(systemInstruction["parts"] as? [[String: Any]])
+        XCTAssertEqual(
+            parts.first?["text"] as? String,
+            LLMRewriteService.makeRewriteInstructions(instructions: "Echo.")
+        )
+    }
+
+    func testCustomPromptPrefixIsSerializedIntoOpenAIRequest() async throws {
+        let (config, session) = makeTestConfig(provider: .openAI)
+        let mockResponse = """
+        {"choices":[{"message":{"content":"Test output"}}]}
+        """
+        MockURLProtocol.responseData = mockResponse.data(using: .utf8)
+        MockURLProtocol.responseStatusCode = 200
+
+        let service = CloudLLMRewriteService(config: config, apiKey: "sk-test", session: session)
+        _ = try await service.rewrite(
+            body: "Hello",
+            instructions: "Echo.",
+            promptPrefix: "Custom prefix"
+        )
+
+        let request = try XCTUnwrap(MockURLProtocol.lastRequest)
+        let requestBody = try XCTUnwrap(extractRequestBody(from: request))
+        let payload = try XCTUnwrap(
+            JSONSerialization.jsonObject(with: requestBody) as? [String: Any]
+        )
+        let messages = try XCTUnwrap(payload["messages"] as? [[String: Any]])
+        let systemMessage = try XCTUnwrap(messages.first)
+        XCTAssertEqual(
+            systemMessage["content"] as? String,
+            LLMRewriteService.makeRewriteInstructions(
+                promptPrefix: "Custom prefix",
+                instructions: "Echo."
+            )
+        )
     }
 
     func testHTTP401ThrowsAuthenticationFailed() async {
@@ -225,6 +284,37 @@ final class CloudLLMRewriteServiceTests: XCTestCase {
         let session = URLSession(configuration: sessionConfig)
         MockURLProtocol.reset()
         return (config, session)
+    }
+
+    private func extractRequestBody(from request: URLRequest) -> Data? {
+        if let body = request.httpBody {
+            return body
+        }
+
+        guard let stream = request.httpBodyStream else {
+            return nil
+        }
+
+        stream.open()
+        defer { stream.close() }
+
+        let bufferSize = 4096
+        let buffer = UnsafeMutablePointer<UInt8>.allocate(capacity: bufferSize)
+        defer { buffer.deallocate() }
+
+        var data = Data()
+        while stream.hasBytesAvailable {
+            let bytesRead = stream.read(buffer, maxLength: bufferSize)
+            if bytesRead < 0 {
+                return nil
+            }
+            if bytesRead == 0 {
+                break
+            }
+            data.append(buffer, count: bytesRead)
+        }
+
+        return data.isEmpty ? nil : data
     }
 }
 
