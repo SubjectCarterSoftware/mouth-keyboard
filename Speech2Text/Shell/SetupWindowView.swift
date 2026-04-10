@@ -631,7 +631,7 @@ private struct AssistantActivationGuidanceView: View {
 
                 AllowClipboardAccessRow(
                     isOn: $allowClipboardAccess,
-                    helperText: "Mention your clipboard in the instructions to pass in its contents"
+                    helperText: "Mention your clipboard in the instructions to pass in its text. Auto-paste restores your previous clipboard afterward."
                 )
             }
         }

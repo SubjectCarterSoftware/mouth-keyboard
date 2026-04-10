@@ -101,6 +101,7 @@ final class ActivationStore: ObservableObject {
     private static let whisperTranscriptionTimeout: UInt64 = 45_000_000_000
     private static let clipboardIntentTimeout: UInt64 = 8_000_000_000
     private static let rewriteTimeout: UInt64 = 45_000_000_000
+    private static let clipboardRestoreDelay: UInt64 = 150_000_000
 
     var onPastePermissionNeeded: () -> Void = {}
 
@@ -111,6 +112,7 @@ final class ActivationStore: ObservableObject {
     private var dismissTask: Task<Void, Never>?
     private var feedbackClearTask: Task<Void, Never>?
     private var maxDurationTask: Task<Void, Never>?
+    private var sessionClipboardSnapshot: ClipboardSnapshot?
 
     convenience init(preferences: ShellPreferences, readinessStore: ReadinessStore) {
         self.init(
@@ -341,6 +343,7 @@ final class ActivationStore: ObservableObject {
         invalidateScheduledWork()
         recoveryFeedback = nil
         activeSessionID = UUID()
+        sessionClipboardSnapshot = clipboardService.snapshotCurrentClipboard()
         activeActivationOrigin = origin
         voiceActivityDetector.reset()
         state = .recording
@@ -399,6 +402,7 @@ final class ActivationStore: ObservableObject {
             }
 
             let split = TriggerTranscriptParser.split(transcript: trimmed, activeAliases: triggerAliases)
+            let clipboardSnapshot = sessionClipboardSnapshot
             let shouldConvert: Bool
             let conversionBody: String
             let conversionInstructions: String?
@@ -423,8 +427,10 @@ final class ActivationStore: ObservableObject {
                 lastTranscription = trimmed
                 var syntheticPasteSucceeded = false
                 if didPaste {
-                    let outcome = pasteService.paste(text: trimmed)
-                    syntheticPasteSucceeded = (outcome == .pasted)
+                    syntheticPasteSucceeded = await pasteWithClipboardProtection(
+                        text: trimmed,
+                        originalClipboard: clipboardSnapshot
+                    )
                 } else {
                     clipboardService.writeToClipboard(trimmed)
                 }
@@ -462,7 +468,7 @@ final class ActivationStore: ObservableObject {
                     guard isCurrentSession(sessionID) else { return }
 
                     if intent == .detected {
-                        if let clipboardText = clipboardService.readFromClipboard(),
+                        if let clipboardText = clipboardSnapshot?.plainText,
                            !clipboardText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                             effectiveBody = ClipboardAwarePromptBuilder.buildBody(
                                 dictatedContent: conversionBody,
@@ -478,8 +484,10 @@ final class ActivationStore: ObservableObject {
                     .split(separator: " ", omittingEmptySubsequences: true).count
                 guard effectiveWordCount <= 350 else {
                     guard isCurrentSession(sessionID) else { return }
-                    clipboardService.writeToClipboard(trimmed)
                     lastTranscription = trimmed
+                    if !didPaste {
+                        clipboardService.writeToClipboard(trimmed)
+                    }
                     let failureSessionID = activeSessionID
                     state = .failure(reason: .wordLimitExceeded)
                     soundPlayer.playFailure()
@@ -507,12 +515,16 @@ final class ActivationStore: ObservableObject {
                         rewritten = conversionBody
                     }
                 } catch {
-                    // GUARD-02: surface rewrite error visibly — raw transcript still goes to clipboard
+                    // Surface rewrite errors visibly. In clipboard-only mode we keep the
+                    // raw transcript as a fallback; protected auto-paste preserves the
+                    // original clipboard instead.
                     guard isCurrentSession(sessionID) else { return }
                     let errorDescription = (error as? LLMRewriteError)?.errorDescription ?? error.localizedDescription
                     NSLog("Speech2Text: assistant rewrite failed — \(errorDescription)")
-                    clipboardService.writeToClipboard(trimmed)
                     lastTranscription = trimmed
+                    if !didPaste {
+                        clipboardService.writeToClipboard(trimmed)
+                    }
                     state = .failure(reason: .modelError("Rewrite failed: \(errorDescription)"))
                     soundPlayer.playFailure()
                     scheduleDismissToIdle(afterNanoseconds: 2_000_000_000, sessionID: sessionID)
@@ -530,8 +542,10 @@ final class ActivationStore: ObservableObject {
                 guard isCurrentSession(sessionID) else { return }
                 var syntheticPasteSucceeded = false
                 if didPaste {
-                    let outcome = pasteService.paste(text: rewritten)
-                    syntheticPasteSucceeded = (outcome == .pasted)
+                    syntheticPasteSucceeded = await pasteWithClipboardProtection(
+                        text: rewritten,
+                        originalClipboard: clipboardSnapshot
+                    )
                 } else {
                     clipboardService.writeToClipboard(rewritten)
                 }
@@ -570,6 +584,7 @@ final class ActivationStore: ObservableObject {
 
     private func invalidateActiveSession() {
         requestsPasteOnCompletion = false
+        sessionClipboardSnapshot = nil
         activeSessionID = UUID()
         activeActivationOrigin = nil
         transcriptionTask?.cancel()
@@ -584,6 +599,27 @@ final class ActivationStore: ObservableObject {
         feedbackClearTask = nil
         maxDurationTask?.cancel()
         maxDurationTask = nil
+    }
+
+    private func pasteWithClipboardProtection(
+        text: String,
+        originalClipboard: ClipboardSnapshot?
+    ) async -> Bool {
+        guard let receipt = clipboardService.writeTemporaryText(text) else {
+            return false
+        }
+
+        let outcome = pasteService.pasteCurrentClipboard()
+        guard let originalClipboard else {
+            return outcome == .pasted
+        }
+
+        if outcome == .pasted {
+            try? await Task.sleep(nanoseconds: Self.clipboardRestoreDelay)
+        }
+
+        _ = clipboardService.restoreClipboard(from: originalClipboard, ifUnchangedSince: receipt)
+        return outcome == .pasted
     }
 
     private func publishRecoveryFeedback(_ feedback: RecordingState.RecoveryFeedback) {

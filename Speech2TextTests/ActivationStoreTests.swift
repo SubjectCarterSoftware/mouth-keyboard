@@ -248,7 +248,8 @@ final class ActivationStoreTests: XCTestCase {
             XCTFail("Expected .success state after fallback")
         }
         XCTAssertEqual(pasteStub.pasteCount, 1)
-        XCTAssertEqual(pasteStub.lastText, "Fallback text")
+        XCTAssertEqual(mockClipboard.temporaryWriteTexts, ["Fallback text"])
+        XCTAssertTrue(mockClipboard.didRestoreOriginalClipboard)
     }
 
     func testAlwaysAutoPastePastesRawTranscriptionWhenPermissionIsGranted() async throws {
@@ -269,7 +270,8 @@ final class ActivationStoreTests: XCTestCase {
 
         XCTAssertNil(mockClipboard.lastWrittenText)
         XCTAssertEqual(pasteStub.pasteCount, 1)
-        XCTAssertEqual(pasteStub.lastText, "Hello world")
+        XCTAssertEqual(mockClipboard.temporaryWriteTexts, ["Hello world"])
+        XCTAssertTrue(mockClipboard.didRestoreOriginalClipboard)
         if case .success(_, let pasted, let converted, _, _) = store.state {
             XCTAssertTrue(pasted)
             XCTAssertFalse(converted)
@@ -295,11 +297,12 @@ final class ActivationStoreTests: XCTestCase {
         store.arm()
         store.finish()
 
-        try await Task.sleep(nanoseconds: 300_000_000)
+        try await Task.sleep(nanoseconds: 500_000_000)
 
         XCTAssertNil(mockClipboard.lastWrittenText)
         XCTAssertEqual(pasteStub.pasteCount, 1)
-        XCTAssertEqual(pasteStub.lastText, "Converted output")
+        XCTAssertEqual(mockClipboard.temporaryWriteTexts, ["Converted output"])
+        XCTAssertTrue(mockClipboard.didRestoreOriginalClipboard)
         if case .success(let text, let pasted, let converted, _, _) = store.state {
             XCTAssertEqual(text, "Converted output")
             XCTAssertTrue(pasted)
@@ -307,6 +310,33 @@ final class ActivationStoreTests: XCTestCase {
         } else {
             XCTFail("Expected .success state after converted auto paste")
         }
+    }
+
+    func testAlwaysAutoPasteRewriteFailurePreservesOriginalClipboard() async throws {
+        let pasteStub = StubSuccessfulPasteService()
+        let mockClipboard = ActivationStoreMockClipboard()
+        mockClipboard.stubbedClipboardContent = "original clipboard"
+        let store = makeStore(
+            permissionsAuthorized: true,
+            postEventAuthorized: true,
+            transcriber: ActivationStoreMockTranscriber(
+                result: .success("zeus Please schedule a meeting for Friday convert to email")
+            ),
+            llmRewriter: MockLLMRewriter(result: .failure(LLMRewriteError.generationFailed)),
+            clipboard: mockClipboard,
+            pasteService: pasteStub
+        )
+
+        store.arm()
+        store.finish()
+
+        try await Task.sleep(nanoseconds: 300_000_000)
+
+        XCTAssertNil(mockClipboard.lastWrittenText)
+        XCTAssertTrue(mockClipboard.temporaryWriteTexts.isEmpty)
+        XCTAssertEqual(mockClipboard.restoreCallCount, 0)
+        XCTAssertEqual(pasteStub.pasteCount, 0)
+        XCTAssertEqual(store.lastTranscription, "zeus Please schedule a meeting for Friday convert to email")
     }
 
     func testAlwaysAutoPasteOffKeepsClipboardOnlyBehavior() async throws {
@@ -1244,6 +1274,34 @@ final class ActivationStoreTests: XCTestCase {
         }
     }
 
+    func test_clipboardIntent_usesSessionStartSnapshotInsteadOfLiveClipboard() async throws {
+        let preferences = makePreferencesWithTriggerStore()
+        preferences.allowClipboardAccess = true
+        try await Task.sleep(nanoseconds: 80_000_000)
+
+        let transcript = "zeus format what I copied"
+        let mockTranscriber = ActivationStoreMockTranscriber(result: .success(transcript))
+        let mockRewriter = MockLLMRewriter(result: .success("Formatted clipboard text"))
+        mockRewriter.generateResult = .success("YES")
+        let mockClipboard = ActivationStoreMockClipboard()
+        mockClipboard.stubbedClipboardContent = "original snapshot clipboard text"
+        let store = makeStore(
+            permissionsAuthorized: true,
+            transcriber: mockTranscriber,
+            llmRewriter: mockRewriter,
+            clipboard: mockClipboard,
+            preferences: preferences
+        )
+
+        store.arm()
+        mockClipboard.stubbedClipboardContent = "clipboard changed before rewrite"
+        store.finish()
+        try await Task.sleep(nanoseconds: 300_000_000)
+
+        XCTAssertTrue(mockRewriter.lastBody!.contains("original snapshot clipboard text"))
+        XCTAssertFalse(mockRewriter.lastBody!.contains("clipboard changed before rewrite"))
+    }
+
     func test_clipboardIntent_notDetected_skipsClipboard() async throws {
         let preferences = makePreferencesWithTriggerStore()
         preferences.allowClipboardAccess = true
@@ -1309,6 +1367,35 @@ final class ActivationStoreTests: XCTestCase {
         } else {
             XCTFail("Expected success state, got \(store.state)")
         }
+    }
+
+    func test_clipboardAccessDisabled_autoPasteStillRestoresOriginalClipboard() async throws {
+        let suiteName = "ActivationStoreTests.ClipboardProtection.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suiteName) ?? .standard
+        defaults.removePersistentDomain(forName: suiteName)
+        let preferences = ShellPreferences(userDefaults: defaults)
+        preferences.allowClipboardAccess = false
+
+        let pasteStub = StubSuccessfulPasteService()
+        let mockClipboard = ActivationStoreMockClipboard()
+        mockClipboard.stubbedClipboardContent = "original clipboard"
+        let store = makeStore(
+            permissionsAuthorized: true,
+            postEventAuthorized: true,
+            transcriber: ActivationStoreMockTranscriber(result: .success("Hello world")),
+            clipboard: mockClipboard,
+            pasteService: pasteStub,
+            preferences: preferences
+        )
+
+        store.arm()
+        store.finish()
+
+        try await Task.sleep(nanoseconds: 250_000_000)
+
+        XCTAssertEqual(mockClipboard.temporaryWriteTexts, ["Hello world"])
+        XCTAssertTrue(mockClipboard.didRestoreOriginalClipboard)
+        XCTAssertEqual(pasteStub.pasteCount, 1)
     }
 
     func test_clipboardIntent_detected_emptyClipboard_proceedsNormally() async throws {
@@ -1666,7 +1753,12 @@ final class DelayedPrepareWhisperTranscriber: WhisperTranscribing, @unchecked Se
 class ActivationStoreMockClipboard: ClipboardService {
     private(set) var lastWrittenText: String?
     private(set) var writeCount = 0
+    private(set) var temporaryWriteTexts: [String] = []
+    private(set) var restoreCallCount = 0
+    private(set) var lastRestoredSnapshot: ClipboardSnapshot?
     var stubbedClipboardContent: String?
+    var stubbedSnapshotChangeCount = 1
+    var didRestoreOriginalClipboard = false
 
     init() {
         // Use a named pasteboard to avoid polluting the general pasteboard
@@ -1681,6 +1773,24 @@ class ActivationStoreMockClipboard: ClipboardService {
         return true
     }
 
+    override func snapshotCurrentClipboard() -> ClipboardSnapshot {
+        ClipboardSnapshot.empty(changeCount: stubbedSnapshotChangeCount, plainText: stubbedClipboardContent)
+    }
+
+    override func writeTemporaryText(_ text: String) -> ClipboardWriteReceipt? {
+        temporaryWriteTexts.append(text)
+        stubbedSnapshotChangeCount += 1
+        return ClipboardWriteReceipt(changeCount: stubbedSnapshotChangeCount)
+    }
+
+    override func restoreClipboard(from snapshot: ClipboardSnapshot, ifUnchangedSince receipt: ClipboardWriteReceipt? = nil) -> Bool {
+        restoreCallCount += 1
+        lastRestoredSnapshot = snapshot
+        didRestoreOriginalClipboard = true
+        stubbedSnapshotChangeCount += 1
+        return true
+    }
+
     override func readFromClipboard() -> String? {
         stubbedClipboardContent
     }
@@ -1688,6 +1798,10 @@ class ActivationStoreMockClipboard: ClipboardService {
     func clearWriteCount() {
         writeCount = 0
         lastWrittenText = nil
+        temporaryWriteTexts = []
+        restoreCallCount = 0
+        lastRestoredSnapshot = nil
+        didRestoreOriginalClipboard = false
     }
 }
 
@@ -1804,22 +1918,18 @@ final class DelayedLLMRewriter: LLMRewriting, @unchecked Sendable {
 
 final class StubCopyOnlyPasteService: PasteServicing {
     private(set) var pasteCount = 0
-    private(set) var lastText: String?
 
-    func paste(text: String) -> PasteOutcome {
+    func pasteCurrentClipboard() -> PasteOutcome {
         pasteCount += 1
-        lastText = text
         return .copiedOnly
     }
 }
 
 final class StubSuccessfulPasteService: PasteServicing {
     private(set) var pasteCount = 0
-    private(set) var lastText: String?
 
-    func paste(text: String) -> PasteOutcome {
+    func pasteCurrentClipboard() -> PasteOutcome {
         pasteCount += 1
-        lastText = text
         return .pasted
     }
 }

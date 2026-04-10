@@ -7,15 +7,11 @@ enum PasteOutcome {
 }
 
 protocol PasteServicing {
-    func paste(text: String) -> PasteOutcome
+    func pasteCurrentClipboard() -> PasteOutcome
 }
 
 struct PasteService: PasteServicing {
-    func paste(text: String) -> PasteOutcome {
-        let pasteboard = NSPasteboard.general
-        pasteboard.clearContents()
-        pasteboard.setString(text, forType: .string)
-
+    func pasteCurrentClipboard() -> PasteOutcome {
         guard let source = CGEventSource(stateID: .hidSystemState) else {
             logPasteFailure(reason: "could not create CGEventSource")
             return .copiedOnly
