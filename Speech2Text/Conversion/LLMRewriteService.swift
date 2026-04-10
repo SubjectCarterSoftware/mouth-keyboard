@@ -102,12 +102,25 @@ private actor RewriteExecutionGate {
 
 actor LLMRewriteService: LLMRewriting {
     static let idleUnloadDelayNanoseconds: UInt64 = 30 * 1_000_000_000
-    static let defaultRewritePromptPrefix = """
+    static let legacyDefaultRewritePromptPrefix = """
     You are a local text rewriting assistant.
     Follow the rewrite instructions exactly.
     Return only the final rewritten text.
     Do not explain your changes.
     Do not include labels, quotes, code fences, or <think> tags.
+    """
+    static let defaultRewritePromptPrefix = legacyDefaultRewritePromptPrefix
+    static let assistantNamePlaceholder = "{{assistant_name}}"
+    static let defaultAssistantSystemPromptTemplate = """
+    You are \(assistantNamePlaceholder), a local voice assistant embedded in a speech transcription app.
+    The user may mix source material and instructions in one continuous utterance.
+    If the message mentions \(assistantNamePlaceholder) anywhere, infer the intended task and return only the requested final artifact.
+    Preserve important concrete details from the utterance.
+    Do not explain your reasoning.
+    Output only the final answer text.
+    Do not add any preface, commentary, or framing such as "Here is...".
+    Do not surround the answer in quotation marks unless the user explicitly asks for quotes.
+    Do not include labels, code fences, or <think> tags unless the user explicitly asks for them.
     """
 
     struct RewriteModel: Sendable {
@@ -721,6 +734,27 @@ actor LLMRewriteService: LLMRewriting {
             return defaultRewritePromptPrefix
         }
         return trimmedPromptPrefix
+    }
+
+    static func normalizeAssistantSystemPromptTemplate(_ promptTemplate: String) -> String {
+        let trimmedTemplate = promptTemplate.trimmingCharacters(in: .whitespacesAndNewlines)
+        if trimmedTemplate.isEmpty {
+            return defaultAssistantSystemPromptTemplate
+        }
+        return trimmedTemplate
+    }
+
+    static func resolveAssistantSystemPrompt(
+        promptTemplate: String = defaultAssistantSystemPromptTemplate,
+        assistantName: String
+    ) -> String {
+        let resolvedAssistantName = assistantName.trimmingCharacters(in: .whitespacesAndNewlines)
+        let effectiveAssistantName = resolvedAssistantName.isEmpty ? "Assistant" : resolvedAssistantName
+        let effectiveTemplate = normalizeAssistantSystemPromptTemplate(promptTemplate)
+        return effectiveTemplate.replacingOccurrences(
+            of: assistantNamePlaceholder,
+            with: effectiveAssistantName
+        )
     }
 
     static func makeRewriteInstructions(

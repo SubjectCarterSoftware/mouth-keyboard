@@ -401,24 +401,14 @@ final class ActivationStore: ObservableObject {
                 throw TranscriptionError.noSpeechDetected
             }
 
-            let split = TriggerTranscriptParser.split(transcript: trimmed, activeAliases: triggerAliases)
+            let detection = TriggerTranscriptParser.detect(transcript: trimmed, activeAliases: triggerAliases)
             let clipboardSnapshot = sessionClipboardSnapshot
             let shouldConvert: Bool
-            let conversionBody: String
-            let conversionInstructions: String?
-            switch split {
+            switch detection {
             case .noTrigger:
                 shouldConvert = false
-                conversionBody = trimmed
-                conversionInstructions = nil
-            case .invalidTrigger:
-                shouldConvert = false
-                conversionBody = trimmed
-                conversionInstructions = nil
-            case .validTrigger(let content, let instruction, _):
+            case .triggered:
                 shouldConvert = true
-                conversionBody = content.trimmingCharacters(in: .whitespacesAndNewlines)
-                conversionInstructions = instruction.trimmingCharacters(in: .whitespacesAndNewlines)
             }
 
             if !shouldConvert {
@@ -449,18 +439,23 @@ final class ActivationStore: ObservableObject {
                 guard isCurrentSession(sessionID) else { return }
                 state = .converting
                 let convertingStartedAt = DispatchTime.now().uptimeNanoseconds
+                let assistantName = preferences.activeTriggerProfile.activePrimary
+                let systemPrompt = LLMRewriteService.resolveAssistantSystemPrompt(
+                    promptTemplate: preferences.rewriteSystemPromptPrefix,
+                    assistantName: assistantName
+                )
 
                 // Clipboard-aware content injection
-                var effectiveBody = conversionBody
+                var effectiveBody = trimmed
                 var clipboardWasInjected = false
 
-                if let instructions = conversionInstructions, preferences.allowClipboardAccess {
+                if preferences.allowClipboardAccess {
                     let intent = try await runWithTimeout(
                         nanoseconds: Self.clipboardIntentTimeout,
                         step: "Clipboard intent classification"
                     ) { [llmRewriteService] in
                         await ClipboardIntentClassifier.classify(
-                            instruction: instructions,
+                            message: trimmed,
                             using: llmRewriteService
                         )
                     }
@@ -471,7 +466,7 @@ final class ActivationStore: ObservableObject {
                         if let clipboardText = clipboardSnapshot?.plainText,
                            !clipboardText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                             effectiveBody = ClipboardAwarePromptBuilder.buildBody(
-                                dictatedContent: conversionBody,
+                                dictatedContent: trimmed,
                                 clipboardContent: clipboardText
                             )
                             clipboardWasInjected = true
@@ -498,21 +493,14 @@ final class ActivationStore: ObservableObject {
                 // LLM call — routes to cloud or local service based on config
                 let rewritten: String
                 do {
-                    if let instructions = conversionInstructions {
-                        let rewriteBody = effectiveBody
-                        let promptPrefix = preferences.rewriteSystemPromptPrefix
-                        rewritten = try await runWithTimeout(
-                            nanoseconds: Self.rewriteTimeout,
-                            step: "Assistant rewrite"
-                        ) { [activeRewriteService] in
-                            try await activeRewriteService.rewrite(
-                                body: rewriteBody,
-                                instructions: instructions,
-                                promptPrefix: promptPrefix
-                            )
-                        }
-                    } else {
-                        rewritten = conversionBody
+                    rewritten = try await runWithTimeout(
+                        nanoseconds: Self.rewriteTimeout,
+                        step: "Assistant rewrite"
+                    ) { [activeRewriteService] in
+                        try await activeRewriteService.generate(
+                            prompt: effectiveBody,
+                            systemPrompt: systemPrompt
+                        )
                     }
                 } catch {
                     // Surface rewrite errors visibly. In clipboard-only mode we keep the

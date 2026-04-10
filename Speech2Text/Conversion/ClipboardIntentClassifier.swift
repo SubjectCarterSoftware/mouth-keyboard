@@ -8,7 +8,7 @@ enum ClipboardIntent {
 struct ClipboardIntentClassifier {
     private static let systemPrompt = """
     You are a binary intent classifier. Your job is to determine whether a user's \
-    instruction is asking to use text from their clipboard or something they previously copied.
+    message is asking to use text from their clipboard or something they previously copied.
 
     Rules:
     - Respond with ONLY the word YES or the word NO.
@@ -18,15 +18,15 @@ struct ClipboardIntentClassifier {
     - Do not explain. Do not output anything other than YES or NO.
     """
 
-    /// Classifies whether the instruction text references clipboard content.
+    /// Classifies whether the message text references clipboard content.
     /// Uses the local LLM with a dedicated classification system prompt.
     static func classify(
-        instruction: String,
+        message: String,
         using rewriteService: any LLMRewriting
     ) async -> ClipboardIntent {
         do {
             let result = try await rewriteService.generate(
-                prompt: instruction,
+                prompt: message,
                 systemPrompt: systemPrompt
             )
             let normalized = result.trimmingCharacters(in: .whitespacesAndNewlines).uppercased()

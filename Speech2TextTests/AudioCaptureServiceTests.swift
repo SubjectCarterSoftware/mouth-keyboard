@@ -19,9 +19,9 @@ final class AudioCaptureServiceTests: XCTestCase {
     }
 
     @MainActor
-    func testMissingSelectedDeviceFallsBackToSystemDefaultAndPreservesStoredUID() throws {
+    func testMissingSelectedDeviceFallsBackToSystemDefaultAndPreservesStoredUIDs() throws {
         let preferences = makePreferences()
-        preferences.micDeviceUID = "missing-device"
+        preferences.micDeviceUIDs = ["missing-device"]
         let defaultDevice = AudioInputDevice(id: 7, name: "MacBook Pro Microphone", uid: "built-in-mic")
         var appliedDeviceIDs: [AudioDeviceID] = []
         let audioDeviceService = AudioDeviceService(
@@ -42,7 +42,7 @@ final class AudioCaptureServiceTests: XCTestCase {
 
         try service.start(levelMonitor: AudioLevelMonitor())
 
-        XCTAssertEqual(preferences.micDeviceUID, "missing-device")
+        XCTAssertEqual(preferences.micDeviceUIDs, ["missing-device"])
         XCTAssertEqual(appliedDeviceIDs, [defaultDevice.id])
     }
 
@@ -98,7 +98,7 @@ final class AudioCaptureServiceTests: XCTestCase {
     @MainActor
     func testSelectedDeviceDisconnectReportsTypedFailureInsteadOfFallback() throws {
         let preferences = makePreferences()
-        preferences.micDeviceUID = "usb-mic"
+        preferences.micDeviceUIDs = ["usb-mic"]
         let device = AudioInputDevice(id: 1, name: "USB Mic", uid: "usb-mic")
         let audioDeviceService = AudioDeviceService(
             deviceEnumerator: { [device] },
@@ -123,7 +123,7 @@ final class AudioCaptureServiceTests: XCTestCase {
         service.simulateSelectedDeviceDisconnectForTesting()
 
         XCTAssertFalse(service.debugState.hasInstalledTap)
-        XCTAssertEqual(preferences.micDeviceUID, "usb-mic")
+        XCTAssertEqual(preferences.micDeviceUIDs, ["usb-mic"])
         guard case AudioCaptureError.selectedInputDisconnected? = reportedError else {
             return XCTFail("Expected selectedInputDisconnected, got \(String(describing: reportedError))")
         }
@@ -156,7 +156,7 @@ final class AudioCaptureServiceTests: XCTestCase {
     @MainActor
     func testPreferredDeviceWinsOverSystemDefaultWhenAvailable() throws {
         let preferences = makePreferences()
-        preferences.micDeviceUID = "usb-mic"
+        preferences.micDeviceUIDs = ["usb-mic"]
         let preferredDevice = AudioInputDevice(id: 1, name: "USB Mic", uid: "usb-mic")
         let defaultDevice = AudioInputDevice(id: 3, name: "MacBook Pro Microphone", uid: "built-in-mic")
         var appliedDeviceIDs: [AudioDeviceID] = []
@@ -181,9 +181,39 @@ final class AudioCaptureServiceTests: XCTestCase {
     }
 
     @MainActor
+    func testSecondPriorityDeviceUsedWhenFirstIsUnavailable() throws {
+        let preferences = makePreferences()
+        preferences.micDeviceUIDs = ["arctic-pro", "x1-mic"]
+        let x1Device = AudioInputDevice(id: 2, name: "X1 Mic", uid: "x1-mic")
+        let defaultDevice = AudioInputDevice(id: 3, name: "MacBook Pro Microphone", uid: "built-in-mic")
+        var appliedDeviceIDs: [AudioDeviceID] = []
+        let service = AudioCaptureService(
+            preferences: preferences,
+            audioDeviceService: AudioDeviceService(
+                // Arctic Pro not present; only X1 and built-in available.
+                deviceEnumerator: { [x1Device, defaultDevice] },
+                defaultInputDeviceResolver: { defaultDevice },
+                audioUnitSetter: { _, deviceID in
+                    appliedDeviceIDs.append(deviceID)
+                    return noErr
+                }
+            ),
+            engineStarter: { _ in },
+            authorizationStatusProvider: { .authorized },
+            hasDefaultInputDeviceProvider: { true }
+        )
+
+        try service.start(levelMonitor: AudioLevelMonitor())
+
+        XCTAssertEqual(appliedDeviceIDs, [x1Device.id])
+        // Priority list unchanged — Arctic Pro should auto-win again when it reconnects.
+        XCTAssertEqual(preferences.micDeviceUIDs, ["arctic-pro", "x1-mic"])
+    }
+
+    @MainActor
     func testServiceThrowsUnavailableWhenNoPreferredOrSystemDefaultDeviceExists() throws {
         let preferences = makePreferences()
-        preferences.micDeviceUID = "missing-device"
+        preferences.micDeviceUIDs = ["missing-device"]
         let audioDeviceService = AudioDeviceService(
             deviceEnumerator: { [] },
             defaultInputDeviceResolver: { nil },

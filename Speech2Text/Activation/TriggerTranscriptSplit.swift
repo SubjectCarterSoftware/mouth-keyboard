@@ -1,16 +1,11 @@
 import Foundation
 
-enum TriggerInstructionGuardReason: Equatable {
-    case instructionTooShort(minimumTokens: Int, actualTokens: Int)
-}
-
-enum TriggerTranscriptSplit: Equatable {
+enum TriggerTranscriptDetection: Equatable {
     case noTrigger(transcript: String)
-    case validTrigger(content: String, instruction: String, matchedAlias: String)
-    case invalidTrigger(content: String, instruction: String, matchedAlias: String, reason: TriggerInstructionGuardReason)
+    case triggered(transcript: String, matchedAlias: String)
 
     var activatesAI: Bool {
-        if case .validTrigger = self {
+        if case .triggered = self {
             return true
         }
         return false

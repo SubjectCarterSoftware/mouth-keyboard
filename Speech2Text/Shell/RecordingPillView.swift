@@ -12,7 +12,6 @@ struct RecordingPillView: View {
 
     private let barScales: [CGFloat]
 
-    @State private var pulseOpacity: Double = 0.3
 
     init(
         levelMonitor: AudioLevelMonitor,
@@ -67,8 +66,9 @@ struct RecordingPillView: View {
             HStack(spacing: 12) {
                 Button(action: { onFinish?() }) {
                     Image(systemName: "checkmark.circle.fill")
-                        .font(.system(size: 18, weight: .semibold))
-                        .foregroundStyle(Color.green)
+                        .font(.system(size: 18, weight: .bold))
+                        .symbolRenderingMode(.palette)
+                        .foregroundStyle(Color(white: 0.9), Color.green)
                         .frame(width: 30, height: 30)
                         .contentShape(Circle())
                 }
@@ -90,8 +90,9 @@ struct RecordingPillView: View {
 
                 Button(action: { onCancel?() }) {
                     Image(systemName: "xmark.circle.fill")
-                        .font(.system(size: 18, weight: .semibold))
-                        .foregroundStyle(Color.red)
+                        .font(.system(size: 18, weight: .bold))
+                        .symbolRenderingMode(.palette)
+                        .foregroundStyle(Color(white: 0.9), Color.red)
                         .frame(width: 30, height: 30)
                         .contentShape(Circle())
                 }
@@ -108,9 +109,9 @@ struct RecordingPillView: View {
                             .fill(Color.blue)
                         Image(systemName: "clipboard.fill")
                             .font(.system(size: 11, weight: .semibold))
-                            .blendMode(.destinationOut)
+                            .foregroundStyle(Color(white: 0.9))
+                            .offset(y: -1.5)
                     }
-                    .compositingGroup()
                     .frame(width: 20, height: 20)
                 }
                 .buttonStyle(.plain)
@@ -124,8 +125,9 @@ struct RecordingPillView: View {
                 Spacer()
                 Button(action: { onRestart?() }) {
                     Image(systemName: "arrow.clockwise.circle.fill")
-                        .font(.system(size: 18, weight: .semibold))
-                        .foregroundStyle(Color.orange)
+                        .font(.system(size: 18, weight: .bold))
+                        .symbolRenderingMode(.palette)
+                        .foregroundStyle(Color(white: 0.9), Color.orange)
                         .frame(width: 30, height: 30)
                         .contentShape(Circle())
                 }
@@ -155,8 +157,6 @@ struct RecordingPillView: View {
             processingTimeline
         }
         .preferredColorScheme(.dark)
-        .onAppear { pulseOpacity = 1.0 }
-        .onDisappear { pulseOpacity = 0.3 }
     }
 
     private func modelDownloadingContent(model: WhisperModelChoice, progress: Double) -> some View {
@@ -196,8 +196,6 @@ struct RecordingPillView: View {
             convertingTimeline
         }
         .preferredColorScheme(.dark)
-        .onAppear { pulseOpacity = 1.0 }
-        .onDisappear { pulseOpacity = 0.3 }
     }
 
     private func pipelineStateContent<Timeline: View>(
@@ -223,13 +221,11 @@ struct RecordingPillView: View {
             let count = adaptiveDotCount(for: geometry.size.width)
             let spacing = adaptiveDotSpacing(for: count, availableWidth: geometry.size.width)
 
-            animatedDotStrip(
+            localizedWaveDotStrip(
                 count: count,
-                tint: .white,
+                tint: Color(white: 0.9),
                 diameter: 5,
-                spacing: spacing,
-                minimumOpacity: 0.3,
-                maximumScale: 1.18
+                spacing: spacing
             )
             .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
@@ -257,9 +253,7 @@ struct RecordingPillView: View {
                     count: count,
                     tint: .blue,
                     diameter: 5,
-                    spacing: spacing,
-                    minimumOpacity: 0.45,
-                    maximumScale: 1.2
+                    spacing: spacing
                 )
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
@@ -305,14 +299,14 @@ struct RecordingPillView: View {
                             .fill(Color.blue)
                         Image(systemName: "clipboard.fill")
                             .font(.system(size: 10, weight: .semibold))
-                            .blendMode(.destinationOut)
+                            .foregroundStyle(.white)
                     }
-                    .compositingGroup()
                     .frame(width: 18, height: 18)
                 } else {
                     Image(systemName: "checkmark.circle.fill")
                         .font(.system(size: 16, weight: .semibold))
-                        .foregroundStyle(Color.green)
+                        .symbolRenderingMode(.palette)
+                        .foregroundStyle(Color(white: 0.9), Color.green)
                 }
 
                 Text(label)
@@ -347,13 +341,7 @@ struct RecordingPillView: View {
     private var aiBadge: some View {
         ZStack {
             Circle()
-                .fill(
-                    LinearGradient(
-                        colors: [Color.cyan.opacity(0.95), Color.blue.opacity(0.9)],
-                        startPoint: .topLeading,
-                        endPoint: .bottomTrailing
-                    )
-                )
+                .fill(Color.blue)
             Image(systemName: "sparkles")
                 .font(.system(size: 10, weight: .semibold))
                 .foregroundStyle(.white)
@@ -367,7 +355,8 @@ struct RecordingPillView: View {
             Button(action: { onCancel?() }) {
                 Image(systemName: "xmark.circle.fill")
                     .font(.system(size: 18, weight: .semibold))
-                    .foregroundStyle(Color.red)
+                    .symbolRenderingMode(.palette)
+                    .foregroundStyle(Color.white, Color.red)
                     .frame(width: 24, height: 24)
             }
             .buttonStyle(.plain)
@@ -381,21 +370,50 @@ struct RecordingPillView: View {
         tint: Color,
         diameter: CGFloat,
         spacing: CGFloat,
-        minimumOpacity: Double,
-        maximumScale: CGFloat
+        waveAmplitude: CGFloat = 4,
+        wavePeriod: Double = 1.0,
+        dotsPerWave: Double = 4
     ) -> some View {
-        HStack(spacing: spacing) {
-            ForEach(0..<count, id: \.self) { index in
-                Circle()
-                    .fill(tint.opacity(max(minimumOpacity, pulseOpacity)))
-                    .frame(width: diameter, height: diameter)
-                    .scaleEffect(pulseOpacity > 0.5 ? maximumScale : 0.78)
-                    .animation(
-                        .easeInOut(duration: 0.7)
-                            .repeatForever(autoreverses: true)
-                            .delay(Double(index) * 0.06),
-                        value: pulseOpacity
-                    )
+        TimelineView(.animation) { timeline in
+            let t = timeline.date.timeIntervalSinceReferenceDate / wavePeriod
+            HStack(spacing: spacing) {
+                ForEach(0..<count, id: \.self) { index in
+                    let phase = t - Double(index) / dotsPerWave
+                    let yOffset = -waveAmplitude * CGFloat(sin(phase * 2 * .pi))
+                    Circle()
+                        .fill(tint)
+                        .frame(width: diameter, height: diameter)
+                        .offset(y: yOffset)
+                }
+            }
+        }
+    }
+
+    private func localizedWaveDotStrip(
+        count: Int,
+        tint: Color,
+        diameter: CGFloat,
+        spacing: CGFloat,
+        waveAmplitude: CGFloat = 5,
+        sigma: Double = 2.5,
+        wavePeriod: Double = 2.2
+    ) -> some View {
+        TimelineView(.animation) { timeline in
+            let t = timeline.date.timeIntervalSinceReferenceDate
+            let cycleLength = Double(count - 1) + 4 * sigma
+            let rawPos = (t / wavePeriod * cycleLength).truncatingRemainder(dividingBy: cycleLength)
+            let wavePos = rawPos - 2 * sigma
+
+            HStack(spacing: spacing) {
+                ForEach(0..<count, id: \.self) { index in
+                    let dist = Double(index) - wavePos
+                    let envelope = exp(-dist * dist / (2 * sigma * sigma))
+                    let yOffset = -waveAmplitude * CGFloat(envelope)
+                    Circle()
+                        .fill(tint)
+                        .frame(width: diameter, height: diameter)
+                        .offset(y: yOffset)
+                }
             }
         }
     }

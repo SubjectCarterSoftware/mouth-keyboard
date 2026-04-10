@@ -11,7 +11,8 @@ final class ShellPreferences: ObservableObject {
         static let hasRequestedMicrophonePermission = "hasRequestedMicrophonePermission"
         static let hasRequestedKeyboardPermission = "hasRequestedKeyboardPermission"
         static let hasRequestedPostEventPermission = "hasRequestedPostEventPermission"
-        static let micDeviceUID = "micDeviceUID"
+        static let micDeviceUID = "micDeviceUID" // legacy — kept for migration only
+        static let micDeviceUIDs = "micDeviceUIDs"
         static let whisperModel = "whisperModel"
         static let launchAtLogin = "launchAtLogin"
         static let rewriteModelTier = "rewriteModelTier"
@@ -57,12 +58,24 @@ final class ShellPreferences: ObservableObject {
         }
     }
 
-    @Published var micDeviceUID: String? {
+    /// Priority-ordered list of mic device UIDs. First available device wins at capture time.
+    /// Empty means "use system default".
+    @Published var micDeviceUIDs: [String] {
         didSet {
             persistIfNeeded {
-                defaults.set(micDeviceUID ?? "", forKey: Keys.micDeviceUID)
+                if let data = try? JSONEncoder().encode(micDeviceUIDs) {
+                    defaults.set(data, forKey: Keys.micDeviceUIDs)
+                }
             }
         }
+    }
+
+    /// Promotes `uid` to the front of `micDeviceUIDs`, inserting it if not already present.
+    func promoteMicDevice(_ uid: String) {
+        var list = micDeviceUIDs
+        list.removeAll { $0 == uid }
+        list.insert(uid, at: 0)
+        micDeviceUIDs = list
     }
 
     @Published var whisperModel: WhisperModelChoice {
@@ -176,11 +189,14 @@ final class ShellPreferences: ObservableObject {
         hasRequestedMicrophonePermission = userDefaults.bool(forKey: Keys.hasRequestedMicrophonePermission)
         hasRequestedKeyboardPermission = userDefaults.bool(forKey: Keys.hasRequestedKeyboardPermission)
         hasRequestedPostEventPermission = userDefaults.bool(forKey: Keys.hasRequestedPostEventPermission)
-        let storedMicDeviceUID = userDefaults.string(forKey: Keys.micDeviceUID)
-        if let storedMicDeviceUID, !storedMicDeviceUID.isEmpty {
-            micDeviceUID = storedMicDeviceUID
+        if let data = userDefaults.data(forKey: Keys.micDeviceUIDs),
+           let uids = try? JSONDecoder().decode([String].self, from: data) {
+            micDeviceUIDs = uids
+        } else if let legacy = userDefaults.string(forKey: Keys.micDeviceUID), !legacy.isEmpty {
+            // Migrate from old single-UID preference.
+            micDeviceUIDs = [legacy]
         } else {
-            micDeviceUID = nil
+            micDeviceUIDs = []
         }
 
         if userDefaults.object(forKey: Keys.showsMenuHints) == nil {
@@ -246,10 +262,12 @@ final class ShellPreferences: ObservableObject {
             allowClipboardAccess = userDefaults.bool(forKey: Keys.allowClipboardAccess)
         }
 
-        rewriteSystemPromptPrefix = Self.normalizedRewritePromptPrefix(
-            userDefaults.string(forKey: Keys.rewriteSystemPromptPrefix)
-            ?? LLMRewriteService.defaultRewritePromptPrefix
-        )
+        let storedRewritePromptPrefix = userDefaults.string(forKey: Keys.rewriteSystemPromptPrefix)
+        let migratedRewritePromptPrefix = Self.migratedRewriteSystemPromptPrefix(storedRewritePromptPrefix)
+        rewriteSystemPromptPrefix = migratedRewritePromptPrefix
+        if migratedRewritePromptPrefix != storedRewritePromptPrefix {
+            userDefaults.set(migratedRewritePromptPrefix, forKey: Keys.rewriteSystemPromptPrefix)
+        }
 
         let loadedTriggerProfile = (initialTriggerProfile ?? TriggerProfileStore.loadSynchronously()).normalized()
         let migratedTriggerProfile = Self.migratedTriggerProfile(loadedTriggerProfile)
@@ -333,12 +351,12 @@ final class ShellPreferences: ObservableObject {
             hasRequestedKeyboardPermission = false
             hasRequestedPostEventPermission = false
             launchAtLogin = false
-            micDeviceUID = nil
+            micDeviceUIDs = []
             whisperModel = .smallEN
             rewriteModelTier = .standard2B
             alwaysAutoPaste = true
             allowClipboardAccess = true
-            rewriteSystemPromptPrefix = LLMRewriteService.defaultRewritePromptPrefix
+            rewriteSystemPromptPrefix = LLMRewriteService.defaultAssistantSystemPromptTemplate
             holdShortcutKeyCode = 61
             holdShortcutModifiers = 0
             cloudLLMConfig = .default
@@ -352,6 +370,7 @@ final class ShellPreferences: ObservableObject {
         defaults.removeObject(forKey: Keys.hasRequestedPostEventPermission)
         defaults.removeObject(forKey: Keys.launchAtLogin)
         defaults.removeObject(forKey: Keys.micDeviceUID)
+        defaults.removeObject(forKey: Keys.micDeviceUIDs)
         defaults.removeObject(forKey: Keys.whisperModel)
         defaults.removeObject(forKey: Keys.rewriteModelTier)
         defaults.removeObject(forKey: Keys.alwaysAutoPaste)
@@ -392,8 +411,23 @@ final class ShellPreferences: ObservableObject {
         }
     }
 
+    private static func migratedRewriteSystemPromptPrefix(_ storedValue: String?) -> String {
+        guard let storedValue else {
+            return LLMRewriteService.defaultAssistantSystemPromptTemplate
+        }
+
+        let trimmedValue = storedValue.trimmingCharacters(in: .whitespacesAndNewlines)
+        let trimmedLegacyDefault = LLMRewriteService.legacyDefaultRewritePromptPrefix
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        if trimmedValue.isEmpty || trimmedValue == trimmedLegacyDefault {
+            return LLMRewriteService.defaultAssistantSystemPromptTemplate
+        }
+
+        return LLMRewriteService.normalizeAssistantSystemPromptTemplate(storedValue)
+    }
+
     private static func normalizedRewritePromptPrefix(_ value: String) -> String {
-        LLMRewriteService.normalizeRewritePromptPrefix(value)
+        LLMRewriteService.normalizeAssistantSystemPromptTemplate(value)
     }
 
     private static func makeShared() -> ShellPreferences {

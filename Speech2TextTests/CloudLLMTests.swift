@@ -196,6 +196,92 @@ final class CloudLLMRewriteServiceTests: XCTestCase {
         )
     }
 
+    func testGenerateUsesRawSystemPromptForOpenAI() async throws {
+        let (config, session) = makeTestConfig(provider: .openAI)
+        let mockResponse = """
+        {"choices":[{"message":{"content":"Test output"}}]}
+        """
+        MockURLProtocol.responseData = mockResponse.data(using: .utf8)
+        MockURLProtocol.responseStatusCode = 200
+
+        let service = CloudLLMRewriteService(config: config, apiKey: "sk-test", session: session)
+        let systemPrompt = LLMRewriteService.resolveAssistantSystemPrompt(assistantName: "Ava")
+        _ = try await service.generate(prompt: "Hello", systemPrompt: systemPrompt)
+
+        let request = try XCTUnwrap(MockURLProtocol.lastRequest)
+        let requestBody = try XCTUnwrap(extractRequestBody(from: request))
+        let payload = try XCTUnwrap(
+            JSONSerialization.jsonObject(with: requestBody) as? [String: Any]
+        )
+        let messages = try XCTUnwrap(payload["messages"] as? [[String: Any]])
+        let systemMessage = try XCTUnwrap(messages.first)
+        XCTAssertEqual(systemMessage["content"] as? String, systemPrompt)
+    }
+
+    func testGenerateUsesRawSystemPromptForAnthropic() async throws {
+        let (config, session) = makeTestConfig(provider: .anthropic)
+        let mockResponse = """
+        {"content":[{"type":"text","text":"Test output"}]}
+        """
+        MockURLProtocol.responseData = mockResponse.data(using: .utf8)
+        MockURLProtocol.responseStatusCode = 200
+
+        let service = CloudLLMRewriteService(config: config, apiKey: "sk-ant-test", session: session)
+        let systemPrompt = LLMRewriteService.resolveAssistantSystemPrompt(assistantName: "Ava")
+        _ = try await service.generate(prompt: "Hello", systemPrompt: systemPrompt)
+
+        let request = try XCTUnwrap(MockURLProtocol.lastRequest)
+        let requestBody = try XCTUnwrap(extractRequestBody(from: request))
+        let payload = try XCTUnwrap(
+            JSONSerialization.jsonObject(with: requestBody) as? [String: Any]
+        )
+        XCTAssertEqual(payload["system"] as? String, systemPrompt)
+    }
+
+    func testGenerateUsesRawSystemPromptForGoogle() async throws {
+        let (config, session) = makeTestConfig(provider: .google)
+        let mockResponse = """
+        {"candidates":[{"content":{"parts":[{"text":"Test output"}]}}]}
+        """
+        MockURLProtocol.responseData = mockResponse.data(using: .utf8)
+        MockURLProtocol.responseStatusCode = 200
+
+        let service = CloudLLMRewriteService(config: config, apiKey: "AIza-test", session: session)
+        let systemPrompt = LLMRewriteService.resolveAssistantSystemPrompt(assistantName: "Ava")
+        _ = try await service.generate(prompt: "Hello", systemPrompt: systemPrompt)
+
+        let request = try XCTUnwrap(MockURLProtocol.lastRequest)
+        let requestBody = try XCTUnwrap(extractRequestBody(from: request))
+        let payload = try XCTUnwrap(
+            JSONSerialization.jsonObject(with: requestBody) as? [String: Any]
+        )
+        let systemInstruction = try XCTUnwrap(payload["system_instruction"] as? [String: Any])
+        let parts = try XCTUnwrap(systemInstruction["parts"] as? [[String: Any]])
+        XCTAssertEqual(parts.first?["text"] as? String, systemPrompt)
+    }
+
+    func testGenerateUsesRawSystemPromptForCustomProvider() async throws {
+        let (config, session) = makeTestConfig(provider: .custom, baseURL: "http://localhost:11434/v1")
+        let mockResponse = """
+        {"choices":[{"message":{"content":"Local output"}}]}
+        """
+        MockURLProtocol.responseData = mockResponse.data(using: .utf8)
+        MockURLProtocol.responseStatusCode = 200
+
+        let service = CloudLLMRewriteService(config: config, apiKey: "ollama", session: session)
+        let systemPrompt = LLMRewriteService.resolveAssistantSystemPrompt(assistantName: "Ava")
+        _ = try await service.generate(prompt: "Hello", systemPrompt: systemPrompt)
+
+        let request = try XCTUnwrap(MockURLProtocol.lastRequest)
+        let requestBody = try XCTUnwrap(extractRequestBody(from: request))
+        let payload = try XCTUnwrap(
+            JSONSerialization.jsonObject(with: requestBody) as? [String: Any]
+        )
+        let messages = try XCTUnwrap(payload["messages"] as? [[String: Any]])
+        let systemMessage = try XCTUnwrap(messages.first)
+        XCTAssertEqual(systemMessage["content"] as? String, systemPrompt)
+    }
+
     func testHTTP401ThrowsAuthenticationFailed() async {
         let (config, session) = makeTestConfig(provider: .openAI)
         MockURLProtocol.responseData = "{}".data(using: .utf8)

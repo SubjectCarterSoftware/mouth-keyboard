@@ -48,7 +48,7 @@ final class ShellPreferencesModelTests: XCTestCase {
         let (_, preferences) = makePreferences()
         XCTAssertEqual(
             preferences.rewriteSystemPromptPrefix,
-            LLMRewriteService.defaultRewritePromptPrefix
+            LLMRewriteService.defaultAssistantSystemPromptTemplate
         )
     }
 
@@ -67,7 +67,7 @@ final class ShellPreferencesModelTests: XCTestCase {
 
         XCTAssertEqual(
             preferences.rewriteSystemPromptPrefix,
-            LLMRewriteService.defaultRewritePromptPrefix
+            LLMRewriteService.defaultAssistantSystemPromptTemplate
         )
     }
 
@@ -78,7 +78,26 @@ final class ShellPreferencesModelTests: XCTestCase {
         let preferences = ShellPreferences(userDefaults: defaults)
         XCTAssertEqual(
             preferences.rewriteSystemPromptPrefix,
-            LLMRewriteService.defaultRewritePromptPrefix
+            LLMRewriteService.defaultAssistantSystemPromptTemplate
+        )
+    }
+
+    func testLegacyStoredRewritePromptPrefixMigratesToAssistantDefault() {
+        let (defaults, _) = makePreferences()
+        defaults.set(
+            LLMRewriteService.legacyDefaultRewritePromptPrefix,
+            forKey: ShellPreferences.Keys.rewriteSystemPromptPrefix
+        )
+
+        let preferences = ShellPreferences(userDefaults: defaults)
+
+        XCTAssertEqual(
+            preferences.rewriteSystemPromptPrefix,
+            LLMRewriteService.defaultAssistantSystemPromptTemplate
+        )
+        XCTAssertEqual(
+            defaults.string(forKey: ShellPreferences.Keys.rewriteSystemPromptPrefix),
+            LLMRewriteService.defaultAssistantSystemPromptTemplate
         )
     }
 

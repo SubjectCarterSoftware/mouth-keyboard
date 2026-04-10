@@ -242,10 +242,11 @@ final class AudioCaptureService {
 
     @MainActor
     private func preferredInputDevice() -> AudioInputDevice? {
-        guard let selectedUID = preferences.micDeviceUID else {
-            return nil
+        for uid in preferences.micDeviceUIDs {
+            if let device = audioDeviceService.device(forUID: uid) {
+                return device
+            }
         }
-
-        return audioDeviceService.device(forUID: selectedUID)
+        return nil
     }
 }

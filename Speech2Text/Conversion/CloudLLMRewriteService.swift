@@ -20,17 +20,32 @@ actor CloudLLMRewriteService: LLMRewriting {
     }
 
     func rewrite(body: String, instructions: String, promptPrefix: String) async throws -> String {
-        guard !apiKey.isEmpty else {
-            throw LLMRewriteError.authenticationFailed
-        }
-
         let systemPrompt = LLMRewriteService.makeRewriteInstructions(
             promptPrefix: promptPrefix,
             instructions: instructions
         )
-        let userMessage = body.trimmingCharacters(in: .whitespacesAndNewlines)
+        return try await sendRequest(
+            systemPrompt: systemPrompt,
+            userMessage: body
+        )
+    }
 
-        let request = try buildRequest(systemPrompt: systemPrompt, userMessage: userMessage)
+    func generate(prompt: String, systemPrompt: String) async throws -> String {
+        try await sendRequest(
+            systemPrompt: systemPrompt,
+            userMessage: prompt
+        )
+    }
+
+    // MARK: - Request building
+
+    private func sendRequest(systemPrompt: String, userMessage: String) async throws -> String {
+        guard !apiKey.isEmpty else {
+            throw LLMRewriteError.authenticationFailed
+        }
+
+        let trimmedUserMessage = userMessage.trimmingCharacters(in: .whitespacesAndNewlines)
+        let request = try buildRequest(systemPrompt: systemPrompt, userMessage: trimmedUserMessage)
 
         let data: Data
         let response: URLResponse
@@ -63,8 +78,6 @@ actor CloudLLMRewriteService: LLMRewriting {
         }
         return trimmed
     }
-
-    // MARK: - Request building
 
     private func buildRequest(systemPrompt: String, userMessage: String) throws -> URLRequest {
         switch config.provider {

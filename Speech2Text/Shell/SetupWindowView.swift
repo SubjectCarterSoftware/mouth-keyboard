@@ -521,28 +521,20 @@ private struct AllowClipboardAccessRow: View {
     let helperText: String?
 
     var body: some View {
-        HStack(alignment: .center, spacing: 16) {
-            Text("Clipboard Access:")
-                .font(.body)
-                .frame(width: SetupSectionMetrics.rowLabelWidth, height: 22, alignment: .leading)
+        HStack(alignment: .center, spacing: 8) {
+            Toggle("Clipboard Access", isOn: $isOn)
+                .labelsHidden()
+                .toggleStyle(.switch)
+                .scaleEffect(0.8, anchor: .leading)
+                .frame(height: 22)
+                .fixedSize()
+                .accessibilityLabel("Clipboard Access")
+                .accessibilityIdentifier("setupWindow.allowClipboardAccess.toggle")
 
-            HStack(alignment: .center, spacing: 8) {
-                Toggle("Clipboard Access", isOn: $isOn)
-                    .labelsHidden()
-                    .toggleStyle(.switch)
-                    .scaleEffect(0.8, anchor: .leading)
-                    .frame(height: 22)
-                    .fixedSize()
-                    .accessibilityLabel("Clipboard Access")
-                    .accessibilityIdentifier("setupWindow.allowClipboardAccess.toggle")
-
-                if let helperText {
-                    ImmediateHelpIcon(text: helperText)
-                        .accessibilityIdentifier("setupWindow.allowClipboardAccess.info")
-                }
+            if let helperText {
+                ImmediateHelpIcon(text: helperText)
+                    .accessibilityIdentifier("setupWindow.allowClipboardAccess.info")
             }
-            .frame(height: 22, alignment: .leading)
-            .frame(maxWidth: .infinity, alignment: .leading)
         }
         .frame(height: 22, alignment: .leading)
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -550,92 +542,45 @@ private struct AllowClipboardAccessRow: View {
 }
 
 private struct AssistantActivationGuidanceView: View {
-    let assistantName: String
-    @Binding var allowClipboardAccess: Bool
-    private let subsectionIndent: CGFloat = 10
-    private let contentIndent: CGFloat = 24
-    private let readableWidth: CGFloat = 560
+    @ObservedObject var viewModel: AIAssistantSettingsViewModel
 
     private var resolvedAssistantName: String {
-        let trimmed = assistantName.trimmingCharacters(in: .whitespacesAndNewlines)
+        let trimmed = viewModel.activeName.trimmingCharacters(in: .whitespacesAndNewlines)
         return trimmed.isEmpty ? "Zeus" : trimmed
     }
 
-    private var examplePromptText: String {
-        "\"You free Monday? \(resolvedAssistantName) make this a Slack message to Tim\""
-    }
-
-    private var exampleResultText: String {
-        "\"Hey Tim, are you free this Monday?\""
-    }
-
-    private var triggerWordText: Text {
-        Text("Your assistant name is ").foregroundColor(.primary)
+    private var assistantUsageText: Text {
+        Text("Just mention ").foregroundColor(.primary)
         + Text(resolvedAssistantName).bold().foregroundColor(.accentColor)
-        + Text(", say your assistant name, then say your instruction").foregroundColor(.primary)
-    }
-
-    private var examplePromptLine: Text {
-        Text("You: ").bold().foregroundColor(.primary)
-        + Text(examplePromptText).foregroundColor(.primary)
-    }
-
-    private var exampleResultLine: Text {
-        Text("Result: ").bold().foregroundColor(.primary)
-        + Text(exampleResultText).foregroundColor(.primary)
+        + Text(" in your transcription and your message will be passed to the assistant for processing.").foregroundColor(.primary)
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            Text("Assistant Trigger Word")
-                .font(.headline)
-                .accessibilityIdentifier("setupWindow.assistantActivation.title")
-
-            VStack(alignment: .leading, spacing: 8) {
-                triggerWordText
+        VStack(alignment: .leading, spacing: 10) {
+            SetupFieldRow(title: "Assistant Usage:", alignment: .top) {
+                assistantUsageText
                     .font(.body)
                     .fixedSize(horizontal: false, vertical: true)
-                    .padding(.leading, contentIndent)
-
-                AssistantActivationSupportingText(text: "Anything after the assistant name is passed directly as instructions")
-                    .padding(.leading, contentIndent)
             }
 
-            VStack(alignment: .leading, spacing: 8) {
-                Text("Example")
-                    .font(.body.weight(.semibold))
-                    .padding(.leading, subsectionIndent)
+            SetupFieldRow(title: "Assistant Name:") {
+                HStack(alignment: .center, spacing: 8) {
+                    AssistantDisplayedNameChip(
+                        name: viewModel.displayedName,
+                        isPreviewing: viewModel.isPreviewingRecordedName
+                    )
+                    .accessibilityIdentifier("assistantRow.activeName")
 
-                VStack(alignment: .leading, spacing: 8) {
-                    examplePromptLine
-                        .font(.body)
-                        .fixedSize(horizontal: false, vertical: true)
+                    Spacer(minLength: 12)
 
-                    exampleResultLine
-                        .font(.body)
-                        .fixedSize(horizontal: false, vertical: true)
+                    AIAssistantInlineRowView(
+                        viewModel: viewModel,
+                        showsActiveName: false
+                    )
                 }
-                .padding(12)
-                .background(Color(nsColor: .controlBackgroundColor), in: RoundedRectangle(cornerRadius: 10))
-                .overlay {
-                    RoundedRectangle(cornerRadius: 10)
-                        .stroke(Color(nsColor: .separatorColor), lineWidth: 0.5)
-                }
-                .padding(.leading, contentIndent)
-            }
-
-            VStack(alignment: .leading, spacing: 6) {
-                Text("Assistant Clipboard Passthrough")
-                    .font(.body.weight(.semibold))
-                    .padding(.leading, subsectionIndent)
-
-                AllowClipboardAccessRow(
-                    isOn: $allowClipboardAccess,
-                    helperText: "Mention your clipboard in the instructions to pass in its text. Auto-paste restores your previous clipboard afterward."
-                )
+                .frame(maxWidth: .infinity, alignment: .leading)
             }
         }
-        .frame(maxWidth: readableWidth, alignment: .leading)
         .frame(maxWidth: .infinity, alignment: .leading)
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("setupWindow.assistantActivation.section")
@@ -721,24 +666,30 @@ struct SetupWindowView: View {
         )
     }
 
+    /// The effective mic UID: first entry in the priority list that is currently available.
+    /// Returns nil when no priority device is connected (fall through to system default).
+    private var effectiveMicDeviceUID: String? {
+        for uid in preferences.micDeviceUIDs {
+            if audioDeviceService.availableDevices.contains(where: { $0.uid == uid }) {
+                return uid
+            }
+        }
+        return nil
+    }
+
     private var microphoneSelection: Binding<String?> {
         Binding(
             get: {
-                preferences.micDeviceUID
+                effectiveMicDeviceUID
             },
             set: { newValue in
-                preferences.micDeviceUID = newValue
+                if let uid = newValue {
+                    preferences.promoteMicDevice(uid)
+                } else {
+                    preferences.micDeviceUIDs = []
+                }
             }
         )
-    }
-
-    private var unavailableSelectedMicrophoneUID: String? {
-        guard let selectedUID = preferences.micDeviceUID else {
-            return nil
-        }
-
-        let isAvailable = audioDeviceService.availableDevices.contains { $0.uid == selectedUID }
-        return isAvailable ? nil : selectedUID
     }
 
     private var isAnyModelTransferInFlight: Bool {
@@ -1258,18 +1209,18 @@ struct SetupWindowView: View {
     private var rewriteSystemPromptSection: some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack(alignment: .firstTextBaseline, spacing: 12) {
-                Text("Rewrite System Prompt")
+                Text("Assistant System Prompt")
                     .font(.body)
 
                 Spacer()
 
-                Text("Applies to both on-device and cloud AI conversions")
+                Text("Applies to both on-device and cloud assistant generation")
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .multilineTextAlignment(.trailing)
             }
 
-            Text("Your spoken command is appended automatically under `Rewrite instructions:`.")
+            Text("This is the assistant system prompt for full-transcript requests. Use `{{assistant_name}}` to insert the active assistant name.")
                 .font(.caption)
                 .foregroundStyle(.secondary)
 
@@ -1292,11 +1243,11 @@ struct SetupWindowView: View {
                 Spacer()
 
                 Button("Reset Prompt") {
-                    preferences.rewriteSystemPromptPrefix = LLMRewriteService.defaultRewritePromptPrefix
+                    preferences.rewriteSystemPromptPrefix = LLMRewriteService.defaultAssistantSystemPromptTemplate
                 }
                 .controlSize(.small)
                 .disabled(
-                    preferences.rewriteSystemPromptPrefix == LLMRewriteService.defaultRewritePromptPrefix
+                    preferences.rewriteSystemPromptPrefix == LLMRewriteService.defaultAssistantSystemPromptTemplate
                 )
                 .accessibilityIdentifier("setupWindow.rewriteSystemPrompt.reset")
             }
@@ -1340,10 +1291,12 @@ struct SetupWindowView: View {
         Task {
             let service = CloudLLMRewriteService(config: config, apiKey: apiKey)
             do {
-                _ = try await service.rewrite(
-                    body: "Hello",
-                    instructions: "Return the text exactly as written.",
-                    promptPrefix: preferences.rewriteSystemPromptPrefix
+                _ = try await service.generate(
+                    prompt: "Hello",
+                    systemPrompt: LLMRewriteService.resolveAssistantSystemPrompt(
+                        promptTemplate: preferences.rewriteSystemPromptPrefix,
+                        assistantName: preferences.activeTriggerProfile.activePrimary
+                    )
                 )
                 cloudConnectionTestResult = .success
             } catch {
@@ -1388,35 +1341,8 @@ struct SetupWindowView: View {
 
                     VStack(alignment: .leading, spacing: 10) {
                         AssistantActivationGuidanceView(
-                            assistantName: assistantSettingsViewModel.activeName,
-                            allowClipboardAccess: allowClipboardAccessBinding
+                            viewModel: assistantSettingsViewModel
                         )
-                        .padding(.leading, SetupSectionMetrics.rowIndent)
-
-                        Divider()
-
-                        HStack(alignment: .center, spacing: 16) {
-                            Text("Assistant Name:")
-                                .font(.headline)
-                                .frame(width: SetupSectionMetrics.rowLabelWidth, alignment: .leading)
-
-                            HStack(alignment: .center, spacing: 8) {
-                                AssistantDisplayedNameChip(
-                                    name: assistantSettingsViewModel.displayedName,
-                                    isPreviewing: assistantSettingsViewModel.isPreviewingRecordedName
-                                )
-                                .accessibilityIdentifier("assistantRow.activeName")
-
-                                Spacer(minLength: 12)
-
-                                AIAssistantInlineRowView(
-                                    viewModel: assistantSettingsViewModel,
-                                    showsActiveName: false
-                                )
-                            }
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                        }
-                        .padding(.leading, SetupSectionMetrics.rowIndent)
 
                         Divider()
                     }
@@ -1428,9 +1354,6 @@ struct SetupWindowView: View {
                                 ForEach(audioDeviceService.availableDevices) { device in
                                     Text(device.name).tag(Optional(device.uid))
                                 }
-                                if let unavailableSelectedMicrophoneUID {
-                                    Text("Selected Microphone (Unavailable)").tag(Optional(unavailableSelectedMicrophoneUID))
-                                }
                             }
                             .labelsHidden()
                             .pickerStyle(.menu)
@@ -1438,6 +1361,13 @@ struct SetupWindowView: View {
 
                         SetupFieldRow(title: "Always Auto Paste:") {
                             AlwaysAutoPasteRow(isOn: alwaysAutoPasteBinding)
+                        }
+
+                        SetupFieldRow(title: "Clipboard Access:") {
+                            AllowClipboardAccessRow(
+                                isOn: allowClipboardAccessBinding,
+                                helperText: "Mention your clipboard or what you copied in the message to include that text. Auto-paste restores your previous clipboard afterward."
+                            )
                         }
                     }
 
@@ -1583,7 +1513,7 @@ struct SetupWindowView: View {
                     preferences.holdShortcutKeyCodeAlt = -1
                     preferences.holdShortcutModifiersAlt = 0
                     HotkeyService.shared.configureHoldTarget()
-                    preferences.micDeviceUID = nil
+                    preferences.micDeviceUIDs = []
                     preferences.whisperModel = .smallEN
                 }
 

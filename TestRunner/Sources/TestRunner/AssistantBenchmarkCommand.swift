@@ -353,17 +353,8 @@ private final class AssistantBenchmarkRunner {
                 instructionsForReport: parsed.instructions
             )
         case .combined:
-            let systemPrompt = """
-            You are \(assistantName), a local voice assistant embedded in a speech transcription app.
-            The user may mix source material and instructions in one continuous utterance.
-            If the message mentions \(assistantName) anywhere, infer the intended task and return only the requested final artifact.
-            Preserve important concrete details from the utterance.
-            Do not explain your reasoning.
-            Do not include labels, quotes, code fences, or <think> tags unless the user explicitly asks for them.
-            """
-
             return BenchmarkPrompt(
-                systemPrompt: systemPrompt,
+                systemPrompt: Self.makeAssistantSystemPrompt(assistantName: assistantName),
                 userPrompt: transcript,
                 contentForReport: transcript,
                 instructionsForReport: nil
@@ -492,6 +483,19 @@ private final class AssistantBenchmarkRunner {
             content: content,
             instructions: instructions.isEmpty ? nil : instructions
         )
+    }
+
+    private static func makeAssistantSystemPrompt(assistantName: String) -> String {
+        let template = """
+        You are {{assistant_name}}, a local voice assistant embedded in a speech transcription app.
+        The user may mix source material and instructions in one continuous utterance.
+        If the message mentions {{assistant_name}} anywhere, infer the intended task and return only the requested final artifact.
+        Preserve important concrete details from the utterance.
+        Do not explain your reasoning.
+        Do not include labels, quotes, code fences, or <think> tags unless the user explicitly asks for them.
+        """
+
+        return template.replacingOccurrences(of: "{{assistant_name}}", with: assistantName)
     }
 
     private static func makeScenarios() -> [BenchmarkScenario] {

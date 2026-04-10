@@ -1,13 +1,10 @@
 import Foundation
 
 struct TriggerTranscriptParser {
-    static let defaultMinimumInstructionTokens = 2
-
-    static func split(
+    static func detect(
         transcript: String,
-        activeAliases: [String],
-        minimumInstructionTokens: Int = defaultMinimumInstructionTokens
-    ) -> TriggerTranscriptSplit {
+        activeAliases: [String]
+    ) -> TriggerTranscriptDetection {
         let trimmedTranscript = transcript.trimmingCharacters(in: .whitespacesAndNewlines)
         let aliases = TriggerAliasNormalizer.normalize(activeAliases)
 
@@ -15,28 +12,12 @@ struct TriggerTranscriptParser {
             return .noTrigger(transcript: trimmedTranscript)
         }
 
-        guard let match = lastBoundaryMatch(in: trimmedTranscript, aliases: aliases),
-              let matchedRange = Range(match.range, in: trimmedTranscript) else {
+        guard let match = lastBoundaryMatch(in: trimmedTranscript, aliases: aliases) else {
             return .noTrigger(transcript: trimmedTranscript)
         }
 
-        let content = String(trimmedTranscript[..<matchedRange.lowerBound])
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-        let instruction = cleanedInstruction(String(trimmedTranscript[matchedRange.upperBound...]))
-
-        let tokenCount = instruction.split(whereSeparator: \.isWhitespace).count
-        guard tokenCount >= minimumInstructionTokens else {
-            return .invalidTrigger(
-                content: content,
-                instruction: instruction,
-                matchedAlias: match.alias,
-                reason: .instructionTooShort(minimumTokens: minimumInstructionTokens, actualTokens: tokenCount)
-            )
-        }
-
-        return .validTrigger(
-            content: content,
-            instruction: instruction,
+        return .triggered(
+            transcript: trimmedTranscript,
             matchedAlias: match.alias
         )
     }
@@ -83,15 +64,5 @@ struct TriggerTranscriptParser {
         }
 
         return bestMatch
-    }
-
-    private static func cleanedInstruction(_ text: String) -> String {
-        let trimmedWhitespace = text.trimmingCharacters(in: .whitespacesAndNewlines)
-        let leadingBoundaryCharacters = CharacterSet.whitespacesAndNewlines
-            .union(CharacterSet(charactersIn: ",.:;"))
-        let trimmedScalars = trimmedWhitespace.unicodeScalars.drop {
-            leadingBoundaryCharacters.contains($0)
-        }
-        return String(String.UnicodeScalarView(trimmedScalars))
     }
 }

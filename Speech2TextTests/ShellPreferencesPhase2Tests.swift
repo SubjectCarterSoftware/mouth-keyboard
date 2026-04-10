@@ -3,20 +3,34 @@ import XCTest
 
 @MainActor
 final class ShellPreferencesPhase2Tests: XCTestCase {
-    func testMicDeviceUIDDefaultsToNil() {
+    func testMicDeviceUIDsDefaultsToEmpty() {
         let (_, preferences) = makePreferences()
 
-        XCTAssertNil(preferences.micDeviceUID)
+        XCTAssertEqual(preferences.micDeviceUIDs, [])
     }
 
     func testResetClearsPhase2KeysBackToDefaults() {
         let (defaults, preferences) = makePreferences()
-        preferences.micDeviceUID = "BuiltInMic"
+        preferences.micDeviceUIDs = ["BuiltInMic"]
 
         preferences.reset()
 
-        XCTAssertNil(preferences.micDeviceUID)
-        XCTAssertNil(defaults.object(forKey: ShellPreferences.Keys.micDeviceUID))
+        XCTAssertEqual(preferences.micDeviceUIDs, [])
+        XCTAssertNil(defaults.object(forKey: ShellPreferences.Keys.micDeviceUIDs))
+    }
+
+    func testMigratesLegacyMicDeviceUID() {
+        let suiteName = "ShellPreferencesPhase2Tests.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        defaults.removePersistentDomain(forName: suiteName)
+
+        // Simulate old single-UID value stored under the legacy key.
+        defaults.set("legacy-uid", forKey: ShellPreferences.Keys.micDeviceUID)
+
+        let preferences = ShellPreferences(userDefaults: defaults)
+        XCTAssertEqual(preferences.micDeviceUIDs, ["legacy-uid"])
+
+        defaults.removePersistentDomain(forName: suiteName)
     }
 
     private func makePreferences(file: StaticString = #filePath, line: UInt = #line) -> (UserDefaults, ShellPreferences) {

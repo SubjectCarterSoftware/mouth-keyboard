@@ -296,7 +296,7 @@ final class StatusMenuController: NSObject, NSMenuDelegate {
             keyEquivalent: ""
         )
         systemDefaultItem.target = self
-        systemDefaultItem.state = preferences.micDeviceUID == nil ? .on : .off
+        systemDefaultItem.state = preferences.micDeviceUIDs.isEmpty ? .on : .off
         submenu.addItem(systemDefaultItem)
 
         if !audioDeviceService.availableDevices.isEmpty {
@@ -309,7 +309,7 @@ final class StatusMenuController: NSObject, NSMenuDelegate {
                 )
                 deviceItem.target = self
                 deviceItem.representedObject = device.uid
-                deviceItem.state = preferences.micDeviceUID == device.uid ? .on : .off
+                deviceItem.state = preferences.micDeviceUIDs.first == device.uid ? .on : .off
                 submenu.addItem(deviceItem)
             }
         }
@@ -489,12 +489,14 @@ final class StatusMenuController: NSObject, NSMenuDelegate {
 
     @objc
     private func selectSystemDefaultMicFromMenu() {
-        preferences.micDeviceUID = nil
+        preferences.micDeviceUIDs = []
     }
 
     @objc
     private func selectMicDeviceFromMenu(_ sender: NSMenuItem) {
-        preferences.micDeviceUID = sender.representedObject as? String
+        if let uid = sender.representedObject as? String {
+            preferences.promoteMicDevice(uid)
+        }
     }
 
     @objc

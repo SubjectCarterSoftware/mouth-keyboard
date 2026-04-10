@@ -291,7 +291,8 @@ final class LLMRewriteServiceTests: XCTestCase {
         XCTAssertTrue(prompt.contains("Rewrite instructions:\nTurn this into a short email."))
         XCTAssertTrue(prompt.contains("Source text:\nDraft note for finance."))
         XCTAssertTrue(prompt.contains("Return only the final rewritten text."))
-        XCTAssertTrue(prompt.contains("Do not include labels, quotes, code fences, or <think> tags."))
+        XCTAssertTrue(prompt.contains("Output only the final answer text."))
+        XCTAssertTrue(prompt.contains("Do not surround the answer in quotation marks unless the user explicitly asks for quotes."))
     }
 
     func testMakeRewriteInstructionsUsesCustomPromptPrefix() {
@@ -323,6 +324,31 @@ final class LLMRewriteServiceTests: XCTestCase {
 
         XCTAssertTrue(prompt.contains(LLMRewriteService.defaultRewritePromptPrefix))
         XCTAssertTrue(prompt.contains("Rewrite instructions:\nKeep this tidy."))
+    }
+
+    func testResolveAssistantSystemPromptSubstitutesAssistantNamePlaceholder() {
+        let resolved = LLMRewriteService.resolveAssistantSystemPrompt(
+            promptTemplate: LLMRewriteService.defaultAssistantSystemPromptTemplate,
+            assistantName: "Ava"
+        )
+
+        XCTAssertTrue(resolved.contains("You are Ava"))
+        XCTAssertFalse(resolved.contains(LLMRewriteService.assistantNamePlaceholder))
+    }
+
+    func testBlankAssistantPromptTemplateFallsBackToAssistantDefault() {
+        let resolved = LLMRewriteService.resolveAssistantSystemPrompt(
+            promptTemplate: "   ",
+            assistantName: "Ava"
+        )
+
+        XCTAssertEqual(
+            resolved,
+            LLMRewriteService.resolveAssistantSystemPrompt(
+                promptTemplate: LLMRewriteService.defaultAssistantSystemPromptTemplate,
+                assistantName: "Ava"
+            )
+        )
     }
 
     // MARK: - setTier tests (Phase 2)
@@ -749,43 +775,32 @@ extension LLMRewriteServiceTests {
     func testRealQwen2BModelGeneration() async throws {
         let transcript = "1, 9, 12, 13, 14, 15. Zeus, can you please put those in ascending order for me?"
         let triggerName = "Zeus"
-        
-        // 1. Simulate the parser
+
         let aliases = TriggerAliasNormalizer.normalize([triggerName])
-        let split = TriggerTranscriptParser.split(transcript: transcript, activeAliases: aliases)
-        
-        var body = ""
-        var instructions = ""
-        
-        switch split {
-        case .validTrigger(let content, let instruction, _):
-            body = content.trimmingCharacters(in: .whitespacesAndNewlines)
-            instructions = instruction.trimmingCharacters(in: .whitespacesAndNewlines)
-        default:
+        let detection = TriggerTranscriptParser.detect(transcript: transcript, activeAliases: aliases)
+
+        guard case .triggered(let detectedTranscript, _) = detection else {
             XCTFail("Parser failed to find valid trigger!")
             return
         }
-        
-        XCTAssertEqual(body, "1, 9, 12, 13, 14, 15.")
-        XCTAssertEqual(instructions, "can you please put those in ascending order for me?")
-        
-        // 2. Simulate the LLM rewrite using the 2B tier
+
+        XCTAssertEqual(detectedTranscript, transcript)
+
         let service = LLMRewriteService()
-        
+
         do {
             print("Starting model download & generation... This may take a minute.")
-            
-            // Explicitly load model
             try await service.prewarm()
-            
-            let result = try await service.rewrite(
-                body: body,
-                instructions: instructions
+
+            let result = try await service.generate(
+                prompt: detectedTranscript,
+                systemPrompt: LLMRewriteService.resolveAssistantSystemPrompt(
+                    assistantName: triggerName
+                )
             )
-            
+
             print("Successfully generated result: \(result)")
             XCTAssertFalse(result.isEmpty)
-            
         } catch {
             print("FATAL MODEL ERROR: \(error)")
             print("FATAL MODEL ERROR DESC: \(error.localizedDescription)")
