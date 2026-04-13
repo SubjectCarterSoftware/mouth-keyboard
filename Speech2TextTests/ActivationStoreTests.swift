@@ -1855,6 +1855,41 @@ final class ActivationStoreTests: XCTestCase {
         XCTAssertEqual(mockRewriter.lastGeneratePrompt, transcript)
     }
 
+    func test_pillCopyControlConfiguration_usesStackedSquaresSymbol() {
+        XCTAssertEqual(PillCopyControlConfiguration.symbolName, "square.on.square")
+    }
+
+    func test_pillCopyControlConfiguration_disablesNonSuccessStates() {
+        XCTAssertEqual(
+            PillCopyControlConfiguration.forState(.recording),
+            .disabled
+        )
+        XCTAssertEqual(
+            PillCopyControlConfiguration.forState(.processing),
+            .disabled
+        )
+        XCTAssertEqual(
+            PillCopyControlConfiguration.forState(.converting),
+            .disabled
+        )
+    }
+
+    func test_pillCopyControlConfiguration_enablesSuccessAndKeepsStableGeometry() {
+        let successConfiguration = PillCopyControlConfiguration.forState(
+            .success(text: "Hello world", pasted: false, converted: false)
+        )
+
+        XCTAssertEqual(successConfiguration, .enabled)
+        XCTAssertEqual(PillCopyControlConfiguration.slotWidth, 34)
+        XCTAssertEqual(PillCopyControlConfiguration.slotHeight, 34)
+        XCTAssertEqual(PillCopyControlConfiguration.controlDiameter, 24)
+        XCTAssertEqual(PillCopyControlConfiguration.iconSymbolSize, 12)
+        XCTAssertEqual(
+            successConfiguration.accessibilityIdentifier,
+            PillCopyControlConfiguration.successAccessibilityIdentifier
+        )
+    }
+
     // MARK: - Helpers
 
     private func makeStore(

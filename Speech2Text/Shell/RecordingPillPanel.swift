@@ -178,9 +178,7 @@ private struct RecordingPillViewWrapper: View {
             onFinish: { activationStore.finish() },
             onCancel: { activationStore.cancelCurrentSession() },
             onRestart: { activationStore.restartCurrentSession() },
-            onFinishAndPaste: { activationStore.finishAndPaste() },
             onSuccessClose: { activationStore.dismissCurrentSuccess() },
-            onSuccessPaste: { activationStore.pasteCurrentSuccessResult() },
             onSuccessCopy: { activationStore.copyCurrentSuccessResult() }
         )
     }

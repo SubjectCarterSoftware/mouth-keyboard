@@ -105,7 +105,46 @@ struct SuccessPillCountdownStyle {
     }
 }
 
+struct PillCopyControlConfiguration: Equatable {
+    static let symbolName = "square.on.square"
+    static let slotWidth: CGFloat = 34
+    static let slotHeight: CGFloat = 34
+    static let controlDiameter: CGFloat = 24
+    static let iconSymbolSize: CGFloat = 12
+    static let disabledAccessibilityIdentifier = "pill.copyDisabled"
+    static let successAccessibilityIdentifier = "pill.successCopy"
+
+    let isEnabled: Bool
+    let accessibilityIdentifier: String
+    let circleOpacity: Double
+    let iconOpacity: Double
+
+    static func forState(_ state: RecordingState) -> PillCopyControlConfiguration {
+        if case .success = state {
+            return .enabled
+        }
+        return .disabled
+    }
+
+    static let enabled = PillCopyControlConfiguration(
+        isEnabled: true,
+        accessibilityIdentifier: successAccessibilityIdentifier,
+        circleOpacity: 0.16,
+        iconOpacity: 0.88
+    )
+
+    static let disabled = PillCopyControlConfiguration(
+        isEnabled: false,
+        accessibilityIdentifier: disabledAccessibilityIdentifier,
+        circleOpacity: 0.10,
+        iconOpacity: 0.42
+    )
+}
+
 struct RecordingPillView: View {
+    private static let actionButtonFrame: CGFloat = 34
+    private static let actionButtonSymbolSize: CGFloat = 20
+
     @ObservedObject var levelMonitor: AudioLevelMonitor
     let recordingState: RecordingState
     let recoveryFeedback: RecordingState.RecoveryFeedback?
@@ -115,9 +154,7 @@ struct RecordingPillView: View {
     var onFinish: (() -> Void)?
     var onCancel: (() -> Void)?
     var onRestart: (() -> Void)?
-    var onFinishAndPaste: (() -> Void)?
     var onSuccessClose: (() -> Void)?
-    var onSuccessPaste: (() -> Void)?
     var onSuccessCopy: (() -> Void)?
 
     private let barScales: [CGFloat]
@@ -133,9 +170,7 @@ struct RecordingPillView: View {
         onFinish: (() -> Void)? = nil,
         onCancel: (() -> Void)? = nil,
         onRestart: (() -> Void)? = nil,
-        onFinishAndPaste: (() -> Void)? = nil,
         onSuccessClose: (() -> Void)? = nil,
-        onSuccessPaste: (() -> Void)? = nil,
         onSuccessCopy: (() -> Void)? = nil
     ) {
         self.levelMonitor = levelMonitor
@@ -147,9 +182,7 @@ struct RecordingPillView: View {
         self.onFinish = onFinish
         self.onCancel = onCancel
         self.onRestart = onRestart
-        self.onFinishAndPaste = onFinishAndPaste
         self.onSuccessClose = onSuccessClose
-        self.onSuccessPaste = onSuccessPaste
         self.onSuccessCopy = onSuccessCopy
         barScales = (0..<5).map { _ in CGFloat.random(in: 0.55...1.0) }
     }
@@ -182,7 +215,7 @@ struct RecordingPillView: View {
     private var recordingContent: some View {
         let barTint: Color = silenceWarningActive ? Color.orange : Color.white
         let sideButtonGap: CGFloat = 8
-        let actionSlotWidth: CGFloat = 30
+        let actionSlotWidth = PillCopyControlConfiguration.slotWidth
         let sideLaneWidth: CGFloat = (actionSlotWidth * 2) + sideButtonGap
 
         return HStack(spacing: 0) {
@@ -191,10 +224,10 @@ struct RecordingPillView: View {
 
                 Button(action: { onRestart?() }) {
                     Image(systemName: "arrow.clockwise.circle.fill")
-                        .font(.system(size: 18, weight: .bold))
+                        .font(.system(size: Self.actionButtonSymbolSize, weight: .bold))
                         .symbolRenderingMode(.palette)
                         .foregroundStyle(Color(white: 0.9), Color.orange)
-                        .frame(width: 30, height: 30)
+                        .frame(width: Self.actionButtonFrame, height: Self.actionButtonFrame)
                         .contentShape(Circle())
                 }
                 .buttonStyle(.plain)
@@ -220,8 +253,7 @@ struct RecordingPillView: View {
 
             HStack(spacing: sideButtonGap) {
                 finishButton
-                finishAndPasteButton
-                    .frame(width: actionSlotWidth, height: actionSlotWidth, alignment: .center)
+                trailingCopyControl(configuration: .disabled)
             }
             .frame(width: sideLaneWidth, alignment: .trailing)
         }
@@ -296,7 +328,7 @@ struct RecordingPillView: View {
             pipelineMicAnchor
             timeline()
                 .frame(maxWidth: .infinity)
-            pipelineClipboardAnchor
+            trailingCopyControl(configuration: .disabled)
         }
         .padding(.horizontal, 10)
         .frame(width: 220, height: 44)
@@ -408,31 +440,16 @@ struct RecordingPillView: View {
     }
 
     private var successCopyButton: some View {
-        Button(action: { onSuccessCopy?() }) {
-            ZStack {
-                Capsule(style: .continuous)
-                    .fill(Color.white.opacity(0.14))
-                Image(systemName: "doc.on.doc")
-                    .font(.system(size: 11, weight: .semibold))
-                    .foregroundStyle(Color.white.opacity(0.88))
-            }
-            .frame(width: 28, height: 20)
-        }
-        .buttonStyle(.plain)
-        .accessibilityIdentifier("pill.successCopy")
+        trailingCopyControl(
+            configuration: .enabled,
+            action: { onSuccessCopy?() }
+        )
     }
 
     private var pipelineMicAnchor: some View {
         Image(systemName: "mic.fill")
             .font(.system(size: 12, weight: .semibold))
             .foregroundStyle(Color.white.opacity(0.9))
-            .frame(width: 16, height: 16)
-    }
-
-    private var pipelineClipboardAnchor: some View {
-        Image(systemName: "clipboard.fill")
-            .font(.system(size: 12, weight: .semibold))
-            .foregroundStyle(Color.white.opacity(0.85))
             .frame(width: 16, height: 16)
     }
 
@@ -450,39 +467,23 @@ struct RecordingPillView: View {
     private var finishButton: some View {
         Button(action: { onFinish?() }) {
             Image(systemName: "checkmark.circle.fill")
-                .font(.system(size: 18, weight: .bold))
+                .font(.system(size: Self.actionButtonSymbolSize, weight: .bold))
                 .symbolRenderingMode(.palette)
                 .foregroundStyle(Color(white: 0.9), Color.green)
-                .frame(width: 30, height: 30)
+                .frame(width: Self.actionButtonFrame, height: Self.actionButtonFrame)
                 .contentShape(Circle())
         }
         .buttonStyle(.plain)
         .accessibilityIdentifier("pill.finish")
     }
 
-    private var finishAndPasteButton: some View {
-        Button(action: { onFinishAndPaste?() }) {
-            ZStack {
-                Circle()
-                    .fill(Color.blue)
-                Image(systemName: "clipboard.fill")
-                    .font(.system(size: 11, weight: .semibold))
-                    .foregroundStyle(Color(white: 0.9))
-                    .offset(y: -1.5)
-            }
-            .frame(width: 20, height: 20)
-        }
-        .buttonStyle(.plain)
-        .accessibilityIdentifier("pill.finishAndPaste")
-    }
-
     private var cancelButton: some View {
         Button(action: { onCancel?() }) {
             Image(systemName: "xmark.circle.fill")
-                .font(.system(size: 18, weight: .bold))
+                .font(.system(size: Self.actionButtonSymbolSize, weight: .bold))
                 .symbolRenderingMode(.palette)
                 .foregroundStyle(Color(white: 0.9), Color.red)
-                .frame(width: 30, height: 30)
+                .frame(width: Self.actionButtonFrame, height: Self.actionButtonFrame)
                 .contentShape(Circle())
         }
         .buttonStyle(.plain)
@@ -492,14 +493,39 @@ struct RecordingPillView: View {
     private var successCloseButton: some View {
         Button(action: { onSuccessClose?() }) {
             Image(systemName: "xmark.circle.fill")
-                .font(.system(size: 18, weight: .bold))
+                .font(.system(size: Self.actionButtonSymbolSize, weight: .bold))
                 .symbolRenderingMode(.palette)
                 .foregroundStyle(Color(white: 0.9), Color.red)
-                .frame(width: 30, height: 30)
+                .frame(width: Self.actionButtonFrame, height: Self.actionButtonFrame)
                 .contentShape(Circle())
         }
         .buttonStyle(.plain)
         .accessibilityIdentifier("pill.successClose")
+    }
+
+    private func trailingCopyControl(
+        configuration: PillCopyControlConfiguration,
+        action: (() -> Void)? = nil
+    ) -> some View {
+        Button(action: { action?() }) {
+            ZStack {
+                Circle()
+                    .fill(Color.white.opacity(configuration.circleOpacity))
+                    .frame(
+                        width: PillCopyControlConfiguration.controlDiameter,
+                        height: PillCopyControlConfiguration.controlDiameter
+                    )
+
+                Image(systemName: PillCopyControlConfiguration.symbolName)
+                    .font(.system(size: PillCopyControlConfiguration.iconSymbolSize, weight: .semibold))
+                    .foregroundStyle(Color.white.opacity(configuration.iconOpacity))
+            }
+            .frame(width: PillCopyControlConfiguration.slotWidth, height: PillCopyControlConfiguration.slotHeight)
+        }
+        .buttonStyle(.plain)
+        .disabled(!configuration.isEnabled)
+        .accessibilityIdentifier(configuration.accessibilityIdentifier)
+        .frame(width: PillCopyControlConfiguration.slotWidth, height: PillCopyControlConfiguration.slotHeight)
     }
 
     private func animatedDotStrip(
