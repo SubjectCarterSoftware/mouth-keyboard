@@ -222,6 +222,9 @@ final class ActivationStoreTests: XCTestCase {
         } else {
             XCTFail("Expected .success state, got \(store.state)")
         }
+        let startedAt = try XCTUnwrap(store.successDismissStartedAt)
+        let deadline = try XCTUnwrap(store.successDismissDeadline)
+        XCTAssertEqual(deadline.timeIntervalSince(startedAt), 6, accuracy: 0.05)
     }
 
     func testPasteFallbackReportsCopiedOnly() async throws {
@@ -405,7 +408,7 @@ final class ActivationStoreTests: XCTestCase {
 
         store.arm()
         store.finish()
-        try await Task.sleep(nanoseconds: 1_800_000_000)
+        try await Task.sleep(nanoseconds: 6_300_000_000)
 
         XCTAssertEqual(store.state, .idle)
         XCTAssertEqual(
@@ -713,6 +716,285 @@ final class ActivationStoreTests: XCTestCase {
 
         XCTAssertEqual(mockClipboard.lastWrittenText, "Target text")
         XCTAssertEqual(mockClipboard.writeCount, 1)
+    }
+
+    func test_pasteCurrentSuccessResult_usesTapTimeClipboardSnapshot() async throws {
+        let preferences = makePreferencesWithTriggerStore()
+        preferences.alwaysAutoPaste = false
+
+        let pasteStub = StubSuccessfulPasteService()
+        let mockClipboard = ActivationStoreMockClipboard()
+        let store = makeStore(
+            permissionsAuthorized: true,
+            postEventAuthorized: true,
+            transcriber: ActivationStoreMockTranscriber(result: .success("Target text")),
+            clipboard: mockClipboard,
+            pasteService: pasteStub,
+            preferences: preferences
+        )
+
+        store.arm()
+        store.finish()
+        try await Task.sleep(nanoseconds: 200_000_000)
+
+        mockClipboard.clearWriteCount()
+        mockClipboard.stubbedClipboardContent = "user changed clipboard"
+
+        store.pasteCurrentSuccessResult()
+        try await Task.sleep(nanoseconds: 250_000_000)
+
+        XCTAssertEqual(mockClipboard.temporaryWriteTexts, ["Target text"])
+        XCTAssertEqual(mockClipboard.lastRestoredSnapshot?.plainText, "user changed clipboard")
+        XCTAssertTrue(mockClipboard.didRestoreOriginalClipboard)
+        XCTAssertEqual(pasteStub.pasteCount, 1)
+    }
+
+    func test_pasteCurrentSuccessResult_withoutPostEventPermission_requestsGuidance() async throws {
+        let preferences = makePreferencesWithTriggerStore()
+        preferences.alwaysAutoPaste = false
+
+        let pasteStub = StubSuccessfulPasteService()
+        let mockClipboard = ActivationStoreMockClipboard()
+        let store = makeStore(
+            permissionsAuthorized: true,
+            transcriber: ActivationStoreMockTranscriber(result: .success("Target text")),
+            clipboard: mockClipboard,
+            pasteService: pasteStub,
+            preferences: preferences
+        )
+
+        var permissionPromptCount = 0
+        store.onPastePermissionNeeded = {
+            permissionPromptCount += 1
+        }
+
+        store.arm()
+        store.finish()
+        try await Task.sleep(nanoseconds: 200_000_000)
+
+        mockClipboard.clearWriteCount()
+
+        store.pasteCurrentSuccessResult()
+        try await Task.sleep(nanoseconds: 50_000_000)
+
+        XCTAssertEqual(permissionPromptCount, 1)
+        XCTAssertEqual(pasteStub.pasteCount, 0)
+        XCTAssertTrue(mockClipboard.temporaryWriteTexts.isEmpty)
+        XCTAssertEqual(mockClipboard.restoreCallCount, 0)
+        XCTAssertTrue(store.state.isSuccess)
+    }
+
+    func test_copyCurrentSuccessResult_usesConvertedText() async throws {
+        let preferences = makePreferencesWithTriggerStore()
+        preferences.alwaysAutoPaste = false
+        preferences.allowClipboardAccess = false
+        try await Task.sleep(nanoseconds: 80_000_000)
+
+        let mockClipboard = ActivationStoreMockClipboard()
+        let store = makeStore(
+            permissionsAuthorized: true,
+            transcriber: ActivationStoreMockTranscriber(result: .success("zeus make this formal")),
+            llmRewriter: MockLLMRewriter(result: .success("Converted output")),
+            clipboard: mockClipboard,
+            preferences: preferences
+        )
+
+        store.arm()
+        store.finish()
+        try await Task.sleep(nanoseconds: 300_000_000)
+
+        mockClipboard.clearWriteCount()
+
+        store.copyCurrentSuccessResult()
+
+        XCTAssertEqual(mockClipboard.lastWrittenText, "Converted output")
+        XCTAssertEqual(mockClipboard.writeCount, 1)
+    }
+
+    func test_convertedSuccess_setsDismissTiming() async throws {
+        let preferences = makePreferencesWithTriggerStore()
+        preferences.alwaysAutoPaste = false
+        preferences.allowClipboardAccess = false
+
+        let store = makeStore(
+            permissionsAuthorized: true,
+            transcriber: ActivationStoreMockTranscriber(result: .success("zeus make this formal")),
+            llmRewriter: MockLLMRewriter(result: .success("Converted output")),
+            clipboard: ActivationStoreMockClipboard(),
+            preferences: preferences
+        )
+
+        store.arm()
+        store.finish()
+        try await Task.sleep(nanoseconds: 300_000_000)
+
+        if case .success(let text, _, let converted, _, _) = store.state {
+            XCTAssertEqual(text, "Converted output")
+            XCTAssertTrue(converted)
+        } else {
+            XCTFail("Expected converted success state")
+        }
+
+        let startedAt = try XCTUnwrap(store.successDismissStartedAt)
+        let deadline = try XCTUnwrap(store.successDismissDeadline)
+        XCTAssertEqual(deadline.timeIntervalSince(startedAt), 6, accuracy: 0.05)
+    }
+
+    func test_successStatePersistsBeyondTwoSeconds() async throws {
+        let preferences = makePreferencesWithTriggerStore()
+        preferences.alwaysAutoPaste = false
+
+        let store = makeStore(
+            permissionsAuthorized: true,
+            transcriber: ActivationStoreMockTranscriber(result: .success("Target text")),
+            clipboard: ActivationStoreMockClipboard(),
+            preferences: preferences
+        )
+
+        store.arm()
+        store.finish()
+        try await Task.sleep(nanoseconds: 200_000_000)
+        try await Task.sleep(nanoseconds: 2_200_000_000)
+
+        XCTAssertTrue(store.state.isSuccess)
+    }
+
+    func test_successActionResetsDismissTimer() async throws {
+        let preferences = makePreferencesWithTriggerStore()
+        preferences.alwaysAutoPaste = false
+
+        let store = makeStore(
+            permissionsAuthorized: true,
+            transcriber: ActivationStoreMockTranscriber(result: .success("Target text")),
+            clipboard: ActivationStoreMockClipboard(),
+            preferences: preferences
+        )
+
+        store.arm()
+        store.finish()
+        try await Task.sleep(nanoseconds: 200_000_000)
+        let originalStartedAt = try XCTUnwrap(store.successDismissStartedAt)
+        let originalDeadline = try XCTUnwrap(store.successDismissDeadline)
+        try await Task.sleep(nanoseconds: 5_500_000_000)
+
+        store.copyCurrentSuccessResult()
+        let refreshedStartedAt = try XCTUnwrap(store.successDismissStartedAt)
+        let refreshedDeadline = try XCTUnwrap(store.successDismissDeadline)
+        try await Task.sleep(nanoseconds: 1_200_000_000)
+
+        XCTAssertGreaterThan(refreshedStartedAt, originalStartedAt)
+        XCTAssertGreaterThan(refreshedDeadline, originalDeadline)
+        XCTAssertTrue(store.state.isSuccess)
+    }
+
+    func test_successDismissTimingClearsWhenReturningToIdle() async throws {
+        let preferences = makePreferencesWithTriggerStore()
+        preferences.alwaysAutoPaste = false
+
+        let store = makeStore(
+            permissionsAuthorized: true,
+            transcriber: ActivationStoreMockTranscriber(result: .success("Target text")),
+            clipboard: ActivationStoreMockClipboard(),
+            preferences: preferences
+        )
+
+        store.arm()
+        store.finish()
+        try await Task.sleep(nanoseconds: 200_000_000)
+
+        XCTAssertNotNil(store.successDismissStartedAt)
+        XCTAssertNotNil(store.successDismissDeadline)
+
+        try await Task.sleep(nanoseconds: 6_200_000_000)
+
+        XCTAssertEqual(store.state, .idle)
+        XCTAssertNil(store.successDismissStartedAt)
+        XCTAssertNil(store.successDismissDeadline)
+    }
+
+    func test_dismissCurrentSuccess_transitionsImmediatelyToIdleAndClearsDismissTiming() async throws {
+        let preferences = makePreferencesWithTriggerStore()
+        preferences.alwaysAutoPaste = false
+
+        let store = makeStore(
+            permissionsAuthorized: true,
+            transcriber: ActivationStoreMockTranscriber(result: .success("Target text")),
+            clipboard: ActivationStoreMockClipboard(),
+            preferences: preferences
+        )
+
+        store.arm()
+        store.finish()
+        try await Task.sleep(nanoseconds: 200_000_000)
+
+        XCTAssertTrue(store.state.isSuccess)
+        XCTAssertNotNil(store.successDismissStartedAt)
+        XCTAssertNotNil(store.successDismissDeadline)
+
+        store.dismissCurrentSuccess()
+
+        XCTAssertEqual(store.state, .idle)
+        XCTAssertNil(store.successDismissStartedAt)
+        XCTAssertNil(store.successDismissDeadline)
+    }
+
+    func test_dismissCurrentSuccess_isNoOpOutsideSuccess() {
+        let store = makeStore(permissionsAuthorized: true)
+        store.arm()
+
+        store.dismissCurrentSuccess()
+
+        XCTAssertEqual(store.state, .recording)
+    }
+
+    func test_successCountdownStyle_progressAndColorRamp() {
+        let startedAt = Date(timeIntervalSinceReferenceDate: 100)
+        let deadline = startedAt.addingTimeInterval(6)
+
+        XCTAssertEqual(
+            SuccessPillCountdownStyle.remainingProgress(
+                startedAt: startedAt,
+                deadline: deadline,
+                now: startedAt
+            ),
+            1,
+            accuracy: 0.001
+        )
+        XCTAssertEqual(
+            SuccessPillCountdownStyle.remainingProgress(
+                startedAt: startedAt,
+                deadline: deadline,
+                now: deadline
+            ),
+            0,
+            accuracy: 0.001
+        )
+        XCTAssertEqual(
+            SuccessPillCountdownStyle.warningProgress(
+                startedAt: startedAt,
+                now: startedAt.addingTimeInterval(4)
+            ),
+            1,
+            accuracy: 0.001
+        )
+        XCTAssertEqual(
+            SuccessPillCountdownStyle.warningProgress(
+                startedAt: startedAt,
+                now: startedAt.addingTimeInterval(6)
+            ),
+            1,
+            accuracy: 0.001
+        )
+
+        let startBoundary = SuccessPillCountdownStyle.boundaryColor(progress: 0)
+        XCTAssertEqual(startBoundary.red, 183 / 255, accuracy: 0.001)
+        XCTAssertEqual(startBoundary.green, 246 / 255, accuracy: 0.001)
+        XCTAssertEqual(startBoundary.blue, 214 / 255, accuracy: 0.001)
+
+        let endBoundary = SuccessPillCountdownStyle.boundaryColor(progress: 1)
+        XCTAssertEqual(endBoundary.red, 1, accuracy: 0.001)
+        XCTAssertEqual(endBoundary.green, 132 / 255, accuracy: 0.001)
+        XCTAssertEqual(endBoundary.blue, 132 / 255, accuracy: 0.001)
     }
 
     func test_arm_while_recording_is_ignored() async throws {

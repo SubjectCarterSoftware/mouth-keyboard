@@ -283,6 +283,74 @@ final class AIAssistantSettingsViewModelTests: XCTestCase {
         XCTAssertTrue(viewModel.isRecordControlPresented)
     }
 
+    func testCancelRenameFlowFromWarmupHidesControlAndSchedulesUnload() {
+        let preferences = makePreferences(activeProfile: .zeus)
+        var unloadScheduleCount = 0
+        let viewModel = AIAssistantSettingsViewModel(
+            preferences: preferences,
+            prepareWhisperModel: { true },
+            scheduleWhisperIdleUnload: {
+                unloadScheduleCount += 1
+            },
+            cancelWhisperIdleUnload: {}
+        )
+
+        viewModel.showRecordControl()
+        XCTAssertTrue(viewModel.isPreparingRecordControl)
+        XCTAssertTrue(viewModel.isRecordControlPresented)
+
+        viewModel.cancelRenameFlow()
+
+        XCTAssertEqual(viewModel.renameState, .idle)
+        XCTAssertFalse(viewModel.isPreparingRecordControl)
+        XCTAssertFalse(viewModel.isRecordControlPresented)
+        XCTAssertNil(viewModel.pendingRecordedName)
+        XCTAssertEqual(unloadScheduleCount, 1)
+    }
+
+    func testCancelRenameFlowFromPreviewRestoresActiveNameAndSchedulesUnload() {
+        let preferences = makePreferences(activeProfile: .custom, customPrimary: "Nova Prime")
+        var unloadScheduleCount = 0
+        let viewModel = AIAssistantSettingsViewModel(
+            preferences: preferences,
+            scheduleWhisperIdleUnload: {
+                unloadScheduleCount += 1
+            },
+            cancelWhisperIdleUnload: {}
+        )
+        viewModel.previewRecordedName("Project Copilot")
+
+        viewModel.cancelRenameFlow()
+
+        XCTAssertNil(viewModel.pendingRecordedName)
+        XCTAssertEqual(viewModel.displayedName, "Nova Prime")
+        XCTAssertEqual(viewModel.activeName, "Nova Prime")
+        XCTAssertEqual(viewModel.renameState, .idle)
+        XCTAssertFalse(viewModel.isRecordControlPresented)
+        XCTAssertEqual(unloadScheduleCount, 1)
+    }
+
+    func testHandleSettingsDismissedCancelsRenameFlowAndSchedulesUnload() {
+        let preferences = makePreferences(activeProfile: .zeus)
+        var unloadScheduleCount = 0
+        let viewModel = AIAssistantSettingsViewModel(
+            preferences: preferences,
+            prepareWhisperModel: { true },
+            scheduleWhisperIdleUnload: {
+                unloadScheduleCount += 1
+            },
+            cancelWhisperIdleUnload: {}
+        )
+
+        viewModel.showRecordControl()
+        viewModel.handleSettingsDismissed()
+
+        XCTAssertEqual(viewModel.renameState, .idle)
+        XCTAssertFalse(viewModel.isPreparingRecordControl)
+        XCTAssertFalse(viewModel.isRecordControlPresented)
+        XCTAssertEqual(unloadScheduleCount, 1)
+    }
+
     func testStartRecordingShowsBusyMessageWhenCaptureIsUnavailable() async {
         let preferences = makePreferences(activeProfile: .zeus)
         let viewModel = AIAssistantSettingsViewModel(

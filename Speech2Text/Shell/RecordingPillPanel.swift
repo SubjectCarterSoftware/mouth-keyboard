@@ -5,7 +5,7 @@ import SwiftUI
 @MainActor
 final class RecordingPillPanel: NSPanel {
     private static let recordingSize = NSSize(width: 220, height: 44)
-    private static let defaultSize = NSSize(width: 160, height: 44)
+    private static let defaultSize = NSSize(width: 220, height: 44)
     private static let recoverySize = NSSize(width: 180, height: 44)
     private static let failureSize = NSSize(width: 220, height: 44)
 
@@ -65,8 +65,10 @@ final class RecordingPillPanel: NSPanel {
             object: nil,
             queue: .main
         ) { [weak self] _ in
-            self?.selectedVisibleFrame = nil
-            self?.updatePosition()
+            Task { @MainActor [weak self] in
+                self?.selectedVisibleFrame = nil
+                self?.updatePosition()
+            }
         }
 
         // Observe both lifecycle and recovery feedback so confirmation can stay
@@ -101,7 +103,7 @@ final class RecordingPillPanel: NSPanel {
                 selectedVisibleFrame = chooseVisibleFrame()
             }
             // Enable mouse events during interactive states so the finish/cancel buttons work.
-            let interactive = (state == .recording || state == .processing || state == .converting)
+            let interactive = (state == .recording || state == .processing || state == .converting || state.isSuccess)
             if ignoresMouseEvents == interactive {
                 ignoresMouseEvents = !interactive
             }
@@ -127,8 +129,8 @@ final class RecordingPillPanel: NSPanel {
         switch state {
         case .recording, .processing, .modelDownloading, .converting:
             return RecordingPillPanel.recordingSize
-        case .success(_, _, let converted, _, _):
-            return converted ? RecordingPillPanel.recordingSize : RecordingPillPanel.defaultSize
+        case .success:
+            return RecordingPillPanel.defaultSize
         case .failure:
             return RecordingPillPanel.failureSize
         default:
@@ -170,11 +172,16 @@ private struct RecordingPillViewWrapper: View {
             levelMonitor: levelMonitor,
             recordingState: activationStore.state,
             recoveryFeedback: activationStore.recoveryFeedback,
+            successDismissStartedAt: activationStore.successDismissStartedAt,
+            successDismissDeadline: activationStore.successDismissDeadline,
             silenceWarningActive: levelMonitor.silenceWarningActive,
             onFinish: { activationStore.finish() },
             onCancel: { activationStore.cancelCurrentSession() },
             onRestart: { activationStore.restartCurrentSession() },
-            onFinishAndPaste: { activationStore.finishAndPaste() }
+            onFinishAndPaste: { activationStore.finishAndPaste() },
+            onSuccessClose: { activationStore.dismissCurrentSuccess() },
+            onSuccessPaste: { activationStore.pasteCurrentSuccessResult() },
+            onSuccessCopy: { activationStore.copyCurrentSuccessResult() }
         )
     }
 }

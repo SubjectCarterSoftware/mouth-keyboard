@@ -1543,6 +1543,9 @@ struct SetupWindowView: View {
             loadCloudAPIKeyIfNeeded()
             NSApp.activate(ignoringOtherApps: true)
         }
+        .onDisappear {
+            assistantSettingsViewModel.handleSettingsDismissed()
+        }
         .onReceive(Timer.publish(every: 3, on: .main, in: .common).autoconnect()) { _ in
             readinessStore.refresh()
             modelLoadState.refreshStatus()

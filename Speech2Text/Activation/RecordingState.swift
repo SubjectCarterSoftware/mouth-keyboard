@@ -39,6 +39,13 @@ enum RecordingState: Equatable {
         return false
     }
 
+    var isSuccess: Bool {
+        if case .success = self {
+            return true
+        }
+        return false
+    }
+
     var allowsRewriteModelManagement: Bool {
         if case .idle = self {
             return true

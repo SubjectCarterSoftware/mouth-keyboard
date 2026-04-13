@@ -17,6 +17,7 @@ final class AIAssistantSettingsViewModel: ObservableObject {
 
     typealias TranscriptCapture = @MainActor () async throws -> String?
     typealias PrepareWhisperModel = @MainActor () async -> Bool
+    typealias WhisperUnloadAction = @MainActor () -> Void
 
     @Published private(set) var activeName: String = TriggerNamePreset.zeus.displayName
     @Published private(set) var pendingRecordedName: String?
@@ -29,6 +30,8 @@ final class AIAssistantSettingsViewModel: ObservableObject {
     private let preferences: ShellPreferences
     private let transcriptCapture: TranscriptCapture
     private let prepareWhisperModel: PrepareWhisperModel
+    private let scheduleWhisperIdleUnload: WhisperUnloadAction
+    private let cancelWhisperIdleUnload: WhisperUnloadAction
     private var cancellables = Set<AnyCancellable>()
     private var warmupTask: Task<Void, Never>?
     private var recordingTask: Task<Void, Never>?
@@ -46,7 +49,9 @@ final class AIAssistantSettingsViewModel: ObservableObject {
     init(
         preferences: ShellPreferences,
         transcriptCapture: TranscriptCapture? = nil,
-        prepareWhisperModel: PrepareWhisperModel? = nil
+        prepareWhisperModel: PrepareWhisperModel? = nil,
+        scheduleWhisperIdleUnload: WhisperUnloadAction? = nil,
+        cancelWhisperIdleUnload: WhisperUnloadAction? = nil
     ) {
         self.preferences = preferences
         self.transcriptCapture = transcriptCapture ?? {
@@ -61,6 +66,18 @@ final class AIAssistantSettingsViewModel: ObservableObject {
             } catch {
                 WhisperModelLoadState.shared.refreshStatus()
                 return false
+            }
+        }
+        self.scheduleWhisperIdleUnload = scheduleWhisperIdleUnload ?? {
+            Task {
+                await WhisperService.shared.scheduleIdleUnload(
+                    afterNanoseconds: WhisperService.idleUnloadDelayNanoseconds
+                )
+            }
+        }
+        self.cancelWhisperIdleUnload = cancelWhisperIdleUnload ?? {
+            Task {
+                await WhisperService.shared.cancelScheduledUnload()
             }
         }
         updateFromProfile(preferences.activeTriggerProfile)
@@ -81,6 +98,7 @@ final class AIAssistantSettingsViewModel: ObservableObject {
     func showRecordControl() {
         guard renameState == .idle else { return }
         warmupTask?.cancel()
+        cancelWhisperIdleUnload()
         captureMessage = nil
         isRecordControlPresented = true
         isPreparingRecordControl = true
@@ -104,6 +122,7 @@ final class AIAssistantSettingsViewModel: ObservableObject {
     func startRecording() {
         guard renameState == .idle, !isPreparingRecordControl else { return }
         recordingTask?.cancel()
+        cancelWhisperIdleUnload()
         recordingSessionID = UUID()
         let sessionID = recordingSessionID
 
@@ -173,6 +192,34 @@ final class AIAssistantSettingsViewModel: ObservableObject {
         isPreparingRecordControl = false
         isRecordControlPresented = true
         renameState = .idle
+    }
+
+    func cancelRenameFlow() {
+        recordingSessionID = UUID()
+        warmupTask?.cancel()
+        warmupTask = nil
+        recordingTask?.cancel()
+        recordingTask = nil
+        pendingRecordedName = nil
+        captureMessage = nil
+        isPreparingRecordControl = false
+        isRecordControlPresented = false
+        if renameState != .submitting {
+            renameState = .idle
+        }
+        scheduleWhisperIdleUnload()
+    }
+
+    func handleSettingsDismissed() {
+        guard isPreparingRecordControl
+            || isRecordControlPresented
+            || renameState == .recording
+            || renameState == .transcribing
+            || renameState == .preview else {
+            return
+        }
+
+        cancelRenameFlow()
     }
 
     func submitPendingRecordedName() {
@@ -382,6 +429,20 @@ struct AIAssistantInlineRowView: View {
     @ObservedObject var viewModel: AIAssistantSettingsViewModel
     var showsActiveName: Bool = true
 
+    private var cancelButton: some View {
+        Button {
+            viewModel.cancelRenameFlow()
+        } label: {
+            Image(systemName: "xmark.circle.fill")
+                .foregroundStyle(.secondary)
+                .frame(width: 18, height: 18)
+        }
+        .buttonStyle(.borderless)
+        .help("Cancel assistant name setup.")
+        .accessibilityLabel("Cancel assistant name setup")
+        .accessibilityIdentifier("assistantRow.cancelButton")
+    }
+
     @ViewBuilder
     private var recordControlSlot: some View {
         Group {
@@ -423,13 +484,22 @@ struct AIAssistantInlineRowView: View {
                 }
 
                 recordControlSlot
+
+                if viewModel.isPreparingRecordControl || viewModel.isRecordControlPresented {
+                    cancelButton
+                }
             }
 
         case .recording, .transcribing:
-            recordControlSlot
+            HStack(spacing: 8) {
+                recordControlSlot
+                cancelButton
+            }
 
         case .preview:
             HStack(spacing: 8) {
+                cancelButton
+
                 Button {
                     viewModel.discardPendingRecordedName()
                 } label: {

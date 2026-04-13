@@ -81,6 +81,8 @@ final class ActivationStore: ObservableObject {
     @Published private(set) var recoveryFeedback: RecordingState.RecoveryFeedback?
     @Published private(set) var lastTranscription: String?
     @Published private(set) var lastConvertedTranscription: String?
+    @Published private(set) var successDismissStartedAt: Date?
+    @Published private(set) var successDismissDeadline: Date?
 
     private let preferences: ShellPreferences
     private let readinessProvider: any ReadinessProviding
@@ -102,6 +104,8 @@ final class ActivationStore: ObservableObject {
     private static let clipboardIntentTimeout: UInt64 = 8_000_000_000
     private static let rewriteTimeout: UInt64 = 45_000_000_000
     private static let clipboardRestoreDelay: UInt64 = 150_000_000
+    private static let successDismissDelay: UInt64 = 6_000_000_000
+    private static let successDismissDurationSeconds = TimeInterval(successDismissDelay) / 1_000_000_000
 
     var onPastePermissionNeeded: () -> Void = {}
 
@@ -270,6 +274,43 @@ final class ActivationStore: ObservableObject {
         }
     }
 
+    func pasteCurrentSuccessResult() {
+        guard let successText = currentSuccessText else { return }
+
+        refreshSuccessDismissTimer()
+        guard isPostEventPermissionGranted else {
+            onPastePermissionNeeded()
+            return
+        }
+
+        let originalClipboard = clipboardService.snapshotCurrentClipboard()
+        Task { [weak self] in
+            guard let self else { return }
+            _ = await self.pasteWithClipboardProtection(
+                text: successText,
+                originalClipboard: originalClipboard
+            )
+        }
+    }
+
+    func copyCurrentSuccessResult() {
+        guard let successText = currentSuccessText else { return }
+        clipboardService.writeToClipboard(successText)
+        refreshSuccessDismissTimer()
+    }
+
+    func dismissCurrentSuccess() {
+        guard case .success = state else { return }
+
+        dismissTask?.cancel()
+        dismissTask = nil
+        clearSuccessDismissTiming()
+        recoveryFeedback = nil
+        state = .idle
+        scheduleWhisperModelIdleUnload()
+        scheduleRewriteModelIdleUnload()
+    }
+
     /// Finish recording: stops capture and runs the transcription -> clipboard -> dismiss flow.
     func finish() {
         guard state == .recording else { return }
@@ -325,6 +366,7 @@ final class ActivationStore: ObservableObject {
         // tear down the previous session's resources before starting fresh.
         if state.isTerminal {
             invalidateScheduledWork()
+            clearSuccessDismissTiming()
             state = .idle
         }
 
@@ -431,7 +473,7 @@ final class ActivationStore: ObservableObject {
                     noMatchPassthrough: false
                 )
                 soundPlayer.playSuccess()
-                scheduleDismissToIdle(afterNanoseconds: 1_500_000_000, sessionID: sessionID)
+                beginSuccessDismissTiming(sessionID: sessionID)
             } else {
                 let didPaste = shouldPasteOnSuccessfulFinish
                 requestsPasteOnCompletion = false
@@ -484,6 +526,7 @@ final class ActivationStore: ObservableObject {
                         clipboardService.writeToClipboard(trimmed)
                     }
                     let failureSessionID = activeSessionID
+                    clearSuccessDismissTiming()
                     state = .failure(reason: .wordLimitExceeded)
                     soundPlayer.playFailure()
                     scheduleDismissToIdle(afterNanoseconds: 2_000_000_000, sessionID: failureSessionID)
@@ -513,6 +556,7 @@ final class ActivationStore: ObservableObject {
                     if !didPaste {
                         clipboardService.writeToClipboard(trimmed)
                     }
+                    clearSuccessDismissTiming()
                     state = .failure(reason: .modelError("Rewrite failed: \(errorDescription)"))
                     soundPlayer.playFailure()
                     scheduleDismissToIdle(afterNanoseconds: 2_000_000_000, sessionID: sessionID)
@@ -541,25 +585,29 @@ final class ActivationStore: ObservableObject {
                 lastConvertedTranscription = rewritten
                 state = .success(text: rewritten, pasted: syntheticPasteSucceeded, converted: true, clipboardInjected: clipboardWasInjected)
                 soundPlayer.playSuccess()
-                scheduleDismissToIdle(afterNanoseconds: 1_500_000_000, sessionID: sessionID)
+                beginSuccessDismissTiming(sessionID: sessionID)
             }
         } catch TranscriptionError.noSpeechDetected {
             guard isCurrentSession(sessionID) else { return }
+            clearSuccessDismissTiming()
             state = .failure(reason: .noSpeechDetected)
             soundPlayer.playFailure()
             scheduleDismissToIdle(afterNanoseconds: 2_000_000_000, sessionID: sessionID)
         } catch AudioBufferAccumulatorError.emptyBuffers {
             guard isCurrentSession(sessionID) else { return }
+            clearSuccessDismissTiming()
             state = .failure(reason: .noSpeechDetected)
             soundPlayer.playFailure()
             scheduleDismissToIdle(afterNanoseconds: 2_000_000_000, sessionID: sessionID)
         } catch AudioBufferAccumulatorError.overflow {
             guard isCurrentSession(sessionID) else { return }
+            clearSuccessDismissTiming()
             state = .failure(reason: .wordLimitExceeded)
             soundPlayer.playFailure()
             scheduleDismissToIdle(afterNanoseconds: 2_000_000_000, sessionID: sessionID)
         } catch {
             guard isCurrentSession(sessionID) else { return }
+            clearSuccessDismissTiming()
             state = .failure(reason: .modelError(error.localizedDescription))
             soundPlayer.playFailure()
             scheduleDismissToIdle(afterNanoseconds: 2_000_000_000, sessionID: sessionID)
@@ -573,6 +621,7 @@ final class ActivationStore: ObservableObject {
     private func invalidateActiveSession() {
         requestsPasteOnCompletion = false
         sessionClipboardSnapshot = nil
+        clearSuccessDismissTiming()
         activeSessionID = UUID()
         activeActivationOrigin = nil
         transcriptionTask?.cancel()
@@ -610,6 +659,36 @@ final class ActivationStore: ObservableObject {
         return outcome == .pasted
     }
 
+    private var currentSuccessText: String? {
+        guard case .success(let text, _, _, _, _) = state else {
+            return nil
+        }
+        return text
+    }
+
+    private func refreshSuccessDismissTimer() {
+        guard state.isTerminal, case .success = state else { return }
+        let start = Date()
+        successDismissStartedAt = start
+        successDismissDeadline = start.addingTimeInterval(Self.successDismissDurationSeconds)
+        scheduleDismissToIdle(
+            afterNanoseconds: Self.successDismissDelay,
+            sessionID: activeSessionID
+        )
+    }
+
+    private func beginSuccessDismissTiming(sessionID: UUID) {
+        let start = Date()
+        successDismissStartedAt = start
+        successDismissDeadline = start.addingTimeInterval(Self.successDismissDurationSeconds)
+        scheduleDismissToIdle(afterNanoseconds: Self.successDismissDelay, sessionID: sessionID)
+    }
+
+    private func clearSuccessDismissTiming() {
+        successDismissStartedAt = nil
+        successDismissDeadline = nil
+    }
+
     private func publishRecoveryFeedback(_ feedback: RecordingState.RecoveryFeedback) {
         feedbackClearTask?.cancel()
         recoveryFeedback = feedback
@@ -629,6 +708,7 @@ final class ActivationStore: ObservableObject {
             guard let self, self.isCurrentSession(sessionID) else { return }
             switch self.state {
             case .success, .failure:
+                self.clearSuccessDismissTiming()
                 self.state = .idle
                 self.scheduleWhisperModelIdleUnload()
                 self.scheduleRewriteModelIdleUnload()
