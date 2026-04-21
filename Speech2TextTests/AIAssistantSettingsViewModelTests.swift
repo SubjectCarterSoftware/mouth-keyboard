@@ -4,7 +4,7 @@ import XCTest
 
 @MainActor
 private func makePreferences(
-    activeProfile: TriggerNamePreset = .zeus,
+    activeProfile: TriggerNamePreset = .default,
     customPrimary: String = TriggerProfile.defaultCustomPrimary
 ) -> ShellPreferences {
     let suiteName = "AIAssistantSettingsViewModelTests.\(UUID().uuidString)"
@@ -13,8 +13,7 @@ private func makePreferences(
 
     let profile = TriggerProfile(
         activeProfile: activeProfile,
-        customPrimary: customPrimary,
-        customAliases: []
+        customPrimary: customPrimary
     )
 
     return ShellPreferences(
@@ -35,25 +34,16 @@ final class AIAssistantSettingsViewModelTests: XCTestCase {
         super.tearDown()
     }
 
-    func testDefaultProfileShowsZeusInlineName() {
-        let preferences = makePreferences(activeProfile: .zeus)
+    func testDefaultProfileShowsDefaultInlineName() {
+        let preferences = makePreferences(activeProfile: .default)
         let viewModel = AIAssistantSettingsViewModel(preferences: preferences)
 
-        XCTAssertEqual(viewModel.activeName, "Zeus")
-        XCTAssertEqual(viewModel.displayedName, "Zeus")
+        XCTAssertEqual(viewModel.activeName, AssistantDefaults.defaultAssistantName)
+        XCTAssertEqual(viewModel.displayedName, AssistantDefaults.defaultAssistantName)
         XCTAssertTrue(viewModel.isUsingDefaultName)
         XCTAssertEqual(viewModel.renameState, .idle)
         XCTAssertFalse(viewModel.isRecordControlPresented)
         XCTAssertFalse(viewModel.isPreparingRecordControl)
-    }
-
-    func testLegacyAtlasProfileFallsBackToZeus() {
-        let preferences = makePreferences(activeProfile: .atlas)
-        let viewModel = AIAssistantSettingsViewModel(preferences: preferences)
-
-        XCTAssertEqual(viewModel.activeName, "Zeus")
-        XCTAssertEqual(viewModel.displayedName, "Zeus")
-        XCTAssertTrue(viewModel.isUsingDefaultName)
     }
 
     func testCustomProfileShowsRecordedName() {
@@ -66,32 +56,32 @@ final class AIAssistantSettingsViewModelTests: XCTestCase {
     }
 
     func testPreviewRecordedNamePreservesSpokenCaseAndTrimsTrailingPunctuation() {
-        let preferences = makePreferences(activeProfile: .zeus)
+        let preferences = makePreferences(activeProfile: .default)
         let viewModel = AIAssistantSettingsViewModel(preferences: preferences)
 
         viewModel.previewRecordedName("  Project Copilot.  ")
 
         XCTAssertEqual(viewModel.pendingRecordedName, "Project Copilot")
         XCTAssertEqual(viewModel.displayedName, "Project Copilot")
-        XCTAssertEqual(viewModel.activeName, "Zeus")
+        XCTAssertEqual(viewModel.activeName, AssistantDefaults.defaultAssistantName)
         XCTAssertEqual(viewModel.renameState, .preview)
         XCTAssertTrue(viewModel.isPreviewingRecordedName)
     }
 
     func testPreviewRecordedNameIgnoresWhitespaceOnlyTranscription() {
-        let preferences = makePreferences(activeProfile: .zeus)
+        let preferences = makePreferences(activeProfile: .default)
         let viewModel = AIAssistantSettingsViewModel(preferences: preferences)
 
         viewModel.previewRecordedName("   ")
 
         XCTAssertNil(viewModel.pendingRecordedName)
-        XCTAssertEqual(viewModel.displayedName, "Zeus")
+        XCTAssertEqual(viewModel.displayedName, AssistantDefaults.defaultAssistantName)
         XCTAssertEqual(viewModel.renameState, .idle)
         XCTAssertTrue(viewModel.isUsingDefaultName)
     }
 
     func testShowRecordControlWarmsModelBeforeRevealingHoldToRecordButton() async {
-        let preferences = makePreferences(activeProfile: .zeus)
+        let preferences = makePreferences(activeProfile: .default)
         var continuation: CheckedContinuation<Bool, Never>?
         let viewModel = AIAssistantSettingsViewModel(
             preferences: preferences,
@@ -127,7 +117,7 @@ final class AIAssistantSettingsViewModelTests: XCTestCase {
     }
 
     func testStartRecordingStopRecordingStagesCapturedNameForSubmission() async {
-        let preferences = makePreferences(activeProfile: .zeus)
+        let preferences = makePreferences(activeProfile: .default)
         var continuation: CheckedContinuation<String?, Error>?
         let viewModel = AIAssistantSettingsViewModel(
             preferences: preferences,
@@ -165,13 +155,13 @@ final class AIAssistantSettingsViewModelTests: XCTestCase {
         await fulfillment(of: [previewExpectation], timeout: 1.0)
         XCTAssertEqual(viewModel.pendingRecordedName, "Nova Prime")
         XCTAssertEqual(viewModel.displayedName, "Nova Prime")
-        XCTAssertEqual(viewModel.activeName, "Zeus")
+        XCTAssertEqual(viewModel.activeName, AssistantDefaults.defaultAssistantName)
         XCTAssertEqual(viewModel.renameState, .preview)
-        XCTAssertEqual(preferences.activeTriggerProfile.activeProfile, .zeus)
+        XCTAssertEqual(preferences.activeTriggerProfile.activeProfile, .default)
     }
 
     func testStopRecordingStagesCapturedNameWhenCaptureReturnsAfterCancellation() async {
-        let preferences = makePreferences(activeProfile: .zeus)
+        let preferences = makePreferences(activeProfile: .default)
         let viewModel = AIAssistantSettingsViewModel(
             preferences: preferences,
             transcriptCapture: {
@@ -206,12 +196,12 @@ final class AIAssistantSettingsViewModelTests: XCTestCase {
         await fulfillment(of: [previewExpectation], timeout: 1.0)
         XCTAssertEqual(viewModel.pendingRecordedName, "Nova Prime")
         XCTAssertEqual(viewModel.displayedName, "Nova Prime")
-        XCTAssertEqual(viewModel.activeName, "Zeus")
+        XCTAssertEqual(viewModel.activeName, AssistantDefaults.defaultAssistantName)
         XCTAssertEqual(viewModel.renameState, .preview)
     }
 
     func testStopRecordingPreparesWhisperModelBeforeCancelledCaptureReturnsTranscript() async {
-        let preferences = makePreferences(activeProfile: .zeus)
+        let preferences = makePreferences(activeProfile: .default)
         var didPrepareModel = false
         let viewModel = AIAssistantSettingsViewModel(
             preferences: preferences,
@@ -252,7 +242,7 @@ final class AIAssistantSettingsViewModelTests: XCTestCase {
     }
 
     func testSubmitPendingRecordedNamePersistsStagedName() async {
-        let preferences = makePreferences(activeProfile: .zeus)
+        let preferences = makePreferences(activeProfile: .default)
         let viewModel = AIAssistantSettingsViewModel(preferences: preferences)
         viewModel.previewRecordedName("Nova Prime")
 
@@ -271,20 +261,20 @@ final class AIAssistantSettingsViewModelTests: XCTestCase {
     }
 
     func testDiscardPendingRecordedNameReturnsToIdle() {
-        let preferences = makePreferences(activeProfile: .zeus)
+        let preferences = makePreferences(activeProfile: .default)
         let viewModel = AIAssistantSettingsViewModel(preferences: preferences)
         viewModel.previewRecordedName("Nova Prime")
 
         viewModel.discardPendingRecordedName()
 
         XCTAssertNil(viewModel.pendingRecordedName)
-        XCTAssertEqual(viewModel.displayedName, "Zeus")
+        XCTAssertEqual(viewModel.displayedName, AssistantDefaults.defaultAssistantName)
         XCTAssertEqual(viewModel.renameState, .idle)
         XCTAssertTrue(viewModel.isRecordControlPresented)
     }
 
     func testCancelRenameFlowFromWarmupHidesControlAndSchedulesUnload() {
-        let preferences = makePreferences(activeProfile: .zeus)
+        let preferences = makePreferences(activeProfile: .default)
         var unloadScheduleCount = 0
         let viewModel = AIAssistantSettingsViewModel(
             preferences: preferences,
@@ -331,7 +321,7 @@ final class AIAssistantSettingsViewModelTests: XCTestCase {
     }
 
     func testHandleSettingsDismissedCancelsRenameFlowAndSchedulesUnload() {
-        let preferences = makePreferences(activeProfile: .zeus)
+        let preferences = makePreferences(activeProfile: .default)
         var unloadScheduleCount = 0
         let viewModel = AIAssistantSettingsViewModel(
             preferences: preferences,
@@ -352,7 +342,7 @@ final class AIAssistantSettingsViewModelTests: XCTestCase {
     }
 
     func testStartRecordingShowsBusyMessageWhenCaptureIsUnavailable() async {
-        let preferences = makePreferences(activeProfile: .zeus)
+        let preferences = makePreferences(activeProfile: .default)
         let viewModel = AIAssistantSettingsViewModel(
             preferences: preferences,
             transcriptCapture: {
@@ -380,18 +370,18 @@ final class AIAssistantSettingsViewModelTests: XCTestCase {
         XCTAssertEqual(viewModel.captureMessage, "Assistant renaming must wait until the current recording ends.")
     }
 
-    func testResetToZeusClearsCustomName() async {
+    func testResetToDefaultClearsCustomName() async {
         let preferences = makePreferences(activeProfile: .custom, customPrimary: "Nova Prime")
         let viewModel = AIAssistantSettingsViewModel(preferences: preferences)
 
         let updatedProfile = await waitForProfileUpdate(on: preferences) {
-            viewModel.resetToZeus()
+            viewModel.resetToDefault()
         }
 
         XCTAssertEqual(updatedProfile, .defaultProfile)
         XCTAssertNil(viewModel.pendingRecordedName)
-        XCTAssertEqual(viewModel.activeName, "Zeus")
-        XCTAssertEqual(viewModel.displayedName, "Zeus")
+        XCTAssertEqual(viewModel.activeName, AssistantDefaults.defaultAssistantName)
+        XCTAssertEqual(viewModel.displayedName, AssistantDefaults.defaultAssistantName)
         XCTAssertEqual(viewModel.renameState, .idle)
         XCTAssertTrue(viewModel.isUsingDefaultName)
         XCTAssertFalse(viewModel.isRecordControlPresented)

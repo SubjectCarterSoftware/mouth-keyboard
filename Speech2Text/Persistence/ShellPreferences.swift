@@ -269,19 +269,7 @@ final class ShellPreferences: ObservableObject {
             userDefaults.set(migratedRewritePromptPrefix, forKey: Keys.rewriteSystemPromptPrefix)
         }
 
-        let loadedTriggerProfile = (initialTriggerProfile ?? TriggerProfileStore.loadSynchronously()).normalized()
-        let migratedTriggerProfile = Self.migratedTriggerProfile(loadedTriggerProfile)
-        activeTriggerProfile = migratedTriggerProfile
-
-        if migratedTriggerProfile != loadedTriggerProfile {
-            Task { [triggerProfileStore] in
-                do {
-                    try await triggerProfileStore.save(migratedTriggerProfile)
-                } catch {
-                    NSLog("Speech2Text: failed to migrate trigger profile: \(error.localizedDescription)")
-                }
-            }
-        }
+        activeTriggerProfile = (initialTriggerProfile ?? TriggerProfileStore.loadSynchronously()).normalized()
     }
 
     func completeInitialSetup() {
@@ -319,9 +307,9 @@ final class ShellPreferences: ObservableObject {
         launchAtLogin = SMAppService.mainApp.status == .enabled
     }
 
-    func setCustomTrigger(primary: String, aliases: [String]) {
+    func setCustomTrigger(primary: String) {
         Task { [weak self] in
-            _ = await self?.persistCustomTrigger(primary: primary, aliases: aliases)
+            _ = await self?.persistCustomTrigger(primary: primary)
         }
     }
 
@@ -332,8 +320,8 @@ final class ShellPreferences: ObservableObject {
     }
 
     @discardableResult
-    func persistCustomTrigger(primary: String, aliases: [String]) async -> Bool {
-        let nextProfile = activeTriggerProfile.updatingCustom(primary: primary, aliases: aliases)
+    func persistCustomTrigger(primary: String) async -> Bool {
+        let nextProfile = activeTriggerProfile.updatingCustom(primary: primary)
         return await persistTriggerProfile(nextProfile, logContext: "custom trigger profile")
     }
 
@@ -391,7 +379,7 @@ final class ShellPreferences: ObservableObject {
 
     @discardableResult
     private func persistTriggerProfile(_ nextProfile: TriggerProfile, logContext: String) async -> Bool {
-        let normalizedProfile = Self.migratedTriggerProfile(nextProfile.normalized())
+        let normalizedProfile = nextProfile.normalized()
         do {
             try await triggerProfileStore.save(normalizedProfile)
             activeTriggerProfile = normalizedProfile
@@ -399,15 +387,6 @@ final class ShellPreferences: ObservableObject {
         } catch {
             NSLog("Speech2Text: failed to persist \(logContext): \(error.localizedDescription)")
             return false
-        }
-    }
-
-    private static func migratedTriggerProfile(_ profile: TriggerProfile) -> TriggerProfile {
-        switch profile.activeProfile {
-        case .atlas, .gaia:
-            return profile.settingActiveProfile(.zeus)
-        case .zeus, .custom:
-            return profile
         }
     }
 
@@ -485,19 +464,8 @@ final class ShellPreferences: ObservableObject {
             if let customNameIndex = arguments.firstIndex(of: "-seed-trigger-custom-name"),
                arguments.indices.contains(arguments.index(after: customNameIndex)) {
                 seedProfile = seedProfile.updatingCustom(
-                    primary: arguments[arguments.index(after: customNameIndex)],
-                    aliases: []
+                    primary: arguments[arguments.index(after: customNameIndex)]
                 )
-            }
-
-            // Optionally seed calibrated aliases via '-seed-trigger-profile-calibrated'
-            if arguments.contains("-seed-trigger-profile-calibrated") {
-                let activePreset = seedProfile.activeProfile
-                let canonicalName = activePreset == .custom
-                    ? TriggerProfile.normalizeAlias(seedProfile.customPrimary)
-                    : activePreset.canonicalAlias
-                let calibratedAliases = [canonicalName, "hey \(canonicalName)", "assistant \(canonicalName)"]
-                seedProfile = seedProfile.replacingAliasesForActiveProfile(calibratedAliases)
             }
 
             initialTriggerProfile = seedProfile

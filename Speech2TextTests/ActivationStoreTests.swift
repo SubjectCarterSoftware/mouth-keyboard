@@ -290,7 +290,7 @@ final class ActivationStoreTests: XCTestCase {
             permissionsAuthorized: true,
             postEventAuthorized: true,
             transcriber: ActivationStoreMockTranscriber(
-                result: .success("zeus Please schedule a meeting for Friday convert to email")
+                result: .success("clanker Please schedule a meeting for Friday convert to email")
             ),
             llmRewriter: MockLLMRewriter(result: .success("Converted output")),
             clipboard: mockClipboard,
@@ -323,7 +323,7 @@ final class ActivationStoreTests: XCTestCase {
             permissionsAuthorized: true,
             postEventAuthorized: true,
             transcriber: ActivationStoreMockTranscriber(
-                result: .success("zeus Please schedule a meeting for Friday convert to email")
+                result: .success("clanker Please schedule a meeting for Friday convert to email")
             ),
             llmRewriter: MockLLMRewriter(result: .failure(LLMRewriteError.generationFailed)),
             clipboard: mockClipboard,
@@ -339,7 +339,7 @@ final class ActivationStoreTests: XCTestCase {
         XCTAssertTrue(mockClipboard.temporaryWriteTexts.isEmpty)
         XCTAssertEqual(mockClipboard.restoreCallCount, 0)
         XCTAssertEqual(pasteStub.pasteCount, 0)
-        XCTAssertEqual(store.lastTranscription, "zeus Please schedule a meeting for Friday convert to email")
+        XCTAssertEqual(store.lastTranscription, "clanker Please schedule a meeting for Friday convert to email")
     }
 
     func testAlwaysAutoPasteOffKeepsClipboardOnlyBehavior() async throws {
@@ -437,7 +437,7 @@ final class ActivationStoreTests: XCTestCase {
     }
 
     func testCancelDuringConvertingSuppressesLateConversion() async throws {
-        let transcript = "team update zeus make this concise and direct"
+        let transcript = "team update clanker make this concise and direct"
         let mockTranscriber = ActivationStoreMockTranscriber(result: .success(transcript))
         let mockClipboard = ActivationStoreMockClipboard()
         let preferences = makePreferencesWithTriggerStore()
@@ -469,7 +469,7 @@ final class ActivationStoreTests: XCTestCase {
     }
 
     func testImmediateRewriteHoldsConvertingStateBeforeSuccess() async throws {
-        let transcript = "team update zeus make this concise and direct"
+        let transcript = "team update clanker make this concise and direct"
         let mockTranscriber = ActivationStoreMockTranscriber(result: .success(transcript))
         let mockClipboard = ActivationStoreMockClipboard()
         let store = makeStore(
@@ -497,7 +497,7 @@ final class ActivationStoreTests: XCTestCase {
     }
 
     func testDelayedRewriteDoesNotAddExtraDelayAfterMinimumConvertingDisplay() async throws {
-        let transcript = "team update zeus make this concise and direct"
+        let transcript = "team update clanker make this concise and direct"
         let mockTranscriber = ActivationStoreMockTranscriber(result: .success(transcript))
         let mockClipboard = ActivationStoreMockClipboard()
         let preferences = makePreferencesWithTriggerStore()
@@ -554,7 +554,7 @@ final class ActivationStoreTests: XCTestCase {
     }
 
     func testCancelDuringMinimumConvertingDisplaySuppressesClipboardWrite() async throws {
-        let transcript = "team update zeus make this concise and direct"
+        let transcript = "team update clanker make this concise and direct"
         let mockTranscriber = ActivationStoreMockTranscriber(result: .success(transcript))
         let mockClipboard = ActivationStoreMockClipboard()
         let store = makeStore(
@@ -793,7 +793,7 @@ final class ActivationStoreTests: XCTestCase {
         let mockClipboard = ActivationStoreMockClipboard()
         let store = makeStore(
             permissionsAuthorized: true,
-            transcriber: ActivationStoreMockTranscriber(result: .success("zeus make this formal")),
+            transcriber: ActivationStoreMockTranscriber(result: .success("clanker make this formal")),
             llmRewriter: MockLLMRewriter(result: .success("Converted output")),
             clipboard: mockClipboard,
             preferences: preferences
@@ -818,7 +818,7 @@ final class ActivationStoreTests: XCTestCase {
 
         let store = makeStore(
             permissionsAuthorized: true,
-            transcriber: ActivationStoreMockTranscriber(result: .success("zeus make this formal")),
+            transcriber: ActivationStoreMockTranscriber(result: .success("clanker make this formal")),
             llmRewriter: MockLLMRewriter(result: .success("Converted output")),
             clipboard: ActivationStoreMockClipboard(),
             preferences: preferences
@@ -1137,7 +1137,7 @@ final class ActivationStoreTests: XCTestCase {
 
     func test_trigger_dictation_produces_converted_clipboard_output() async throws {
         let mockTranscriber = ActivationStoreMockTranscriber(
-            result: .success("zeus Please schedule a meeting for Friday convert to email")
+            result: .success("clanker Please schedule a meeting for Friday convert to email")
         )
         let mockRewriter = MockLLMRewriter(result: .success("Subject: Meeting Request\n\nPlease schedule..."))
         let mockClipboard = ActivationStoreMockClipboard()
@@ -1168,7 +1168,7 @@ final class ActivationStoreTests: XCTestCase {
         preferences.allowClipboardAccess = false
 
         let mockTranscriber = ActivationStoreMockTranscriber(
-            result: .success("zeus Please schedule a meeting for Friday convert to email")
+            result: .success("clanker Please schedule a meeting for Friday convert to email")
         )
         let mockRewriter = MockLLMRewriter(result: .success("Converted output"))
         let store = makeStore(
@@ -1188,7 +1188,7 @@ final class ActivationStoreTests: XCTestCase {
     }
 
     func test_finalize_rewrite_failure_surfaces_model_error_not_silent_success() async throws {
-        let transcript = "team update zeus make this concise and direct"
+        let transcript = "team update clanker make this concise and direct"
         let mockTranscriber = ActivationStoreMockTranscriber(result: .success(transcript))
         let mockRewriter = MockLLMRewriter(result: .failure(LLMRewriteError.generationFailed))
         let mockClipboard = ActivationStoreMockClipboard()
@@ -1240,7 +1240,7 @@ final class ActivationStoreTests: XCTestCase {
 
     func test_trigger_name_mutation_does_not_change_passthrough_finalize_behavior() async throws {
         let preferences = makePreferencesWithTriggerStore()
-        preferences.setCustomTrigger(primary: "Atlas", aliases: [])
+        preferences.setCustomTrigger(primary: "Atlas")
         try await Task.sleep(nanoseconds: 80_000_000)
 
         let mockClipboard = ActivationStoreMockClipboard()
@@ -1264,7 +1264,7 @@ final class ActivationStoreTests: XCTestCase {
 
     func test_custom_trigger_mutation_keeps_assistant_generation_active() async throws {
         let preferences = makePreferencesWithTriggerStore()
-        preferences.setCustomTrigger(primary: "Helios", aliases: ["assistant helios"])
+        preferences.setCustomTrigger(primary: "Helios")
         preferences.allowClipboardAccess = false
         try await Task.sleep(nanoseconds: 80_000_000)
 
@@ -1298,7 +1298,7 @@ final class ActivationStoreTests: XCTestCase {
 
     func test_finalize_triggered_alias_routes_full_transcript_through_generate() async throws {
         let preferences = makePreferencesWithTriggerStore()
-        preferences.setCustomTrigger(primary: "Atlas", aliases: [])
+        preferences.setCustomTrigger(primary: "Atlas")
         preferences.allowClipboardAccess = false
         try await Task.sleep(nanoseconds: 80_000_000)
 
@@ -1331,7 +1331,7 @@ final class ActivationStoreTests: XCTestCase {
 
     func test_finalize_no_trigger_alias_keeps_passthrough_behavior() async throws {
         let preferences = makePreferencesWithTriggerStore()
-        preferences.setCustomTrigger(primary: "Atlas", aliases: [])
+        preferences.setCustomTrigger(primary: "Atlas")
         try await Task.sleep(nanoseconds: 80_000_000)
 
         let transcript = "convert to email send this to the team"
@@ -1361,7 +1361,7 @@ final class ActivationStoreTests: XCTestCase {
 
     func test_finalize_single_word_after_alias_still_activates_conversion() async throws {
         let preferences = makePreferencesWithTriggerStore()
-        preferences.setCustomTrigger(primary: "Atlas", aliases: [])
+        preferences.setCustomTrigger(primary: "Atlas")
         preferences.allowClipboardAccess = false
         try await Task.sleep(nanoseconds: 80_000_000)
 
@@ -1393,7 +1393,7 @@ final class ActivationStoreTests: XCTestCase {
 
     func test_finalize_repeated_alias_mentions_still_route_full_transcript() async throws {
         let preferences = makePreferencesWithTriggerStore()
-        preferences.setCustomTrigger(primary: "Atlas", aliases: [])
+        preferences.setCustomTrigger(primary: "Atlas")
         preferences.allowClipboardAccess = false
         try await Task.sleep(nanoseconds: 80_000_000)
 
@@ -1419,7 +1419,7 @@ final class ActivationStoreTests: XCTestCase {
 
     func test_finalize_alias_at_start_routes_full_transcript() async throws {
         let preferences = makePreferencesWithTriggerStore()
-        preferences.setCustomTrigger(primary: "Atlas", aliases: [])
+        preferences.setCustomTrigger(primary: "Atlas")
         preferences.allowClipboardAccess = false
         try await Task.sleep(nanoseconds: 80_000_000)
 
@@ -1452,7 +1452,7 @@ final class ActivationStoreTests: XCTestCase {
 
     func test_finalize_alias_in_middle_routes_full_transcript() async throws {
         let preferences = makePreferencesWithTriggerStore()
-        preferences.setCustomTrigger(primary: "Atlas", aliases: [])
+        preferences.setCustomTrigger(primary: "Atlas")
         preferences.allowClipboardAccess = false
         try await Task.sleep(nanoseconds: 80_000_000)
 
@@ -1479,7 +1479,7 @@ final class ActivationStoreTests: XCTestCase {
 
     func test_finalize_triggered_assistant_prompt_preserves350WordGate() async throws {
         let preferences = makePreferencesWithTriggerStore()
-        preferences.setCustomTrigger(primary: "Atlas", aliases: [])
+        preferences.setCustomTrigger(primary: "Atlas")
         preferences.allowClipboardAccess = false
         try await Task.sleep(nanoseconds: 80_000_000)
 
@@ -1512,7 +1512,7 @@ final class ActivationStoreTests: XCTestCase {
         preferences.allowClipboardAccess = true
         try await Task.sleep(nanoseconds: 80_000_000)
 
-        let transcript = "zeus format what I copied"
+        let transcript = "clanker format what I copied"
         let mockTranscriber = ActivationStoreMockTranscriber(result: .success(transcript))
         let mockRewriter = MockLLMRewriter(result: .success("Formatted clipboard text"))
         mockRewriter.queuedGenerateResults = [
@@ -1552,7 +1552,7 @@ final class ActivationStoreTests: XCTestCase {
         preferences.allowClipboardAccess = true
         try await Task.sleep(nanoseconds: 80_000_000)
 
-        let transcript = "zeus format what I copied"
+        let transcript = "clanker format what I copied"
         let mockTranscriber = ActivationStoreMockTranscriber(result: .success(transcript))
         let mockRewriter = MockLLMRewriter(result: .success("Formatted clipboard text"))
         mockRewriter.queuedGenerateResults = [
@@ -1583,7 +1583,7 @@ final class ActivationStoreTests: XCTestCase {
         preferences.allowClipboardAccess = true
         try await Task.sleep(nanoseconds: 80_000_000)
 
-        let transcript = "zeus make this more formal"
+        let transcript = "clanker make this more formal"
         let mockTranscriber = ActivationStoreMockTranscriber(result: .success(transcript))
         let mockRewriter = MockLLMRewriter(result: .success("Formal output"))
         mockRewriter.queuedGenerateResults = [
@@ -1620,7 +1620,7 @@ final class ActivationStoreTests: XCTestCase {
         preferences.allowClipboardAccess = false
         try await Task.sleep(nanoseconds: 80_000_000)
 
-        let transcript = "zeus format what I copied"
+        let transcript = "clanker format what I copied"
         let mockTranscriber = ActivationStoreMockTranscriber(result: .success(transcript))
         let mockRewriter = MockLLMRewriter(result: .success("Plain rewrite"))
         let mockClipboard = ActivationStoreMockClipboard()
@@ -1682,7 +1682,7 @@ final class ActivationStoreTests: XCTestCase {
         preferences.allowClipboardAccess = true
         try await Task.sleep(nanoseconds: 80_000_000)
 
-        let transcript = "zeus format what I copied"
+        let transcript = "clanker format what I copied"
         let mockTranscriber = ActivationStoreMockTranscriber(result: .success(transcript))
         let mockRewriter = MockLLMRewriter(result: .success("Rewrite of empty input"))
         mockRewriter.queuedGenerateResults = [
@@ -1714,7 +1714,7 @@ final class ActivationStoreTests: XCTestCase {
 
     func test_finalize_triggered_generation_failure_fallsBackToRawClipboard() async throws {
         let preferences = makePreferencesWithTriggerStore()
-        preferences.setCustomTrigger(primary: "Atlas", aliases: [])
+        preferences.setCustomTrigger(primary: "Atlas")
         preferences.allowClipboardAccess = false
         try await Task.sleep(nanoseconds: 80_000_000)
 
@@ -1749,7 +1749,7 @@ final class ActivationStoreTests: XCTestCase {
 
     func test_finalize_triggered_generation_failure_in_middle_fallsBackToRawClipboard() async throws {
         let preferences = makePreferencesWithTriggerStore()
-        preferences.setCustomTrigger(primary: "Atlas", aliases: [])
+        preferences.setCustomTrigger(primary: "Atlas")
         preferences.allowClipboardAccess = false
         try await Task.sleep(nanoseconds: 80_000_000)
 
@@ -1785,21 +1785,22 @@ final class ActivationStoreTests: XCTestCase {
 
     // MARK: - Phase 15 — no-restart trigger updates
 
-    /// After resetAssistantNameToDefault, Zeus activates trigger parsing in the
-    /// very next session without restarting the app.
+    /// After resetAssistantNameToDefault, the default assistant name activates
+    /// trigger parsing in the very next session without restarting the app.
     func test_finalize_resetAssistantNameToDefault_updatesAliasesUsedInNextSession() async throws {
         let preferences = makePreferencesWithTriggerStore()
         // Start on a custom name.
-        preferences.setCustomTrigger(primary: "Atlas", aliases: [])
+        preferences.setCustomTrigger(primary: "Atlas")
         preferences.allowClipboardAccess = false
         try await Task.sleep(nanoseconds: 80_000_000)
 
-        // Switch back to Zeus — no restart.
+        // Switch back to the default assistant name — no restart.
         preferences.resetAssistantNameToDefault()
         try await Task.sleep(nanoseconds: 80_000_000)
 
-        // "zeus" must now be the active trigger.
-        let transcript = "please draft a message zeus convert to slack"
+        // The default trigger must now be the active trigger.
+        let triggerWord = AssistantDefaults.defaultAssistantName.lowercased()
+        let transcript = "please draft a message \(triggerWord) convert to slack"
         let mockTranscriber = ActivationStoreMockTranscriber(result: .success(transcript))
         let mockRewriter = MockLLMRewriter(result: .success("Assistant output"))
         let mockClipboard = ActivationStoreMockClipboard()
@@ -1816,7 +1817,7 @@ final class ActivationStoreTests: XCTestCase {
         try await Task.sleep(nanoseconds: 300_000_000)
 
         XCTAssertEqual(mockRewriter.lastCalledOverload, .generateOverload,
-                       "'zeus' must activate trigger parsing after resetAssistantNameToDefault without restart")
+                       "Default trigger must activate trigger parsing after resetAssistantNameToDefault without restart")
         XCTAssertEqual(mockRewriter.lastGeneratePrompt, transcript)
     }
 
@@ -1829,7 +1830,7 @@ final class ActivationStoreTests: XCTestCase {
         try await Task.sleep(nanoseconds: 80_000_000)
 
         // Switch to custom name "Helios"
-        preferences.setCustomTrigger(primary: "Helios", aliases: [])
+        preferences.setCustomTrigger(primary: "Helios")
         try await Task.sleep(nanoseconds: 80_000_000)
 
         // "helios" must now be the active trigger — use a clean trailing shortcut

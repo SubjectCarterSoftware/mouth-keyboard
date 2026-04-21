@@ -45,38 +45,51 @@ final class StatusMenuController: NSObject, NSMenuDelegate {
     }
 
     func updateIcon(for state: RecordingState) {
-        let symbolName: String
+        let tint: NSColor?
         let description: String
 
         switch state {
         case .idle:
-            symbolName = "waveform"
+            tint = nil
             description = "Speech2Text"
         case .recording:
-            symbolName = "mic.fill"
+            tint = .systemRed
             description = "Recording"
         case .processing:
-            symbolName = "ellipsis.circle"
+            tint = NSColor(red: 0.102, green: 0.431, blue: 1.0, alpha: 1.0)
             description = "Processing"
         case .modelDownloading:
-            symbolName = "arrow.down.circle"
+            tint = NSColor(red: 0.102, green: 0.431, blue: 1.0, alpha: 1.0)
             description = "Downloading model"
         case .converting:
-            symbolName = "ellipsis.circle"
+            tint = NSColor(red: 0.545, green: 0.184, blue: 0.788, alpha: 1.0)
             description = "Converting"
         case .success:
-            symbolName = "checkmark.circle.fill"
+            tint = .systemGreen
             description = "Transcribed"
         case .failure:
-            symbolName = "exclamationmark.circle.fill"
+            tint = .systemRed
             description = "Failed"
         }
 
-        statusItem?.button?.image = NSImage(
-            systemSymbolName: symbolName,
-            accessibilityDescription: description
-        )
+        statusItem?.button?.image = menuBarWaveform(tint: tint, accessibilityDescription: description)
         statusItem?.button?.toolTip = description
+    }
+
+    private func menuBarWaveform(tint: NSColor?, accessibilityDescription: String) -> NSImage? {
+        let baseConfig = NSImage.SymbolConfiguration(pointSize: 18, weight: .regular)
+        if let tint {
+            let config = baseConfig.applying(NSImage.SymbolConfiguration(paletteColors: [tint]))
+            let image = NSImage(systemSymbolName: "waveform", accessibilityDescription: accessibilityDescription)?
+                .withSymbolConfiguration(config)
+            image?.isTemplate = false
+            return image
+        } else {
+            let image = NSImage(systemSymbolName: "waveform", accessibilityDescription: accessibilityDescription)?
+                .withSymbolConfiguration(baseConfig)
+            image?.isTemplate = true
+            return image
+        }
     }
 
     func menuNeedsUpdate(_ menu: NSMenu) {
@@ -92,10 +105,6 @@ final class StatusMenuController: NSObject, NSMenuDelegate {
             || recordingState == .processing
             || recordingState.isModelDownloading
             || recordingState == .converting
-    }
-
-    private var canRestartSession: Bool {
-        recordingState == .recording
     }
 
     private var canFinishSession: Bool {
@@ -142,48 +151,27 @@ final class StatusMenuController: NSObject, NSMenuDelegate {
             )
             menu.addItem(setupItem)
         } else {
-            menu.addItem(
-                actionItem(
-                    title: "Start Transcription",
-                    action: #selector(startRecordingFromMenu),
-                    shortcut: KeyboardShortcuts.getShortcut(for: .activate),
-                    enabled: canStartSession,
-                    symbolNames: ["record.circle", "play.circle"]
+            if canFinishSession {
+                menu.addItem(
+                    actionItem(
+                        title: "Stop Transcription",
+                        action: #selector(finishRecordingFromMenu),
+                        shortcut: KeyboardShortcuts.getShortcut(for: .stopSession),
+                        enabled: true,
+                        symbolNames: ["stop.circle"]
+                    )
                 )
-            )
-            menu.addItem(
-                actionItem(
-                    title: "Finish Transcription",
-                    action: #selector(finishRecordingFromMenu),
-                    shortcut: KeyboardShortcuts.getShortcut(for: .stopSession),
-                    enabled: canFinishSession,
-                    symbolNames: ["stop.circle", "stop.fill"]
+            } else {
+                menu.addItem(
+                    actionItem(
+                        title: "Start Transcription",
+                        action: #selector(startRecordingFromMenu),
+                        shortcut: KeyboardShortcuts.getShortcut(for: .activate),
+                        enabled: canStartSession,
+                        symbolNames: ["record.circle"]
+                    )
                 )
-            )
-            menu.addItem(
-                actionItem(
-                    title: "Cancel Transcription",
-                    action: #selector(cancelSessionFromMenu),
-                    shortcut: KeyboardShortcuts.getShortcut(for: .cancelSession)
-                        ?? KeyboardShortcuts.Shortcut(.v, modifiers: [.control, .shift]),
-                    enabled: canCancelSession,
-                    symbolNames: ["xmark.circle", "xmark"]
-                )
-            )
-            menu.addItem(
-                actionItem(
-                    title: "Restart Transcription",
-                    action: #selector(restartRecordingFromMenu),
-                    enabled: canRestartSession,
-                    symbolNames: ["arrow.clockwise.circle", "arrow.clockwise"]
-                )
-            )
-            menu.addItem(passiveShortcutItem(
-                title: "Hold to Transcribe",
-                shortcutText: primaryHoldShortcutText,
-                accessibilityIdentifier: "statusMenu.holdShortcutHint",
-                symbolNames: ["hand.raised.circle", "hand.raised"]
-            ))
+            }
 
             menu.addItem(.separator())
 

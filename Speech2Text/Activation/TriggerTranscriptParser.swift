@@ -1,68 +1,62 @@
 import Foundation
 
+/// Detects whether a transcript contains the assistant's activation trigger
+/// word. Matches the latest word-boundary occurrence, case-insensitively.
 struct TriggerTranscriptParser {
     static func detect(
         transcript: String,
-        activeAliases: [String]
+        triggerNames: [String]
     ) -> TriggerTranscriptDetection {
         let trimmedTranscript = transcript.trimmingCharacters(in: .whitespacesAndNewlines)
-        let aliases = TriggerAliasNormalizer.normalize(activeAliases)
-
-        guard !trimmedTranscript.isEmpty, !aliases.isEmpty else {
+        guard !trimmedTranscript.isEmpty else {
             return .noTrigger(transcript: trimmedTranscript)
         }
 
-        guard let match = lastBoundaryMatch(in: trimmedTranscript, aliases: aliases) else {
-            return .noTrigger(transcript: trimmedTranscript)
+        for name in triggerNames {
+            let trimmed = name
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+                .replacingOccurrences(of: "\\s+", with: " ", options: .regularExpression)
+            guard trimmed.count >= 2 else { continue }
+            if lastBoundaryMatch(in: trimmedTranscript, trigger: trimmed) != nil {
+                return .triggered(transcript: trimmedTranscript, matchedAlias: trimmed)
+            }
         }
 
-        return .triggered(
-            transcript: trimmedTranscript,
-            matchedAlias: match.alias
-        )
+        return .noTrigger(transcript: trimmedTranscript)
     }
 
-    private struct BoundaryMatch {
-        let range: NSRange
-        let alias: String
+    static func detect(
+        transcript: String,
+        triggerName: String
+    ) -> TriggerTranscriptDetection {
+        detect(transcript: transcript, triggerNames: [triggerName])
     }
 
-    private static func lastBoundaryMatch(in transcript: String, aliases: [String]) -> BoundaryMatch? {
-        var bestMatch: BoundaryMatch?
+    private static func lastBoundaryMatch(in transcript: String, trigger: String) -> String? {
+        let escaped = NSRegularExpression.escapedPattern(for: trigger)
+        let pattern = "\\b\(escaped)\\b"
+
+        guard let regex = try? NSRegularExpression(
+            pattern: pattern,
+            options: [.caseInsensitive]
+        ) else {
+            return nil
+        }
+
         let transcriptRange = NSRange(transcript.startIndex..<transcript.endIndex, in: transcript)
+        var lastRange: NSRange?
 
-        for alias in aliases {
-            let escapedAlias = NSRegularExpression.escapedPattern(for: alias)
-            let pattern = "\\b\(escapedAlias)\\b"
-
-            guard let regex = try? NSRegularExpression(
-                pattern: pattern,
-                options: [.caseInsensitive]
-            ) else {
-                continue
-            }
-
-            regex.enumerateMatches(in: transcript, options: [], range: transcriptRange) { match, _, _ in
-                guard let match else { return }
-                let candidate = BoundaryMatch(range: match.range, alias: alias)
-
-                guard let existing = bestMatch else {
-                    bestMatch = candidate
-                    return
+        regex.enumerateMatches(in: transcript, options: [], range: transcriptRange) { match, _, _ in
+            guard let match else { return }
+            if let existing = lastRange {
+                if match.range.location > existing.location {
+                    lastRange = match.range
                 }
-
-                if candidate.range.location > existing.range.location {
-                    bestMatch = candidate
-                    return
-                }
-
-                if candidate.range.location == existing.range.location,
-                   candidate.range.length > existing.range.length {
-                    bestMatch = candidate
-                }
+            } else {
+                lastRange = match.range
             }
         }
 
-        return bestMatch
+        return lastRange == nil ? nil : trigger
     }
 }

@@ -2,68 +2,68 @@ import XCTest
 @testable import Speech2Text
 
 final class TriggerTranscriptParserTests: XCTestCase {
-    func testLastNameWinsUsesLastAliasOccurrenceAsTrigger() {
+    func testDetectReturnsLastOccurrenceWhenTriggerAppearsMultipleTimes() {
         let detection = TriggerTranscriptParser.detect(
-            transcript: "Zeus this stays content atlas convert to email the weekly recap",
-            activeAliases: ["zeus", "atlas"]
+            transcript: "atlas think of something and then atlas convert it to email",
+            triggerName: "atlas"
         )
 
         XCTAssertEqual(
             detection,
             .triggered(
-                transcript: "Zeus this stays content atlas convert to email the weekly recap",
+                transcript: "atlas think of something and then atlas convert it to email",
                 matchedAlias: "atlas"
             )
         )
     }
 
-    func testDetectReturnsFullTranscriptWhenAliasAppearsInMiddle() {
+    func testDetectReturnsFullTranscriptWhenTriggerAppearsInMiddle() {
         let detection = TriggerTranscriptParser.detect(
-            transcript: "Draft note for finance team. ZEUS polish this into an email update",
-            activeAliases: ["zeus"]
+            transcript: "Draft note for finance team. CLANKER polish this into an email update",
+            triggerName: "clanker"
         )
 
         XCTAssertEqual(
             detection,
             .triggered(
-                transcript: "Draft note for finance team. ZEUS polish this into an email update",
-                matchedAlias: "zeus"
+                transcript: "Draft note for finance team. CLANKER polish this into an email update",
+                matchedAlias: "clanker"
             )
         )
     }
 
     func testCommaAfterTriggerStillActivatesNamedAssistantInstruction() {
         let transcript = """
-        Okay, I have a couple of meetings tomorrow. I have one about my Q3 and Q4 bigger features that we need to commit to and iron those out. There's like five or six things on that list and then I have a call with a different customer later about a different feature and I have like a business lineage feature working on as well. Zeus, can you put that in the format of an email just for an update that I'm going to send to my team?
+        Okay, I have a couple of meetings tomorrow. I have one about my Q3 and Q4 bigger features that we need to commit to and iron those out. There's like five or six things on that list and then I have a call with a different customer later about a different feature and I have like a business lineage feature working on as well. Clanker, can you put that in the format of an email just for an update that I'm going to send to my team?
         """
         let detection = TriggerTranscriptParser.detect(
             transcript: transcript,
-            activeAliases: ["zeus"]
+            triggerName: "clanker"
         )
 
         XCTAssertEqual(
             detection,
             .triggered(
                 transcript: transcript,
-                matchedAlias: "zeus"
+                matchedAlias: "clanker"
             )
         )
     }
 
-    func testNoAliasMatchReturnsNoTriggerPassthrough() {
+    func testNoTriggerMatchReturnsNoTriggerPassthrough() {
         let transcript = "Please send this to finance before noon."
         let detection = TriggerTranscriptParser.detect(
             transcript: transcript,
-            activeAliases: ["zeus", "atlas"]
+            triggerName: "clanker"
         )
 
         XCTAssertEqual(detection, .noTrigger(transcript: transcript))
     }
 
-    func testSingleWordAfterAliasStillActivates() {
+    func testSingleWordAfterTriggerStillActivates() {
         let detection = TriggerTranscriptParser.detect(
             transcript: "atlas email",
-            activeAliases: ["atlas"]
+            triggerName: "atlas"
         )
 
         XCTAssertEqual(
@@ -79,25 +79,35 @@ final class TriggerTranscriptParserTests: XCTestCase {
         let transcript = "The atlases are in the office drawer."
         let detection = TriggerTranscriptParser.detect(
             transcript: transcript,
-            activeAliases: ["atlas"]
+            triggerName: "atlas"
         )
 
         XCTAssertEqual(detection, .noTrigger(transcript: transcript))
     }
 
     func testAssistantNameAtStartTriggers() {
-        let transcript = "zeus summarize this as three bullets"
+        let transcript = "clanker summarize this as three bullets"
         let detection = TriggerTranscriptParser.detect(
             transcript: transcript,
-            activeAliases: ["zeus"]
+            triggerName: "clanker"
         )
 
         XCTAssertEqual(
             detection,
             .triggered(
                 transcript: transcript,
-                matchedAlias: "zeus"
+                matchedAlias: "clanker"
             )
         )
+    }
+
+    func testEmptyTriggerNameDoesNotMatch() {
+        let transcript = "clanker summarize this"
+        let detection = TriggerTranscriptParser.detect(
+            transcript: transcript,
+            triggerName: ""
+        )
+
+        XCTAssertEqual(detection, .noTrigger(transcript: transcript))
     }
 }

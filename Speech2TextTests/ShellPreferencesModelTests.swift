@@ -165,25 +165,11 @@ final class ShellPreferencesModelTests: XCTestCase {
         )
     }
 
-    func testLegacyAtlasTriggerProfileMigratesToZeusOnLoad() {
-        let (_, preferences) = makePreferences(
-            initialTriggerProfile: TriggerProfile(
-                activeProfile: .atlas,
-                customPrimary: TriggerProfile.defaultCustomPrimary,
-                customAliases: []
-            )
-        )
-
-        XCTAssertEqual(preferences.activeTriggerProfile.activeProfile, .zeus)
-        XCTAssertEqual(preferences.activeTriggerProfile.activePrimary, "Zeus")
-    }
-
     func testResetAssistantNameToDefaultClearsCustomTrigger() async {
         let (_, preferences) = makePreferences(
             initialTriggerProfile: TriggerProfile(
                 activeProfile: .custom,
-                customPrimary: "Nova Prime",
-                customAliases: []
+                customPrimary: "Nova Prime"
             )
         )
 

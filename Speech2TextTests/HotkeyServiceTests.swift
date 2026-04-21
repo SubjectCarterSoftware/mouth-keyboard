@@ -5,9 +5,30 @@ import KeyboardShortcuts
 
 @MainActor
 final class HotkeyServiceTests: XCTestCase {
+    // KeyboardShortcuts persists to UserDefaults.standard — shared with the shipping
+    // app. Snapshot the user's real shortcuts before each test and restore them after
+    // so running the suite never clobbers their configured hotkeys.
+    private static let managedShortcutNames: [KeyboardShortcuts.Name] = [
+        .activate, .activateAlt, .stopSession, .stopSessionAlt, .cancelSession
+    ]
+    private var shortcutSnapshot: [KeyboardShortcuts.Name: KeyboardShortcuts.Shortcut?] = [:]
+
     override func setUp() {
         super.setUp()
-        KeyboardShortcuts.reset(.activate, .activateAlt, .stopSession, .stopSessionAlt, .cancelSession)
+        shortcutSnapshot = Dictionary(
+            uniqueKeysWithValues: Self.managedShortcutNames.map { name in
+                (name, KeyboardShortcuts.getShortcut(for: name))
+            }
+        )
+        KeyboardShortcuts.reset(Self.managedShortcutNames)
+    }
+
+    override func tearDown() {
+        for (name, shortcut) in shortcutSnapshot {
+            KeyboardShortcuts.setShortcut(shortcut, for: name)
+        }
+        shortcutSnapshot.removeAll()
+        super.tearDown()
     }
 
     func testSingleTapArmsImmediately() {

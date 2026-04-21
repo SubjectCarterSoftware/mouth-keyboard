@@ -111,7 +111,7 @@ private struct KeyComboRecorder: View {
     @State private var lastCancelTime: Date = .distantPast
 
     private var displayText: String {
-        currentShortcut?.description ?? "Not Set"
+        currentShortcut?.description ?? "Click to set"
     }
 
     private var isNonDefault: Bool {
@@ -222,11 +222,11 @@ private struct HoldShortcutRecorder: View {
     @State private var modifiersBeforeRecording: UInt?
     @State private var lastCancelTime: Date = .distantPast
 
-    private static let modifierKeyCodes: Set<Int> = [54, 55, 56, 57, 58, 59, 60, 61, 62, 63]
+    private static let modifierKeyCodes: Set<Int> = [54, 55, 56, 58, 59, 60, 61, 62, 63]
 
     private static let modifierKeyNames: [Int: String] = [
         54: "Right ⌘", 55: "Left ⌘",
-        56: "Left ⇧", 57: "⇪ Caps Lock",
+        56: "Left ⇧",
         58: "Left ⌥", 59: "Left ⌃",
         60: "Right ⇧", 61: "Right ⌥",
         62: "Right ⌃", 63: "fn",
@@ -238,6 +238,7 @@ private struct HoldShortcutRecorder: View {
         case 56, 60: return .shift
         case 58, 61: return .option
         case 59, 62: return .control
+        case 63: return .function
         default: return []
         }
     }
@@ -501,17 +502,25 @@ private struct KeyboardShortcutsRow: View {
 
 private struct AlwaysAutoPasteRow: View {
     @Binding var isOn: Bool
+    var helperText: String? = "Automatically pastes the result into the focused field each time a transcription completes. Clipboard passthrough protection restores whatever was on your clipboard beforehand, so nothing you had copied is lost."
 
     var body: some View {
-        HStack(alignment: .center, spacing: 12) {
+        HStack(alignment: .center, spacing: 8) {
             Toggle("Always Auto Paste", isOn: $isOn)
                 .labelsHidden()
                 .toggleStyle(.switch)
                 .scaleEffect(0.8, anchor: .leading)
                 .frame(height: 22)
+                .fixedSize()
                 .accessibilityLabel("Always Auto Paste")
                 .accessibilityIdentifier("setupWindow.alwaysAutoPaste.toggle")
+
+            if let helperText {
+                ImmediateHelpIcon(text: helperText)
+                    .accessibilityIdentifier("setupWindow.alwaysAutoPaste.info")
+            }
         }
+        .frame(height: 22, alignment: .leading)
         .frame(maxWidth: .infinity, alignment: .leading)
     }
 }
@@ -546,18 +555,18 @@ private struct AssistantActivationGuidanceView: View {
 
     private var resolvedAssistantName: String {
         let trimmed = viewModel.activeName.trimmingCharacters(in: .whitespacesAndNewlines)
-        return trimmed.isEmpty ? "Zeus" : trimmed
+        return trimmed.isEmpty ? AssistantDefaults.defaultAssistantName : trimmed
     }
 
     private var assistantUsageText: Text {
-        Text("Just mention ").foregroundColor(.primary)
+        Text("Say ").foregroundColor(.primary)
         + Text(resolvedAssistantName).bold().foregroundColor(.accentColor)
-        + Text(" in your transcription and your message will be passed to the assistant for processing.").foregroundColor(.primary)
+        + Text(" in your transcription to send your message to the assistant.").foregroundColor(.primary)
     }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
-            SetupFieldRow(title: "Assistant Usage:", alignment: .top) {
+            SetupFieldRow(title: "Activation:", alignment: .top) {
                 assistantUsageText
                     .font(.body)
                     .fixedSize(horizontal: false, vertical: true)
@@ -1366,7 +1375,7 @@ struct SetupWindowView: View {
                         SetupFieldRow(title: "Clipboard Access:") {
                             AllowClipboardAccessRow(
                                 isOn: allowClipboardAccessBinding,
-                                helperText: "Mention your clipboard or what you copied in the message to include that text. Auto-paste restores your previous clipboard afterward."
+                                helperText: "Grants the AI assistant access to your clipboard contents. When you mention your clipboard (or what you copied) in a transcription or instruction, the assistant is allowed to read and include that text in its response."
                             )
                         }
                     }

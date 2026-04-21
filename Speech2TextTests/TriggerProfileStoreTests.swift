@@ -2,49 +2,49 @@ import XCTest
 @testable import Speech2Text
 
 final class TriggerProfileStoreTests: XCTestCase {
-    func testDefaultZeusOnMissingStorage() async {
+    func testDefaultProfileReturnedWhenStorageMissing() async {
         let store = TriggerProfileStore(storeURL: makeStoreURL().appendingPathComponent("TriggerProfileStore.json"))
 
         let loaded = await store.load()
 
-        XCTAssertEqual(loaded.activeProfile, .zeus)
-        XCTAssertEqual(loaded.activeAliases, ["zeus"])
+        XCTAssertEqual(loaded.activeProfile, .default)
+        XCTAssertEqual(loaded.activePrimary, AssistantDefaults.defaultAssistantName)
     }
 
-    func testPresetPersistenceSurvivesRelaunch() async throws {
+    func testCustomPrimaryPersistsAcrossRelaunches() async throws {
         let storeURL = makeStoreURL().appendingPathComponent("TriggerProfileStore.json")
         let store1 = TriggerProfileStore(storeURL: storeURL)
         try await store1.save(
             TriggerProfile.defaultProfile
-                .updatingCustom(primary: "Helios", aliases: ["hello"])
-                .settingActiveProfile(.atlas)
+                .updatingCustom(primary: "Helios")
+                .settingActiveProfile(.custom)
         )
 
         let store2 = TriggerProfileStore(storeURL: storeURL)
         let loaded = await store2.load()
 
-        XCTAssertEqual(loaded.activeProfile, .atlas)
-        XCTAssertEqual(loaded.activeAliases, ["atlas"])
+        XCTAssertEqual(loaded.activeProfile, .custom)
+        XCTAssertEqual(loaded.activePrimary, "Helios")
     }
 
     func testCustomPayloadRestoredAfterSwitchAwayAndBack() async throws {
         let storeURL = makeStoreURL().appendingPathComponent("TriggerProfileStore.json")
         let store = TriggerProfileStore(storeURL: storeURL)
         let custom = TriggerProfile.defaultProfile
-            .updatingCustom(primary: "  HeLios  ", aliases: ["hello zeus", "HELIOS"])
+            .updatingCustom(primary: "  HeLios  ")
         try await store.save(custom)
-        try await store.save(custom.settingActiveProfile(.gaia))
+        try await store.save(custom.settingActiveProfile(.default))
 
-        let reloadedAfterPreset = await TriggerProfileStore(storeURL: storeURL).load()
-        XCTAssertEqual(reloadedAfterPreset.activeProfile, .gaia)
-        XCTAssertEqual(reloadedAfterPreset.customPrimary, "HeLios")
-        XCTAssertEqual(reloadedAfterPreset.customAliases, ["hello zeus"])
+        let reloadedOnDefault = await TriggerProfileStore(storeURL: storeURL).load()
+        XCTAssertEqual(reloadedOnDefault.activeProfile, .default)
+        XCTAssertEqual(reloadedOnDefault.activePrimary, AssistantDefaults.defaultAssistantName)
+        XCTAssertEqual(reloadedOnDefault.customPrimary, "HeLios")
 
-        let switchedBack = reloadedAfterPreset.settingActiveProfile(.custom)
-        XCTAssertEqual(switchedBack.activeAliases, ["helios", "hello zeus"])
+        let switchedBack = reloadedOnDefault.settingActiveProfile(.custom)
+        XCTAssertEqual(switchedBack.activePrimary, "HeLios")
     }
 
-    func testCorruptionFallbackToZeus() async throws {
+    func testCorruptionFallsBackToDefaultProfile() async throws {
         let storeURL = makeStoreURL().appendingPathComponent("TriggerProfileStore.json")
         try Data("corrupted-json".utf8).write(to: storeURL, options: .atomic)
 
@@ -62,7 +62,7 @@ final class TriggerProfileStoreTests: XCTestCase {
         let storeURL = tempDirectory.appendingPathComponent("TriggerProfileStore.json")
         let store = TriggerProfileStore(storeURL: storeURL)
         let original = TriggerProfile.defaultProfile
-            .updatingCustom(primary: "Athena", aliases: ["assistant athena"])
+            .updatingCustom(primary: "Athena")
             .settingActiveProfile(.custom)
         try await store.save(original)
 
@@ -78,7 +78,7 @@ final class TriggerProfileStoreTests: XCTestCase {
         }
 
         do {
-            try await store.save(original.settingActiveProfile(.atlas))
+            try await store.save(original.settingActiveProfile(.default))
             XCTFail("Expected save to fail in read-only directory")
         } catch {
             // expected
@@ -86,23 +86,7 @@ final class TriggerProfileStoreTests: XCTestCase {
 
         let reloaded = await TriggerProfileStore(storeURL: storeURL).load()
         XCTAssertEqual(reloaded.activeProfile, .custom)
-        XCTAssertEqual(reloaded.activeAliases, ["athena", "assistant athena"])
-    }
-
-    func testReplaceAliasesForActiveProfileDoesNotMutateNonActiveProfiles() async throws {
-        let storeURL = makeStoreURL().appendingPathComponent("TriggerProfileStore.json")
-        let store = TriggerProfileStore(storeURL: storeURL)
-        let seed = TriggerProfile.defaultProfile
-            .updatingCustom(primary: "Helios", aliases: ["assistant helios"])
-            .settingActiveProfile(.atlas)
-        try await store.save(seed)
-
-        let replaced = try await store.replaceAliasesForActiveProfile(["captain atlas", "  ATLAS  "])
-        XCTAssertEqual(replaced.activeProfile, .atlas)
-        XCTAssertEqual(replaced.activeAliases, ["atlas", "captain atlas"])
-        XCTAssertEqual(replaced.aliases(for: .zeus), ["zeus"])
-        XCTAssertEqual(replaced.aliases(for: .gaia), ["gaia"])
-        XCTAssertEqual(replaced.aliases(for: .custom), ["helios", "assistant helios"])
+        XCTAssertEqual(reloaded.activePrimary, "Athena")
     }
 
     private func makeStoreURL() -> URL {

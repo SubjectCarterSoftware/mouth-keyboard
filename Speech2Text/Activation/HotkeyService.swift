@@ -255,7 +255,7 @@ final class HoldToTranscribeMonitor {
     private var secondaryModifierFlag: CGEventFlags = []
     private var secondaryRequiredModifiers: CGEventFlags = []
 
-    private static let modifierKeyCodes: Set<Int64> = [54, 55, 56, 57, 58, 59, 60, 61, 62, 63]
+    private static let modifierKeyCodes: Set<Int64> = [54, 55, 56, 58, 59, 60, 61, 62, 63]
 
     private static func modifierFlag(for keyCode: Int64) -> CGEventFlags {
         switch keyCode {

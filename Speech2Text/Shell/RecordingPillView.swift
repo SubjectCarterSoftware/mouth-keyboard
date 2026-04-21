@@ -1,5 +1,21 @@
 import SwiftUI
 
+private extension View {
+    /// Applies `.drawingGroup()` only when `enabled` is true. Used to rasterize
+    /// the activity-meter bar strip into a single GPU layer for the smooth
+    /// processing/converting animations, while leaving the recording meter in
+    /// the normal compositing path (where its implicit level-driven animation
+    /// needs per-view identity).
+    @ViewBuilder
+    func drawingGroupIf(_ enabled: Bool) -> some View {
+        if enabled {
+            self.drawingGroup(opaque: false)
+        } else {
+            self
+        }
+    }
+}
+
 struct SuccessPillCountdownStyle {
     struct RGBA: Equatable {
         let red: Double
@@ -57,12 +73,12 @@ struct SuccessPillCountdownStyle {
     static func activeGradient(progress: Double) -> GradientPair {
         GradientPair(
             leading: interpolate(
-                from: rgba(125, 240, 184, 0.16),
+                from: rgba(48, 209, 88, 0.16),
                 to: rgba(255, 96, 96, 0.18),
                 progress: progress
             ),
             trailing: interpolate(
-                from: rgba(125, 240, 184, 0.42),
+                from: rgba(48, 209, 88, 0.42),
                 to: rgba(255, 96, 96, 0.44),
                 progress: progress
             )
@@ -71,7 +87,7 @@ struct SuccessPillCountdownStyle {
 
     static func boundaryColor(progress: Double) -> RGBA {
         interpolate(
-            from: rgba(183, 246, 214, 0.96),
+            from: rgba(48, 209, 88, 0.96),
             to: rgba(255, 132, 132, 0.96),
             progress: progress
         )
@@ -79,7 +95,7 @@ struct SuccessPillCountdownStyle {
 
     static func boundaryGlowColor(progress: Double) -> RGBA {
         interpolate(
-            from: rgba(125, 240, 184, 0.34),
+            from: rgba(48, 209, 88, 0.34),
             to: rgba(255, 96, 96, 0.38),
             progress: progress
         )
@@ -144,6 +160,11 @@ struct PillCopyControlConfiguration: Equatable {
 struct RecordingPillView: View {
     private static let actionButtonFrame: CGFloat = 34
     private static let actionButtonSymbolSize: CGFloat = 20
+    private enum ActivityMeterMode: Equatable {
+        case recording
+        case processing
+        case converting
+    }
 
     @ObservedObject var levelMonitor: AudioLevelMonitor
     let recordingState: RecordingState
@@ -156,6 +177,10 @@ struct RecordingPillView: View {
     var onRestart: (() -> Void)?
     var onSuccessClose: (() -> Void)?
     var onSuccessCopy: (() -> Void)?
+    var onSuccessRestart: (() -> Void)?
+    var onSuccessAppend: (() -> Void)?
+
+    private static let pillBackground = Color(red: 0.11, green: 0.11, blue: 0.13)
 
     private let barScales: [CGFloat]
 
@@ -171,7 +196,9 @@ struct RecordingPillView: View {
         onCancel: (() -> Void)? = nil,
         onRestart: (() -> Void)? = nil,
         onSuccessClose: (() -> Void)? = nil,
-        onSuccessCopy: (() -> Void)? = nil
+        onSuccessCopy: (() -> Void)? = nil,
+        onSuccessRestart: (() -> Void)? = nil,
+        onSuccessAppend: (() -> Void)? = nil
     ) {
         self.levelMonitor = levelMonitor
         self.recordingState = recordingState
@@ -184,7 +211,9 @@ struct RecordingPillView: View {
         self.onRestart = onRestart
         self.onSuccessClose = onSuccessClose
         self.onSuccessCopy = onSuccessCopy
-        barScales = (0..<5).map { _ in CGFloat.random(in: 0.55...1.0) }
+        self.onSuccessRestart = onSuccessRestart
+        self.onSuccessAppend = onSuccessAppend
+        barScales = (0..<7).map { _ in CGFloat.random(in: 0.55...1.0) }
     }
 
     var body: some View {
@@ -193,15 +222,15 @@ struct RecordingPillView: View {
         } else {
         switch recordingState {
         case .recording:
-            recordingContent
+            activeMeterContent(mode: .recording)
         case .processing:
-            processingContent
+            activeMeterContent(mode: .processing)
         case .modelDownloading(let model, let progress):
             modelDownloadingContent(model: model, progress: progress)
         case .success:
             successContent
         case .converting:
-            convertingContent
+            activeMeterContent(mode: .converting)
         case .failure(let reason):
             failureContent(reason: reason)
         case .idle:
@@ -212,55 +241,51 @@ struct RecordingPillView: View {
 
     // MARK: - Recording state
 
-    private var recordingContent: some View {
-        let barTint: Color = silenceWarningActive ? Color.orange : Color.white
-        let sideButtonGap: CGFloat = 8
+    private func activeMeterContent(mode: ActivityMeterMode) -> some View {
+        let sideButtonGap: CGFloat = mode == .recording ? 5 : 0
         let actionSlotWidth = PillCopyControlConfiguration.slotWidth
-        let sideLaneWidth: CGFloat = (actionSlotWidth * 2) + sideButtonGap
+        let leftControlCount: CGFloat = mode == .recording ? 2 : 1
+        let rightControlCount: CGFloat = mode == .recording ? 2 : 1
+        let leftLaneWidth: CGFloat = (actionSlotWidth * leftControlCount) + (sideButtonGap * max(0, leftControlCount - 1))
+        let rightLaneWidth: CGFloat = (actionSlotWidth * rightControlCount) + (sideButtonGap * max(0, rightControlCount - 1))
 
         return HStack(spacing: 0) {
             HStack(spacing: sideButtonGap) {
                 cancelButton
-
-                Button(action: { onRestart?() }) {
-                    Image(systemName: "arrow.clockwise.circle.fill")
-                        .font(.system(size: Self.actionButtonSymbolSize, weight: .bold))
-                        .symbolRenderingMode(.palette)
-                        .foregroundStyle(Color(white: 0.9), Color.orange)
-                        .frame(width: Self.actionButtonFrame, height: Self.actionButtonFrame)
-                        .contentShape(Circle())
+                if mode == .recording {
+                    finishButton
                 }
-                .buttonStyle(.plain)
-                .accessibilityIdentifier("pill.restart")
             }
-            .frame(width: sideLaneWidth, alignment: .leading)
+            .frame(width: leftLaneWidth, alignment: .leading)
 
-            HStack(spacing: 8) {
-                Image(systemName: "mic.fill")
-                    .font(.system(size: 14, weight: .semibold))
-                    .foregroundStyle(barTint.opacity(0.9))
-
-                HStack(alignment: .center, spacing: 3) {
-                    ForEach(Array(barScales.enumerated()), id: \.offset) { index, scale in
-                        RoundedRectangle(cornerRadius: 1.5, style: .continuous)
-                            .fill(barTint.opacity(0.9))
-                            .frame(width: 3, height: barHeight(for: scale, index: index))
-                    }
-                }
-                .frame(height: 28)
-            }
+            activityMeter(mode: mode)
             .frame(maxWidth: .infinity, alignment: .center)
 
             HStack(spacing: sideButtonGap) {
-                finishButton
+                if mode == .recording {
+                    restartButton
+                }
                 trailingCopyControl(configuration: .disabled)
             }
-            .frame(width: sideLaneWidth, alignment: .trailing)
+            .frame(width: rightLaneWidth, alignment: .trailing)
         }
         .padding(.horizontal, 10)
         .frame(width: 220, height: 44)
+        .background(Self.pillBackground)
+        .clipShape(Capsule(style: .continuous))
+        .overlay {
+            if mode == .processing {
+                pillGlowBorder(color: Color(red: 0.102, green: 0.431, blue: 1.0))
+            } else if mode == .converting {
+                pillGlowBorder(color: Color(red: 0.545, green: 0.184, blue: 0.788))
+            }
+        }
         .preferredColorScheme(.dark)
-        .animation(.easeInOut(duration: 0.1), value: levelMonitor.level)
+        .animation(.spring(response: 0.3, dampingFraction: 0.84), value: mode)
+        // Only smooth the audio-level stream for the recording meter. In
+        // processing/converting the bars are driven per-frame by TimelineView,
+        // so this implicit tween would fight those values and look stuttery.
+        .animation(mode == .recording ? .easeInOut(duration: 0.1) : nil, value: levelMonitor.level)
     }
 
     private func barHeight(for scale: CGFloat, index: Int) -> CGFloat {
@@ -272,13 +297,146 @@ struct RecordingPillView: View {
         return minimumHeight + ((maximumHeight - minimumHeight) * effectiveLevel)
     }
 
-    // MARK: - Processing state
+    private func activityMeter(mode: ActivityMeterMode) -> some View {
+        let spacing = meterSpacing(for: mode)
 
-    private var processingContent: some View {
-        pipelineStateContent {
-            processingTimeline
+        return TimelineView(.animation) { timeline in
+            HStack(alignment: .center, spacing: spacing) {
+                ForEach(Array(barScales.enumerated()), id: \.offset) { index, scale in
+                    meterBar(mode: mode, scale: scale, index: index, date: timeline.date)
+                }
+            }
+            .frame(height: 28)
+            // Rasterize the whole bar strip into a single GPU layer for
+            // processing/converting so the per-frame transforms composite as
+            // one pass (smoother and cheaper than re-laying out 7 frames).
+            // Recording keeps normal compositing so its implicit level-driven
+            // animation still reads per-bar.
+            .compositingGroup()
+            .drawingGroupIf(mode != .recording)
         }
-        .preferredColorScheme(.dark)
+    }
+
+    @ViewBuilder
+    private func meterBar(
+        mode: ActivityMeterMode,
+        scale: CGFloat,
+        index: Int,
+        date: Date
+    ) -> some View {
+        switch mode {
+        case .recording:
+            RoundedRectangle(cornerRadius: 1.5, style: .continuous)
+                .fill(meterTint(for: mode).opacity(meterOpacity(for: mode, index: index, date: date)))
+                .frame(width: 3, height: barHeight(for: scale, index: index))
+        case .processing, .converting:
+            // Fixed frame + scaleEffect: the GPU interpolates sub-pixel so
+            // slow, small-amplitude oscillations no longer stair-step between
+            // integer point boundaries.
+            RoundedRectangle(cornerRadius: 1.5, style: .continuous)
+                .fill(meterTint(for: mode))
+                .frame(width: 3, height: meterMaxHeight(for: mode))
+                .scaleEffect(
+                    x: 1,
+                    y: meterScale(for: mode, scale: scale, index: index, date: date),
+                    anchor: .center
+                )
+                .opacity(meterOpacity(for: mode, index: index, date: date))
+        }
+    }
+
+    private func meterMaxHeight(for mode: ActivityMeterMode) -> CGFloat {
+        switch mode {
+        case .recording: return 28
+        case .processing: return 22
+        case .converting: return 24
+        }
+    }
+
+    private func meterSpacing(for mode: ActivityMeterMode) -> CGFloat {
+        return 3
+    }
+
+    private func meterTint(for mode: ActivityMeterMode) -> Color {
+        switch mode {
+        case .recording:
+            return silenceWarningActive ? .orange : .white
+        case .processing:
+            return Color(red: 0.102, green: 0.431, blue: 1.0)
+        case .converting:
+            return Color(red: 0.545, green: 0.184, blue: 0.788)
+        }
+    }
+
+    private func meterOpacity(for mode: ActivityMeterMode, index: Int, date: Date) -> Double {
+        switch mode {
+        case .recording:
+            return 0.9
+        case .processing:
+            let t = date.timeIntervalSinceReferenceDate
+            let centerDistance = Double(abs(CGFloat(index) - (CGFloat(barScales.count - 1) / 2)))
+            let base = 0.62 + (0.22 * (1 - min(1, centerDistance / 3)))
+            let shimmer = (sin((t / 1.05) * 2 * Double.pi - (Double(index) * 0.55)) + 1) / 2
+            return min(1, base + (0.12 * shimmer))
+        case .converting:
+            let t = date.timeIntervalSinceReferenceDate
+            let centerDistance = Double(abs(CGFloat(index) - (CGFloat(barScales.count - 1) / 2)))
+            let base = 0.66 + (0.24 * (1 - min(1, centerDistance / 3)))
+            let shimmer = (sin((t / 0.78) * 2 * Double.pi - (Double(index) * 0.42)) + 1) / 2
+            return min(1, base + (0.10 * shimmer))
+        }
+    }
+
+    // Returns the vertical scale (0…1) applied to a fixed-height bar for
+    // processing/converting. Driving motion via scaleEffect means frames are
+    // GPU-interpolated sub-pixel — no layout pass, no integer snapping.
+    private func meterScale(
+        for mode: ActivityMeterMode,
+        scale: CGFloat,
+        index: Int,
+        date: Date
+    ) -> CGFloat {
+        let t = date.timeIntervalSinceReferenceDate
+        let center = Double(barScales.count - 1) / 2
+        let distance = abs(Double(index) - center)
+        let centerWeight = max(0, 1 - (distance / max(center, 1)))
+
+        switch mode {
+        case .recording:
+            return 1
+        case .processing:
+            // Tightened period 1.85 → 1.05s and widened amplitude so the
+            // motion reads as alive rather than sluggish.
+            let phase = (t / 1.05) * 2 * Double.pi
+            let breath = (sin(phase) + 1) / 2
+            let ripple = (sin(phase - (distance * 0.72)) + 1) / 2
+            let normalized = 0.30
+                + (0.15 * Double(scale))
+                + (0.25 * breath)
+                + (0.18 * breath * centerWeight)
+                + (0.12 * ripple)
+            return CGFloat(min(1, normalized))
+        case .converting:
+            // Period 1.20 → 0.78s: a confident pulse for the LLM conversion.
+            let phase = (t / 0.78) * 2 * Double.pi
+            let pulse = (sin(phase - (distance * 1.15)) + 1) / 2
+            let shimmer = (sin((phase * 1.45) - (Double(index) * 0.42)) + 1) / 2
+            let normalized = 0.28
+                + (0.14 * Double(scale))
+                + (0.32 * pulse)
+                + (0.18 * pulse * centerWeight)
+                + (0.08 * shimmer)
+            return CGFloat(min(1, normalized))
+        }
+    }
+
+    @ViewBuilder
+    private func pillGlowBorder(color: Color) -> some View {
+        Capsule(style: .continuous)
+            .stroke(color.opacity(0.30), lineWidth: 10)
+            .blur(radius: 6)
+        Capsule(style: .continuous)
+            .stroke(color.opacity(0.85), lineWidth: 1.5)
     }
 
     private func modelDownloadingContent(model: WhisperModelChoice, progress: Double) -> some View {
@@ -308,76 +466,9 @@ struct RecordingPillView: View {
         }
         .padding(.horizontal, 12)
         .frame(width: 220, height: 44)
+        .background(Self.pillBackground)
+        .clipShape(Capsule(style: .continuous))
         .preferredColorScheme(.dark)
-    }
-
-    // MARK: - Converting state
-
-    private var convertingContent: some View {
-        pipelineStateContent {
-            convertingTimeline
-        }
-        .preferredColorScheme(.dark)
-    }
-
-    private func pipelineStateContent<Timeline: View>(
-        @ViewBuilder timeline: () -> Timeline
-    ) -> some View {
-        HStack(spacing: 10) {
-            cancelButton
-            pipelineMicAnchor
-            timeline()
-                .frame(maxWidth: .infinity)
-            trailingCopyControl(configuration: .disabled)
-        }
-        .padding(.horizontal, 10)
-        .frame(width: 220, height: 44)
-    }
-
-    private var processingTimeline: some View {
-        GeometryReader { geometry in
-            let count = adaptiveDotCount(for: geometry.size.width)
-            let spacing = adaptiveDotSpacing(for: count, availableWidth: geometry.size.width)
-
-            localizedWaveDotStrip(
-                count: count,
-                tint: Color(white: 0.9),
-                diameter: 5,
-                spacing: spacing
-            )
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
-        }
-        .frame(height: 16)
-    }
-
-    private var convertingTimeline: some View {
-        GeometryReader { geometry in
-            let segmentWidth = max(0, (geometry.size.width - 22) / 2)
-            let count = adaptiveDotCount(for: segmentWidth)
-            let spacing = adaptiveDotSpacing(for: count, availableWidth: segmentWidth)
-
-            HStack(spacing: 0) {
-                settledDotStrip(
-                    count: count,
-                    tint: .white.opacity(0.32),
-                    diameter: 5,
-                    spacing: spacing
-                )
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-
-                aiBadge
-
-                animatedDotStrip(
-                    count: count,
-                    tint: .blue,
-                    diameter: 5,
-                    spacing: spacing
-                )
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-            }
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
-        }
-        .frame(height: 22)
     }
 
     // MARK: - Success state
@@ -417,8 +508,16 @@ struct RecordingPillView: View {
                     }
                 }
 
-                HStack(spacing: 10) {
-                    successCloseButton
+                let sideButtonGap: CGFloat = 5
+                let actionSlotWidth = PillCopyControlConfiguration.slotWidth
+                let laneWidth: CGFloat = (actionSlotWidth * 2) + sideButtonGap
+
+                HStack(spacing: 0) {
+                    HStack(spacing: sideButtonGap) {
+                        successCloseButton
+                        successAppendButton
+                    }
+                    .frame(width: laneWidth, alignment: .leading)
 
                     Text(successLabel())
                         .font(.system(size: 13, weight: .semibold))
@@ -426,9 +525,17 @@ struct RecordingPillView: View {
                         .lineLimit(1)
                         .frame(maxWidth: .infinity, alignment: .center)
 
-                    successCopyButton
+                    HStack(spacing: sideButtonGap) {
+                        successRestartButton
+                        successCopyButton
+                    }
+                    .frame(width: laneWidth, alignment: .trailing)
                 }
                 .padding(.horizontal, 10)
+            }
+            .clipShape(Capsule(style: .continuous))
+            .overlay {
+                pillGlowBorder(color: boundaryColor)
             }
         }
         .frame(width: 220, height: 44)
@@ -444,24 +551,6 @@ struct RecordingPillView: View {
             configuration: .enabled,
             action: { onSuccessCopy?() }
         )
-    }
-
-    private var pipelineMicAnchor: some View {
-        Image(systemName: "mic.fill")
-            .font(.system(size: 12, weight: .semibold))
-            .foregroundStyle(Color.white.opacity(0.9))
-            .frame(width: 16, height: 16)
-    }
-
-    private var aiBadge: some View {
-        ZStack {
-            Circle()
-                .fill(Color.blue)
-            Image(systemName: "sparkles")
-                .font(.system(size: 10, weight: .semibold))
-                .foregroundStyle(.white)
-        }
-        .frame(width: 22, height: 22)
     }
 
     private var finishButton: some View {
@@ -503,6 +592,45 @@ struct RecordingPillView: View {
         .accessibilityIdentifier("pill.successClose")
     }
 
+    private var successAppendButton: some View {
+        Button(action: { onSuccessAppend?() }) {
+            Image(systemName: "plus.circle.fill")
+                .font(.system(size: Self.actionButtonSymbolSize, weight: .bold))
+                .symbolRenderingMode(.palette)
+                .foregroundStyle(Color(white: 0.9), Color.blue)
+                .frame(width: Self.actionButtonFrame, height: Self.actionButtonFrame)
+                .contentShape(Circle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityIdentifier("pill.successAppend")
+    }
+
+    private var successRestartButton: some View {
+        Button(action: { onSuccessRestart?() }) {
+            Image(systemName: "arrow.counterclockwise.circle.fill")
+                .font(.system(size: Self.actionButtonSymbolSize, weight: .bold))
+                .symbolRenderingMode(.palette)
+                .foregroundStyle(Color(white: 0.9), Color.orange)
+                .frame(width: Self.actionButtonFrame, height: Self.actionButtonFrame)
+                .contentShape(Circle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityIdentifier("pill.successRestart")
+    }
+
+    private var restartButton: some View {
+        Button(action: { onRestart?() }) {
+            Image(systemName: "arrow.counterclockwise.circle.fill")
+                .font(.system(size: Self.actionButtonSymbolSize, weight: .bold))
+                .symbolRenderingMode(.palette)
+                .foregroundStyle(Color(white: 0.9), Color.orange)
+                .frame(width: Self.actionButtonFrame, height: Self.actionButtonFrame)
+                .contentShape(Circle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityIdentifier("pill.restart")
+    }
+
     private func trailingCopyControl(
         configuration: PillCopyControlConfiguration,
         action: (() -> Void)? = nil
@@ -526,109 +654,6 @@ struct RecordingPillView: View {
         .disabled(!configuration.isEnabled)
         .accessibilityIdentifier(configuration.accessibilityIdentifier)
         .frame(width: PillCopyControlConfiguration.slotWidth, height: PillCopyControlConfiguration.slotHeight)
-    }
-
-    private func animatedDotStrip(
-        count: Int,
-        tint: Color,
-        diameter: CGFloat,
-        spacing: CGFloat,
-        waveAmplitude: CGFloat = 4,
-        wavePeriod: Double = 1.0,
-        dotsPerWave: Double = 4
-    ) -> some View {
-        TimelineView(.animation) { timeline in
-            Canvas { context, size in
-                let t = timeline.date.timeIntervalSinceReferenceDate / wavePeriod
-
-                let step = diameter + spacing
-                let totalWidth = step * CGFloat(count) - spacing
-                let startX = (size.width - totalWidth) / 2 + diameter / 2
-                let midY = size.height / 2
-
-                for i in 0..<count {
-                    let phase = t - Double(i) / dotsPerWave
-                    let yOff = -waveAmplitude * CGFloat(sin(phase * 2 * .pi))
-                    let x = startX + CGFloat(i) * step
-                    let rect = CGRect(
-                        x: x - diameter / 2,
-                        y: midY + yOff - diameter / 2,
-                        width: diameter,
-                        height: diameter
-                    )
-                    context.fill(Path(ellipseIn: rect), with: .color(tint))
-                }
-            }
-        }
-    }
-
-    private func localizedWaveDotStrip(
-        count: Int,
-        tint: Color,
-        diameter: CGFloat,
-        spacing: CGFloat,
-        waveAmplitude: CGFloat = 5,
-        sigma: Double = 2.5,
-        wavePeriod: Double = 1.87
-    ) -> some View {
-        TimelineView(.animation) { timeline in
-            Canvas { context, size in
-                let t = timeline.date.timeIntervalSinceReferenceDate
-                let cycleLength = Double(count - 1) + 4 * sigma
-                let rawPos = (t / wavePeriod * cycleLength).truncatingRemainder(dividingBy: cycleLength)
-                let wavePos = rawPos - 2 * sigma
-
-                let step = diameter + spacing
-                let totalWidth = step * CGFloat(count) - spacing
-                let startX = (size.width - totalWidth) / 2 + diameter / 2
-                let midY = size.height / 2
-
-                for i in 0..<count {
-                    let dist = Double(i) - wavePos
-                    let envelope = exp(-dist * dist / (2 * sigma * sigma))
-                    let yOff = -waveAmplitude * CGFloat(envelope)
-                    let x = startX + CGFloat(i) * step
-                    let rect = CGRect(
-                        x: x - diameter / 2,
-                        y: midY + yOff - diameter / 2,
-                        width: diameter,
-                        height: diameter
-                    )
-                    context.fill(Path(ellipseIn: rect), with: .color(tint))
-                }
-            }
-        }
-    }
-
-    private func settledDotStrip(
-        count: Int,
-        tint: Color,
-        diameter: CGFloat,
-        spacing: CGFloat
-    ) -> some View {
-        HStack(spacing: spacing) {
-            ForEach(0..<count, id: \.self) { _ in
-                Circle()
-                    .fill(tint)
-                    .frame(width: diameter, height: diameter)
-            }
-        }
-    }
-
-    private func adaptiveDotCount(for availableWidth: CGFloat) -> Int {
-        max(1, Int((availableWidth / 10).rounded(.down)))
-    }
-
-    private func adaptiveDotSpacing(
-        for count: Int,
-        availableWidth: CGFloat,
-        diameter: CGFloat = 5,
-        minimumSpacing: CGFloat = 3,
-        maximumSpacing: CGFloat = 6
-    ) -> CGFloat {
-        guard count > 1 else { return 0 }
-        let naturalSpacing = (availableWidth - (CGFloat(count) * diameter)) / CGFloat(count - 1)
-        return max(minimumSpacing, min(maximumSpacing, naturalSpacing))
     }
 
     private func recoveryContent(feedback: RecordingState.RecoveryFeedback) -> some View {
@@ -657,6 +682,8 @@ struct RecordingPillView: View {
                 .foregroundStyle(.white)
         }
         .frame(width: 180, height: 44)
+        .background(Self.pillBackground)
+        .clipShape(Capsule(style: .continuous))
         .preferredColorScheme(.dark)
     }
 
@@ -802,7 +829,7 @@ private struct RecordingTimerConceptPillView: View {
                                 .stroke(Color.orange.opacity(0.34), lineWidth: 1)
                         }
                         .overlay {
-                            Image(systemName: "arrow.clockwise")
+                            Image(systemName: "arrow.counterclockwise")
                                 .font(.system(size: 10, weight: .bold))
                                 .foregroundStyle(Color.orange.opacity(0.95))
                         }

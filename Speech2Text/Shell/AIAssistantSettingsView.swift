@@ -19,7 +19,7 @@ final class AIAssistantSettingsViewModel: ObservableObject {
     typealias PrepareWhisperModel = @MainActor () async -> Bool
     typealias WhisperUnloadAction = @MainActor () -> Void
 
-    @Published private(set) var activeName: String = TriggerNamePreset.zeus.displayName
+    @Published private(set) var activeName: String = AssistantDefaults.defaultAssistantName
     @Published private(set) var pendingRecordedName: String?
     @Published private(set) var isUsingDefaultName = true
     @Published private(set) var renameState: RenameState = .idle
@@ -233,8 +233,7 @@ final class AIAssistantSettingsViewModel: ObservableObject {
             guard let self else { return }
 
             let didPersist = await self.preferences.persistCustomTrigger(
-                primary: pendingRecordedName,
-                aliases: []
+                primary: pendingRecordedName
             )
 
             guard !Task.isCancelled else { return }
@@ -253,7 +252,7 @@ final class AIAssistantSettingsViewModel: ObservableObject {
         }
     }
 
-    func resetToZeus() {
+    func resetToDefault() {
         recordingSessionID = UUID()
         warmupTask?.cancel()
         warmupTask = nil
@@ -286,7 +285,7 @@ final class AIAssistantSettingsViewModel: ObservableObject {
 
     private func updateFromProfile(_ profile: TriggerProfile) {
         activeName = profile.activePrimary
-        isUsingDefaultName = profile.activeProfile == .zeus
+        isUsingDefaultName = profile.activeProfile == .default
     }
 
     private static func sanitizedRecordedName(_ transcription: String) -> String {
@@ -477,8 +476,8 @@ struct AIAssistantInlineRowView: View {
         case .idle:
             HStack(spacing: 8) {
                 if !viewModel.isUsingDefaultName {
-                    Button("Reset to Zeus") {
-                        viewModel.resetToZeus()
+                    Button("Reset to default") {
+                        viewModel.resetToDefault()
                     }
                     .accessibilityIdentifier("assistantRow.resetButton")
                 }

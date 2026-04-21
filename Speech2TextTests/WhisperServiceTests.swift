@@ -150,14 +150,26 @@ final class WhisperServiceTests: XCTestCase {
             .appendingPathComponent("WhisperServiceTests.Downloaded.\(UUID().uuidString)", isDirectory: true)
         let modelDirectory = WhisperService.downloadedModelDirectory(for: .baseEN, baseURL: baseURL)
         try fileManager.createDirectory(at: modelDirectory, withIntermediateDirectories: true)
-        for artifact in ["AudioEncoder.mlmodelc", "MelSpectrogram.mlmodelc", "TextDecoder.mlmodelc"] {
-            try fileManager.createDirectory(
-                at: modelDirectory.appendingPathComponent(artifact, isDirectory: true),
-                withIntermediateDirectories: true
-            )
-        }
+        try createCompleteModelArtifacts(in: modelDirectory, fileManager: fileManager)
 
         XCTAssertTrue(WhisperService.isModelDownloaded(.baseEN, baseURL: baseURL, fileManager: fileManager))
+    }
+
+    func testDownloadedModelDetectionReturnsFalseWhenCompiledModelArtifactsAreIncomplete() throws {
+        let fileManager = FileManager.default
+        let baseURL = fileManager.temporaryDirectory
+            .appendingPathComponent("WhisperServiceTests.Incomplete.\(UUID().uuidString)", isDirectory: true)
+        let modelDirectory = WhisperService.downloadedModelDirectory(for: .baseEN, baseURL: baseURL)
+        try fileManager.createDirectory(at: modelDirectory, withIntermediateDirectories: true)
+        try createCompleteModelArtifacts(in: modelDirectory, fileManager: fileManager)
+        try fileManager.removeItem(
+            at: modelDirectory
+                .appendingPathComponent("AudioEncoder.mlmodelc", isDirectory: true)
+                .appendingPathComponent("weights", isDirectory: true)
+                .appendingPathComponent("weight.bin", isDirectory: false)
+        )
+
+        XCTAssertFalse(WhisperService.isModelDownloaded(.baseEN, baseURL: baseURL, fileManager: fileManager))
     }
 
     func testDeleteDownloadedModelFilesRemovesOnlySelectedDirectory() throws {
@@ -169,12 +181,7 @@ final class WhisperServiceTests: XCTestCase {
 
         for directory in [baseDirectory, smallDirectory] {
             try fileManager.createDirectory(at: directory, withIntermediateDirectories: true)
-            for artifact in ["AudioEncoder.mlmodelc", "MelSpectrogram.mlmodelc", "TextDecoder.mlmodelc"] {
-                try fileManager.createDirectory(
-                    at: directory.appendingPathComponent(artifact, isDirectory: true),
-                    withIntermediateDirectories: true
-                )
-            }
+            try createCompleteModelArtifacts(in: directory, fileManager: fileManager)
         }
 
         try WhisperService.deleteDownloadedModelFiles(for: .baseEN, baseURL: baseURL, fileManager: fileManager)
@@ -208,6 +215,28 @@ final class WhisperServiceTests: XCTestCase {
         XCTAssertFalse(fileManager.fileExists(atPath: legacyCacheDirectory.path))
     }
 
+    func testDeleteIncompleteDownloadedModelFilesIfNeededRemovesInvalidDirectory() throws {
+        let fileManager = FileManager.default
+        let baseURL = fileManager.temporaryDirectory
+            .appendingPathComponent("WhisperServiceTests.PruneIncomplete.\(UUID().uuidString)", isDirectory: true)
+        let modelDirectory = WhisperService.downloadedModelDirectory(for: .smallEN, baseURL: baseURL)
+        try fileManager.createDirectory(at: modelDirectory, withIntermediateDirectories: true)
+        try createCompleteModelArtifacts(in: modelDirectory, fileManager: fileManager)
+        try fileManager.removeItem(
+            at: modelDirectory
+                .appendingPathComponent("TextDecoder.mlmodelc", isDirectory: true)
+                .appendingPathComponent("metadata.json", isDirectory: false)
+        )
+
+        try WhisperService.deleteIncompleteDownloadedModelFilesIfNeeded(
+            for: .smallEN,
+            baseURL: baseURL,
+            fileManager: fileManager
+        )
+
+        XCTAssertFalse(fileManager.fileExists(atPath: modelDirectory.path))
+    }
+
     private func makeService(
         loader: @escaping WhisperService.Loader = { _, _ in .init() },
         fileDownloader: WhisperService.FileDownloader? = nil,
@@ -220,6 +249,24 @@ final class WhisperServiceTests: XCTestCase {
             transcriber: transcriber,
             unloader: unloader
         )
+    }
+
+    private func createCompleteModelArtifacts(in modelDirectory: URL, fileManager: FileManager) throws {
+        for artifact in ["AudioEncoder.mlmodelc", "MelSpectrogram.mlmodelc", "TextDecoder.mlmodelc"] {
+            let artifactDirectory = modelDirectory.appendingPathComponent(artifact, isDirectory: true)
+            try fileManager.createDirectory(
+                at: artifactDirectory.appendingPathComponent("weights", isDirectory: true),
+                withIntermediateDirectories: true
+            )
+            for file in ["coremldata.bin", "metadata.json", "model.mil"] {
+                let fileURL = artifactDirectory.appendingPathComponent(file, isDirectory: false)
+                XCTAssertTrue(fileManager.createFile(atPath: fileURL.path, contents: Data([0x0])))
+            }
+            let weightURL = artifactDirectory
+                .appendingPathComponent("weights", isDirectory: true)
+                .appendingPathComponent("weight.bin", isDirectory: false)
+            XCTAssertTrue(fileManager.createFile(atPath: weightURL.path, contents: Data([0x0])))
+        }
     }
 }
 

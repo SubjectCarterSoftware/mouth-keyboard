@@ -69,10 +69,9 @@
 		A00000010000000000000041 /* StringSimilarity.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000020000000000000041 /* StringSimilarity.swift */; };
 		A00000010000000000000042 /* StringSimilarityTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000020000000000000042 /* StringSimilarityTests.swift */; };
 		A00000010000000000000049 /* TriggerProfile.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000020000000000000049 /* TriggerProfile.swift */; };
+		A000000100000000000000F1 /* AssistantDefaults.swift in Sources */ = {isa = PBXBuildFile; fileRef = A000000200000000000000F1 /* AssistantDefaults.swift */; };
 		A0000001000000000000004A /* TriggerProfileStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0000002000000000000004A /* TriggerProfileStore.swift */; };
 		A0000001000000000000004B /* TriggerProfileStoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0000002000000000000004B /* TriggerProfileStoreTests.swift */; };
-		A0000001000000000000004C /* TriggerAliasNormalizerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0000002000000000000004C /* TriggerAliasNormalizerTests.swift */; };
-		A0000001000000000000004E /* TriggerAliasNormalizer.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0000002000000000000004E /* TriggerAliasNormalizer.swift */; };
 		A00000010000000000000050 /* TriggerTranscriptParserTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000020000000000000050 /* TriggerTranscriptParserTests.swift */; };
 		A00000010000000000000051 /* TriggerTranscriptParser.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000020000000000000051 /* TriggerTranscriptParser.swift */; };
 		A00000010000000000000052 /* TriggerTranscriptSplit.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000020000000000000052 /* TriggerTranscriptSplit.swift */; };
@@ -171,10 +170,9 @@
 		A00000020000000000000041 /* StringSimilarity.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StringSimilarity.swift; sourceTree = "<group>"; };
 		A00000020000000000000042 /* StringSimilarityTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StringSimilarityTests.swift; sourceTree = "<group>"; };
 		A00000020000000000000049 /* TriggerProfile.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TriggerProfile.swift; sourceTree = "<group>"; };
+		A000000200000000000000F1 /* AssistantDefaults.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AssistantDefaults.swift; sourceTree = "<group>"; };
 		A0000002000000000000004A /* TriggerProfileStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TriggerProfileStore.swift; sourceTree = "<group>"; };
 		A0000002000000000000004B /* TriggerProfileStoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TriggerProfileStoreTests.swift; sourceTree = "<group>"; };
-		A0000002000000000000004C /* TriggerAliasNormalizerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TriggerAliasNormalizerTests.swift; sourceTree = "<group>"; };
-		A0000002000000000000004E /* TriggerAliasNormalizer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TriggerAliasNormalizer.swift; sourceTree = "<group>"; };
 		A00000020000000000000050 /* TriggerTranscriptParserTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TriggerTranscriptParserTests.swift; sourceTree = "<group>"; };
 		A00000020000000000000051 /* TriggerTranscriptParser.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TriggerTranscriptParser.swift; sourceTree = "<group>"; };
 		A00000020000000000000052 /* TriggerTranscriptSplit.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TriggerTranscriptSplit.swift; sourceTree = "<group>"; };
@@ -341,7 +339,6 @@
 				A00000020000000000000030 /* ShellPreferencesModelTests.swift */,
 				A0000002000000000000002A /* WhisperServiceTests.swift */,
 				A0000002000000000000004B /* TriggerProfileStoreTests.swift */,
-				A0000002000000000000004C /* TriggerAliasNormalizerTests.swift */,
 				A00000020000000000000050 /* TriggerTranscriptParserTests.swift */,
 				A00000020000000000000053 /* AIAssistantSettingsViewModelTests.swift */,
 				A00000020000000000000078 /* CloudLLMTests.swift */,
@@ -363,11 +360,11 @@
 			isa = PBXGroup;
 			children = (
 				A00000020000000000000017 /* ActivationStore.swift */,
+				A000000200000000000000F1 /* AssistantDefaults.swift */,
 				A0000002000000000000001A /* HotkeyService.swift */,
 				A00000020000000000000018 /* RecordingState.swift */,
 				A00000020000000000000049 /* TriggerProfile.swift */,
 				A0000002000000000000004A /* TriggerProfileStore.swift */,
-				A0000002000000000000004E /* TriggerAliasNormalizer.swift */,
 				A00000020000000000000051 /* TriggerTranscriptParser.swift */,
 				A00000020000000000000052 /* TriggerTranscriptSplit.swift */,
 			);
@@ -595,8 +592,8 @@
 				A0000001000000000000001D /* RecordingPillView.swift in Sources */,
 				A00000010000000000000014 /* RecordingState.swift in Sources */,
 				A00000010000000000000049 /* TriggerProfile.swift in Sources */,
+				A000000100000000000000F1 /* AssistantDefaults.swift in Sources */,
 				A0000001000000000000004A /* TriggerProfileStore.swift in Sources */,
-				A0000001000000000000004E /* TriggerAliasNormalizer.swift in Sources */,
 				A00000010000000000000051 /* TriggerTranscriptParser.swift in Sources */,
 				A00000010000000000000052 /* TriggerTranscriptSplit.swift in Sources */,
 				A0000001000000000000000B /* RecoveryActions.swift in Sources */,
@@ -640,7 +637,6 @@
 				933C00442F6C862500B5BB12 /* ShellPreferencesModelTests.swift in Sources */,
 				A00000010000000000000025 /* WhisperServiceTests.swift in Sources */,
 				A0000001000000000000004B /* TriggerProfileStoreTests.swift in Sources */,
-				A0000001000000000000004C /* TriggerAliasNormalizerTests.swift in Sources */,
 				A00000010000000000000050 /* TriggerTranscriptParserTests.swift in Sources */,
 				A00000010000000000000053 /* AIAssistantSettingsViewModelTests.swift in Sources */,
 				A00000010000000000000078 /* CloudLLMTests.swift in Sources */,

@@ -48,14 +48,6 @@ actor TriggerProfileStore {
         try persist(profile.normalized())
     }
 
-    func replaceAliasesForActiveProfile(_ aliases: [String]) async throws -> TriggerProfile {
-        await ensureLoaded()
-        let current = cachedProfile ?? TriggerProfile.defaultProfile
-        let updated = current.replacingAliasesForActiveProfile(aliases)
-        try persist(updated)
-        return updated
-    }
-
     private func ensureLoaded() async {
         guard !loaded else { return }
         loaded = true
@@ -64,10 +56,6 @@ actor TriggerProfileStore {
 
     private func readFromDisk() -> TriggerProfile {
         Self.loadSynchronously(storeURL: storeURL)
-    }
-
-    private func fallbackToDefault() -> TriggerProfile {
-        TriggerProfile.defaultProfile
     }
 
     private func persist(_ profile: TriggerProfile) throws {

@@ -36,6 +36,7 @@ final class RecordingPillPanel: NSPanel {
         containerView.wantsLayer = true
         containerView.layer?.cornerRadius = initialSize.height / 2
         containerView.layer?.masksToBounds = true
+        containerView.layer?.borderWidth = 0
         containerView.addSubview(hostingView)
 
         super.init(
@@ -111,6 +112,7 @@ final class RecordingPillPanel: NSPanel {
             if currentSize != targetSize {
                 currentSize = targetSize
                 containerView.layer?.cornerRadius = targetSize.height / 2
+                containerView.layer?.borderWidth = 0
                 updatePosition()
             }
             orderFrontRegardless()
@@ -179,7 +181,9 @@ private struct RecordingPillViewWrapper: View {
             onCancel: { activationStore.cancelCurrentSession() },
             onRestart: { activationStore.restartCurrentSession() },
             onSuccessClose: { activationStore.dismissCurrentSuccess() },
-            onSuccessCopy: { activationStore.copyCurrentSuccessResult() }
+            onSuccessCopy: { activationStore.copyCurrentSuccessResult() },
+            onSuccessRestart: { activationStore.restartFromSuccess() },
+            onSuccessAppend: { activationStore.appendFromSuccess() }
         )
     }
 }

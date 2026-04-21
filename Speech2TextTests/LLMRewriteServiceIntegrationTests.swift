@@ -5,6 +5,10 @@ final class LLMRewriteServiceIntegrationTests: XCTestCase {
 
     override func setUp() async throws {
         try await super.setUp()
+        try XCTSkipUnless(
+            ProcessInfo.processInfo.environment["RUN_MODEL_INTEGRATION_TESTS"] == "1",
+            "Skipping real MLX model tests. Set RUN_MODEL_INTEGRATION_TESTS=1 to enable."
+        )
     }
 
     /// Exercises rewrite with user-provided instructions against the real MLX/Qwen path and

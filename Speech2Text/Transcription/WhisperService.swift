@@ -200,6 +200,8 @@ actor WhisperService: WhisperTranscribing {
             return directory
         }
 
+        try Self.deleteIncompleteDownloadedModelFilesIfNeeded(for: model)
+
         let fileDownloader = self.fileDownloader
         let task = Task { [self, fileDownloader, model] in
             try await fileDownloader(model) { progress in
@@ -252,7 +254,12 @@ actor WhisperService: WhisperTranscribing {
             // Prefer already-downloaded local artifacts to avoid stalling on
             // remote snapshot checks when the model is already present.
             if !hasCustomLoader && !hasCustomFileDownloader && Self.isModelDownloaded(model) {
-                return try await loader(model, Self.downloadedModelDirectory(for: model))
+                let localDirectory = Self.downloadedModelDirectory(for: model)
+                do {
+                    return try await loader(model, localDirectory)
+                } catch {
+                    try? Self.deleteDownloadedModelFiles(for: model)
+                }
             }
 
             let directory = try await self.downloadFiles(for: model)
@@ -361,8 +368,15 @@ actor WhisperService: WhisperTranscribing {
         fileManager: FileManager = .default
     ) -> Bool {
         let directory = downloadedModelDirectory(for: model, baseURL: baseURL)
+        guard fileManager.fileExists(atPath: directory.path) else {
+            return false
+        }
+
         return requiredModelArtifacts.allSatisfy { artifact in
-            fileManager.fileExists(atPath: directory.appendingPathComponent(artifact, isDirectory: true).path)
+            compiledModelDirectoryLooksComplete(
+                at: directory.appendingPathComponent(artifact, isDirectory: true),
+                fileManager: fileManager
+            )
         }
     }
 
@@ -427,6 +441,17 @@ actor WhisperService: WhisperTranscribing {
         }
     }
 
+    static func deleteIncompleteDownloadedModelFilesIfNeeded(
+        for model: WhisperModelChoice,
+        baseURL: URL? = nil,
+        fileManager: FileManager = .default
+    ) throws {
+        let directory = downloadedModelDirectory(for: model, baseURL: baseURL)
+        guard fileManager.fileExists(atPath: directory.path) else { return }
+        guard !isModelDownloaded(model, baseURL: baseURL, fileManager: fileManager) else { return }
+        try deleteDownloadedModelFiles(for: model, baseURL: baseURL, fileManager: fileManager)
+    }
+
     static func downloadedModelCacheDirectory(
         for model: WhisperModelChoice,
         baseURL: URL? = nil
@@ -450,8 +475,25 @@ actor WhisperService: WhisperTranscribing {
     }
 
     private static func persistentDownloadBaseURL(fileManager: FileManager = .default) -> URL {
-        fileManager.urls(for: .documentDirectory, in: .userDomainMask).first!
-            .appendingPathComponent("huggingface", isDirectory: true)
+        // Keep Whisper downloads in Application Support so the app no longer probes Documents at runtime.
+        applicationSupportDownloadBaseURL(fileManager: fileManager)
+    }
+
+    private static func applicationSupportDownloadBaseURL(fileManager: FileManager) -> URL {
+        if let appSupport = try? fileManager.url(
+            for: .applicationSupportDirectory,
+            in: .userDomainMask,
+            appropriateFor: nil,
+            create: true
+        ) {
+            return appSupport
+                .appendingPathComponent("Speech2Text", isDirectory: true)
+                .appendingPathComponent("WhisperModel", isDirectory: true)
+        }
+
+        return fileManager.temporaryDirectory
+            .appendingPathComponent("Speech2Text", isDirectory: true)
+            .appendingPathComponent("WhisperModel", isDirectory: true)
     }
 
     private func completedProgress() -> Progress {
@@ -465,6 +507,28 @@ actor WhisperService: WhisperTranscribing {
         "MelSpectrogram.mlmodelc",
         "TextDecoder.mlmodelc"
     ]
+
+    private static let requiredCompiledModelArtifacts = [
+        "coremldata.bin",
+        "metadata.json",
+        "model.mil",
+        "weights/weight.bin"
+    ]
+
+    private static func compiledModelDirectoryLooksComplete(
+        at directory: URL,
+        fileManager: FileManager
+    ) -> Bool {
+        guard fileManager.fileExists(atPath: directory.path) else {
+            return false
+        }
+
+        return requiredCompiledModelArtifacts.allSatisfy { artifact in
+            fileManager.fileExists(
+                atPath: directory.appendingPathComponent(artifact, isDirectory: false).path
+            )
+        }
+    }
 }
 
 @MainActor

@@ -4,15 +4,15 @@ import XCTest
 final class RealModelIntegrationTests: XCTestCase {
 
     override func setUp() async throws {
-        // Optional: clear defaults or setup
+        try XCTSkipUnless(
+            ProcessInfo.processInfo.environment["RUN_MODEL_INTEGRATION_TESTS"] == "1",
+            "Skipping real MLX model tests. Set RUN_MODEL_INTEGRATION_TESTS=1 to enable."
+        )
     }
 
     func testRealQwen2BModelGeneration() async throws {
         let transcript = "1, 9, 12, 13, 14, 15. Zeus, can you please put those in ascending order for me?"
-        let triggerName = "Zeus"
-
-        let aliases = TriggerAliasNormalizer.normalize([triggerName])
-        let detection = TriggerTranscriptParser.detect(transcript: transcript, activeAliases: aliases)
+        let detection = TriggerTranscriptParser.detect(transcript: transcript, triggerNames: ["Zeus"])
 
         guard case .triggered(let detectedTranscript, _) = detection else {
             XCTFail("Parser failed to find valid trigger!")

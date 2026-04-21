@@ -96,6 +96,7 @@ final class ActivationStore: ObservableObject {
     let voiceActivityDetector: VoiceActivityDetector
     var soundPlayer: ActivationSoundPlayer = .init()
     private static let maxRecordingDuration: UInt64 = 5 * 60 * 1_000_000_000 // 5 minutes
+    private static let minimumHoldRecordingDuration: UInt64 = 500_000_000 // 0.5s so Whisper gets enough audio
     private static let minimumConvertingDisplayDuration: UInt64 = 200_000_000
     private static let whisperModelIdleUnloadDelay: UInt64 = WhisperService.idleUnloadDelayNanoseconds
     private static let rewriteModelIdleUnloadDelay: UInt64 = LLMRewriteService.idleUnloadDelayNanoseconds
@@ -110,8 +111,11 @@ final class ActivationStore: ObservableObject {
     var onPastePermissionNeeded: () -> Void = {}
 
     private var requestsPasteOnCompletion = false
+    private var forceLLMNextSession = false
+    private var retryContext: (rawTranscription: String, llmOutput: String)?
     private var activeSessionID = UUID()
     private var activeActivationOrigin: ActivationOrigin?
+    private var recordingStartedAt: UInt64 = 0
     private var transcriptionTask: Task<Void, Never>?
     private var dismissTask: Task<Void, Never>?
     private var feedbackClearTask: Task<Void, Never>?
@@ -194,7 +198,22 @@ final class ActivationStore: ObservableObject {
 
     func finishHoldSession() {
         guard state == .recording, activeActivationOrigin == .hold else { return }
-        finish()
+        let elapsed = DispatchTime.now().uptimeNanoseconds - recordingStartedAt
+        guard elapsed < Self.minimumHoldRecordingDuration else {
+            finish()
+            return
+        }
+        let remaining = Self.minimumHoldRecordingDuration - elapsed
+        let sessionID = activeSessionID
+        Task { [weak self] in
+            try? await Task.sleep(nanoseconds: remaining)
+            await MainActor.run {
+                guard let self,
+                      self.state == .recording,
+                      self.activeSessionID == sessionID else { return }
+                self.finish()
+            }
+        }
     }
 
     /// Finish recording and paste the transcription to the active cursor position.
@@ -311,6 +330,38 @@ final class ActivationStore: ObservableObject {
         scheduleRewriteModelIdleUnload()
     }
 
+    /// Restart from success: undoes the paste, re-enters recording, and re-enables LLM if it was used.
+    func restartFromSuccess() {
+        guard case .success(_, let pasted, let converted, _, _) = state else { return }
+        if pasted { sendUndo() }
+        if converted {
+            forceLLMNextSession = true
+            if let raw = lastTranscription, let output = lastConvertedTranscription {
+                retryContext = (rawTranscription: raw, llmOutput: output)
+            }
+        }
+        requestsPasteOnCompletion = pasted
+        _ = beginRecording(origin: .toggle)
+    }
+
+    /// Append from success: re-enters recording and pastes the new result after the existing paste.
+    func appendFromSuccess() {
+        guard state.isSuccess else { return }
+        requestsPasteOnCompletion = true
+        _ = beginRecording(origin: .toggle)
+    }
+
+    private func sendUndo() {
+        guard let source = CGEventSource(stateID: .hidSystemState),
+              let keyDown = CGEvent(keyboardEventSource: source, virtualKey: 6, keyDown: true),
+              let keyUp = CGEvent(keyboardEventSource: source, virtualKey: 6, keyDown: false)
+        else { return }
+        keyDown.flags = .maskCommand
+        keyUp.flags = .maskCommand
+        keyDown.post(tap: .cghidEventTap)
+        keyUp.post(tap: .cghidEventTap)
+    }
+
     /// Finish recording: stops capture and runs the transcription -> clipboard -> dismiss flow.
     func finish() {
         guard state == .recording else { return }
@@ -387,6 +438,7 @@ final class ActivationStore: ObservableObject {
         activeSessionID = UUID()
         sessionClipboardSnapshot = clipboardService.snapshotCurrentClipboard()
         activeActivationOrigin = origin
+        recordingStartedAt = DispatchTime.now().uptimeNanoseconds
         voiceActivityDetector.reset()
         state = .recording
         beginWhisperModelWarmup()
@@ -436,22 +488,23 @@ final class ActivationStore: ObservableObject {
                 try await whisperService.transcribe(samples: samples)
             }
             let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
-            let triggerAliases = TriggerAliasNormalizer.normalize(preferences.activeTriggerProfile.activeAliases)
+            let triggerNames = preferences.activeTriggerProfile.allCanonicalNames
 
             guard isCurrentSession(sessionID) else { return }
             guard !trimmed.isEmpty else {
                 throw TranscriptionError.noSpeechDetected
             }
 
-            let detection = TriggerTranscriptParser.detect(transcript: trimmed, activeAliases: triggerAliases)
+            let detection = TriggerTranscriptParser.detect(transcript: trimmed, triggerNames: triggerNames)
             let clipboardSnapshot = sessionClipboardSnapshot
             let shouldConvert: Bool
             switch detection {
             case .noTrigger:
-                shouldConvert = false
+                shouldConvert = forceLLMNextSession
             case .triggered:
                 shouldConvert = true
             }
+            forceLLMNextSession = false
 
             if !shouldConvert {
                 let didPaste = shouldPasteOnSuccessfulFinish
@@ -514,6 +567,12 @@ final class ActivationStore: ObservableObject {
                             clipboardWasInjected = true
                         }
                     }
+                }
+
+                // Inject prior attempt context for retry sessions
+                if let retry = retryContext {
+                    effectiveBody += "\n\n<previous_attempt>\n<original_transcription>\(retry.rawTranscription)</original_transcription>\n<ai_output>\(retry.llmOutput)</ai_output>\n</previous_attempt>"
+                    retryContext = nil
                 }
 
                 // Apply word limit to the effective body (including any clipboard content)
@@ -620,6 +679,8 @@ final class ActivationStore: ObservableObject {
 
     private func invalidateActiveSession() {
         requestsPasteOnCompletion = false
+        forceLLMNextSession = false
+        retryContext = nil
         sessionClipboardSnapshot = nil
         clearSuccessDismissTiming()
         activeSessionID = UUID()
