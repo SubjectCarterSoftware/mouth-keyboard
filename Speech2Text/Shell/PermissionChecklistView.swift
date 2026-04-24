@@ -116,7 +116,7 @@ private struct PermissionTile: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .padding(14)
-        .background(.quaternary.opacity(0.25), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+        .background(Color(white: 0.17), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("permission.\(item.kind.rawValue).row")
         .onReceive(NotificationCenter.default.publisher(for: .postEventGuideRequested)) { _ in
@@ -229,6 +229,6 @@ private struct LaunchAtLoginTile: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .padding(14)
-        .background(.quaternary.opacity(0.25), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+        .background(Color(white: 0.17), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
     }
 }

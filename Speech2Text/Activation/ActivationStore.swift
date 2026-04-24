@@ -112,7 +112,7 @@ final class ActivationStore: ObservableObject {
 
     private var requestsPasteOnCompletion = false
     private var forceLLMNextSession = false
-    private var retryContext: (rawTranscription: String, llmOutput: String)?
+    private var retryHistory: [(instruction: String, output: String)] = []
     private var activeSessionID = UUID()
     private var activeActivationOrigin: ActivationOrigin?
     private var recordingStartedAt: UInt64 = 0
@@ -121,6 +121,7 @@ final class ActivationStore: ObservableObject {
     private var feedbackClearTask: Task<Void, Never>?
     private var maxDurationTask: Task<Void, Never>?
     private var sessionClipboardSnapshot: ClipboardSnapshot?
+    private var downloadGateCancellable: AnyCancellable?
 
     convenience init(preferences: ShellPreferences, readinessStore: ReadinessStore) {
         self.init(
@@ -324,6 +325,7 @@ final class ActivationStore: ObservableObject {
         dismissTask?.cancel()
         dismissTask = nil
         clearSuccessDismissTiming()
+        retryHistory = []
         recoveryFeedback = nil
         state = .idle
         scheduleWhisperModelIdleUnload()
@@ -337,7 +339,7 @@ final class ActivationStore: ObservableObject {
         if converted {
             forceLLMNextSession = true
             if let raw = lastTranscription, let output = lastConvertedTranscription {
-                retryContext = (rawTranscription: raw, llmOutput: output)
+                retryHistory.append((instruction: raw, output: output))
             }
         }
         requestsPasteOnCompletion = pasted
@@ -347,6 +349,7 @@ final class ActivationStore: ObservableObject {
     /// Append from success: re-enters recording and pastes the new result after the existing paste.
     func appendFromSuccess() {
         guard state.isSuccess else { return }
+        retryHistory = []
         requestsPasteOnCompletion = true
         _ = beginRecording(origin: .toggle)
     }
@@ -428,6 +431,14 @@ final class ActivationStore: ObservableObject {
         // user dismissed the setup window early.
         let snapshot = readinessProvider.snapshot
         guard snapshot.permissions.filter(\.isRequired).allSatisfy(\.isAuthorized) else {
+            return false
+        }
+
+        // Block recording until the selected Whisper model is available on disk.
+        // If it's still downloading, show the progress pill and wait for completion.
+        let selectedModel = preferences.whisperModel
+        if !isWhisperModelReady(selectedModel) {
+            beginModelDownloadGate(for: selectedModel)
             return false
         }
 
@@ -569,10 +580,13 @@ final class ActivationStore: ObservableObject {
                     }
                 }
 
-                // Inject prior attempt context for retry sessions
-                if let retry = retryContext {
-                    effectiveBody += "\n\n<previous_attempt>\n<original_transcription>\(retry.rawTranscription)</original_transcription>\n<ai_output>\(retry.llmOutput)</ai_output>\n</previous_attempt>"
-                    retryContext = nil
+                // Prepend conversation history for retry sessions so the model
+                // sees prior attempts before the new instruction.
+                if !retryHistory.isEmpty {
+                    let turns = retryHistory.map {
+                        "<user>\($0.instruction)</user>\n<assistant>\($0.output)</assistant>"
+                    }.joined(separator: "\n")
+                    effectiveBody = "<prior_conversation>\n\(turns)\n</prior_conversation>\n\n\(effectiveBody)"
                 }
 
                 // Apply word limit to the effective body (including any clipboard content)
@@ -680,7 +694,7 @@ final class ActivationStore: ObservableObject {
     private func invalidateActiveSession() {
         requestsPasteOnCompletion = false
         forceLLMNextSession = false
-        retryContext = nil
+        retryHistory = []
         sessionClipboardSnapshot = nil
         clearSuccessDismissTiming()
         activeSessionID = UUID()
@@ -725,6 +739,10 @@ final class ActivationStore: ObservableObject {
             return nil
         }
         return text
+    }
+
+    var isHoldSessionActive: Bool {
+        state == .recording && activeActivationOrigin == .hold
     }
 
     private func refreshSuccessDismissTimer() {
@@ -773,7 +791,7 @@ final class ActivationStore: ObservableObject {
                 self.state = .idle
                 self.scheduleWhisperModelIdleUnload()
                 self.scheduleRewriteModelIdleUnload()
-            case .idle, .recording, .processing, .modelDownloading, .converting:
+            case .idle, .recording, .processing, .modelDownloading, .modelPrewarming, .converting:
                 break
             }
             self.dismissTask = nil
@@ -845,11 +863,69 @@ final class ActivationStore: ObservableObject {
         switch phase {
         case .downloading(let activeModel, let progress) where activeModel == model:
             state = .modelDownloading(model: activeModel, progress: progress)
+        case .prewarming(let activeModel) where activeModel == model:
+            state = .modelPrewarming(model: activeModel)
         default:
             if case .modelDownloading(let activeModel, _) = state, activeModel == model {
                 state = .processing
+            } else if case .modelPrewarming(let activeModel) = state, activeModel == model {
+                state = .processing
             }
         }
+    }
+
+    private func isWhisperModelReady(_ model: WhisperModelChoice) -> Bool {
+        switch whisperModelLoadState.phase {
+        case .downloading(let active, _) where active == model:
+            return false
+        case .prewarming(let active) where active == model:
+            return false
+        case .ready(let loaded) where loaded == model:
+            return true
+        default:
+            return WhisperService.isModelDownloaded(model)
+        }
+    }
+
+    private func beginModelDownloadGate(for model: WhisperModelChoice) {
+        // If a download isn't already running for this model, kick one off.
+        if case .downloading(let active, _) = whisperModelLoadState.phase, active == model {
+            // Already in progress — just attach observer.
+        } else {
+            WhisperModelLoadState.shared.startDownload(for: model)
+        }
+
+        if case .prewarming(let active) = whisperModelLoadState.phase, active == model {
+            state = .modelPrewarming(model: model)
+        } else {
+            let initialProgress: Double
+            if case .downloading(_, let p) = whisperModelLoadState.phase { initialProgress = p } else { initialProgress = 0 }
+            state = .modelDownloading(model: model, progress: initialProgress)
+        }
+
+        downloadGateCancellable = whisperModelLoadState.phasePublisher
+            .removeDuplicates()
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] phase in
+                guard let self else { return }
+                switch phase {
+                case .downloading(let active, let progress) where active == model:
+                    self.state = .modelDownloading(model: model, progress: progress)
+                case .prewarming(let active) where active == model:
+                    self.state = .modelPrewarming(model: model)
+                case .ready(let active) where active == model:
+                    self.downloadGateCancellable = nil
+                    self.state = .idle
+                case .failed(let active, let message) where active == model:
+                    self.downloadGateCancellable = nil
+                    let gateID = UUID()
+                    self.activeSessionID = gateID
+                    self.state = .failure(reason: .modelError(message))
+                    self.scheduleDismissToIdle(afterNanoseconds: 3_000_000_000, sessionID: gateID)
+                default:
+                    break
+                }
+            }
     }
 
     private func beginRewriteModelWarmup() {

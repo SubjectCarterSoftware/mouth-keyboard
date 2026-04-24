@@ -61,6 +61,9 @@ final class StatusMenuController: NSObject, NSMenuDelegate {
         case .modelDownloading:
             tint = NSColor(red: 0.102, green: 0.431, blue: 1.0, alpha: 1.0)
             description = "Downloading model"
+        case .modelPrewarming:
+            tint = NSColor(red: 0.102, green: 0.431, blue: 1.0, alpha: 1.0)
+            description = "Loading model"
         case .converting:
             tint = NSColor(red: 0.545, green: 0.184, blue: 0.788, alpha: 1.0)
             description = "Converting"
@@ -177,7 +180,7 @@ final class StatusMenuController: NSObject, NSMenuDelegate {
 
             menu.addItem(
                 actionItem(
-                    title: "Copy Last AI Converted Transcription",
+                    title: "Copy AI Transcription",
                     action: #selector(copyLastConvertedTranscriptionFromMenu),
                     enabled: activationStore.lastConvertedTranscription != nil,
                     symbolNames: ["sparkles", "wand.and.stars"]
@@ -185,31 +188,17 @@ final class StatusMenuController: NSObject, NSMenuDelegate {
             )
             menu.addItem(
                 actionItem(
-                    title: "Copy Last Transcription",
+                    title: "Copy Transcription",
                     action: #selector(copyLastTranscriptionFromMenu),
                     enabled: activationStore.lastTranscription != nil,
                     symbolNames: ["doc.on.doc", "doc.on.clipboard"]
                 )
             )
-            menu.addItem(toggleItem(
-                title: "Auto Paste",
-                action: #selector(toggleAutoPasteFromMenu),
-                isOn: preferences.alwaysAutoPaste,
-                enabled: !canCancelSession,
-                symbolNames: ["text.insert", "arrow.right.doc.on.clipboard"]
-            ))
-            menu.addItem(toggleItem(
-                title: "Clipboard Access",
-                action: #selector(toggleClipboardAccessFromMenu),
-                isOn: preferences.allowClipboardAccess,
-                enabled: !canCancelSession,
-                symbolNames: ["list.clipboard", "doc.on.clipboard"]
-            ))
             menu.addItem(.separator())
             menu.addItem(microphoneMenuItem())
             menu.addItem(
                 actionItem(
-                    title: "Settings & Hotkeys…",
+                    title: "Settings…",
                     action: #selector(openSetupFromMenu),
                     shortcut: KeyboardShortcuts.Shortcut(.comma, modifiers: [.command]),
                     enabled: true,
@@ -247,23 +236,6 @@ final class StatusMenuController: NSObject, NSMenuDelegate {
             item.keyEquivalentModifierMask = shortcut.modifiers
         }
 
-        return item
-    }
-
-    private func toggleItem(
-        title: String,
-        action: Selector,
-        isOn: Bool,
-        enabled: Bool,
-        symbolNames: [String] = []
-    ) -> NSMenuItem {
-        let item = actionItem(
-            title: title,
-            action: action,
-            enabled: enabled,
-            symbolNames: symbolNames
-        )
-        item.state = isOn ? .on : .off
         return item
     }
 
@@ -463,16 +435,6 @@ final class StatusMenuController: NSObject, NSMenuDelegate {
     @objc
     private func restartRecordingFromMenu() {
         activationStore.restartCurrentSession()
-    }
-
-    @objc
-    private func toggleAutoPasteFromMenu() {
-        preferences.alwaysAutoPaste.toggle()
-    }
-
-    @objc
-    private func toggleClipboardAccessFromMenu() {
-        preferences.allowClipboardAccess.toggle()
     }
 
     @objc

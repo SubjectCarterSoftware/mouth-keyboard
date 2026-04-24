@@ -206,7 +206,7 @@ final class ShellPreferences: ObservableObject {
         }
 
         let storedWhisperModel = userDefaults.string(forKey: Keys.whisperModel)
-        let resolvedWhisperModel = WhisperModelChoice.resolvedStoredValue(storedWhisperModel) ?? .smallEN
+        let resolvedWhisperModel = WhisperModelChoice.resolvedStoredValue(storedWhisperModel) ?? .recommendedForHardware()
         whisperModel = resolvedWhisperModel
 
         if storedWhisperModel == WhisperModelChoice.legacyLargeTurboRawValue {

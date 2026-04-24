@@ -227,6 +227,8 @@ struct RecordingPillView: View {
             activeMeterContent(mode: .processing)
         case .modelDownloading(let model, let progress):
             modelDownloadingContent(model: model, progress: progress)
+        case .modelPrewarming(let model):
+            modelPrewarmingContent(model: model)
         case .success:
             successContent
         case .converting:
@@ -448,7 +450,7 @@ struct RecordingPillView: View {
                 .foregroundStyle(Color.accentColor)
 
             VStack(alignment: .leading, spacing: 4) {
-                Text("Downloading \(model.displayName)")
+                Text("Initial download")
                     .font(.system(size: 12, weight: .semibold))
                     .foregroundStyle(.white)
                     .lineLimit(1)
@@ -463,6 +465,31 @@ struct RecordingPillView: View {
                 .font(.system(size: 12, weight: .semibold))
                 .foregroundStyle(.secondary)
                 .monospacedDigit()
+        }
+        .padding(.horizontal, 12)
+        .frame(width: 220, height: 44)
+        .background(Self.pillBackground)
+        .clipShape(Capsule(style: .continuous))
+        .preferredColorScheme(.dark)
+    }
+
+    private func modelPrewarmingContent(model: WhisperModelChoice) -> some View {
+        HStack(spacing: 10) {
+            Image(systemName: "cpu")
+                .font(.system(size: 14, weight: .semibold))
+                .foregroundStyle(Color.accentColor)
+
+            VStack(alignment: .leading, spacing: 4) {
+                Text("Finishing setup")
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundStyle(.white)
+                    .lineLimit(1)
+
+                ProgressView()
+                    .progressViewStyle(.linear)
+                    .tint(Color.accentColor)
+                    .controlSize(.small)
+            }
         }
         .padding(.horizontal, 12)
         .frame(width: 220, height: 44)
@@ -519,7 +546,7 @@ struct RecordingPillView: View {
                     }
                     .frame(width: laneWidth, alignment: .leading)
 
-                    Text(successLabel())
+                    Text(successLabel(startedAt: successDismissStartedAt, now: timeline.date))
                         .font(.system(size: 13, weight: .semibold))
                         .foregroundStyle(.white)
                         .lineLimit(1)
@@ -542,8 +569,16 @@ struct RecordingPillView: View {
         .preferredColorScheme(.dark)
     }
 
-    private func successLabel() -> String {
-        "Done"
+    private func successLabel(startedAt: Date?, now: Date) -> String {
+        guard let startedAt else { return "Done" }
+        let elapsed = now.timeIntervalSince(startedAt)
+        switch elapsed {
+        case ..<1:   return "Done"
+        case 1..<3:  return "Closing"
+        case 3..<4:  return "3"
+        case 4..<5:  return "2"
+        default:     return "1"
+        }
     }
 
     private var successCopyButton: some View {

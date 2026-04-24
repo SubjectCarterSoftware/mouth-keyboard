@@ -103,6 +103,7 @@ private struct ShortcutRecorderField: View {
 
 private struct KeyComboRecorder: View {
     let name: KeyboardShortcuts.Name
+    let preferences: ShellPreferences
     @State private var isRecording = false
     @State private var eventMonitor: Any?
     @State private var clickMonitor: Any?
@@ -165,9 +166,14 @@ private struct KeyComboRecorder: View {
             }
 
             if let shortcut = KeyboardShortcuts.Shortcut(event: event) {
-                KeyboardShortcuts.setShortcut(shortcut, for: name)
-                currentShortcut = shortcut
-                finishRecording()
+                let snapshot = ShortcutBindingSnapshot.current(preferences: preferences)
+                if !ShortcutBindingPolicy.tapShortcutConflictsWithHold(shortcut, snapshot: snapshot) {
+                    KeyboardShortcuts.setShortcut(shortcut, for: name)
+                    currentShortcut = shortcut
+                    finishRecording()
+                } else {
+                    NSSound.beep()
+                }
             }
             return nil
         }
@@ -205,6 +211,8 @@ private struct KeyComboRecorder: View {
 // MARK: - Hold-key recorder (modifier-only keys allowed)
 
 private struct HoldShortcutRecorder: View {
+    let slot: HoldShortcutSlot
+    let preferences: ShellPreferences
     let keyCode: Int
     let modifiers: UInt
     let defaultKeyCode: Int
@@ -342,17 +350,13 @@ private struct HoldShortcutRecorder: View {
     }
 
     private func conflictsWithOtherBindings(keyCode: Int, modifiers: UInt) -> Bool {
+        let key = KeyboardShortcuts.Key(rawValue: keyCode)
         let candidate = KeyboardShortcuts.Shortcut(
-            KeyboardShortcuts.Key(rawValue: keyCode),
+            key,
             modifiers: NSEvent.ModifierFlags(rawValue: modifiers)
         )
-        let names: [KeyboardShortcuts.Name] = [.activate, .activateAlt, .stopSession, .stopSessionAlt]
-        for name in names {
-            if let shortcut = KeyboardShortcuts.getShortcut(for: name), shortcut == candidate {
-                return true
-            }
-        }
-        return false
+        let snapshot = ShortcutBindingSnapshot.current(preferences: preferences)
+        return ShortcutBindingPolicy.holdShortcutConflicts(candidate, slot: slot, snapshot: snapshot)
     }
 
     private func recordKey(keyCode: Int, modifiers: UInt) {
@@ -449,6 +453,8 @@ private struct KeyboardShortcutsRow: View {
         SetupFieldRow(title: "Hold to Transcribe:") {
             HStack(spacing: 12) {
                 HoldShortcutRecorder(
+                    slot: .primary,
+                    preferences: preferences,
                     keyCode: preferences.holdShortcutKeyCode,
                     modifiers: preferences.holdShortcutModifiers,
                     defaultKeyCode: 61,
@@ -472,6 +478,8 @@ private struct KeyboardShortcutsRow: View {
                 )
 
                 HoldShortcutRecorder(
+                    slot: .secondary,
+                    preferences: preferences,
                     keyCode: preferences.holdShortcutKeyCodeAlt,
                     modifiers: preferences.holdShortcutModifiersAlt,
                     defaultKeyCode: -1,
@@ -645,6 +653,59 @@ private struct ImmediateHelpIcon: View {
     }
 }
 
+private struct CircularProgressRing: View {
+    let progress: Double
+
+    var body: some View {
+        ZStack {
+            Circle()
+                .stroke(Color.white.opacity(0.12), lineWidth: 3)
+            Circle()
+                .trim(from: 0, to: min(max(progress, 0), 1))
+                .stroke(Color.accentColor, style: StrokeStyle(lineWidth: 3, lineCap: .round))
+                .rotationEffect(.degrees(-90))
+                .animation(.easeInOut(duration: 0.25), value: progress)
+        }
+        .frame(width: 28, height: 28)
+    }
+}
+
+private struct ModelDownloadStatusRow: View {
+    let modelName: String
+    let progress: Double?  // nil = prewarming (indeterminate)
+
+    var body: some View {
+        HStack(alignment: .center, spacing: 12) {
+            VStack(alignment: .leading, spacing: 2) {
+                Text(progress != nil ? "Preparing speech model" : "Loading speech model")
+                    .font(.subheadline.weight(.medium))
+                    .foregroundStyle(.primary)
+                Text(
+                    progress != nil
+                        ? "\(modelName) is downloading in the background and will be ready for first use when complete."
+                        : "\(modelName) is being compiled for your hardware. This only happens once."
+                )
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+            }
+
+            Spacer()
+
+            if let progress {
+                CircularProgressRing(progress: progress)
+            } else {
+                ProgressView()
+                    .controlSize(.small)
+                    .frame(width: 28, height: 28)
+            }
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 12)
+        .background(Color.accentColor.opacity(0.06), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+    }
+}
+
 struct SetupWindowView: View {
     @ObservedObject var preferences: ShellPreferences
     @ObservedObject var readinessStore: ReadinessStore
@@ -710,7 +771,7 @@ struct SetupWindowView: View {
     }
 
     private var isAnyWhisperTransferInFlight: Bool {
-        whisperModelLoadState.phase.downloadProgress != nil || whisperModelLoadState.deletingModel != nil
+        whisperModelLoadState.phase.isTransferInFlight || whisperModelLoadState.deletingModel != nil
     }
 
     private var keyboardShortcutsStatus: PermissionGrantState {
@@ -881,6 +942,8 @@ struct SetupWindowView: View {
 
         if status.isDownloading {
             details.append("Downloading")
+        } else if status.isPrewarming {
+            details.append("Loading")
         } else if status.isDeleting {
             details.append("Deleting")
         } else if status.isLoading {
@@ -909,7 +972,7 @@ struct SetupWindowView: View {
                 .foregroundStyle(.secondary)
                 .monospacedDigit()
                 .frame(minWidth: 44, alignment: .trailing)
-        } else if status.isDeleting || status.isLoading {
+        } else if status.isDeleting || status.isLoading || status.isPrewarming {
             ProgressView()
                 .controlSize(.small)
                 .frame(width: 20, height: 20)
@@ -1346,6 +1409,14 @@ struct SetupWindowView: View {
                         onToggleLaunchAtLogin: { preferences.setLaunchAtLogin($0) }
                     )
 
+                    if case .downloading(let model, let progress) = whisperModelLoadState.phase,
+                       model == preferences.whisperModel {
+                        ModelDownloadStatusRow(modelName: model.displayName, progress: progress)
+                    } else if case .prewarming(let model) = whisperModelLoadState.phase,
+                              model == preferences.whisperModel {
+                        ModelDownloadStatusRow(modelName: model.displayName, progress: nil)
+                    }
+
                     Divider()
 
                     VStack(alignment: .leading, spacing: 10) {
@@ -1385,15 +1456,15 @@ struct SetupWindowView: View {
                     VStack(alignment: .leading, spacing: 10) {
                         SetupFieldRow(title: "Start Transcription:") {
                             HStack(spacing: 12) {
-                                KeyComboRecorder(name: .activate)
-                                KeyComboRecorder(name: .activateAlt)
+                                KeyComboRecorder(name: .activate, preferences: preferences)
+                                KeyComboRecorder(name: .activateAlt, preferences: preferences)
                             }
                         }
 
                         SetupFieldRow(title: "Stop Transcription:") {
                             HStack(spacing: 12) {
-                                KeyComboRecorder(name: .stopSession)
-                                KeyComboRecorder(name: .stopSessionAlt)
+                                KeyComboRecorder(name: .stopSession, preferences: preferences)
+                                KeyComboRecorder(name: .stopSessionAlt, preferences: preferences)
                             }
                         }
 
@@ -1534,7 +1605,7 @@ struct SetupWindowView: View {
             }
             .padding(.horizontal, 24)
             .padding(.vertical, 16)
-            .background(.regularMaterial)
+            .background(Color(red: 0.07, green: 0.07, blue: 0.08))
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .frame(
@@ -1542,7 +1613,8 @@ struct SetupWindowView: View {
             maxWidth: SetupWindowMetrics.width,
             minHeight: SetupWindowMetrics.collapsedHeight
         )
-        .background(.regularMaterial)
+        .background(Color(red: 0.07, green: 0.07, blue: 0.08))
+        .preferredColorScheme(.dark)
         .onAppear {
             audioDeviceService.refresh()
             readinessStore.refresh()

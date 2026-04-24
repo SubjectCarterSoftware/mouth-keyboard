@@ -103,14 +103,20 @@ final class HotkeyServiceTests: XCTestCase {
         XCTAssertEqual(armCount, 2)
     }
 
-    func testRepeatedSingleTapsWhileRecordingStillArmEachTime() {
+    func testActivateKeyDuringToggleRecordingStopsSession() {
+        var stopCount = 0
         var armCount = 0
         var timestamps = [0.0, 0.1].makeIterator()
+        var state: RecordingState = .recording
         let service = HotkeyService(
             minimumActivationInterval: 0.35,
-            currentState: { .recording },
+            currentState: { state },
             onArm: {
                 armCount += 1
+            },
+            onStop: {
+                stopCount += 1
+                state = .processing
             },
             now: {
                 timestamps.next() ?? 0
@@ -118,8 +124,27 @@ final class HotkeyServiceTests: XCTestCase {
         )
 
         XCTAssertTrue(service.handleKeyDown())
+        XCTAssertEqual(stopCount, 1)
+        XCTAssertEqual(armCount, 0)
+    }
+
+    func testActivateKeyDuringHoldRecordingDoesNotStopSession() {
+        var stopCount = 0
+        var armCount = 0
+        let service = HotkeyService(
+            currentState: { .recording },
+            isHoldRecordingActive: { true },
+            onArm: {
+                armCount += 1
+            },
+            onStop: {
+                stopCount += 1
+            }
+        )
+
         XCTAssertTrue(service.handleKeyDown())
-        XCTAssertEqual(armCount, 2)
+        XCTAssertEqual(stopCount, 0)
+        XCTAssertEqual(armCount, 0)
     }
 
     func testDefaultActivationShortcutIsControlV() {

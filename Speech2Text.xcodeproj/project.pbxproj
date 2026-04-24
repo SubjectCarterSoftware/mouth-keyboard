@@ -86,8 +86,10 @@
 		A00000010000000000000077 /* CloudLLMKeychain.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000020000000000000073 /* CloudLLMKeychain.swift */; };
 			A00000010000000000000078 /* CloudLLMTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000020000000000000078 /* CloudLLMTests.swift */; };
 			A00000010000000000000079 /* ClipboardIntentClassifier.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000020000000000000079 /* ClipboardIntentClassifier.swift */; };
-			A00000010000000000000080 /* ClipboardAwarePromptBuilder.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000020000000000000080 /* ClipboardAwarePromptBuilder.swift */; };
-			A00000010000000000000081 /* StatusMenuController.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000020000000000000081 /* StatusMenuController.swift */; };
+		A00000010000000000000080 /* ClipboardAwarePromptBuilder.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000020000000000000080 /* ClipboardAwarePromptBuilder.swift */; };
+		A00000010000000000000081 /* StatusMenuController.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000020000000000000081 /* StatusMenuController.swift */; };
+		A00000010000000000000082 /* ShortcutBindingPolicy.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000020000000000000082 /* ShortcutBindingPolicy.swift */; };
+		A00000010000000000000083 /* ShortcutBindingPolicyTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000020000000000000083 /* ShortcutBindingPolicyTests.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -187,8 +189,10 @@
 		A00000020000000000000073 /* CloudLLMKeychain.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CloudLLMKeychain.swift; sourceTree = "<group>"; };
 			A00000020000000000000078 /* CloudLLMTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CloudLLMTests.swift; sourceTree = "<group>"; };
 			A00000020000000000000079 /* ClipboardIntentClassifier.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClipboardIntentClassifier.swift; sourceTree = "<group>"; };
-			A00000020000000000000080 /* ClipboardAwarePromptBuilder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClipboardAwarePromptBuilder.swift; sourceTree = "<group>"; };
-			A00000020000000000000081 /* StatusMenuController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StatusMenuController.swift; sourceTree = "<group>"; };
+		A00000020000000000000080 /* ClipboardAwarePromptBuilder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClipboardAwarePromptBuilder.swift; sourceTree = "<group>"; };
+		A00000020000000000000081 /* StatusMenuController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StatusMenuController.swift; sourceTree = "<group>"; };
+		A00000020000000000000082 /* ShortcutBindingPolicy.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShortcutBindingPolicy.swift; sourceTree = "<group>"; };
+		A00000020000000000000083 /* ShortcutBindingPolicyTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShortcutBindingPolicyTests.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -342,6 +346,7 @@
 				A00000020000000000000050 /* TriggerTranscriptParserTests.swift */,
 				A00000020000000000000053 /* AIAssistantSettingsViewModelTests.swift */,
 				A00000020000000000000078 /* CloudLLMTests.swift */,
+				A00000020000000000000083 /* ShortcutBindingPolicyTests.swift */,
 			);
 			path = Speech2TextTests;
 			sourceTree = "<group>";
@@ -363,6 +368,7 @@
 				A000000200000000000000F1 /* AssistantDefaults.swift */,
 				A0000002000000000000001A /* HotkeyService.swift */,
 				A00000020000000000000018 /* RecordingState.swift */,
+				A00000020000000000000082 /* ShortcutBindingPolicy.swift */,
 				A00000020000000000000049 /* TriggerProfile.swift */,
 				A0000002000000000000004A /* TriggerProfileStore.swift */,
 				A00000020000000000000051 /* TriggerTranscriptParser.swift */,
@@ -581,6 +587,7 @@
 				A00000010000000000000065 /* StoreURLResolver.swift in Sources */,
 				A00000010000000000000066 /* StoreQuarantine.swift in Sources */,
 				A00000010000000000000017 /* HotkeyService.swift in Sources */,
+				A00000010000000000000082 /* ShortcutBindingPolicy.swift in Sources */,
 				A00000010000000000000006 /* KeyboardPermissionService.swift in Sources */,
 				A00000010000000000000007 /* MicrophonePermissionService.swift in Sources */,
 				A00000010000000000000033 /* PostEventPermissionService.swift in Sources */,
@@ -640,6 +647,7 @@
 				A00000010000000000000050 /* TriggerTranscriptParserTests.swift in Sources */,
 				A00000010000000000000053 /* AIAssistantSettingsViewModelTests.swift in Sources */,
 				A00000010000000000000078 /* CloudLLMTests.swift in Sources */,
+				A00000010000000000000083 /* ShortcutBindingPolicyTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

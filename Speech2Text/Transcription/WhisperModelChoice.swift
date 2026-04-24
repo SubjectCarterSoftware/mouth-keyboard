@@ -1,4 +1,5 @@
 import Foundation
+import Darwin
 
 enum WhisperModelChoice: String, CaseIterable, Identifiable {
     case baseEN = "base.en"
@@ -9,6 +10,16 @@ enum WhisperModelChoice: String, CaseIterable, Identifiable {
     static let legacyLargeTurboFallback: WhisperModelChoice = .mediumEN
 
     var id: String { rawValue }
+
+    static func recommendedForHardware() -> WhisperModelChoice {
+        var size: UInt64 = 0
+        var len = MemoryLayout<UInt64>.size
+        sysctlbyname("hw.memsize", &size, &len, nil, 0)
+        let gb = size / (1024 * 1024 * 1024)
+        if gb >= 64 { return .mediumEN }
+        if gb > 8   { return .smallEN }
+        return .baseEN
+    }
 
     static func resolvedStoredValue(_ rawValue: String?) -> WhisperModelChoice? {
         guard let rawValue else { return nil }

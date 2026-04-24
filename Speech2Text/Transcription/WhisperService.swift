@@ -538,19 +538,21 @@ final class WhisperModelLoadState: ObservableObject {
         let isWarm: Bool
         let isLoading: Bool
         let isDownloading: Bool
+        let isPrewarming: Bool
         let isDeleting: Bool
     }
 
     enum Phase: Equatable {
         case idle
         case downloading(model: WhisperModelChoice, progress: Double)
+        case prewarming(model: WhisperModelChoice)
         case ready(model: WhisperModelChoice)
         case failed(model: WhisperModelChoice, message: String)
 
         var activeModel: WhisperModelChoice? {
             switch self {
             case .idle: return nil
-            case .downloading(let model, _), .ready(let model), .failed(let model, _): return model
+            case .downloading(let model, _), .prewarming(let model), .ready(let model), .failed(let model, _): return model
             }
         }
 
@@ -559,6 +561,13 @@ final class WhisperModelLoadState: ObservableObject {
                 return progress
             }
             return nil
+        }
+
+        var isTransferInFlight: Bool {
+            switch self {
+            case .downloading, .prewarming: return true
+            case .idle, .ready, .failed: return false
+            }
         }
     }
 
@@ -590,6 +599,17 @@ final class WhisperModelLoadState: ObservableObject {
                     }
                 }
                 guard !Task.isCancelled else { return }
+
+                // Prewarm: load the model so CoreML's first-time shader compilation
+                // happens here rather than on the user's first activation.
+                phase = .prewarming(model: model)
+                refreshStatus()
+                try? await WhisperService.shared.prepare(model: model)
+                await WhisperService.shared.scheduleIdleUnload(
+                    afterNanoseconds: WhisperService.idleUnloadDelayNanoseconds
+                )
+                guard !Task.isCancelled else { return }
+
                 phase = .ready(model: model)
                 refreshStatus()
             } catch is CancellationError {
@@ -604,11 +624,14 @@ final class WhisperModelLoadState: ObservableObject {
     }
 
     func status(for model: WhisperModelChoice) -> ModelStatus {
-        ModelStatus(
+        let isPrewarming: Bool
+        if case .prewarming(let m) = phase { isPrewarming = m == model } else { isPrewarming = false }
+        return ModelStatus(
             isDownloaded: downloadedModels.contains(model),
             isWarm: warmModel == model,
             isLoading: loadingModel == model,
             isDownloading: phase.activeModel == model && phase.downloadProgress != nil,
+            isPrewarming: isPrewarming,
             isDeleting: deletingModel == model
         )
     }

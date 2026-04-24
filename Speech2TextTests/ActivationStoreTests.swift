@@ -1891,6 +1891,341 @@ final class ActivationStoreTests: XCTestCase {
         )
     }
 
+    // MARK: - Retry from success (prior conversation injection)
+
+    /// Core invariant: restarting from a converted success injects the prior
+    /// transcript and LLM output into the next prompt as a <prior_conversation>
+    /// block so the model has context for the follow-up request.
+    func test_restartFromSuccess_injectsPriorConversationIntoRetryPrompt() async throws {
+        let preferences = makePreferencesWithTriggerStore()
+        preferences.setCustomTrigger(primary: "Atlas")
+        preferences.allowClipboardAccess = false
+        try await Task.sleep(nanoseconds: 80_000_000)
+
+        let firstTranscript = "atlas please make this formal weekly status update"
+        let secondTranscript = "make it shorter"
+
+        let transcriber = SequentialMockTranscriber(results: [
+            .success(firstTranscript),
+            .success(secondTranscript),
+        ])
+        let mockRewriter = MockLLMRewriter(result: .success("Formal output"))
+        mockRewriter.queuedGenerateResults = [.success("Formal output"), .success("Short output")]
+        let store = makeStore(
+            permissionsAuthorized: true,
+            transcriber: transcriber,
+            llmRewriter: mockRewriter,
+            preferences: preferences
+        )
+
+        // First session
+        store.arm()
+        store.finish()
+        try await Task.sleep(nanoseconds: 300_000_000)
+
+        guard case .success(_, _, let converted, _, _) = store.state, converted else {
+            XCTFail("Expected converted success after first session, got \(store.state)")
+            return
+        }
+
+        // Retry from success
+        store.restartFromSuccess()
+        XCTAssertEqual(store.state, .recording)
+
+        // Second session — no trigger word, forceLLMNextSession routes it through LLM
+        store.finish()
+        try await Task.sleep(nanoseconds: 300_000_000)
+
+        XCTAssertEqual(mockRewriter.generateCallCount, 2, "LLM must be called twice")
+
+        let retryPrompt = try XCTUnwrap(mockRewriter.generatePrompts.last)
+        XCTAssertTrue(
+            retryPrompt.contains("<prior_conversation>"),
+            "Retry prompt must contain opening <prior_conversation> tag. Prompt:\n\(retryPrompt)"
+        )
+        XCTAssertTrue(
+            retryPrompt.contains("<user>\(firstTranscript)</user>"),
+            "Retry prompt must embed first transcript as <user> turn. Prompt:\n\(retryPrompt)"
+        )
+        XCTAssertTrue(
+            retryPrompt.contains("<assistant>Formal output</assistant>"),
+            "Retry prompt must embed first LLM output as <assistant> turn. Prompt:\n\(retryPrompt)"
+        )
+        XCTAssertTrue(
+            retryPrompt.contains("</prior_conversation>"),
+            "Retry prompt must contain closing </prior_conversation> tag. Prompt:\n\(retryPrompt)"
+        )
+        XCTAssertTrue(
+            retryPrompt.hasSuffix(secondTranscript),
+            "Retry prompt must end with the new transcript. Prompt:\n\(retryPrompt)"
+        )
+    }
+
+    /// Restarting from a non-converted success (plain transcription) must NOT
+    /// add to the retry history — there was no LLM output to replay.
+    func test_restartFromSuccess_withNoConversion_doesNotInjectPriorConversation() async throws {
+        // No trigger word → plain transcription path (converted = false)
+        let firstTranscript = "no trigger word just plain text"
+        let secondTranscript = "atlas convert to email follow-up"
+
+        let preferences = makePreferencesWithTriggerStore()
+        preferences.setCustomTrigger(primary: "Atlas")
+        preferences.allowClipboardAccess = false
+        try await Task.sleep(nanoseconds: 80_000_000)
+
+        let transcriber = SequentialMockTranscriber(results: [
+            .success(firstTranscript),
+            .success(secondTranscript),
+        ])
+        let mockRewriter = MockLLMRewriter(result: .success("Converted output"))
+        let store = makeStore(
+            permissionsAuthorized: true,
+            transcriber: transcriber,
+            llmRewriter: mockRewriter,
+            preferences: preferences
+        )
+
+        // First session — no trigger, goes through plain transcription
+        store.arm()
+        store.finish()
+        try await Task.sleep(nanoseconds: 300_000_000)
+
+        guard case .success(_, _, let converted, _, _) = store.state, !converted else {
+            XCTFail("Expected unconverted success after first session, got \(store.state)")
+            return
+        }
+
+        store.restartFromSuccess()
+        XCTAssertEqual(store.state, .recording)
+
+        // Second session — has trigger word, routes through LLM
+        store.finish()
+        try await Task.sleep(nanoseconds: 300_000_000)
+
+        XCTAssertEqual(mockRewriter.generateCallCount, 1, "LLM must only be called once (second session)")
+
+        let prompt = try XCTUnwrap(mockRewriter.generatePrompts.first)
+        XCTAssertFalse(
+            prompt.contains("<prior_conversation>"),
+            "Prompt must NOT contain prior_conversation when first session was not converted. Prompt:\n\(prompt)"
+        )
+    }
+
+    /// Dismissing a success (rather than restarting) must produce a clean prompt
+    /// with no prior conversation carry-over.
+    func test_dismissCurrentSuccess_nextSessionHasNoPriorConversation() async throws {
+        let preferences = makePreferencesWithTriggerStore()
+        preferences.setCustomTrigger(primary: "Atlas")
+        preferences.allowClipboardAccess = false
+        try await Task.sleep(nanoseconds: 80_000_000)
+
+        let firstTranscript = "atlas convert to slack status update"
+        let secondTranscript = "atlas convert to email different request"
+
+        let transcriber = SequentialMockTranscriber(results: [
+            .success(firstTranscript),
+            .success(secondTranscript),
+        ])
+        let mockRewriter = MockLLMRewriter(result: .success("Slack output"))
+        mockRewriter.queuedGenerateResults = [.success("Slack output"), .success("Email output")]
+        let store = makeStore(
+            permissionsAuthorized: true,
+            transcriber: transcriber,
+            llmRewriter: mockRewriter,
+            preferences: preferences
+        )
+
+        store.arm()
+        store.finish()
+        try await Task.sleep(nanoseconds: 300_000_000)
+
+        guard case .success = store.state else {
+            XCTFail("Expected success after first session, got \(store.state)")
+            return
+        }
+
+        // Dismiss (not restart) — this must clear the retry history
+        store.dismissCurrentSuccess()
+
+        store.arm()
+        store.finish()
+        try await Task.sleep(nanoseconds: 300_000_000)
+
+        XCTAssertEqual(mockRewriter.generateCallCount, 2)
+
+        let secondPrompt = try XCTUnwrap(mockRewriter.generatePrompts.last)
+        XCTAssertFalse(
+            secondPrompt.contains("<prior_conversation>"),
+            "Prompt after dismiss must NOT carry prior conversation. Prompt:\n\(secondPrompt)"
+        )
+        XCTAssertEqual(secondPrompt, secondTranscript)
+    }
+
+    /// Appending from success must start a clean session with no prior conversation.
+    func test_appendFromSuccess_nextSessionHasNoPriorConversation() async throws {
+        let preferences = makePreferencesWithTriggerStore()
+        preferences.setCustomTrigger(primary: "Atlas")
+        preferences.allowClipboardAccess = false
+        try await Task.sleep(nanoseconds: 80_000_000)
+
+        let firstTranscript = "atlas convert to email status update"
+        let secondTranscript = "atlas convert to slack follow up"
+
+        let transcriber = SequentialMockTranscriber(results: [
+            .success(firstTranscript),
+            .success(secondTranscript),
+        ])
+        let mockRewriter = MockLLMRewriter(result: .success("Email output"))
+        mockRewriter.queuedGenerateResults = [.success("Email output"), .success("Slack output")]
+        let store = makeStore(
+            permissionsAuthorized: true,
+            transcriber: transcriber,
+            llmRewriter: mockRewriter,
+            preferences: preferences
+        )
+
+        store.arm()
+        store.finish()
+        try await Task.sleep(nanoseconds: 300_000_000)
+
+        guard case .success = store.state else {
+            XCTFail("Expected success after first session, got \(store.state)")
+            return
+        }
+
+        // Append from success — must clear retry history
+        store.appendFromSuccess()
+
+        store.finish()
+        try await Task.sleep(nanoseconds: 300_000_000)
+
+        XCTAssertEqual(mockRewriter.generateCallCount, 2)
+
+        let secondPrompt = try XCTUnwrap(mockRewriter.generatePrompts.last)
+        XCTAssertFalse(
+            secondPrompt.contains("<prior_conversation>"),
+            "Prompt after appendFromSuccess must NOT carry prior conversation. Prompt:\n\(secondPrompt)"
+        )
+    }
+
+    /// Multiple consecutive restarts must stack all prior turns in the prompt,
+    /// most-recent turn last, so the model sees the full conversation thread.
+    func test_multipleRestarts_accumulatePriorConversationTurnsInPrompt() async throws {
+        let preferences = makePreferencesWithTriggerStore()
+        preferences.setCustomTrigger(primary: "Atlas")
+        preferences.allowClipboardAccess = false
+        try await Task.sleep(nanoseconds: 80_000_000)
+
+        let firstTranscript = "atlas make this formal weekly update"
+        let secondTranscript = "now make it shorter"
+        let thirdTranscript = "add a subject line"
+
+        let transcriber = SequentialMockTranscriber(results: [
+            .success(firstTranscript),
+            .success(secondTranscript),
+            .success(thirdTranscript),
+        ])
+        let mockRewriter = MockLLMRewriter(result: .success("unused"))
+        mockRewriter.queuedGenerateResults = [
+            .success("Formal text"),
+            .success("Short text"),
+            .success("Final text"),
+        ]
+        let store = makeStore(
+            permissionsAuthorized: true,
+            transcriber: transcriber,
+            llmRewriter: mockRewriter,
+            preferences: preferences
+        )
+
+        // Session 1
+        store.arm()
+        store.finish()
+        try await Task.sleep(nanoseconds: 300_000_000)
+        guard case .success(_, _, let c1, _, _) = store.state, c1 else {
+            XCTFail("Expected converted success after session 1, got \(store.state)"); return
+        }
+
+        // Session 2
+        store.restartFromSuccess()
+        store.finish()
+        try await Task.sleep(nanoseconds: 300_000_000)
+        guard case .success(_, _, let c2, _, _) = store.state, c2 else {
+            XCTFail("Expected converted success after session 2, got \(store.state)"); return
+        }
+
+        // Session 3
+        store.restartFromSuccess()
+        store.finish()
+        try await Task.sleep(nanoseconds: 300_000_000)
+
+        XCTAssertEqual(mockRewriter.generateCallCount, 3)
+
+        let thirdPrompt = try XCTUnwrap(mockRewriter.generatePrompts.last)
+
+        // Both prior turns must appear in order
+        XCTAssertTrue(
+            thirdPrompt.contains("<user>\(firstTranscript)</user>"),
+            "Third prompt must contain first transcript. Prompt:\n\(thirdPrompt)"
+        )
+        XCTAssertTrue(
+            thirdPrompt.contains("<assistant>Formal text</assistant>"),
+            "Third prompt must contain first LLM output. Prompt:\n\(thirdPrompt)"
+        )
+        XCTAssertTrue(
+            thirdPrompt.contains("<user>\(secondTranscript)</user>"),
+            "Third prompt must contain second transcript. Prompt:\n\(thirdPrompt)"
+        )
+        XCTAssertTrue(
+            thirdPrompt.contains("<assistant>Short text</assistant>"),
+            "Third prompt must contain second LLM output. Prompt:\n\(thirdPrompt)"
+        )
+
+        // First turn must appear before second turn
+        let firstTurnRange = try XCTUnwrap(thirdPrompt.range(of: "<user>\(firstTranscript)</user>"))
+        let secondTurnRange = try XCTUnwrap(thirdPrompt.range(of: "<user>\(secondTranscript)</user>"))
+        XCTAssertLessThan(
+            firstTurnRange.lowerBound,
+            secondTurnRange.lowerBound,
+            "Prior turns must be ordered chronologically (first before second)"
+        )
+
+        XCTAssertTrue(
+            thirdPrompt.hasSuffix(thirdTranscript),
+            "Third prompt must end with the new transcript. Prompt:\n\(thirdPrompt)"
+        )
+    }
+
+    /// The output stored in lastConvertedTranscription must be the raw LLM
+    /// output — not decorated with XML tags or prior-conversation markup.
+    /// This verifies the correct value gets stored in retry history.
+    func test_lastConvertedTranscription_isRawLLMOutput() async throws {
+        let preferences = makePreferencesWithTriggerStore()
+        preferences.setCustomTrigger(primary: "Atlas")
+        preferences.allowClipboardAccess = false
+        try await Task.sleep(nanoseconds: 80_000_000)
+
+        let transcript = "atlas make this a professional email"
+        let expectedOutput = "Dear Team,\n\nPlease find the update attached."
+
+        let mockRewriter = MockLLMRewriter(result: .success(expectedOutput))
+        let store = makeStore(
+            permissionsAuthorized: true,
+            transcriber: ActivationStoreMockTranscriber(result: .success(transcript)),
+            llmRewriter: mockRewriter,
+            preferences: preferences
+        )
+
+        store.arm()
+        store.finish()
+        try await Task.sleep(nanoseconds: 300_000_000)
+
+        let stored = try XCTUnwrap(store.lastConvertedTranscription)
+        XCTAssertEqual(stored, expectedOutput,
+            "lastConvertedTranscription must equal the raw LLM output, not wrapped in XML")
+        XCTAssertFalse(stored.contains("<"), "lastConvertedTranscription must not contain XML markup")
+    }
+
     // MARK: - Helpers
 
     private func makeStore(
@@ -2016,6 +2351,24 @@ final class ActivationStoreMockTranscriber: WhisperTranscribing, @unchecked Send
             return text
         case .failure(let error):
             throw error
+        }
+    }
+}
+
+final class SequentialMockTranscriber: WhisperTranscribing, @unchecked Sendable {
+    private let results: [ActivationStoreMockTranscriber.MockResult]
+    private var callIndex = 0
+
+    init(results: [ActivationStoreMockTranscriber.MockResult]) {
+        self.results = results
+    }
+
+    func transcribe(samples: [Float]) async throws -> String {
+        let result = callIndex < results.count ? results[callIndex] : results.last!
+        callIndex += 1
+        switch result {
+        case .success(let text): return text
+        case .failure(let error): throw error
         }
     }
 }

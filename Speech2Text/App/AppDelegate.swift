@@ -64,8 +64,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             NSLog("Speech2Text: failed to delete legacy Whisper files: \(error.localizedDescription)")
         }
 
-        // Keep the selected Whisper model downloaded for first use, but do not
-        // hold it in memory while the app is idle.
+        // Keep the selected Whisper model downloaded and prewarmed for first use.
+        // Prewarming triggers CoreML compilation so the first activation is instant.
         if !WhisperService.isModelDownloaded(preferences.whisperModel) {
             WhisperModelLoadState.shared.startDownload(for: preferences.whisperModel)
         }
@@ -104,7 +104,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
                     self.onRecordingStarted()
                 case .processing:
                     self.onProcessingStarted(state: newState)
-                case .modelDownloading:
+                case .modelDownloading, .modelPrewarming:
                     self.onProcessingStarted(state: newState)
                 case .converting:
                     self.onConvertingStarted()

@@ -14,6 +14,7 @@ extension KeyboardShortcuts.Name {
 final class HotkeyService {
     static let shared = HotkeyService(
         currentState: { ActivationStore.shared.state },
+        isHoldRecordingActive: { ActivationStore.shared.isHoldSessionActive },
         onArm: { ActivationStore.shared.arm() },
         onStop: { ActivationStore.shared.finish() },
         onCancel: { ActivationStore.shared.cancelCurrentSession() },
@@ -24,6 +25,7 @@ final class HotkeyService {
     let minimumActivationInterval: CFAbsoluteTime
 
     var currentState: () -> RecordingState
+    var isHoldRecordingActive: () -> Bool
     var now: () -> CFAbsoluteTime
     var onArm: () -> Void
     var onStop: () -> Void
@@ -43,6 +45,7 @@ final class HotkeyService {
     init(
         minimumActivationInterval: CFAbsoluteTime = 0.35,
         currentState: @escaping () -> RecordingState,
+        isHoldRecordingActive: @escaping () -> Bool = { false },
         onArm: @escaping () -> Void,
         onStop: @escaping () -> Void = {},
         onCancel: @escaping () -> Void = {},
@@ -53,6 +56,7 @@ final class HotkeyService {
     ) {
         self.minimumActivationInterval = minimumActivationInterval
         self.currentState = currentState
+        self.isHoldRecordingActive = isHoldRecordingActive
         self.onArm = onArm
         self.onStop = onStop
         self.onCancel = onCancel
@@ -79,15 +83,26 @@ final class HotkeyService {
 
     func handleKeyDown() -> Bool {
         let currentTime = now()
-        if currentState() != .recording,
-           let lastActivationTime,
+
+        if currentState() == .recording {
+            if isHoldRecordingActive() {
+                NSLog("HotkeyService: ignoring activate shortcut while hold session is active")
+                return true
+            }
+
+            lastHandledKeypressTime = currentTime
+            NSLog("HotkeyService: single-tap during recording → stop()")
+            onStop()
+            return true
+        }
+
+        if let lastActivationTime,
            currentTime - lastActivationTime < minimumActivationInterval {
             NSLog("HotkeyService: ignoring repeat activation within \(minimumActivationInterval)s")
             return true
         }
 
         lastActivationTime = currentTime
-        NSLog("HotkeyService: handleKeyDown singleTap=true")
         NSLog("HotkeyService: single-tap → arm()")
         onArm()
         return true
@@ -142,9 +157,8 @@ final class HotkeyService {
                 Task { @MainActor [weak self] in
                     guard let self else { return }
                     guard fireTime - self.lastHandledKeypressTime > 0.05 else { return }
-                    guard self.currentState() != .recording else { return }
                     self.lastHandledKeypressTime = fireTime
-                    NSLog("HotkeyService: start shortcut fired via KeyboardShortcuts")
+                    NSLog("HotkeyService: activate shortcut fired via KeyboardShortcuts")
                     _ = self.handleKeyDown()
                 }
             }
@@ -154,9 +168,8 @@ final class HotkeyService {
                 Task { @MainActor [weak self] in
                     guard let self else { return }
                     guard fireTime - self.lastHandledKeypressTime > 0.05 else { return }
-                    guard self.currentState() != .recording else { return }
                     self.lastHandledKeypressTime = fireTime
-                    NSLog("HotkeyService: start (alt) shortcut fired via KeyboardShortcuts")
+                    NSLog("HotkeyService: activate (alt) shortcut fired via KeyboardShortcuts")
                     _ = self.handleKeyDown()
                 }
             }
@@ -202,9 +215,21 @@ final class HotkeyService {
 
     func configureHoldTarget() {
         let prefs = ShellPreferences.shared
-        holdMonitor.updateTarget(keyCode: prefs.holdShortcutKeyCode, modifiers: prefs.holdShortcutModifiers)
-        if prefs.holdShortcutKeyCodeAlt >= 0 {
-            holdMonitor.updateSecondaryTarget(keyCode: prefs.holdShortcutKeyCodeAlt, modifiers: prefs.holdShortcutModifiersAlt)
+        let sanitizedBindings = ShortcutBindingPolicy.sanitizedHoldBindings(preferences: prefs)
+
+        if prefs.holdShortcutKeyCode >= 0, sanitizedBindings.primary == nil {
+            NSLog("HotkeyService: ignoring primary hold shortcut because it conflicts with a transcription shortcut")
+        }
+        if prefs.holdShortcutKeyCodeAlt >= 0, sanitizedBindings.secondary == nil {
+            NSLog("HotkeyService: ignoring alternate hold shortcut because it conflicts with another shortcut")
+        }
+
+        holdMonitor.updateTarget(
+            keyCode: sanitizedBindings.primary?.keyCode ?? -1,
+            modifiers: sanitizedBindings.primary?.modifiers ?? 0
+        )
+        if let secondary = sanitizedBindings.secondary {
+            holdMonitor.updateSecondaryTarget(keyCode: secondary.keyCode, modifiers: secondary.modifiers)
         } else {
             holdMonitor.clearSecondaryTarget()
         }
