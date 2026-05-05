@@ -1,10 +1,10 @@
-# Speech2Text
+# TypeLessBuddy
 
 A lightweight, privacy-first macOS menu bar app that turns your voice into clipboard text. Use toggle hotkeys or hold a configurable key (default: `Right Option`) to capture speech, then paste or reuse the result anywhere.
 
 **No cloud. No subscription. No data leaves your Mac.**
 
-Speech2Text runs [whisper.cpp](https://github.com/ggerganov/whisper.cpp) (OpenAI's Whisper model) entirely on-device with Metal GPU acceleration. Transcription happens in seconds, and your audio never touches a server.
+TypeLessBuddy runs [whisper.cpp](https://github.com/ggerganov/whisper.cpp) (OpenAI's Whisper model) entirely on-device with Metal GPU acceleration. Transcription happens in seconds, and your audio never touches a server.
 
 ## Features
 
@@ -37,9 +37,9 @@ Grab the latest `.app` from [Releases](../../releases) and drag it to your Appli
 
 ### Build from Source
 ```bash
-git clone https://github.com/YOUR_USERNAME/speech2text.git
-cd speech2text
-open Speech2Text.xcodeproj
+git clone https://github.com/YOUR_USERNAME/typelessbuddy.git
+cd typelessbuddy
+open TypeLessBuddy.xcodeproj
 ```
 Build and run with Xcode 16+. The Whisper model (`ggml-tiny.en.bin`) is bundled in the project.
 
@@ -66,7 +66,7 @@ Click the menu bar icon → **Settings…** to configure:
 
 ## Privacy
 
-Speech2Text makes **zero network requests**. Your audio is processed entirely on your Mac using the bundled Whisper model. No data is collected, stored, or transmitted. The app has no analytics, no crash reporting, and no update checks.
+TypeLessBuddy makes **zero network requests**. Your audio is processed entirely on your Mac using the bundled Whisper model. No data is collected, stored, or transmitted. The app has no analytics, no crash reporting, and no update checks.
 
 ## License
 

@@ -435,11 +435,7 @@ private final class AssistantBenchmarkRunner {
     }
 
     private static func parseSplit(transcript: String, assistantName: String) -> ParsedSplit {
-        let aliases = [
-            assistantName.lowercased(),
-            "assistant \(assistantName.lowercased())",
-            "hey \(assistantName.lowercased())"
-        ]
+        let aliases = assistantAliases(for: assistantName)
         let trimmed = transcript.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else {
             return ParsedSplit(matchedAlias: nil, content: "", instructions: nil)
@@ -483,6 +479,15 @@ private final class AssistantBenchmarkRunner {
             content: content,
             instructions: instructions.isEmpty ? nil : instructions
         )
+    }
+
+    private static func assistantAliases(for assistantName: String) -> [String] {
+        let canonicalName = assistantName.lowercased()
+        guard canonicalName == "buddy" else {
+            return [canonicalName]
+        }
+
+        return [canonicalName, "buddie"]
     }
 
     private static func makeAssistantSystemPrompt(assistantName: String) -> String {
@@ -704,7 +709,7 @@ private final class LocalChatEngine {
 
     private static func localModelDirectory(for tier: ModelTier) throws -> URL {
         let base = FileManager.default.homeDirectoryForCurrentUser
-            .appendingPathComponent("Library/Application Support/Speech2Text/RewriteModel/models/mlx-community", isDirectory: true)
+            .appendingPathComponent("Library/Application Support/TypeLessBuddy/RewriteModel/models/mlx-community", isDirectory: true)
         let directory = base.appendingPathComponent(tier.directoryName, isDirectory: true)
         guard FileManager.default.fileExists(atPath: directory.path) else {
             throw BenchmarkError.localModelNotFound(directory.path)
@@ -721,7 +726,7 @@ private final class LocalChatEngine {
             create: true
         )
         let downloadBase = appSupport
-            .appendingPathComponent("Speech2Text", isDirectory: true)
+            .appendingPathComponent("TypeLessBuddy", isDirectory: true)
             .appendingPathComponent("RewriteModel", isDirectory: true)
         try fileManager.createDirectory(at: downloadBase, withIntermediateDirectories: true)
         return HubApi(downloadBase: downloadBase)

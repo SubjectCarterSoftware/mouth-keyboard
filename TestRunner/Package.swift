@@ -8,7 +8,7 @@ let package = Package(
     ],
     dependencies: [
         .package(url: "https://github.com/ml-explore/mlx-swift.git", from: "0.22.0"),
-        .package(path: "/Users/elicarter/Library/Developer/Xcode/DerivedData/Speech2Text-bwengovfgtvdoueydodmpxlsrlni/SourcePackages/checkouts/mlx-swift-lm")
+        .package(url: "https://github.com/ml-explore/mlx-swift-lm", revision: "06bfeed73f5b93f476057c8dc6d9c8a329ae3072")
     ],
     targets: [
         .executableTarget(
