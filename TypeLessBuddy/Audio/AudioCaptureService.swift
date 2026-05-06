@@ -48,6 +48,7 @@ final class AudioCaptureService {
     private let engineStarter: (AVAudioEngine) throws -> Void
     private let authorizationStatusProvider: () -> AVAuthorizationStatus
     private let hasDefaultInputDeviceProvider: () -> Bool
+    private let tapBufferSize: AVAudioFrameCount
     private var levelMonitor: AudioLevelMonitor?
     private var bufferReceiver: (any AudioBufferReceiving)?
     private var hasInstalledTap = false
@@ -61,7 +62,8 @@ final class AudioCaptureService {
         audioDeviceService: AudioDeviceService = .shared,
         engineStarter: ((AVAudioEngine) throws -> Void)? = nil,
         authorizationStatusProvider: @escaping () -> AVAuthorizationStatus = { AVCaptureDevice.authorizationStatus(for: .audio) },
-        hasDefaultInputDeviceProvider: @escaping () -> Bool = { AudioCaptureService.hasDefaultInputDevice() }
+        hasDefaultInputDeviceProvider: @escaping () -> Bool = { AudioCaptureService.hasDefaultInputDevice() },
+        tapBufferSize: AVAudioFrameCount = 1_024
     ) {
         self.engineFactory = engineFactory
         self.preferences = preferences
@@ -69,6 +71,7 @@ final class AudioCaptureService {
         self.engineStarter = engineStarter ?? { try $0.start() }
         self.authorizationStatusProvider = authorizationStatusProvider
         self.hasDefaultInputDeviceProvider = hasDefaultInputDeviceProvider
+        self.tapBufferSize = tapBufferSize
     }
 
     @MainActor
@@ -171,7 +174,9 @@ final class AudioCaptureService {
 
         // Pass nil format — lets the engine use the input device's native format.
         // Specifying a mismatched format causes silent -10877 errors.
-        inputNode.installTap(onBus: 0, bufferSize: 4_096, format: nil) { [weak self] buffer, _ in
+        // Use a smaller tap buffer to cut the delay between a hotkey press and
+        // the first chunk reaching the meter/transcription pipeline.
+        inputNode.installTap(onBus: 0, bufferSize: tapBufferSize, format: nil) { [weak self] buffer, _ in
             self?.levelMonitor?.process(buffer: buffer)
             self?.bufferReceiver?.append(buffer)
         }

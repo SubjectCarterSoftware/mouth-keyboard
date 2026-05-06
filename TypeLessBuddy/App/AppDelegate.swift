@@ -94,8 +94,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         pillPanel = RecordingPillPanel(levelMonitor: levelMonitor, activationStore: activationStore)
 
         // Observe ActivationStore state to drive audio capture and menu bar icon.
+        // Keep delivery on the current actor so recording startup does not pay
+        // an extra main-queue hop before audio capture begins.
         stateObservation = activationStore.$state
-            .receive(on: DispatchQueue.main)
             .dropFirst()
             .sink { [weak self] newState in
                 guard let self else { return }
@@ -237,7 +238,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         do {
             try audioCaptureService.start(
                 levelMonitor: levelMonitor,
-                bufferReceiver: activationStore.voiceActivityDetector
+                bufferReceiver: activationStore.bufferAccumulator
             )
         } catch {
             let captureError = if let captureError = error as? AudioCaptureError {

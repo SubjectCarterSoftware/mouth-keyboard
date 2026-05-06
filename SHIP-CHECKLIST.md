@@ -1,17 +1,16 @@
 # Ship Checklist
 
-## Before Open Source
+## Local
 
-- [ ] Pick final app name
-- [ ] Rename app references
-- [ ] Rename repository
+- [x] Pick final app name
+- [x] Rename app references
 - [ ] Add final app description
 - [ ] Clean README
 - [ ] Add install instructions
 - [ ] Add usage instructions
 - [ ] Add screenshot
 - [ ] Add demo GIF
-- [ ] Add app icon
+- [x] Add app icon
 - [ ] Add license review pass
 - [ ] Remove secrets
 - [ ] Remove local paths
@@ -23,7 +22,6 @@
 - [ ] Add roadmap
 - [ ] Add issue templates
 - [ ] Add contributing guide
-- [ ] Add GitHub repo topics
 
 ## Verification
 
@@ -32,8 +30,10 @@
 - [ ] Verify export flow
 - [ ] Verify error handling
 
-## Launch
+## Online / GitHub
 
+- [ ] Rename repository
+- [ ] Add GitHub repo topics
 - [ ] Add GitHub Pages landing page
 - [ ] Add portfolio writeup
 - [ ] Create v0.1.0 release

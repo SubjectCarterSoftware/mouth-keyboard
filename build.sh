@@ -25,4 +25,8 @@ xcodebuild \
     -scheme TypeLessBuddy \
     -destination 'platform=macOS,arch=arm64' \
     -configuration Release \
+    SYMROOT="$(pwd)/build" \
     build
+
+echo ""
+echo "Built: $(pwd)/build/Release/TypeLessBuddy.app"

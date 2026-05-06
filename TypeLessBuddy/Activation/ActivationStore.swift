@@ -93,10 +93,11 @@ final class ActivationStore: ObservableObject {
     private let pasteService: any PasteServicing
     private let resetSessionMonitoring: @MainActor () -> Void
     let bufferAccumulator: AudioBufferAccumulator
-    let voiceActivityDetector: VoiceActivityDetector
     var soundPlayer: ActivationSoundPlayer = .init()
     private static let maxRecordingDuration: UInt64 = 5 * 60 * 1_000_000_000 // 5 minutes
-    private static let minimumHoldRecordingDuration: UInt64 = 500_000_000 // 0.5s so Whisper gets enough audio
+    private static let audioCaptureStopSettleDelay: UInt64 = 40_000_000
+    private static let minimumTranscriptionAudioDuration: TimeInterval = 1.0
+    private static let appendedTrailingSilenceDuration: TimeInterval = 0.35
     private static let minimumConvertingDisplayDuration: UInt64 = 200_000_000
     private static let whisperModelIdleUnloadDelay: UInt64 = WhisperService.idleUnloadDelayNanoseconds
     private static let rewriteModelIdleUnloadDelay: UInt64 = LLMRewriteService.idleUnloadDelayNanoseconds
@@ -115,7 +116,6 @@ final class ActivationStore: ObservableObject {
     private var retryHistory: [(instruction: String, output: String)] = []
     private var activeSessionID = UUID()
     private var activeActivationOrigin: ActivationOrigin?
-    private var recordingStartedAt: UInt64 = 0
     private var transcriptionTask: Task<Void, Never>?
     private var dismissTask: Task<Void, Never>?
     private var feedbackClearTask: Task<Void, Never>?
@@ -155,7 +155,6 @@ final class ActivationStore: ObservableObject {
         self.clipboardService = clipboardService
         self.pasteService = pasteService
         self.bufferAccumulator = bufferAccumulator
-        self.voiceActivityDetector = VoiceActivityDetector(destination: bufferAccumulator)
         self.resetSessionMonitoring = resetSessionMonitoring
     }
 
@@ -199,22 +198,7 @@ final class ActivationStore: ObservableObject {
 
     func finishHoldSession() {
         guard state == .recording, activeActivationOrigin == .hold else { return }
-        let elapsed = DispatchTime.now().uptimeNanoseconds - recordingStartedAt
-        guard elapsed < Self.minimumHoldRecordingDuration else {
-            finish()
-            return
-        }
-        let remaining = Self.minimumHoldRecordingDuration - elapsed
-        let sessionID = activeSessionID
-        Task { [weak self] in
-            try? await Task.sleep(nanoseconds: remaining)
-            await MainActor.run {
-                guard let self,
-                      self.state == .recording,
-                      self.activeSessionID == sessionID else { return }
-                self.finish()
-            }
-        }
+        finish()
     }
 
     /// Finish recording and paste the transcription to the active cursor position.
@@ -259,7 +243,7 @@ final class ActivationStore: ObservableObject {
         }
 
         invalidateActiveSession()
-        voiceActivityDetector.reset()
+        bufferAccumulator.reset()
         publishRecoveryFeedback(.canceled)
         state = .idle
         scheduleWhisperModelIdleUnload()
@@ -272,7 +256,7 @@ final class ActivationStore: ObservableObject {
         let currentOrigin = activeActivationOrigin
         invalidateActiveSession()
         activeActivationOrigin = currentOrigin
-        voiceActivityDetector.reset()
+        bufferAccumulator.reset()
         resetSessionMonitoring()
         publishRecoveryFeedback(.restarted)
         state = .recording
@@ -381,6 +365,7 @@ final class ActivationStore: ObservableObject {
             // Let state observers stop audio capture before we snapshot and
             // convert the accumulated buffers for Whisper.
             await Task.yield()
+            try? await Task.sleep(nanoseconds: Self.audioCaptureStopSettleDelay)
             await self.finalizeSession(sessionID: sessionID)
         }
         transcriptionTask = task
@@ -395,7 +380,7 @@ final class ActivationStore: ObservableObject {
 
     func handleCaptureFailure(_ error: AudioCaptureError) {
         invalidateActiveSession()
-        voiceActivityDetector.reset()
+        bufferAccumulator.reset()
         recoveryFeedback = nil
 
         let failureSessionID = activeSessionID
@@ -449,8 +434,7 @@ final class ActivationStore: ObservableObject {
         activeSessionID = UUID()
         sessionClipboardSnapshot = clipboardService.snapshotCurrentClipboard()
         activeActivationOrigin = origin
-        recordingStartedAt = DispatchTime.now().uptimeNanoseconds
-        voiceActivityDetector.reset()
+        bufferAccumulator.reset()
         state = .recording
         beginWhisperModelWarmup()
         beginRewriteModelWarmup()
@@ -491,7 +475,11 @@ final class ActivationStore: ObservableObject {
             }
             guard isCurrentSession(sessionID) else { return }
 
-            let samples = try bufferAccumulator.convertToWhisperFormat()
+            let samples = AudioBufferAccumulator.prepareForTranscription(
+                try bufferAccumulator.convertToWhisperFormat(),
+                minimumDuration: Self.minimumTranscriptionAudioDuration,
+                trailingSilenceDuration: Self.appendedTrailingSilenceDuration
+            )
             let text = try await runWithTimeout(
                 nanoseconds: Self.whisperTranscriptionTimeout,
                 step: "Whisper transcription"

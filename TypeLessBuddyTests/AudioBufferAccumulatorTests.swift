@@ -94,4 +94,18 @@ final class AudioBufferAccumulatorTests: XCTestCase {
         }
     }
 
+    func testPrepareForTranscriptionAddsTrailingSilenceAndMinimumDurationPadding() {
+        let original: [Float] = [0.25, -0.5, 0.75, -1.0]
+
+        let prepared = AudioBufferAccumulator.prepareForTranscription(
+            original,
+            minimumDuration: 0.001,
+            trailingSilenceDuration: 0.0005
+        )
+
+        XCTAssertEqual(prepared.count, 16)
+        XCTAssertEqual(Array(prepared.prefix(original.count)), original)
+        XCTAssertTrue(prepared.dropFirst(original.count).allSatisfy { $0 == 0 })
+    }
+
 }

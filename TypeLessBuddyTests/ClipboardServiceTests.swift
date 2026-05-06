@@ -10,7 +10,7 @@ final class ClipboardServiceTests: XCTestCase {
     override func setUp() {
         super.setUp()
         // Use a unique named pasteboard for isolation
-        testPasteboard = NSPasteboard(name: .init("com.speech2test.test.\(UUID().uuidString)"))
+        testPasteboard = NSPasteboard(name: .init("com.typelessbuddy.test.\(UUID().uuidString)"))
         testPasteboard.clearContents()
         service = ClipboardService(pasteboard: testPasteboard)
     }

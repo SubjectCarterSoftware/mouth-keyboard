@@ -83,6 +83,43 @@ final class ActivationStoreTests: XCTestCase {
         XCTAssertEqual(store.state, .recording)
     }
 
+    func testFinishHoldSessionPadsShortClipBeforeTranscription() async throws {
+        let suiteName = "ActivationStoreTests.ShortHoldPadding.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suiteName) ?? .standard
+        defaults.removePersistentDomain(forName: suiteName)
+        let preferences = ShellPreferences(userDefaults: defaults)
+        preferences.whisperModel = .baseEN
+
+        let transcriber = CapturingWhisperTranscriber(resultText: "test")
+        let store = makeStore(
+            permissionsAuthorized: true,
+            transcriber: transcriber,
+            whisperModelLoadState: StubWhisperModelLoadState(phase: .ready(model: .baseEN)),
+            bufferAccumulator: FixedWhisperSamplesAccumulator(samples: [0.2, 0.1, -0.1, 0.0]),
+            preferences: preferences
+        )
+
+        XCTAssertTrue(store.beginHoldSession())
+
+        store.finishHoldSession()
+
+        XCTAssertEqual(store.state, .processing)
+
+        try await Task.sleep(nanoseconds: 250_000_000)
+
+        let maybeCapturedSamples = await transcriber.capturedSamples()
+        let capturedSamples = try XCTUnwrap(maybeCapturedSamples)
+        XCTAssertEqual(capturedSamples.count, 16_000)
+        XCTAssertEqual(Array(capturedSamples.prefix(4)), [0.2, 0.1, -0.1, 0.0])
+        XCTAssertTrue(capturedSamples.dropFirst(4).allSatisfy { $0 == 0 })
+
+        if case .success(let text, _, _, _, _) = store.state {
+            XCTAssertEqual(text, "test")
+        } else {
+            XCTFail("Expected .success state after padded hold transcription, got \(store.state)")
+        }
+    }
+
     // arm() is blocked when permissions are not yet authorized — readiness
     // state alone is not the gate; the individual permission items are checked.
     func testArmDoesNotTransitionWhenPermissionsNotAuthorized() {
@@ -2455,8 +2492,39 @@ class TrackingBufferAccumulator: StubBufferAccumulator {
     }
 }
 
+final class FixedWhisperSamplesAccumulator: AudioBufferAccumulator {
+    private let fixedSamples: [Float]
+
+    init(samples: [Float]) {
+        self.fixedSamples = samples
+        super.init()
+    }
+
+    override func convertToWhisperFormat() throws -> [Float] {
+        fixedSamples
+    }
+}
+
 final class ResetHookTracker {
     var callCount = 0
+}
+
+actor CapturingWhisperTranscriber: WhisperTranscribing {
+    private let resultText: String
+    private var lastSeenSamples: [Float]?
+
+    init(resultText: String) {
+        self.resultText = resultText
+    }
+
+    func transcribe(samples: [Float]) async throws -> String {
+        lastSeenSamples = samples
+        return resultText
+    }
+
+    func capturedSamples() -> [Float]? {
+        lastSeenSamples
+    }
 }
 
 final class MockLLMRewriter: LLMRewriting, @unchecked Sendable {

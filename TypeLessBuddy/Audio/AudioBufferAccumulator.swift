@@ -75,6 +75,32 @@ class AudioBufferAccumulator: AudioBufferReceiving {
         return try Self.convertToWhisperFormat(buffers: snapshot.buffers, format: snapshot.format)
     }
 
+    static func prepareForTranscription(
+        _ samples: [Float],
+        minimumDuration: TimeInterval,
+        trailingSilenceDuration: TimeInterval
+    ) -> [Float] {
+        guard !samples.isEmpty else {
+            return samples
+        }
+
+        let minimumSampleCount = max(0, Int(ceil(minimumDuration * whisperSampleRate)))
+        let trailingSilenceSampleCount = max(0, Int(ceil(trailingSilenceDuration * whisperSampleRate)))
+
+        var prepared = samples
+        prepared.reserveCapacity(max(samples.count + trailingSilenceSampleCount, minimumSampleCount))
+
+        if trailingSilenceSampleCount > 0 {
+            prepared.append(contentsOf: repeatElement(0, count: trailingSilenceSampleCount))
+        }
+
+        if prepared.count < minimumSampleCount {
+            prepared.append(contentsOf: repeatElement(0, count: minimumSampleCount - prepared.count))
+        }
+
+        return prepared
+    }
+
     func reset() {
         lock.lock()
         defer { lock.unlock() }

@@ -245,7 +245,7 @@ final class StatusMenuController: NSObject, NSMenuDelegate {
         menu.addItem(.separator())
         menu.addItem(
             actionItem(
-                title: "Quit Speech-to-Text",
+                title: "Quit TypeLessBuddy",
                 action: #selector(quitFromMenu),
                 shortcut: KeyboardShortcuts.Shortcut(.q, modifiers: [.command]),
                 enabled: true,
