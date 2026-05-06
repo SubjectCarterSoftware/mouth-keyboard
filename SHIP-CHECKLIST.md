@@ -1,13 +1,13 @@
 # Ship Checklist
 
-## Local
+## Phase 1: Local Prep
 
 - [x] Pick final app name
 - [x] Rename app references
-- [ ] Add final app description
-- [ ] Clean README
-- [ ] Add install instructions
-- [ ] Add usage instructions
+- [x] Add final app description
+- [x] Clean README
+- [x] Add install instructions
+- [x] Add usage instructions
 - [ ] Add screenshot
 - [ ] Add demo GIF
 - [x] Add app icon
@@ -15,24 +15,24 @@
 - [ ] Remove secrets
 - [ ] Remove local paths
 - [ ] Remove debug code
-- [ ] Add sample input
-- [ ] Add sample output
-- [ ] Add basic architecture note
-- [ ] Add known limitations
+- [x] Add basic architecture note
+- [x] Add known limitations
 - [ ] Add roadmap
 - [ ] Add issue templates
 - [ ] Add contributing guide
 
-## Verification
+## Phase 2: Local Verification
 
 - [ ] Verify fresh clone setup
 - [ ] Verify transcription flow
 - [ ] Verify export flow
 - [ ] Verify error handling
 
-## Online / GitHub
+## Phase 3: Online / GitHub
 
+- [ ] Add final repository URL references
 - [ ] Rename repository
+- [ ] Update release/download URLs
 - [ ] Add GitHub repo topics
 - [ ] Add GitHub Pages landing page
 - [ ] Add portfolio writeup

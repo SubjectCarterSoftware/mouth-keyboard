@@ -510,7 +510,7 @@ private struct KeyboardShortcutsRow: View {
 
 private struct AlwaysAutoPasteRow: View {
     @Binding var isOn: Bool
-    var helperText: String? = "Automatically pastes the result into the focused field each time a transcription completes. Clipboard passthrough protection restores whatever was on your clipboard beforehand, so nothing you had copied is lost."
+    var helperText: String? = "Automatically pastes the result into the focused field each time a transcription completes. When this is off, finished transcriptions are copied to the clipboard instead."
 
     var body: some View {
         HStack(alignment: .center, spacing: 8) {
@@ -526,6 +526,59 @@ private struct AlwaysAutoPasteRow: View {
             if let helperText {
                 ImmediateHelpIcon(text: helperText)
                     .accessibilityIdentifier("setupWindow.alwaysAutoPaste.info")
+            }
+        }
+        .frame(height: 22, alignment: .leading)
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+}
+
+private struct RestoreClipboardRow: View {
+    @Binding var isOn: Bool
+    let isAutoPasteEnabled: Bool
+    var helperText: String? = "When auto-paste is enabled, restore what was on your clipboard after pasting. Turn this off to keep the new text copied as a fallback."
+
+    var body: some View {
+        HStack(alignment: .center, spacing: 8) {
+            Toggle("Restore Clipboard", isOn: $isOn)
+                .labelsHidden()
+                .toggleStyle(.switch)
+                .scaleEffect(0.8, anchor: .leading)
+                .frame(height: 22)
+                .fixedSize()
+                .disabled(!isAutoPasteEnabled)
+                .accessibilityLabel("Restore Clipboard")
+                .accessibilityIdentifier("setupWindow.restorePreviousClipboard.toggle")
+
+            if let helperText {
+                ImmediateHelpIcon(text: helperText)
+                    .accessibilityIdentifier("setupWindow.restorePreviousClipboard.info")
+            }
+        }
+        .opacity(isAutoPasteEnabled ? 1 : 0.55)
+        .frame(height: 22, alignment: .leading)
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+}
+
+private struct MuteSoundEffectsRow: View {
+    @Binding var isOn: Bool
+    var helperText: String? = "Mutes the start, success, and failure sound effects for transcription sessions. Off by default, so sounds continue playing unless you turn this on."
+
+    var body: some View {
+        HStack(alignment: .center, spacing: 8) {
+            Toggle("Mute Sound Effects", isOn: $isOn)
+                .labelsHidden()
+                .toggleStyle(.switch)
+                .scaleEffect(0.8, anchor: .leading)
+                .frame(height: 22)
+                .fixedSize()
+                .accessibilityLabel("Mute Sound Effects")
+                .accessibilityIdentifier("setupWindow.muteSoundEffects.toggle")
+
+            if let helperText {
+                ImmediateHelpIcon(text: helperText)
+                    .accessibilityIdentifier("setupWindow.muteSoundEffects.info")
             }
         }
         .frame(height: 22, alignment: .leading)
@@ -699,6 +752,7 @@ struct SetupWindowView: View {
     private let postEventPermissionService = PostEventPermissionService.live
     private let keyboardPermissionService = KeyboardPermissionService.live
     let dismissWindow: () -> Void
+    let openGuide: () -> Void
 
     private var rewriteSystemPromptBinding: Binding<String> {
         Binding(
@@ -765,6 +819,28 @@ struct SetupWindowView: View {
             },
             set: { newValue in
                 preferences.alwaysAutoPaste = newValue
+            }
+        )
+    }
+
+    private var restorePreviousClipboardBinding: Binding<Bool> {
+        Binding(
+            get: {
+                preferences.restorePreviousClipboardAfterAutoPaste
+            },
+            set: { newValue in
+                preferences.restorePreviousClipboardAfterAutoPaste = newValue
+            }
+        )
+    }
+
+    private var muteSoundEffectsBinding: Binding<Bool> {
+        Binding(
+            get: {
+                preferences.muteSoundEffects
+            },
+            set: { newValue in
+                preferences.muteSoundEffects = newValue
             }
         )
     }
@@ -1013,11 +1089,13 @@ struct SetupWindowView: View {
     init(
         preferences: ShellPreferences,
         readinessStore: ReadinessStore,
-        dismissWindow: @escaping () -> Void
+        dismissWindow: @escaping () -> Void,
+        openGuide: @escaping () -> Void
     ) {
         self.preferences = preferences
         self.readinessStore = readinessStore
         self.dismissWindow = dismissWindow
+        self.openGuide = openGuide
         _assistantSettingsViewModel = StateObject(
             wrappedValue: AIAssistantSettingsViewModel(preferences: preferences)
         )
@@ -1361,9 +1439,19 @@ struct SetupWindowView: View {
         VStack(spacing: 0) {
             ScrollView {
                 VStack(alignment: .leading, spacing: 18) {
-                    Text("TypeLessBuddy Settings")
-                        .font(.title2.weight(.semibold))
-                        .accessibilityIdentifier("setupWindow.title")
+                    HStack(alignment: .firstTextBaseline, spacing: 12) {
+                        Text("TypeLessBuddy Settings")
+                            .font(.title2.weight(.semibold))
+                            .accessibilityIdentifier("setupWindow.title")
+
+                        Spacer()
+
+                        Button("Guide") {
+                            openGuide()
+                        }
+                        .buttonStyle(.bordered)
+                        .accessibilityIdentifier("setupWindow.guideButton")
+                    }
 
                     PermissionChecklistView(
                         permissions: readinessStore.snapshot.permissions,
@@ -1405,6 +1493,17 @@ struct SetupWindowView: View {
 
                         SetupFieldRow(title: "Always Auto Paste:") {
                             AlwaysAutoPasteRow(isOn: alwaysAutoPasteBinding)
+                        }
+
+                        SetupFieldRow(title: "Restore Clipboard:") {
+                            RestoreClipboardRow(
+                                isOn: restorePreviousClipboardBinding,
+                                isAutoPasteEnabled: preferences.alwaysAutoPaste
+                            )
+                        }
+
+                        SetupFieldRow(title: "Mute Sound Effects:") {
+                            MuteSoundEffectsRow(isOn: muteSoundEffectsBinding)
                         }
 
                     }
@@ -1553,6 +1652,7 @@ struct SetupWindowView: View {
                     HotkeyService.shared.configureHoldTarget()
                     preferences.micDeviceUIDs = []
                     preferences.whisperModel = .smallEN
+                    preferences.muteSoundEffects = false
                 }
 
                 Button("Close") {

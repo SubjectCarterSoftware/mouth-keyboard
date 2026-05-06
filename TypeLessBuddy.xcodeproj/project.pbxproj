@@ -89,6 +89,7 @@
 		A00000010000000000000081 /* StatusMenuController.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000020000000000000081 /* StatusMenuController.swift */; };
 		A00000010000000000000082 /* ShortcutBindingPolicy.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000020000000000000082 /* ShortcutBindingPolicy.swift */; };
 		A00000010000000000000083 /* ShortcutBindingPolicyTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000020000000000000083 /* ShortcutBindingPolicyTests.swift */; };
+		A00000010000000000000084 /* GuideWindowView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000020000000000000084 /* GuideWindowView.swift */; };
 		A000000100000000000000F1 /* AssistantDefaults.swift in Sources */ = {isa = PBXBuildFile; fileRef = A000000200000000000000F1 /* AssistantDefaults.swift */; };
 		A000000100000000000000FF /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = A000000200000000000000FF /* Assets.xcassets */; };
 /* End PBXBuildFile section */
@@ -193,6 +194,7 @@
 		A00000020000000000000081 /* StatusMenuController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StatusMenuController.swift; sourceTree = "<group>"; };
 		A00000020000000000000082 /* ShortcutBindingPolicy.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShortcutBindingPolicy.swift; sourceTree = "<group>"; };
 		A00000020000000000000083 /* ShortcutBindingPolicyTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShortcutBindingPolicyTests.swift; sourceTree = "<group>"; };
+		A00000020000000000000084 /* GuideWindowView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GuideWindowView.swift; sourceTree = "<group>"; };
 		A000000200000000000000F1 /* AssistantDefaults.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AssistantDefaults.swift; sourceTree = "<group>"; };
 		A000000200000000000000FF /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 /* End PBXFileReference section */
@@ -284,6 +286,7 @@
 		A00000040000000000000005 /* Shell */ = {
 			isa = PBXGroup;
 			children = (
+				A00000020000000000000084 /* GuideWindowView.swift */,
 				A0000002000000000000000C /* PermissionChecklistView.swift */,
 				A00000020000000000000063 /* HoldKeyDisplayFormatter.swift */,
 				A00000020000000000000021 /* RecordingPillPanel.swift */,
@@ -596,6 +599,7 @@
 				A00000010000000000000007 /* MicrophonePermissionService.swift in Sources */,
 				A00000010000000000000033 /* PostEventPermissionService.swift in Sources */,
 				A0000001000000000000001F /* ObjCExceptionCatcher.m in Sources */,
+				A00000010000000000000084 /* GuideWindowView.swift in Sources */,
 				A0000001000000000000000A /* PermissionChecklistView.swift in Sources */,
 				A00000010000000000000008 /* ReadinessSnapshot.swift in Sources */,
 				A00000010000000000000009 /* ReadinessStore.swift in Sources */,

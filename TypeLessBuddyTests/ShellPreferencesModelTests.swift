@@ -31,10 +31,10 @@ final class ShellPreferencesModelTests: XCTestCase {
 
     func testAlwaysAutoPastePersistsRoundTrip() {
         let (defaults, preferences) = makePreferences()
-        preferences.alwaysAutoPaste = false
+        preferences.alwaysAutoPaste = true
 
         let preferences2 = ShellPreferences(userDefaults: defaults)
-        XCTAssertFalse(preferences2.alwaysAutoPaste)
+        XCTAssertTrue(preferences2.alwaysAutoPaste)
     }
 
     func testAlwaysAutoPasteResetRestoresDefault() {
@@ -42,6 +42,46 @@ final class ShellPreferencesModelTests: XCTestCase {
         preferences.alwaysAutoPaste = false
         preferences.reset()
         XCTAssertTrue(preferences.alwaysAutoPaste)
+    }
+
+    func testRestorePreviousClipboardAfterAutoPasteDefaultsToTrue() {
+        let (_, preferences) = makePreferences()
+        XCTAssertTrue(preferences.restorePreviousClipboardAfterAutoPaste)
+    }
+
+    func testRestorePreviousClipboardAfterAutoPastePersistsRoundTrip() {
+        let (defaults, preferences) = makePreferences()
+        preferences.restorePreviousClipboardAfterAutoPaste = false
+
+        let preferences2 = ShellPreferences(userDefaults: defaults)
+        XCTAssertFalse(preferences2.restorePreviousClipboardAfterAutoPaste)
+    }
+
+    func testRestorePreviousClipboardAfterAutoPasteResetRestoresDefault() {
+        let (_, preferences) = makePreferences()
+        preferences.restorePreviousClipboardAfterAutoPaste = false
+        preferences.reset()
+        XCTAssertTrue(preferences.restorePreviousClipboardAfterAutoPaste)
+    }
+
+    func testMuteSoundEffectsDefaultsToFalse() {
+        let (_, preferences) = makePreferences()
+        XCTAssertFalse(preferences.muteSoundEffects)
+    }
+
+    func testMuteSoundEffectsPersistsRoundTrip() {
+        let (defaults, preferences) = makePreferences()
+        preferences.muteSoundEffects = true
+
+        let preferences2 = ShellPreferences(userDefaults: defaults)
+        XCTAssertTrue(preferences2.muteSoundEffects)
+    }
+
+    func testMuteSoundEffectsResetRestoresDefault() {
+        let (_, preferences) = makePreferences()
+        preferences.muteSoundEffects = true
+        preferences.reset()
+        XCTAssertFalse(preferences.muteSoundEffects)
     }
 
     func testRewriteSystemPromptPrefixDefaultsToBuiltInPrompt() {

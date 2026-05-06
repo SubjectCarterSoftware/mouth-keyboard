@@ -17,6 +17,8 @@ final class ShellPreferences: ObservableObject {
         static let launchAtLogin = "launchAtLogin"
         static let rewriteModelTier = "rewriteModelTier"
         static let alwaysAutoPaste = "alwaysAutoPaste"
+        static let restorePreviousClipboardAfterAutoPaste = "restorePreviousClipboardAfterAutoPaste"
+        static let muteSoundEffects = "muteSoundEffects"
         static let holdShortcutKeyCode = "holdShortcutKeyCode"
         static let holdShortcutModifiers = "holdShortcutModifiers"
         static let holdShortcutKeyCodeAlt = "holdShortcutKeyCodeAlt"
@@ -101,6 +103,25 @@ final class ShellPreferences: ObservableObject {
         didSet {
             persistIfNeeded {
                 defaults.set(alwaysAutoPaste, forKey: Keys.alwaysAutoPaste)
+            }
+        }
+    }
+
+    @Published var restorePreviousClipboardAfterAutoPaste: Bool {
+        didSet {
+            persistIfNeeded {
+                defaults.set(
+                    restorePreviousClipboardAfterAutoPaste,
+                    forKey: Keys.restorePreviousClipboardAfterAutoPaste
+                )
+            }
+        }
+    }
+
+    @Published var muteSoundEffects: Bool {
+        didSet {
+            persistIfNeeded {
+                defaults.set(muteSoundEffects, forKey: Keys.muteSoundEffects)
             }
         }
     }
@@ -225,6 +246,20 @@ final class ShellPreferences: ObservableObject {
             alwaysAutoPaste = userDefaults.bool(forKey: Keys.alwaysAutoPaste)
         }
 
+        if userDefaults.object(forKey: Keys.restorePreviousClipboardAfterAutoPaste) == nil {
+            restorePreviousClipboardAfterAutoPaste = true
+        } else {
+            restorePreviousClipboardAfterAutoPaste = userDefaults.bool(
+                forKey: Keys.restorePreviousClipboardAfterAutoPaste
+            )
+        }
+
+        if userDefaults.object(forKey: Keys.muteSoundEffects) == nil {
+            muteSoundEffects = false
+        } else {
+            muteSoundEffects = userDefaults.bool(forKey: Keys.muteSoundEffects)
+        }
+
         if userDefaults.object(forKey: Keys.holdShortcutKeyCode) == nil {
             holdShortcutKeyCode = 61
         } else {
@@ -331,6 +366,8 @@ final class ShellPreferences: ObservableObject {
             whisperModel = .smallEN
             rewriteModelTier = .standard2B
             alwaysAutoPaste = true
+            restorePreviousClipboardAfterAutoPaste = true
+            muteSoundEffects = false
             rewriteSystemPromptPrefix = LLMRewriteService.defaultAssistantSystemPromptTemplate
             holdShortcutKeyCode = 61
             holdShortcutModifiers = 0
@@ -349,6 +386,8 @@ final class ShellPreferences: ObservableObject {
         defaults.removeObject(forKey: Keys.whisperModel)
         defaults.removeObject(forKey: Keys.rewriteModelTier)
         defaults.removeObject(forKey: Keys.alwaysAutoPaste)
+        defaults.removeObject(forKey: Keys.restorePreviousClipboardAfterAutoPaste)
+        defaults.removeObject(forKey: Keys.muteSoundEffects)
         defaults.removeObject(forKey: Keys.legacyAllowClipboardAccess)
         defaults.removeObject(forKey: Keys.rewriteSystemPromptPrefix)
         defaults.removeObject(forKey: Keys.holdShortcutKeyCode)

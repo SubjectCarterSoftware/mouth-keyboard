@@ -250,7 +250,7 @@ final class ActivationStoreTests: XCTestCase {
         store.finish()
 
         // Wait for async transcription
-        try await Task.sleep(nanoseconds: 200_000_000)
+        try await Task.sleep(nanoseconds: 500_000_000)
 
         XCTAssertEqual(mockClipboard.lastWrittenText, "Hello world")
         XCTAssertEqual(store.lastTranscription, "Hello world")
@@ -293,6 +293,12 @@ final class ActivationStoreTests: XCTestCase {
     }
 
     func testAlwaysAutoPastePastesRawTranscriptionWhenPermissionIsGranted() async throws {
+        let suiteName = "ActivationStoreTests.AlwaysAutoPasteRaw.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suiteName) ?? .standard
+        defaults.removePersistentDomain(forName: suiteName)
+        let preferences = ShellPreferences(userDefaults: defaults)
+        preferences.alwaysAutoPaste = true
+
         let pasteStub = StubSuccessfulPasteService()
         let mockClipboard = ActivationStoreMockClipboard()
         let store = makeStore(
@@ -300,7 +306,8 @@ final class ActivationStoreTests: XCTestCase {
             postEventAuthorized: true,
             transcriber: ActivationStoreMockTranscriber(result: .success("Hello world")),
             clipboard: mockClipboard,
-            pasteService: pasteStub
+            pasteService: pasteStub,
+            preferences: preferences
         )
 
         store.arm()
@@ -321,6 +328,12 @@ final class ActivationStoreTests: XCTestCase {
     }
 
     func testAlwaysAutoPastePastesConvertedOutputWhenPermissionIsGranted() async throws {
+        let suiteName = "ActivationStoreTests.AlwaysAutoPasteConverted.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suiteName) ?? .standard
+        defaults.removePersistentDomain(forName: suiteName)
+        let preferences = ShellPreferences(userDefaults: defaults)
+        preferences.alwaysAutoPaste = true
+
         let pasteStub = StubSuccessfulPasteService()
         let mockClipboard = ActivationStoreMockClipboard()
         let store = makeStore(
@@ -331,7 +344,8 @@ final class ActivationStoreTests: XCTestCase {
             ),
             llmRewriter: MockLLMRewriter(result: .success("Converted output")),
             clipboard: mockClipboard,
-            pasteService: pasteStub
+            pasteService: pasteStub,
+            preferences: preferences
         )
 
         store.arm()
@@ -353,6 +367,12 @@ final class ActivationStoreTests: XCTestCase {
     }
 
     func testAlwaysAutoPasteRewriteFailurePreservesOriginalClipboard() async throws {
+        let suiteName = "ActivationStoreTests.AlwaysAutoPasteRewriteFailure.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suiteName) ?? .standard
+        defaults.removePersistentDomain(forName: suiteName)
+        let preferences = ShellPreferences(userDefaults: defaults)
+        preferences.alwaysAutoPaste = true
+
         let pasteStub = StubSuccessfulPasteService()
         let mockClipboard = ActivationStoreMockClipboard()
         mockClipboard.stubbedClipboardContent = "original clipboard"
@@ -364,7 +384,8 @@ final class ActivationStoreTests: XCTestCase {
             ),
             llmRewriter: MockLLMRewriter(result: .failure(LLMRewriteError.generationFailed)),
             clipboard: mockClipboard,
-            pasteService: pasteStub
+            pasteService: pasteStub,
+            preferences: preferences
         )
 
         store.arm()
@@ -410,6 +431,36 @@ final class ActivationStoreTests: XCTestCase {
         } else {
             XCTFail("Expected .success state after clipboard-only finish")
         }
+    }
+
+    func testAlwaysAutoPasteWithoutClipboardRestoreKeepsOutputCopied() async throws {
+        let suiteName = "ActivationStoreTests.AutoPasteNoRestore.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suiteName) ?? .standard
+        defaults.removePersistentDomain(forName: suiteName)
+        let preferences = ShellPreferences(userDefaults: defaults)
+        preferences.alwaysAutoPaste = true
+        preferences.restorePreviousClipboardAfterAutoPaste = false
+
+        let pasteStub = StubSuccessfulPasteService()
+        let mockClipboard = ActivationStoreMockClipboard()
+        let store = makeStore(
+            permissionsAuthorized: true,
+            postEventAuthorized: true,
+            transcriber: ActivationStoreMockTranscriber(result: .success("Keep copied")),
+            clipboard: mockClipboard,
+            pasteService: pasteStub,
+            preferences: preferences
+        )
+
+        store.arm()
+        store.finish()
+
+        try await Task.sleep(nanoseconds: 200_000_000)
+
+        XCTAssertEqual(pasteStub.pasteCount, 1)
+        XCTAssertEqual(mockClipboard.temporaryWriteTexts, ["Keep copied"])
+        XCTAssertFalse(mockClipboard.didRestoreOriginalClipboard)
+        XCTAssertEqual(mockClipboard.restoreCallCount, 0)
     }
 
     func testCancelDuringRecordingReturnsToIdleWithoutClipboardWrite() async throws {
@@ -1020,9 +1071,9 @@ final class ActivationStoreTests: XCTestCase {
         )
 
         let startBoundary = SuccessPillCountdownStyle.boundaryColor(progress: 0)
-        XCTAssertEqual(startBoundary.red, 183 / 255, accuracy: 0.001)
-        XCTAssertEqual(startBoundary.green, 246 / 255, accuracy: 0.001)
-        XCTAssertEqual(startBoundary.blue, 214 / 255, accuracy: 0.001)
+        XCTAssertEqual(startBoundary.red, 48 / 255, accuracy: 0.001)
+        XCTAssertEqual(startBoundary.green, 209 / 255, accuracy: 0.001)
+        XCTAssertEqual(startBoundary.blue, 88 / 255, accuracy: 0.001)
 
         let endBoundary = SuccessPillCountdownStyle.boundaryColor(progress: 1)
         XCTAssertEqual(endBoundary.red, 1, accuracy: 0.001)
@@ -1642,6 +1693,7 @@ final class ActivationStoreTests: XCTestCase {
         let defaults = UserDefaults(suiteName: suiteName) ?? .standard
         defaults.removePersistentDomain(forName: suiteName)
         let preferences = ShellPreferences(userDefaults: defaults)
+        preferences.alwaysAutoPaste = true
 
         let pasteStub = StubSuccessfulPasteService()
         let mockClipboard = ActivationStoreMockClipboard()

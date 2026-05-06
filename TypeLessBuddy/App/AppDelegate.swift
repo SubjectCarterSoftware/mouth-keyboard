@@ -6,6 +6,7 @@ import SwiftUI
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     private var setupWindow: NSWindow?
+    private var guideWindow: NSWindow?
     private let preferences = ShellPreferences.shared
     private let readinessStore = ReadinessStore.shared
     private let audioDeviceService = AudioDeviceService.shared
@@ -28,6 +29,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         activationStore: activationStore,
         openSetup: { [weak self] in
             self?.presentSetupWindow()
+        },
+        openGuide: { [weak self] in
+            self?.presentGuideWindow()
         },
         quitApp: {
             NSApp.terminate(nil)
@@ -337,6 +341,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
                 readinessStore: readinessStore,
                 dismissWindow: { [weak self] in
                     self?.dismissSetupWindow()
+                },
+                openGuide: { [weak self] in
+                    self?.presentGuideWindow()
                 }
             )
         )
@@ -350,6 +357,46 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         setupWindow?.performClose(nil)
     }
 
+    func presentGuideWindow() {
+        if let guideWindow {
+            guideWindow.makeKeyAndOrderFront(nil)
+            NSApp.activate(ignoringOtherApps: true)
+            return
+        }
+
+        let window = NSWindow(
+            contentRect: NSRect(
+                x: 0,
+                y: 0,
+                width: GuideWindowMetrics.width,
+                height: GuideWindowMetrics.height
+            ),
+            styleMask: [.titled, .closable, .miniaturizable],
+            backing: .buffered,
+            defer: false
+        )
+        window.center()
+        window.delegate = self
+        window.identifier = NSUserInterfaceItemIdentifier("TypeLessBuddyGuideWindow")
+        window.isReleasedWhenClosed = false
+        window.title = "Quick Guides"
+        window.contentMinSize = NSSize(
+            width: GuideWindowMetrics.width,
+            height: GuideWindowMetrics.height
+        )
+        window.contentMaxSize = NSSize(
+            width: GuideWindowMetrics.width,
+            height: GuideWindowMetrics.height
+        )
+        window.contentViewController = NSHostingController(
+            rootView: GuideWindowView()
+        )
+
+        guideWindow = window
+        window.makeKeyAndOrderFront(nil)
+        NSApp.activate(ignoringOtherApps: true)
+    }
+
     func windowDidBecomeKey(_ notification: Notification) {
         readinessStore.refresh()
     }
@@ -359,11 +406,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             return
         }
 
-        guard closingWindow == setupWindow else {
-            return
+        if closingWindow == setupWindow {
+            setupWindow = nil
         }
 
-        setupWindow = nil
+        if closingWindow == guideWindow {
+            guideWindow = nil
+        }
     }
 
     private func applyUITestingOverrides() {

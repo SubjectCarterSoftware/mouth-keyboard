@@ -1,73 +1,50 @@
 # TypeLessBuddy
 
-A lightweight, privacy-first macOS menu bar app that turns your voice into clipboard text. Use toggle hotkeys or hold a configurable key (default: `Right Option`) to capture speech, then paste or reuse the result anywhere.
+Just direct speech transcription and refinement. Nothing else.
 
-**No cloud. No subscription. No data leaves your Mac.**
+TypeLessBuddy is a local-first macOS voice writing app. It can give you the raw transcript when that's all you need, or use the built in ai buddy to turn what you said into finished writing you can actually send.
 
-TypeLessBuddy runs [whisper.cpp](https://github.com/ggerganov/whisper.cpp) (OpenAI's Whisper model) entirely on-device with Metal GPU acceleration. Transcription happens in seconds, and your audio never touches a server.
+## What It Does
 
-## Features
+- Seamless dictation anywhere
+- Provides a built-in AI buddy for additional refinement when needed
+- Always copies to your clipboard or auto-pastes 
 
-- 🎙️ **Flexible activation** — Ctrl+V to start/stop recording, Ctrl+Shift+V to cancel, or hold a configurable key (default: `Right Option`) to record until release
-- ⚡ **Fast** — Metal GPU acceleration + the tiny.en model = sub-second transcription
-- 🔒 **Private** — 100% on-device, no network requests, no telemetry
-- 🖥️ **Native macOS** — SwiftUI menu bar app, ~5MB total, minimal resource usage
-- 🎯 **Simple** — Records → transcribes → copies to clipboard. That's it.
+## Exampleß
 
-## How It Works
-
-1. Press **Ctrl+V** or hold **Right Option** — recording starts, and a floating pill shows mic levels
-2. Speak naturally
-3. Press **Ctrl+V** again or release **Right Option** — recording stops and Whisper transcribes the captured audio
-4. Text is automatically copied to your clipboard
-5. Paste anywhere with **⌘V**
-
-Press **Ctrl+Shift+V** at any time to cancel and discard the recording.
-
-## Requirements
-
-- macOS 14.0 (Sonoma) or later
-- Microphone permission
-- Accessibility permission for **Hold to Transcribe** and **Auto Paste**
+Simple mode: just speak it'll transcribe then paste
+Buddy mode: Just say "buddy" anywhere in your message, and it will be passed to your buddy for processing.
 
 ## Installation
 
-### Download
-Grab the latest `.app` from [Releases](../../releases) and drag it to your Applications folder.
+Once packaged releases are available, installation is simple:
 
-### Build from Source
-```bash
-git clone https://github.com/YOUR_USERNAME/typelessbuddy.git
-cd typelessbuddy
-open TypeLessBuddy.xcodeproj
-```
-Build and run with Xcode 16+. The Whisper model (`ggml-tiny.en.bin`) is bundled in the project.
+1. Download `TypeLessBuddy.app`.
+2. Drag it into `Applications`.
+3. Open it.
 
-## Configuration
+Packaged releases are not published yet.
 
-Click the menu bar icon → **Settings…** to configure:
+## Requirements
 
-| Setting | Default | Description |
-|---------|---------|-------------|
-| Activation Hotkey | Ctrl+V | Start/finish recording |
-| Cancellation Hotkey | Ctrl+Shift+V | Cancel and discard |
-| Hold to Transcribe | Configurable (default: Right ⌥) | Press and hold to record, then release to transcribe |
-| Always Auto Paste | On | Paste after any successful finish, including hold-to-transcribe and AI-converted output |
-| Microphone | System Default | Choose a specific input device |
-| Activation Sound | Off | Play a sound when recording starts |
-| Recording Indicator | On | Show the floating pill during recording |
-
-## Tech Stack
-
-- **Swift + SwiftUI** — Native macOS, menu bar app
-- **whisper.cpp** — On-device speech recognition via [whisper.spm](https://github.com/ggerganov/whisper.spm)
-- **KeyboardShortcuts** — Global hotkeys via [sindresorhus/KeyboardShortcuts](https://github.com/sindresorhus/KeyboardShortcuts)
-- **Metal** — GPU-accelerated inference with flash attention
+- macOS 14 or later
+- Microphone permission
+- Input Monitoring for the trigger
+- Accessibility permission for auto-paste
 
 ## Privacy
 
-TypeLessBuddy makes **zero network requests**. Your audio is processed entirely on your Mac using the bundled Whisper model. No data is collected, stored, or transmitted. The app has no analytics, no crash reporting, and no update checks.
+- Audio is recorded and transcribed locally
+- No cloud request is made unless you explicitly enable cloud conversion
+- If cloud conversion is enabled, only transcript text is sent directly to you selected provider
+
+## Limitations
+
+- macOS only
+- First use after a model download or model switch can be slower
+- Auto-paste depends on system permissions and target app behavior
+- Cloud conversion changes the privacy model
 
 ## License
 
-[MIT](LICENSE) — do whatever you want with it.
+[MIT](LICENSE)

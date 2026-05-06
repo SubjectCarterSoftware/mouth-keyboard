@@ -96,7 +96,8 @@ final class PermissionRecoveryFlowTests: XCTestCase {
         XCTAssertTrue(app.staticTexts["setupWindow.title"].waitForExistence(timeout: 5))
         let toggle = app.descendants(matching: .any).matching(identifier: "setupWindow.alwaysAutoPaste.toggle").firstMatch
         XCTAssertTrue(toggle.exists)
-        XCTAssertTrue(app.staticTexts["setupWindow.alwaysAutoPaste.message"].exists)
+        let restoreToggle = app.descendants(matching: .any).matching(identifier: "setupWindow.restorePreviousClipboard.toggle").firstMatch
+        XCTAssertTrue(restoreToggle.exists)
     }
 
     func testHoldToTranscribeRowShowsRecoveryActionWhenAccessibilityIsBlocked() {

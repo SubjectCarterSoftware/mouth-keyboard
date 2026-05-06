@@ -8,6 +8,7 @@ final class StatusMenuController: NSObject, NSMenuDelegate {
     private let audioDeviceService: AudioDeviceService
     private let activationStore: ActivationStore
     private let openSetup: () -> Void
+    private let openGuide: () -> Void
     private let quitApp: () -> Void
 
     private let menu = NSMenu()
@@ -19,6 +20,7 @@ final class StatusMenuController: NSObject, NSMenuDelegate {
         audioDeviceService: AudioDeviceService,
         activationStore: ActivationStore,
         openSetup: @escaping () -> Void,
+        openGuide: @escaping () -> Void,
         quitApp: @escaping () -> Void
     ) {
         self.preferences = preferences
@@ -26,6 +28,7 @@ final class StatusMenuController: NSObject, NSMenuDelegate {
         self.audioDeviceService = audioDeviceService
         self.activationStore = activationStore
         self.openSetup = openSetup
+        self.openGuide = openGuide
         self.quitApp = quitApp
         super.init()
         menu.autoenablesItems = false
@@ -188,6 +191,14 @@ final class StatusMenuController: NSObject, NSMenuDelegate {
                 accessibilityDescription: "Setup Required"
             )
             menu.addItem(setupItem)
+            menu.addItem(
+                actionItem(
+                    title: "Quick Guides",
+                    action: #selector(openGuideFromMenu),
+                    enabled: true,
+                    symbolNames: ["book.closed", "questionmark.circle"]
+                )
+            )
         } else {
             if canFinishSession {
                 menu.addItem(
@@ -231,6 +242,14 @@ final class StatusMenuController: NSObject, NSMenuDelegate {
             )
             menu.addItem(.separator())
             menu.addItem(microphoneMenuItem())
+            menu.addItem(
+                actionItem(
+                    title: "Quick Guides",
+                    action: #selector(openGuideFromMenu),
+                    enabled: true,
+                    symbolNames: ["book.closed", "questionmark.circle"]
+                )
+            )
             menu.addItem(
                 actionItem(
                     title: "Settings…",
@@ -450,6 +469,11 @@ final class StatusMenuController: NSObject, NSMenuDelegate {
     @objc
     private func openSetupFromMenu() {
         openSetup()
+    }
+
+    @objc
+    private func openGuideFromMenu() {
+        openGuide()
     }
 
     @objc

@@ -219,6 +219,14 @@ final class ActivationStore: ObservableObject {
         preferences.alwaysAutoPaste
     }
 
+    private var shouldRestorePreviousClipboardAfterAutoPaste: Bool {
+        preferences.restorePreviousClipboardAfterAutoPaste
+    }
+
+    private var shouldMuteSoundEffects: Bool {
+        preferences.muteSoundEffects
+    }
+
     private var shouldGuideForMissingAutoPastePermission: Bool {
         (requestsPasteOnCompletion || shouldAlwaysAutoPaste) && !isPostEventPermissionGranted
     }
@@ -287,7 +295,9 @@ final class ActivationStore: ObservableObject {
             return
         }
 
-        let originalClipboard = clipboardService.snapshotCurrentClipboard()
+        let originalClipboard = shouldRestorePreviousClipboardAfterAutoPaste
+            ? clipboardService.snapshotCurrentClipboard()
+            : nil
         Task { [weak self] in
             guard let self else { return }
             _ = await self.pasteWithClipboardProtection(
@@ -385,7 +395,7 @@ final class ActivationStore: ObservableObject {
 
         let failureSessionID = activeSessionID
         state = .failure(reason: failureReason(for: error))
-        soundPlayer.playFailure()
+        playFailureSoundIfNeeded()
         scheduleDismissToIdle(afterNanoseconds: 2_000_000_000, sessionID: failureSessionID)
     }
 
@@ -427,7 +437,7 @@ final class ActivationStore: ObservableObject {
             return false
         }
 
-        soundPlayer.play()
+        playStartSoundIfNeeded()
 
         invalidateScheduledWork()
         recoveryFeedback = nil
@@ -507,13 +517,16 @@ final class ActivationStore: ObservableObject {
 
             if !shouldConvert {
                 let didPaste = shouldPasteOnSuccessfulFinish
+                let originalClipboardForPaste = shouldRestorePreviousClipboardAfterAutoPaste
+                    ? clipboardSnapshot
+                    : nil
                 requestsPasteOnCompletion = false
                 lastTranscription = trimmed
                 var syntheticPasteSucceeded = false
                 if didPaste {
                     syntheticPasteSucceeded = await pasteWithClipboardProtection(
                         text: trimmed,
-                        originalClipboard: clipboardSnapshot
+                        originalClipboard: originalClipboardForPaste
                     )
                 } else {
                     clipboardService.writeToClipboard(trimmed)
@@ -524,10 +537,13 @@ final class ActivationStore: ObservableObject {
                     converted: false,
                     noMatchPassthrough: false
                 )
-                soundPlayer.playSuccess()
+                playSuccessSoundIfNeeded()
                 beginSuccessDismissTiming(sessionID: sessionID)
             } else {
                 let didPaste = shouldPasteOnSuccessfulFinish
+                let originalClipboardForPaste = shouldRestorePreviousClipboardAfterAutoPaste
+                    ? clipboardSnapshot
+                    : nil
                 requestsPasteOnCompletion = false
 
                 guard isCurrentSession(sessionID) else { return }
@@ -587,7 +603,7 @@ final class ActivationStore: ObservableObject {
                     let failureSessionID = activeSessionID
                     clearSuccessDismissTiming()
                     state = .failure(reason: .wordLimitExceeded)
-                    soundPlayer.playFailure()
+                    playFailureSoundIfNeeded()
                     scheduleDismissToIdle(afterNanoseconds: 2_000_000_000, sessionID: failureSessionID)
                     return
                 }
@@ -617,7 +633,7 @@ final class ActivationStore: ObservableObject {
                     }
                     clearSuccessDismissTiming()
                     state = .failure(reason: .modelError("Rewrite failed: \(errorDescription)"))
-                    soundPlayer.playFailure()
+                    playFailureSoundIfNeeded()
                     scheduleDismissToIdle(afterNanoseconds: 2_000_000_000, sessionID: sessionID)
                     return
                 }
@@ -635,7 +651,7 @@ final class ActivationStore: ObservableObject {
                 if didPaste {
                     syntheticPasteSucceeded = await pasteWithClipboardProtection(
                         text: rewritten,
-                        originalClipboard: clipboardSnapshot
+                        originalClipboard: originalClipboardForPaste
                     )
                 } else {
                     clipboardService.writeToClipboard(rewritten)
@@ -643,32 +659,32 @@ final class ActivationStore: ObservableObject {
                 lastTranscription = trimmed          // raw always stored
                 lastConvertedTranscription = rewritten
                 state = .success(text: rewritten, pasted: syntheticPasteSucceeded, converted: true, clipboardInjected: clipboardWasInjected)
-                soundPlayer.playSuccess()
+                playSuccessSoundIfNeeded()
                 beginSuccessDismissTiming(sessionID: sessionID)
             }
         } catch TranscriptionError.noSpeechDetected {
             guard isCurrentSession(sessionID) else { return }
             clearSuccessDismissTiming()
             state = .failure(reason: .noSpeechDetected)
-            soundPlayer.playFailure()
+            playFailureSoundIfNeeded()
             scheduleDismissToIdle(afterNanoseconds: 2_000_000_000, sessionID: sessionID)
         } catch AudioBufferAccumulatorError.emptyBuffers {
             guard isCurrentSession(sessionID) else { return }
             clearSuccessDismissTiming()
             state = .failure(reason: .noSpeechDetected)
-            soundPlayer.playFailure()
+            playFailureSoundIfNeeded()
             scheduleDismissToIdle(afterNanoseconds: 2_000_000_000, sessionID: sessionID)
         } catch AudioBufferAccumulatorError.overflow {
             guard isCurrentSession(sessionID) else { return }
             clearSuccessDismissTiming()
             state = .failure(reason: .wordLimitExceeded)
-            soundPlayer.playFailure()
+            playFailureSoundIfNeeded()
             scheduleDismissToIdle(afterNanoseconds: 2_000_000_000, sessionID: sessionID)
         } catch {
             guard isCurrentSession(sessionID) else { return }
             clearSuccessDismissTiming()
             state = .failure(reason: .modelError(error.localizedDescription))
-            soundPlayer.playFailure()
+            playFailureSoundIfNeeded()
             scheduleDismissToIdle(afterNanoseconds: 2_000_000_000, sessionID: sessionID)
         }
 
@@ -697,6 +713,21 @@ final class ActivationStore: ObservableObject {
         feedbackClearTask = nil
         maxDurationTask?.cancel()
         maxDurationTask = nil
+    }
+
+    private func playStartSoundIfNeeded() {
+        guard !shouldMuteSoundEffects else { return }
+        soundPlayer.play()
+    }
+
+    private func playSuccessSoundIfNeeded() {
+        guard !shouldMuteSoundEffects else { return }
+        soundPlayer.playSuccess()
+    }
+
+    private func playFailureSoundIfNeeded() {
+        guard !shouldMuteSoundEffects else { return }
+        soundPlayer.playFailure()
     }
 
     private func pasteWithClipboardProtection(
