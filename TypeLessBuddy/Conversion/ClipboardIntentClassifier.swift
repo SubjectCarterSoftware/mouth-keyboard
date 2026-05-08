@@ -1,70 +1,116 @@
 import Foundation
 
-enum ClipboardIntent {
-    case detected
-    case notDetected
+enum ExternalTextSource {
+    case selectedText
+    case clipboard
+    case none
+
+    var promptLabel: String {
+        switch self {
+        case .selectedText:
+            return "Selected text"
+        case .clipboard:
+            return "Clipboard content"
+        case .none:
+            return "External text"
+        }
+    }
 }
 
-struct ClipboardIntentClassifier {
+struct ExternalTextSourceContext {
+    let selectedTextAvailable: Bool
+    let clipboardTextAvailable: Bool
+
+    var hasAvailableSource: Bool {
+        selectedTextAvailable || clipboardTextAvailable
+    }
+}
+
+struct ExternalTextSourceClassifier {
     private static let systemPrompt = """
-    You are a binary intent classifier for a voice transcription app.
+    You are a routing model for a voice transcription app.
 
     Task:
-    Determine whether the user's message is asking the assistant to use external copied content (clipboard/pasteboard or previously copied/selected text).
+    Decide whether the user's request intends to operate on currently selected text, clipboard text, or neither.
 
     Output rules:
-    - Respond with ONLY: YES or NO
+    - Respond with ONLY one token: SELECTED, CLIPBOARD, or NONE
     - Do not output any other words, punctuation, or explanation.
 
     Decision rules:
-    - YES if the user is requesting, implying, or referring to copied/clipboard content.
-    - NO if the user is only asking about the currently spoken/typed message and does not reference copied external content.
-
-    Treat these as YES signals (not exhaustive):
-    - Direct mentions: "clipboard", "pasteboard", "copied", "pasted"
-    - Phrases like: "what I copied", "use what I copied", "what's in my clipboard", "from my clipboard", "the text I grabbed", "that text from earlier", "what I have there"
-    - Requests to analyze/format/summarize/rewrite text that is implied to be previously copied
-
-    Speech-to-text ambiguity handling:
-    - If wording mentions "keyboard" or "screen", classify as YES only when surrounding context strongly implies previously copied text (for example references like "what I copied" or "what I have there").
-    - Otherwise, do not assume keyboard/screen implies clipboard.
+    - Decide intent semantically, not with keyword matching.
+    - Words like "selected", "highlighted", "copied", "this", and "that" are evidence, not automatic triggers.
+    - Choose SELECTED when the request most likely refers to text highlighted in the focused app.
+    - Choose CLIPBOARD when the request most likely refers to previously copied text.
+    - Choose NONE when the request is about the spoken instruction itself or does not clearly refer to external text.
+    - Never choose a source that is unavailable.
 
     Examples:
     User: "format what I copied"
-    Answer: YES
+    Answer: CLIPBOARD
 
     User: "summarize what's in my clipboard"
-    Answer: YES
+    Answer: CLIPBOARD
 
     User: "can you use that text I grabbed earlier"
-    Answer: YES
+    Answer: CLIPBOARD
+
+    User: "make this punchier"
+    Answer: SELECTED
 
     User: "rewrite this to sound professional"
-    Answer: NO
+    Answer: NONE
 
     User: "what do you think about this sentence"
-    Answer: NO
-
-    User: "can you access my keyboard and tell me what I have there"
-    Answer: YES
+    Answer: NONE
     """
 
-    /// Classifies whether the message text references clipboard content.
-    /// Uses the local LLM with a dedicated classification system prompt.
+    /// Routes the message to the most likely external text source.
+    /// Uses the local LLM with a dedicated routing prompt.
     static func classify(
         message: String,
+        availableSources: ExternalTextSourceContext,
         using rewriteService: any LLMRewriting
-    ) async -> ClipboardIntent {
+    ) async -> ExternalTextSource {
+        guard availableSources.hasAvailableSource else {
+            return .none
+        }
+
+        let routingPrompt = """
+        User request:
+        \(message)
+
+        Selected text available: \(availableSources.selectedTextAvailable ? "YES" : "NO")
+        Clipboard text available: \(availableSources.clipboardTextAvailable ? "YES" : "NO")
+        """
+
         do {
             let result = try await rewriteService.generate(
-                prompt: message,
+                prompt: routingPrompt,
                 systemPrompt: systemPrompt
             )
             let normalized = result.trimmingCharacters(in: .whitespacesAndNewlines).uppercased()
-            return normalized.hasPrefix("YES") ? .detected : .notDetected
+            let routedSource: ExternalTextSource
+            switch normalized {
+            case "SELECTED":
+                routedSource = .selectedText
+            case "CLIPBOARD":
+                routedSource = .clipboard
+            default:
+                routedSource = .none
+            }
+
+            switch routedSource {
+            case .selectedText where !availableSources.selectedTextAvailable:
+                return .none
+            case .clipboard where !availableSources.clipboardTextAvailable:
+                return .none
+            default:
+                return routedSource
+            }
         } catch {
-            NSLog("TypeLessBuddy: clipboard intent classification failed: \(error.localizedDescription)")
-            return .notDetected
+            NSLog("TypeLessBuddy: external text source routing failed: \(error.localizedDescription)")
+            return .none
         }
     }
 }

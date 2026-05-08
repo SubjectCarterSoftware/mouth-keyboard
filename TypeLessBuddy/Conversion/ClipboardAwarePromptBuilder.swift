@@ -1,22 +1,26 @@
 import Foundation
 
-enum ClipboardAwarePromptBuilder {
-    /// Builds the body text for the rewrite service when clipboard content
+enum ExternalTextPromptBuilder {
+    /// Builds the body text for the rewrite service when external text
     /// should be included alongside dictated speech.
     ///
     /// Omits either block when its content is empty or whitespace-only.
-    static func buildBody(dictatedContent: String, clipboardContent: String) -> String {
+    static func buildBody(
+        dictatedContent: String,
+        externalText: String,
+        source: ExternalTextSource
+    ) -> String {
         let trimmedDictation = dictatedContent.trimmingCharacters(in: .whitespacesAndNewlines)
-        let trimmedClipboard = clipboardContent.trimmingCharacters(in: .whitespacesAndNewlines)
+        let trimmedExternalText = externalText.trimmingCharacters(in: .whitespacesAndNewlines)
 
         var parts: [String] = []
 
         parts.append(
             """
             App context:
-            - Clipboard content has already been provided below.
+            - The requested external text has already been provided below.
             - Do not claim you cannot access clipboard/screen/keyboard for this request.
-            - Use the provided clipboard content as the source context when relevant.
+            - Use the provided external text as the source context when relevant.
             """
         )
 
@@ -24,8 +28,8 @@ enum ClipboardAwarePromptBuilder {
             parts.append("Dictated speech:\n\(trimmedDictation)")
         }
 
-        if !trimmedClipboard.isEmpty {
-            parts.append("Clipboard content:\n\(trimmedClipboard)")
+        if !trimmedExternalText.isEmpty {
+            parts.append("\(source.promptLabel):\n\(trimmedExternalText)")
         }
 
         return parts.joined(separator: "\n\n")

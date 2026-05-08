@@ -106,7 +106,9 @@ final class ActivationStore: ObservableObject {
     private static let clipboardIntentTimeout: UInt64 = 8_000_000_000
     private static let rewriteTimeout: UInt64 = 45_000_000_000
     private static let clipboardRestoreDelay: UInt64 = 150_000_000
-    private static let successDismissDelay: UInt64 = 6_000_000_000
+    private static let selectedTextCaptureTimeout: UInt64 = 120_000_000
+    private static let selectedTextCapturePollInterval: UInt64 = 15_000_000
+    private static let successDismissDelay: UInt64 = 10_000_000_000
     private static let successDismissDurationSeconds = TimeInterval(successDismissDelay) / 1_000_000_000
 
     var onPastePermissionNeeded: () -> Void = {}
@@ -121,6 +123,9 @@ final class ActivationStore: ObservableObject {
     private var feedbackClearTask: Task<Void, Never>?
     private var maxDurationTask: Task<Void, Never>?
     private var sessionClipboardSnapshot: ClipboardSnapshot?
+    private var initialSelectedText: String?
+    private var finalSelectedText: String?
+    private var initialSelectedTextCaptureTask: Task<String?, Never>?
     private var downloadGateCancellable: AnyCancellable?
 
     convenience init(preferences: ShellPreferences, readinessStore: ReadinessStore) {
@@ -437,11 +442,16 @@ final class ActivationStore: ObservableObject {
         recoveryFeedback = nil
         activeSessionID = UUID()
         sessionClipboardSnapshot = clipboardService.snapshotCurrentClipboard()
+        initialSelectedText = nil
+        finalSelectedText = nil
+        initialSelectedTextCaptureTask?.cancel()
+        initialSelectedTextCaptureTask = nil
         activeActivationOrigin = origin
         bufferAccumulator.reset()
         state = .recording
         beginWhisperModelWarmup()
         beginRewriteModelWarmup()
+        beginInitialSelectedTextCapture(sessionID: activeSessionID)
 
         // Auto-stop after 5 minutes to prevent runaway recordings.
         let sessionID = activeSessionID
@@ -457,6 +467,11 @@ final class ActivationStore: ObservableObject {
     private func finalizeSession(sessionID: UUID) async {
         do {
             guard isCurrentSession(sessionID) else { return }
+            if let initialSelectedTextCaptureTask, initialSelectedText == nil {
+                initialSelectedText = await initialSelectedTextCaptureTask.value
+            }
+            guard isCurrentSession(sessionID) else { return }
+            finalSelectedText = await captureSelectedText()
 
             let selectedModel = preferences.whisperModel
             NSLog("TypeLessBuddy: finalize session started (\(sessionID.uuidString.prefix(8))) using Whisper \(selectedModel.rawValue)")
@@ -540,30 +555,51 @@ final class ActivationStore: ObservableObject {
                     assistantName: assistantName
                 )
 
-                // Clipboard-aware content injection
+                // Route external text context into the rewrite prompt when requested.
                 var effectiveBody = trimmed
-                var clipboardWasInjected = false
+                var externalTextWasInjected = false
+                let clipboardText = clipboardSnapshot?.plainText?.trimmingCharacters(in: .whitespacesAndNewlines)
+                let selectedText = await preferredSelectedText()
+                let routingContext = ExternalTextSourceContext(
+                    selectedTextAvailable: selectedText != nil,
+                    clipboardTextAvailable: !(clipboardText?.isEmpty ?? true)
+                )
 
-                let intent = try await runWithTimeout(
-                    nanoseconds: Self.clipboardIntentTimeout,
-                    step: "Clipboard intent classification"
-                ) { [llmRewriteService] in
-                    await ClipboardIntentClassifier.classify(
-                        message: trimmed,
-                        using: llmRewriteService
-                    )
-                }
-
-                guard isCurrentSession(sessionID) else { return }
-
-                if intent == .detected {
-                    if let clipboardText = clipboardSnapshot?.plainText,
-                       !clipboardText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                        effectiveBody = ClipboardAwarePromptBuilder.buildBody(
-                            dictatedContent: trimmed,
-                            clipboardContent: clipboardText
+                if routingContext.hasAvailableSource {
+                    let source = try await runWithTimeout(
+                        nanoseconds: Self.clipboardIntentTimeout,
+                        step: "External text source routing"
+                    ) { [llmRewriteService] in
+                        await ExternalTextSourceClassifier.classify(
+                            message: trimmed,
+                            availableSources: routingContext,
+                            using: llmRewriteService
                         )
-                        clipboardWasInjected = true
+                    }
+
+                    guard isCurrentSession(sessionID) else { return }
+
+                    switch source {
+                    case .selectedText:
+                        if let selectedText {
+                            effectiveBody = ExternalTextPromptBuilder.buildBody(
+                                dictatedContent: trimmed,
+                                externalText: selectedText,
+                                source: .selectedText
+                            )
+                            externalTextWasInjected = true
+                        }
+                    case .clipboard:
+                        if let clipboardText, !clipboardText.isEmpty {
+                            effectiveBody = ExternalTextPromptBuilder.buildBody(
+                                dictatedContent: trimmed,
+                                externalText: clipboardText,
+                                source: .clipboard
+                            )
+                            externalTextWasInjected = true
+                        }
+                    case .none:
+                        break
                     }
                 }
 
@@ -640,7 +676,12 @@ final class ActivationStore: ObservableObject {
                 }
                 lastTranscription = trimmed          // raw always stored
                 lastConvertedTranscription = rewritten
-                state = .success(text: rewritten, pasted: syntheticPasteSucceeded, converted: true, clipboardInjected: clipboardWasInjected)
+                state = .success(
+                    text: rewritten,
+                    pasted: syntheticPasteSucceeded,
+                    converted: true,
+                    externalTextInjected: externalTextWasInjected
+                )
                 playSuccessSoundIfNeeded()
                 beginSuccessDismissTiming(sessionID: sessionID)
             }
@@ -680,6 +721,10 @@ final class ActivationStore: ObservableObject {
         forceLLMNextSession = false
         retryHistory = []
         sessionClipboardSnapshot = nil
+        initialSelectedText = nil
+        finalSelectedText = nil
+        initialSelectedTextCaptureTask?.cancel()
+        initialSelectedTextCaptureTask = nil
         clearSuccessDismissTiming()
         activeSessionID = UUID()
         activeActivationOrigin = nil
@@ -731,6 +776,69 @@ final class ActivationStore: ObservableObject {
 
         _ = clipboardService.restoreClipboard(from: originalClipboard, ifUnchangedSince: receipt)
         return outcome == .pasted
+    }
+
+    private func beginInitialSelectedTextCapture(sessionID: UUID) {
+        guard isPostEventPermissionGranted else { return }
+
+        initialSelectedTextCaptureTask = Task { @MainActor [weak self] in
+            guard let self else { return nil }
+            let capturedText = await self.captureSelectedText()
+            guard self.isCurrentSession(sessionID) else { return capturedText }
+            self.initialSelectedText = capturedText
+            return capturedText
+        }
+    }
+
+    private func preferredSelectedText() async -> String? {
+        if let finalSelectedText {
+            return finalSelectedText
+        }
+
+        if let initialSelectedText {
+            return initialSelectedText
+        }
+
+        guard let initialSelectedTextCaptureTask else {
+            return nil
+        }
+
+        let capturedText = await initialSelectedTextCaptureTask.value
+        if let capturedText, capturedText != initialSelectedText {
+            initialSelectedText = capturedText
+        }
+        return capturedText
+    }
+
+    private func captureSelectedText() async -> String? {
+        guard isPostEventPermissionGranted else { return nil }
+
+        let originalClipboard = clipboardService.snapshotCurrentClipboard()
+        guard pasteService.copySelectedTextToClipboard() == .dispatched else {
+            return nil
+        }
+
+        let deadline = DispatchTime.now().uptimeNanoseconds + Self.selectedTextCaptureTimeout
+        while DispatchTime.now().uptimeNanoseconds < deadline {
+            let currentClipboard = clipboardService.snapshotCurrentClipboard()
+            if currentClipboard.changeCount != originalClipboard.changeCount {
+                let copiedText = currentClipboard.plainText?
+                    .trimmingCharacters(in: .whitespacesAndNewlines)
+                let receipt = ClipboardWriteReceipt(changeCount: currentClipboard.changeCount)
+                _ = clipboardService.restoreClipboard(
+                    from: originalClipboard,
+                    ifUnchangedSince: receipt
+                )
+                if let copiedText, !copiedText.isEmpty {
+                    return copiedText
+                }
+                return nil
+            }
+
+            try? await Task.sleep(nanoseconds: Self.selectedTextCapturePollInterval)
+        }
+
+        return nil
     }
 
     private var currentSuccessText: String? {

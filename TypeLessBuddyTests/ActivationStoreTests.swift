@@ -261,7 +261,7 @@ final class ActivationStoreTests: XCTestCase {
         }
         let startedAt = try XCTUnwrap(store.successDismissStartedAt)
         let deadline = try XCTUnwrap(store.successDismissDeadline)
-        XCTAssertEqual(deadline.timeIntervalSince(startedAt), 6, accuracy: 0.05)
+        XCTAssertEqual(deadline.timeIntervalSince(startedAt), 10, accuracy: 0.05)
     }
 
     func testPasteFallbackReportsCopiedOnly() async throws {
@@ -315,8 +315,11 @@ final class ActivationStoreTests: XCTestCase {
         mockClipboard.stubbedClipboardContent = "clipboard right before raw auto-paste"
         store.finish()
 
-        try await Task.sleep(nanoseconds: 200_000_000)
+        let reachedSuccess = try await waitUntil(timeoutNanoseconds: 2_000_000_000) {
+            await MainActor.run { store.state.isSuccess }
+        }
 
+        XCTAssertTrue(reachedSuccess)
         XCTAssertNil(mockClipboard.lastWrittenText)
         XCTAssertEqual(pasteStub.pasteCount, 1)
         XCTAssertEqual(mockClipboard.temporaryWriteTexts, ["Hello world"])
@@ -506,9 +509,18 @@ final class ActivationStoreTests: XCTestCase {
 
         store.arm()
         store.finish()
-        try await Task.sleep(nanoseconds: 6_300_000_000)
+        let reachedSuccess = try await waitUntil(timeoutNanoseconds: 2_000_000_000) {
+            await MainActor.run { store.state.isSuccess }
+        }
+
+        XCTAssertTrue(reachedSuccess)
+        store.dismissCurrentSuccess()
+        let scheduledIdleUnload = try await waitUntil(timeoutNanoseconds: 500_000_000) {
+            !mockRewriter.scheduledIdleUnloadDurations.isEmpty
+        }
 
         XCTAssertEqual(store.state, .idle)
+        XCTAssertTrue(scheduledIdleUnload)
         XCTAssertEqual(
             mockRewriter.scheduledIdleUnloadDurations.last,
             LLMRewriteService.idleUnloadDelayNanoseconds
@@ -931,7 +943,7 @@ final class ActivationStoreTests: XCTestCase {
 
         let startedAt = try XCTUnwrap(store.successDismissStartedAt)
         let deadline = try XCTUnwrap(store.successDismissDeadline)
-        XCTAssertEqual(deadline.timeIntervalSince(startedAt), 6, accuracy: 0.05)
+        XCTAssertEqual(deadline.timeIntervalSince(startedAt), 10, accuracy: 0.05)
     }
 
     func test_successStatePersistsBeyondTwoSeconds() async throws {
@@ -969,7 +981,7 @@ final class ActivationStoreTests: XCTestCase {
         try await Task.sleep(nanoseconds: 200_000_000)
         let originalStartedAt = try XCTUnwrap(store.successDismissStartedAt)
         let originalDeadline = try XCTUnwrap(store.successDismissDeadline)
-        try await Task.sleep(nanoseconds: 5_500_000_000)
+        try await Task.sleep(nanoseconds: 9_500_000_000)
 
         store.copyCurrentSuccessResult()
         let refreshedStartedAt = try XCTUnwrap(store.successDismissStartedAt)
@@ -999,7 +1011,7 @@ final class ActivationStoreTests: XCTestCase {
         XCTAssertNotNil(store.successDismissStartedAt)
         XCTAssertNotNil(store.successDismissDeadline)
 
-        try await Task.sleep(nanoseconds: 6_200_000_000)
+        try await Task.sleep(nanoseconds: 10_200_000_000)
 
         XCTAssertEqual(store.state, .idle)
         XCTAssertNil(store.successDismissStartedAt)
@@ -1043,7 +1055,7 @@ final class ActivationStoreTests: XCTestCase {
 
     func test_successCountdownStyle_progressAndColorRamp() {
         let startedAt = Date(timeIntervalSinceReferenceDate: 100)
-        let deadline = startedAt.addingTimeInterval(6)
+        let deadline = startedAt.addingTimeInterval(10)
 
         XCTAssertEqual(
             SuccessPillCountdownStyle.remainingProgress(
@@ -1066,15 +1078,15 @@ final class ActivationStoreTests: XCTestCase {
         XCTAssertEqual(
             SuccessPillCountdownStyle.warningProgress(
                 startedAt: startedAt,
-                now: startedAt.addingTimeInterval(4)
+                now: startedAt.addingTimeInterval(5)
             ),
-            1,
+            0.5,
             accuracy: 0.001
         )
         XCTAssertEqual(
             SuccessPillCountdownStyle.warningProgress(
                 startedAt: startedAt,
-                now: startedAt.addingTimeInterval(6)
+                now: startedAt.addingTimeInterval(10)
             ),
             1,
             accuracy: 0.001
@@ -1089,6 +1101,20 @@ final class ActivationStoreTests: XCTestCase {
         XCTAssertEqual(endBoundary.red, 1, accuracy: 0.001)
         XCTAssertEqual(endBoundary.green, 132 / 255, accuracy: 0.001)
         XCTAssertEqual(endBoundary.blue, 132 / 255, accuracy: 0.001)
+    }
+
+    func test_successCountdownStyle_labelCadence() {
+        XCTAssertEqual(SuccessPillCountdownStyle.label(elapsed: nil), "Done")
+        XCTAssertEqual(SuccessPillCountdownStyle.label(elapsed: 0), "Done")
+        XCTAssertEqual(SuccessPillCountdownStyle.label(elapsed: 2.49), "Done")
+        XCTAssertEqual(SuccessPillCountdownStyle.label(elapsed: 2.5), "Closing")
+        XCTAssertEqual(SuccessPillCountdownStyle.label(elapsed: 4.99), "Closing")
+        XCTAssertEqual(SuccessPillCountdownStyle.label(elapsed: 5), "5")
+        XCTAssertEqual(SuccessPillCountdownStyle.label(elapsed: 6), "4")
+        XCTAssertEqual(SuccessPillCountdownStyle.label(elapsed: 7), "3")
+        XCTAssertEqual(SuccessPillCountdownStyle.label(elapsed: 8), "2")
+        XCTAssertEqual(SuccessPillCountdownStyle.label(elapsed: 9), "1")
+        XCTAssertEqual(SuccessPillCountdownStyle.label(elapsed: 10), "1")
     }
 
     func test_arm_while_recording_is_ignored() async throws {
@@ -1588,12 +1614,12 @@ final class ActivationStoreTests: XCTestCase {
 
         XCTAssertEqual(store.state, .failure(reason: .wordLimitExceeded))
         XCTAssertEqual(mockClipboard.lastWrittenText, transcript)
-        XCTAssertEqual(mockRewriter.generateCallCount, 1)
+        XCTAssertEqual(mockRewriter.generateCallCount, 0)
     }
 
-    // MARK: - Clipboard-aware assistant tests
+    // MARK: - External text routing tests
 
-    func test_clipboardIntent_detected_injectsClipboardContent() async throws {
+    func test_externalTextRouter_selectsClipboardContext() async throws {
         let preferences = makePreferencesWithTriggerStore()
         try await Task.sleep(nanoseconds: 80_000_000)
 
@@ -1601,13 +1627,14 @@ final class ActivationStoreTests: XCTestCase {
         let mockTranscriber = ActivationStoreMockTranscriber(result: .success(transcript))
         let mockRewriter = MockLLMRewriter(result: .success("Formatted clipboard text"))
         mockRewriter.queuedGenerateResults = [
-            .success("YES"),
+            .success("CLIPBOARD"),
             .success("Formatted clipboard text")
         ]
         let mockClipboard = ActivationStoreMockClipboard()
         mockClipboard.stubbedClipboardContent = "some raw clipboard text"
         let store = makeStore(
             permissionsAuthorized: true,
+            postEventAuthorized: false,
             transcriber: mockTranscriber,
             llmRewriter: mockRewriter,
             clipboard: mockClipboard,
@@ -1619,20 +1646,22 @@ final class ActivationStoreTests: XCTestCase {
         try await Task.sleep(nanoseconds: 300_000_000)
 
         XCTAssertEqual(mockRewriter.generateCallCount, 2)
-        XCTAssertEqual(mockRewriter.generatePrompts.first, transcript)
-        XCTAssertTrue(mockRewriter.generateSystemPrompts.first?.contains("binary intent classifier") ?? false)
+        XCTAssertTrue(mockRewriter.generatePrompts.first?.contains("User request:\n\(transcript)") ?? false)
+        XCTAssertTrue(mockRewriter.generatePrompts.first?.contains("Selected text available: NO") ?? false)
+        XCTAssertTrue(mockRewriter.generatePrompts.first?.contains("Clipboard text available: YES") ?? false)
+        XCTAssertTrue(mockRewriter.generateSystemPrompts.first?.contains("routing model") ?? false)
         XCTAssertTrue(mockRewriter.generatePrompts.last?.contains("Clipboard content:") ?? false)
         XCTAssertTrue(mockRewriter.generatePrompts.last?.contains("some raw clipboard text") ?? false)
 
-        if case .success(let text, _, _, _, let clipboardInjected) = store.state {
+        if case .success(let text, _, _, _, let externalTextInjected) = store.state {
             XCTAssertEqual(text, "Formatted clipboard text")
-            XCTAssertTrue(clipboardInjected)
+            XCTAssertTrue(externalTextInjected)
         } else {
             XCTFail("Expected success state, got \(store.state)")
         }
     }
 
-    func test_clipboardIntent_usesSessionStartSnapshotInsteadOfLiveClipboard() async throws {
+    func test_externalTextRouter_usesSessionStartClipboardSnapshotInsteadOfLiveClipboard() async throws {
         let preferences = makePreferencesWithTriggerStore()
         try await Task.sleep(nanoseconds: 80_000_000)
 
@@ -1640,13 +1669,14 @@ final class ActivationStoreTests: XCTestCase {
         let mockTranscriber = ActivationStoreMockTranscriber(result: .success(transcript))
         let mockRewriter = MockLLMRewriter(result: .success("Formatted clipboard text"))
         mockRewriter.queuedGenerateResults = [
-            .success("YES"),
+            .success("CLIPBOARD"),
             .success("Formatted clipboard text")
         ]
         let mockClipboard = ActivationStoreMockClipboard()
         mockClipboard.stubbedClipboardContent = "original snapshot clipboard text"
         let store = makeStore(
             permissionsAuthorized: true,
+            postEventAuthorized: false,
             transcriber: mockTranscriber,
             llmRewriter: mockRewriter,
             clipboard: mockClipboard,
@@ -1662,7 +1692,7 @@ final class ActivationStoreTests: XCTestCase {
         XCTAssertFalse(mockRewriter.generatePrompts.last?.contains("clipboard changed before rewrite") ?? true)
     }
 
-    func test_clipboardIntent_notDetected_skipsClipboard() async throws {
+    func test_externalTextRouter_none_skipsExternalTextInjection() async throws {
         let preferences = makePreferencesWithTriggerStore()
         try await Task.sleep(nanoseconds: 80_000_000)
 
@@ -1670,13 +1700,14 @@ final class ActivationStoreTests: XCTestCase {
         let mockTranscriber = ActivationStoreMockTranscriber(result: .success(transcript))
         let mockRewriter = MockLLMRewriter(result: .success("Formal output"))
         mockRewriter.queuedGenerateResults = [
-            .success("NO"),
+            .success("NONE"),
             .success("Formal output")
         ]
         let mockClipboard = ActivationStoreMockClipboard()
         mockClipboard.stubbedClipboardContent = "should not appear"
         let store = makeStore(
             permissionsAuthorized: true,
+            postEventAuthorized: false,
             transcriber: mockTranscriber,
             llmRewriter: mockRewriter,
             clipboard: mockClipboard,
@@ -1688,11 +1719,10 @@ final class ActivationStoreTests: XCTestCase {
         try await Task.sleep(nanoseconds: 300_000_000)
 
         XCTAssertEqual(mockRewriter.generateCallCount, 2)
-        XCTAssertEqual(mockRewriter.generatePrompts.first, transcript)
         XCTAssertFalse(mockRewriter.generatePrompts.last?.contains("Clipboard content:") ?? true)
 
-        if case .success(_, _, _, _, let clipboardInjected) = store.state {
-            XCTAssertFalse(clipboardInjected)
+        if case .success(_, _, _, _, let externalTextInjected) = store.state {
+            XCTAssertFalse(externalTextInjected)
         } else {
             XCTFail("Expected success state, got \(store.state)")
         }
@@ -1727,21 +1757,109 @@ final class ActivationStoreTests: XCTestCase {
         XCTAssertEqual(pasteStub.pasteCount, 1)
     }
 
-    func test_clipboardIntent_detected_emptyClipboard_proceedsNormally() async throws {
+    func test_externalTextRouter_selectedTextUsesFinalCaptureWhenAvailable() async throws {
         let preferences = makePreferencesWithTriggerStore()
         try await Task.sleep(nanoseconds: 80_000_000)
 
-        let transcript = "buddy format what I copied"
+        let transcript = "buddy make this punchier"
         let mockTranscriber = ActivationStoreMockTranscriber(result: .success(transcript))
-        let mockRewriter = MockLLMRewriter(result: .success("Rewrite of empty input"))
+        let mockRewriter = MockLLMRewriter(result: .success("Polished selection"))
         mockRewriter.queuedGenerateResults = [
-            .success("YES"),
-            .success("Rewrite of empty input")
+            .success("SELECTED"),
+            .success("Polished selection")
         ]
         let mockClipboard = ActivationStoreMockClipboard()
-        mockClipboard.stubbedClipboardContent = nil  // empty clipboard
+        mockClipboard.stubbedClipboardContent = "original clipboard"
+        let pasteStub = StubSelectionAwarePasteService(
+            clipboard: mockClipboard,
+            queuedCopyResults: [
+                .dispatched("initial selection"),
+                .dispatched("final selection")
+            ]
+        )
         let store = makeStore(
             permissionsAuthorized: true,
+            postEventAuthorized: true,
+            transcriber: mockTranscriber,
+            llmRewriter: mockRewriter,
+            clipboard: mockClipboard,
+            pasteService: pasteStub,
+            preferences: preferences
+        )
+
+        store.arm()
+        store.finish()
+        try await Task.sleep(nanoseconds: 350_000_000)
+
+        XCTAssertEqual(pasteStub.selectionCopyCount, 2)
+        XCTAssertTrue(mockRewriter.generatePrompts.first?.contains("Selected text available: YES") ?? false)
+        XCTAssertTrue(mockRewriter.generatePrompts.last?.contains("Selected text:\nfinal selection") ?? false)
+        XCTAssertFalse(mockRewriter.generatePrompts.last?.contains("Selected text:\ninitial selection") ?? true)
+        XCTAssertGreaterThanOrEqual(mockClipboard.restoreCallCount, 2)
+
+        if case .success(let text, _, _, _, let externalTextInjected) = store.state {
+            XCTAssertEqual(text, "Polished selection")
+            XCTAssertTrue(externalTextInjected)
+        } else {
+            XCTFail("Expected success state, got \(store.state)")
+        }
+    }
+
+    func test_externalTextRouter_selectedTextFallsBackToInitialCaptureWhenFinalCaptureUnavailable() async throws {
+        let preferences = makePreferencesWithTriggerStore()
+        try await Task.sleep(nanoseconds: 80_000_000)
+
+        let transcript = "buddy tighten this up"
+        let mockTranscriber = ActivationStoreMockTranscriber(result: .success(transcript))
+        let mockRewriter = MockLLMRewriter(result: .success("Tighter selection"))
+        mockRewriter.queuedGenerateResults = [
+            .success("SELECTED"),
+            .success("Tighter selection")
+        ]
+        let mockClipboard = ActivationStoreMockClipboard()
+        mockClipboard.stubbedClipboardContent = "original clipboard"
+        let pasteStub = StubSelectionAwarePasteService(
+            clipboard: mockClipboard,
+            queuedCopyResults: [
+                .dispatched("initial selection"),
+                .unavailable
+            ]
+        )
+        let store = makeStore(
+            permissionsAuthorized: true,
+            postEventAuthorized: true,
+            transcriber: mockTranscriber,
+            llmRewriter: mockRewriter,
+            clipboard: mockClipboard,
+            pasteService: pasteStub,
+            preferences: preferences
+        )
+
+        store.arm()
+        store.finish()
+        try await Task.sleep(nanoseconds: 350_000_000)
+
+        XCTAssertEqual(pasteStub.selectionCopyCount, 2)
+        XCTAssertTrue(mockRewriter.generatePrompts.last?.contains("Selected text:\ninitial selection") ?? false)
+        XCTAssertFalse(mockRewriter.generatePrompts.last?.contains("Selected text:\nfinal selection") ?? true)
+    }
+
+    func test_externalTextRouter_unavailableSelectedRouteFallsBackToNone() async throws {
+        let preferences = makePreferencesWithTriggerStore()
+        try await Task.sleep(nanoseconds: 80_000_000)
+
+        let transcript = "buddy make this more formal"
+        let mockTranscriber = ActivationStoreMockTranscriber(result: .success(transcript))
+        let mockRewriter = MockLLMRewriter(result: .success("Formal output"))
+        mockRewriter.queuedGenerateResults = [
+            .success("SELECTED"),
+            .success("Formal output")
+        ]
+        let mockClipboard = ActivationStoreMockClipboard()
+        mockClipboard.stubbedClipboardContent = "clipboard only"
+        let store = makeStore(
+            permissionsAuthorized: true,
+            postEventAuthorized: false,
             transcriber: mockTranscriber,
             llmRewriter: mockRewriter,
             clipboard: mockClipboard,
@@ -1753,9 +1871,46 @@ final class ActivationStoreTests: XCTestCase {
         try await Task.sleep(nanoseconds: 300_000_000)
 
         XCTAssertEqual(mockRewriter.generateCallCount, 2)
+        XCTAssertFalse(mockRewriter.generatePrompts.last?.contains("Selected text:") ?? true)
+        XCTAssertFalse(mockRewriter.generatePrompts.last?.contains("Clipboard content:") ?? true)
+
+        if case .success(_, _, _, _, let externalTextInjected) = store.state {
+            XCTAssertFalse(externalTextInjected)
+        } else {
+            XCTFail("Expected success state, got \(store.state)")
+        }
+    }
+
+    func test_externalTextRouter_selectedTextUnavailableClipboardMissing_proceedsNormally() async throws {
+        let preferences = makePreferencesWithTriggerStore()
+        try await Task.sleep(nanoseconds: 80_000_000)
+
+        let transcript = "buddy format what I copied"
+        let mockTranscriber = ActivationStoreMockTranscriber(result: .success(transcript))
+        let mockRewriter = MockLLMRewriter(result: .success("Rewrite of empty input"))
+        mockRewriter.queuedGenerateResults = [
+            .success("CLIPBOARD"),
+            .success("Rewrite of empty input")
+        ]
+        let mockClipboard = ActivationStoreMockClipboard()
+        mockClipboard.stubbedClipboardContent = nil  // empty clipboard
+        let store = makeStore(
+            permissionsAuthorized: true,
+            postEventAuthorized: false,
+            transcriber: mockTranscriber,
+            llmRewriter: mockRewriter,
+            clipboard: mockClipboard,
+            preferences: preferences
+        )
+
+        store.arm()
+        store.finish()
+        try await Task.sleep(nanoseconds: 300_000_000)
+
+        XCTAssertEqual(mockRewriter.generateCallCount, 1)
         XCTAssertEqual(mockRewriter.generatePrompts.last, transcript)
-        if case .success(_, _, _, _, let clipboardInjected) = store.state {
-            XCTAssertFalse(clipboardInjected)
+        if case .success(_, _, _, _, let externalTextInjected) = store.state {
+            XCTAssertFalse(externalTextInjected)
         } else {
             XCTFail("Expected success state, got \(store.state)")
         }
@@ -1955,9 +2110,7 @@ final class ActivationStoreTests: XCTestCase {
         ])
         let mockRewriter = MockLLMRewriter(result: .success("Formal output"))
         mockRewriter.queuedGenerateResults = [
-            .success("NO"),
             .success("Formal output"),
-            .success("NO"),
             .success("Short output"),
         ]
         let store = makeStore(
@@ -1985,7 +2138,7 @@ final class ActivationStoreTests: XCTestCase {
         store.finish()
         try await Task.sleep(nanoseconds: 300_000_000)
 
-        XCTAssertEqual(mockRewriter.generateCallCount, 4, "Classifier and rewrite must each run twice")
+        XCTAssertEqual(mockRewriter.generateCallCount, 2, "Only rewrite generation should run across the two sessions")
 
         let retryPrompt = try XCTUnwrap(mockRewriter.generatePrompts.last)
         XCTAssertTrue(
@@ -2050,7 +2203,7 @@ final class ActivationStoreTests: XCTestCase {
         store.finish()
         try await Task.sleep(nanoseconds: 300_000_000)
 
-        XCTAssertEqual(mockRewriter.generateCallCount, 2, "Classifier and rewrite must only run in the second session")
+        XCTAssertEqual(mockRewriter.generateCallCount, 1, "Only rewrite generation should run in the second session")
 
         let prompt = try XCTUnwrap(mockRewriter.generatePrompts.last)
         XCTAssertFalse(
@@ -2075,9 +2228,7 @@ final class ActivationStoreTests: XCTestCase {
         ])
         let mockRewriter = MockLLMRewriter(result: .success("Slack output"))
         mockRewriter.queuedGenerateResults = [
-            .success("NO"),
             .success("Slack output"),
-            .success("NO"),
             .success("Email output"),
         ]
         let store = makeStore(
@@ -2103,7 +2254,7 @@ final class ActivationStoreTests: XCTestCase {
         store.finish()
         try await Task.sleep(nanoseconds: 300_000_000)
 
-        XCTAssertEqual(mockRewriter.generateCallCount, 4)
+        XCTAssertEqual(mockRewriter.generateCallCount, 2)
 
         let secondPrompt = try XCTUnwrap(mockRewriter.generatePrompts.last)
         XCTAssertFalse(
@@ -2128,9 +2279,7 @@ final class ActivationStoreTests: XCTestCase {
         ])
         let mockRewriter = MockLLMRewriter(result: .success("Email output"))
         mockRewriter.queuedGenerateResults = [
-            .success("NO"),
             .success("Email output"),
-            .success("NO"),
             .success("Slack output"),
         ]
         let store = makeStore(
@@ -2155,7 +2304,7 @@ final class ActivationStoreTests: XCTestCase {
         store.finish()
         try await Task.sleep(nanoseconds: 300_000_000)
 
-        XCTAssertEqual(mockRewriter.generateCallCount, 4)
+        XCTAssertEqual(mockRewriter.generateCallCount, 2)
 
         let secondPrompt = try XCTUnwrap(mockRewriter.generatePrompts.last)
         XCTAssertFalse(
@@ -2182,11 +2331,8 @@ final class ActivationStoreTests: XCTestCase {
         ])
         let mockRewriter = MockLLMRewriter(result: .success("unused"))
         mockRewriter.queuedGenerateResults = [
-            .success("NO"),
             .success("Formal text"),
-            .success("NO"),
             .success("Short text"),
-            .success("NO"),
             .success("Final text"),
         ]
         let store = makeStore(
@@ -2217,7 +2363,7 @@ final class ActivationStoreTests: XCTestCase {
         store.finish()
         try await Task.sleep(nanoseconds: 300_000_000)
 
-        XCTAssertEqual(mockRewriter.generateCallCount, 6)
+        XCTAssertEqual(mockRewriter.generateCallCount, 3)
 
         let thirdPrompt = try XCTUnwrap(mockRewriter.generatePrompts.last)
 
@@ -2514,6 +2660,7 @@ class ActivationStoreMockClipboard: ClipboardService {
         restoreCallCount += 1
         lastRestoredSnapshot = snapshot
         didRestoreOriginalClipboard = true
+        stubbedClipboardContent = snapshot.plainText
         stubbedSnapshotChangeCount += 1
         return true
     }
@@ -2529,6 +2676,11 @@ class ActivationStoreMockClipboard: ClipboardService {
         restoreCallCount = 0
         lastRestoredSnapshot = nil
         didRestoreOriginalClipboard = false
+    }
+
+    func simulateClipboardChange(to text: String?) {
+        stubbedClipboardContent = text
+        stubbedSnapshotChangeCount += 1
     }
 }
 
@@ -2701,6 +2853,10 @@ final class StubCopyOnlyPasteService: PasteServicing {
         pasteCount += 1
         return .copiedOnly
     }
+
+    func copySelectedTextToClipboard() -> PostEventOutcome {
+        .unavailable
+    }
 }
 
 final class StubSuccessfulPasteService: PasteServicing {
@@ -2709,5 +2865,53 @@ final class StubSuccessfulPasteService: PasteServicing {
     func pasteCurrentClipboard() -> PasteOutcome {
         pasteCount += 1
         return .pasted
+    }
+
+    func copySelectedTextToClipboard() -> PostEventOutcome {
+        .unavailable
+    }
+}
+
+enum StubSelectionCopyResult {
+    case unavailable
+    case dispatched(String?)
+}
+
+final class StubSelectionAwarePasteService: PasteServicing {
+    private let clipboard: ActivationStoreMockClipboard
+    private let pasteOutcome: PasteOutcome
+    private var queuedCopyResults: [StubSelectionCopyResult]
+
+    private(set) var pasteCount = 0
+    private(set) var selectionCopyCount = 0
+
+    init(
+        clipboard: ActivationStoreMockClipboard,
+        queuedCopyResults: [StubSelectionCopyResult],
+        pasteOutcome: PasteOutcome = .copiedOnly
+    ) {
+        self.clipboard = clipboard
+        self.queuedCopyResults = queuedCopyResults
+        self.pasteOutcome = pasteOutcome
+    }
+
+    func pasteCurrentClipboard() -> PasteOutcome {
+        pasteCount += 1
+        return pasteOutcome
+    }
+
+    func copySelectedTextToClipboard() -> PostEventOutcome {
+        selectionCopyCount += 1
+        guard !queuedCopyResults.isEmpty else {
+            return .unavailable
+        }
+
+        switch queuedCopyResults.removeFirst() {
+        case .unavailable:
+            return .unavailable
+        case .dispatched(let text):
+            clipboard.simulateClipboardChange(to: text)
+            return .dispatched
+        }
     }
 }

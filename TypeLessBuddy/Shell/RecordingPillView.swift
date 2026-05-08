@@ -41,8 +41,8 @@ struct SuccessPillCountdownStyle {
         }
     }
 
-    static let dismissDuration: TimeInterval = 6
-    static let colorRampDuration: TimeInterval = 4
+    static let dismissDuration: TimeInterval = 10
+    static let colorRampDuration: TimeInterval = dismissDuration
 
     static let spentGradient = GradientPair(
         leading: rgba(3, 10, 18, 0.64),
@@ -68,6 +68,20 @@ struct SuccessPillCountdownStyle {
         guard let startedAt else { return 0 }
         let elapsed = max(0, now.timeIntervalSince(startedAt))
         return max(0, min(1, elapsed / colorRampDuration))
+    }
+
+    static func label(elapsed: TimeInterval?) -> String {
+        guard let elapsed else { return "Done" }
+
+        switch elapsed {
+        case ..<2.5: return "Done"
+        case 2.5..<5: return "Closing"
+        case 5..<6: return "5"
+        case 6..<7: return "4"
+        case 7..<8: return "3"
+        case 8..<9: return "2"
+        default: return "1"
+        }
     }
 
     static func activeGradient(progress: Double) -> GradientPair {
@@ -570,15 +584,9 @@ struct RecordingPillView: View {
     }
 
     private func successLabel(startedAt: Date?, now: Date) -> String {
-        guard let startedAt else { return "Done" }
-        let elapsed = now.timeIntervalSince(startedAt)
-        switch elapsed {
-        case ..<1:   return "Done"
-        case 1..<3:  return "Closing"
-        case 3..<4:  return "3"
-        case 4..<5:  return "2"
-        default:     return "1"
-        }
+        SuccessPillCountdownStyle.label(
+            elapsed: startedAt.map { now.timeIntervalSince($0) }
+        )
     }
 
     private var successCopyButton: some View {

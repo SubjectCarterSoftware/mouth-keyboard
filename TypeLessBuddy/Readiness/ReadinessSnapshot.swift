@@ -78,11 +78,11 @@ enum PermissionKind: String, CaseIterable, Identifiable {
         case (.keyboardShortcuts, .denied):
             return "Keyboard access is blocked."
         case (.postEvent, .authorized):
-            return "Auto Paste can insert text into other apps."
+            return "Accessibility enables copying and pasting across apps."
         case (.postEvent, .notDetermined):
-            return "Allow Accessibility access so Auto Paste works across apps."
+            return "Allow Accessibility access for copying and pasting across apps."
         case (.postEvent, .denied):
-            return "Accessibility access is blocked. Re-enable it in System Settings to use Auto Paste."
+            return "Accessibility access is blocked. Re-enable it in System Settings for copying and pasting across apps."
         }
     }
 }
