@@ -278,7 +278,7 @@ final class ActivationStoreTests: XCTestCase {
         store.armAndPaste()
         store.finish()
 
-        try await Task.sleep(nanoseconds: 200_000_000)
+        try await Task.sleep(nanoseconds: 350_000_000)
 
         XCTAssertNil(mockClipboard.lastWrittenText)
         if case .success(_, let pasted, let converted, _, _) = store.state {
@@ -301,6 +301,7 @@ final class ActivationStoreTests: XCTestCase {
 
         let pasteStub = StubSuccessfulPasteService()
         let mockClipboard = ActivationStoreMockClipboard()
+        mockClipboard.stubbedClipboardContent = "clipboard at recording start"
         let store = makeStore(
             permissionsAuthorized: true,
             postEventAuthorized: true,
@@ -311,6 +312,7 @@ final class ActivationStoreTests: XCTestCase {
         )
 
         store.arm()
+        mockClipboard.stubbedClipboardContent = "clipboard right before raw auto-paste"
         store.finish()
 
         try await Task.sleep(nanoseconds: 200_000_000)
@@ -319,6 +321,7 @@ final class ActivationStoreTests: XCTestCase {
         XCTAssertEqual(pasteStub.pasteCount, 1)
         XCTAssertEqual(mockClipboard.temporaryWriteTexts, ["Hello world"])
         XCTAssertTrue(mockClipboard.didRestoreOriginalClipboard)
+        XCTAssertEqual(mockClipboard.lastRestoredSnapshot?.plainText, "clipboard right before raw auto-paste")
         if case .success(_, let pasted, let converted, _, _) = store.state {
             XCTAssertTrue(pasted)
             XCTAssertFalse(converted)
@@ -336,13 +339,17 @@ final class ActivationStoreTests: XCTestCase {
 
         let pasteStub = StubSuccessfulPasteService()
         let mockClipboard = ActivationStoreMockClipboard()
+        mockClipboard.stubbedClipboardContent = "clipboard at recording start"
         let store = makeStore(
             permissionsAuthorized: true,
             postEventAuthorized: true,
             transcriber: ActivationStoreMockTranscriber(
                 result: .success("buddy Please schedule a meeting for Friday convert to email")
             ),
-            llmRewriter: MockLLMRewriter(result: .success("Converted output")),
+            llmRewriter: DelayedLLMRewriter(
+                delayNanoseconds: 300_000_000,
+                result: .success("Converted output")
+            ),
             clipboard: mockClipboard,
             pasteService: pasteStub,
             preferences: preferences
@@ -350,13 +357,16 @@ final class ActivationStoreTests: XCTestCase {
 
         store.arm()
         store.finish()
+        try await Task.sleep(nanoseconds: 100_000_000)
+        mockClipboard.stubbedClipboardContent = "clipboard changed during conversion"
 
-        try await Task.sleep(nanoseconds: 500_000_000)
+        try await Task.sleep(nanoseconds: 1_100_000_000)
 
         XCTAssertNil(mockClipboard.lastWrittenText)
         XCTAssertEqual(pasteStub.pasteCount, 1)
         XCTAssertEqual(mockClipboard.temporaryWriteTexts, ["Converted output"])
         XCTAssertTrue(mockClipboard.didRestoreOriginalClipboard)
+        XCTAssertEqual(mockClipboard.lastRestoredSnapshot?.plainText, "clipboard changed during conversion")
         if case .success(let text, let pasted, let converted, _, _) = store.state {
             XCTAssertEqual(text, "Converted output")
             XCTAssertTrue(pasted)

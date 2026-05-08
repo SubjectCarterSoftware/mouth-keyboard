@@ -106,7 +106,9 @@ actor LLMRewriteService: LLMRewriting {
     You are a local text rewriting assistant.
     Follow the rewrite instructions exactly.
     Return only the final rewritten text.
+    Output only the final answer text.
     Do not explain your changes.
+    Do not surround the answer in quotation marks unless the user explicitly asks for quotes.
     Do not include labels, quotes, code fences, or <think> tags.
     """
     static let defaultRewritePromptPrefix = legacyDefaultRewritePromptPrefix
@@ -297,7 +299,7 @@ actor LLMRewriteService: LLMRewriting {
                 break
             }
 
-            let trimmed = output.trimmingCharacters(in: .whitespacesAndNewlines)
+            let trimmed = Self.sanitizeGeneratedOutput(output)
             guard !trimmed.isEmpty else {
                 throw LLMRewriteError.emptyOutput
             }
@@ -370,7 +372,7 @@ actor LLMRewriteService: LLMRewriting {
                 break
             }
 
-            let trimmed = output.trimmingCharacters(in: .whitespacesAndNewlines)
+            let trimmed = Self.sanitizeGeneratedOutput(output)
             guard !trimmed.isEmpty else {
                 throw LLMRewriteError.emptyOutput
             }
@@ -745,6 +747,19 @@ actor LLMRewriteService: LLMRewriting {
         return trimmedTemplate
     }
 
+    static func sanitizeGeneratedOutput(_ output: String) -> String {
+        let trimmedOutput = output.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedOutput.isEmpty else {
+            return trimmedOutput
+        }
+
+        let unwrappedCodeFence = unwrapEntireCodeFenceIfNeeded(trimmedOutput)
+        let unlabeled = stripLeadingArtifactLabelIfNeeded(unwrappedCodeFence)
+        let extractedArtifact = extractTrailingArtifactIfNeeded(unlabeled) ?? unlabeled
+
+        return extractedArtifact.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
     static func resolveAssistantSystemPrompt(
         promptTemplate: String = defaultAssistantSystemPromptTemplate,
         assistantName: String
@@ -796,6 +811,94 @@ actor LLMRewriteService: LLMRewriting {
         Source text:
         \(trimmedBody)
         """
+    }
+
+    private static func unwrapEntireCodeFenceIfNeeded(_ output: String) -> String {
+        guard output.hasPrefix("```"), output.hasSuffix("```") else {
+            return output
+        }
+
+        let pattern = #"(?s)^```[^\n`]*\n?(.*?)\n?```$"#
+        guard let regex = try? NSRegularExpression(pattern: pattern) else {
+            return output
+        }
+
+        let range = NSRange(output.startIndex..<output.endIndex, in: output)
+        guard
+            let match = regex.firstMatch(in: output, options: [], range: range),
+            let bodyRange = Range(match.range(at: 1), in: output)
+        else {
+            return output
+        }
+
+        return String(output[bodyRange]).trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    private static func stripLeadingArtifactLabelIfNeeded(_ output: String) -> String {
+        let pattern = #"(?is)^\s*(?:draft(?: message)?|message|reply|email|slack message|text message)\s*:\s*(.+)$"#
+        guard let regex = try? NSRegularExpression(pattern: pattern) else {
+            return output
+        }
+
+        let range = NSRange(output.startIndex..<output.endIndex, in: output)
+        guard
+            let match = regex.firstMatch(in: output, options: [], range: range),
+            let bodyRange = Range(match.range(at: 1), in: output)
+        else {
+            return output
+        }
+
+        return String(output[bodyRange]).trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    private static func extractTrailingArtifactIfNeeded(_ output: String) -> String? {
+        let paragraphs = output
+            .components(separatedBy: .newlines)
+            .split(whereSeparator: { line in
+                line.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            })
+            .map { lines in
+                lines.joined(separator: "\n").trimmingCharacters(in: .whitespacesAndNewlines)
+            }
+            .filter { !$0.isEmpty }
+
+        guard paragraphs.count >= 2 else {
+            return nil
+        }
+
+        let preamble = paragraphs[0]
+        guard looksLikeMetaPreamble(preamble) else {
+            return nil
+        }
+
+        let artifact = paragraphs.dropFirst().joined(separator: "\n\n")
+        return unwrapBalancedQuotesIfNeeded(artifact)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    private static func looksLikeMetaPreamble(_ preamble: String) -> Bool {
+        let pattern = #"(?i)^\s*(?:sure|of course|certainly|absolutely|here(?: is|'s)|below is|you can send|draft(?: message)?|message|reply|email|slack message|text message)\b"#
+        guard let regex = try? NSRegularExpression(pattern: pattern) else {
+            return false
+        }
+
+        let range = NSRange(preamble.startIndex..<preamble.endIndex, in: preamble)
+        return regex.firstMatch(in: preamble, options: [], range: range) != nil
+    }
+
+    private static func unwrapBalancedQuotesIfNeeded(_ output: String) -> String {
+        let quotePairs: [(Character, Character)] = [
+            ("\"", "\""),
+            ("“", "”")
+        ]
+
+        for (opening, closing) in quotePairs {
+            guard output.first == opening, output.last == closing else { continue }
+            let inner = output.dropFirst().dropLast()
+            return String(inner)
+        }
+
+        return output
     }
 
     static func downloadModelFiles(

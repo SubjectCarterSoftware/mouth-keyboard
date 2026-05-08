@@ -101,6 +101,29 @@ final class TriggerTranscriptParserTests: XCTestCase {
         )
     }
 
+    func testNormalizeTranscriptRemovesBlankAudioMarkers() {
+        let normalized = TriggerTranscriptParser.normalizeTranscript(
+            "buddy [BLANK_AUDIO] summarize this (blank audio) <blank_audio> please"
+        )
+
+        XCTAssertEqual(normalized, "buddy summarize this please")
+    }
+
+    func testDetectUsesNormalizedTranscriptForTriggerMatching() {
+        let detection = TriggerTranscriptParser.detect(
+            transcript: "[BLANK_AUDIO] buddy summarize this",
+            triggerName: "buddy"
+        )
+
+        XCTAssertEqual(
+            detection,
+            .triggered(
+                transcript: "buddy summarize this",
+                matchedAlias: "buddy"
+            )
+        )
+    }
+
     func testDefaultAlternateSpellingStillTriggers() {
         let transcript = "buddie summarize this as three bullets"
         let detection = TriggerTranscriptParser.detect(

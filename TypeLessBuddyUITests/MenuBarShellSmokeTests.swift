@@ -18,7 +18,19 @@ final class MenuBarShellSmokeTests: XCTestCase {
 
         XCTAssertTrue(app.staticTexts["setupWindow.title"].waitForExistence(timeout: 5))
         XCTAssertTrue(app.buttons["setupWindow.primaryAction"].exists)
-        XCTAssertTrue(app.staticTexts["setupWindow.assistantActivation.title"].exists)
+        XCTAssertTrue(app.otherElements["setupWindow.sidebar"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.buttons["setupWindow.sidebar.setup"].exists)
+        XCTAssertTrue(app.buttons["setupWindow.sidebar.general"].exists)
+        XCTAssertTrue(app.buttons["setupWindow.sidebar.assistant"].exists)
+        XCTAssertTrue(app.buttons["setupWindow.sidebar.shortcuts"].exists)
+        XCTAssertTrue(app.buttons["setupWindow.sidebar.advanced"].exists)
+
+        let promptEditor = app.descendants(matching: .any)
+            .matching(identifier: "setupWindow.rewriteSystemPrompt.editor")
+            .firstMatch
+        XCTAssertFalse(promptEditor.exists)
+        XCTAssertFalse(app.staticTexts.containing(NSPredicate(format: "label CONTAINS %@", "Say Buddy")).firstMatch.exists)
+        XCTAssertTrue(app.staticTexts["Play sound effects"].exists)
     }
 
     func testAdvancedSettingsExposeRewriteSystemPromptEditor() {
@@ -42,6 +54,27 @@ final class MenuBarShellSmokeTests: XCTestCase {
 
         let resetButton = app.buttons["setupWindow.rewriteSystemPrompt.reset"]
         XCTAssertTrue(resetButton.exists)
+    }
+
+    func testSidebarClickUpdatesSelection() {
+        let app = XCUIApplication()
+        app.launchArguments = [
+            "-ui-testing",
+            "-reset-shell-preferences",
+            "-mock-microphone-status", "authorized",
+            "-mock-keyboard-status", "authorized",
+        ]
+
+        app.launch()
+
+        let shortcutsButton = app.buttons["setupWindow.sidebar.shortcuts"]
+        XCTAssertTrue(shortcutsButton.waitForExistence(timeout: 5))
+        shortcutsButton.click()
+        XCTAssertEqual(shortcutsButton.value as? String, "Selected")
+
+        let setupButton = app.buttons["setupWindow.sidebar.setup"]
+        setupButton.click()
+        XCTAssertEqual(setupButton.value as? String, "Selected")
     }
 
     func testCompletedSetupSuppressesSetupWindowOnLaunch() {

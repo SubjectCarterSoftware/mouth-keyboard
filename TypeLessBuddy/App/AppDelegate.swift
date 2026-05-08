@@ -379,7 +379,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         window.delegate = self
         window.identifier = NSUserInterfaceItemIdentifier("TypeLessBuddyGuideWindow")
         window.isReleasedWhenClosed = false
-        window.title = "Quick Guides"
+        window.title = "Guides"
         window.contentMinSize = NSSize(
             width: GuideWindowMetrics.width,
             height: GuideWindowMetrics.height

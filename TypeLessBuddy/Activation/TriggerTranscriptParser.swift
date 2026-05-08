@@ -3,11 +3,32 @@ import Foundation
 /// Detects whether a transcript contains the assistant's activation trigger
 /// word. Matches the latest word-boundary occurrence, case-insensitively.
 struct TriggerTranscriptParser {
+    static func normalizeTranscript(_ transcript: String) -> String {
+        let artifactPatterns = [
+            "\\[(?:blank[_ ]audio)\\]",
+            "\\((?:blank[_ ]audio)\\)",
+            "<(?:blank[_ ]audio)>"
+        ]
+
+        let withoutArtifacts = artifactPatterns.reduce(transcript) { partial, pattern in
+            partial.replacingOccurrences(
+                of: pattern,
+                with: " ",
+                options: [.regularExpression, .caseInsensitive]
+            )
+        }
+
+        return withoutArtifacts
+            .replacingOccurrences(of: "\\s+", with: " ", options: .regularExpression)
+            .replacingOccurrences(of: "\\s+([,.;:!?])", with: "$1", options: .regularExpression)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
     static func detect(
         transcript: String,
         triggerNames: [String]
     ) -> TriggerTranscriptDetection {
-        let trimmedTranscript = transcript.trimmingCharacters(in: .whitespacesAndNewlines)
+        let trimmedTranscript = normalizeTranscript(transcript)
         guard !trimmedTranscript.isEmpty else {
             return .noTrigger(transcript: trimmedTranscript)
         }

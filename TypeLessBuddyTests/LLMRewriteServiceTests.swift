@@ -351,6 +351,37 @@ final class LLMRewriteServiceTests: XCTestCase {
         )
     }
 
+    func testSanitizeGeneratedOutputExtractsQuotedArtifactAfterMetaPreamble() {
+        let output = """
+        Sure, here is a draft message you can send to Caroline:
+
+        "Hi Caroline, just wanted to drop a quick note. I'm a bit stuck on how to handle this customer."
+        """
+
+        XCTAssertEqual(
+            LLMRewriteService.sanitizeGeneratedOutput(output),
+            "Hi Caroline, just wanted to drop a quick note. I'm a bit stuck on how to handle this customer."
+        )
+    }
+
+    func testSanitizeGeneratedOutputStripsSimpleLeadingArtifactLabel() {
+        let output = "Message: Hi Caroline, can you take a look at this when you have a minute?"
+
+        XCTAssertEqual(
+            LLMRewriteService.sanitizeGeneratedOutput(output),
+            "Hi Caroline, can you take a look at this when you have a minute?"
+        )
+    }
+
+    func testSanitizeGeneratedOutputLeavesStandaloneQuotedTextUntouched() {
+        let output = "\"Keep the quotes exactly like this.\""
+
+        XCTAssertEqual(
+            LLMRewriteService.sanitizeGeneratedOutput(output),
+            "\"Keep the quotes exactly like this.\""
+        )
+    }
+
     // MARK: - setTier tests (Phase 2)
 
     func testSetTierClearsCachedModelAndLoadTaskForNextCall() async throws {

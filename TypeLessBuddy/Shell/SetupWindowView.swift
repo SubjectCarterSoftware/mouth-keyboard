@@ -5,8 +5,8 @@ import KeyboardShortcuts
 import SwiftUI
 
 enum SetupWindowMetrics {
-    static let width: CGFloat = 672
-    static let collapsedHeight: CGFloat = 750
+    static let width: CGFloat = 920
+    static let collapsedHeight: CGFloat = 780
 }
 
 enum CloudConnectionTestResult: Equatable {
@@ -16,6 +16,47 @@ enum CloudConnectionTestResult: Equatable {
 
 private enum RewriteSystemPromptSectionMetrics {
     static let editorHeight: CGFloat = 150
+}
+
+private enum SettingsSection: String, CaseIterable, Identifiable {
+    case setup
+    case general
+    case assistant
+    case shortcuts
+    case advanced
+
+    var id: String {
+        rawValue
+    }
+
+    var title: String {
+        switch self {
+        case .setup:
+            return "Setup"
+        case .general:
+            return "General"
+        case .assistant:
+            return "Assistant"
+        case .shortcuts:
+            return "Shortcuts"
+        case .advanced:
+            return "Advanced"
+        }
+    }
+}
+
+private enum SettingsLayoutMetrics {
+    static let sidebarWidth: CGFloat = 172
+    static let contentSpacing: CGFloat = 18
+    static let cardCornerRadius: CGFloat = 18
+}
+
+private struct SectionOffsetPreferenceKey: PreferenceKey {
+    static var defaultValue: [SettingsSection: CGFloat] = [:]
+
+    static func reduce(value: inout [SettingsSection: CGFloat], nextValue: () -> [SettingsSection: CGFloat]) {
+        value.merge(nextValue(), uniquingKeysWith: { _, new in new })
+    }
 }
 
 // MARK: - Shared shortcut recorder visual field
@@ -392,29 +433,7 @@ private struct HoldShortcutRecorder: View {
 
 private enum SetupSectionMetrics {
     static let rowLabelWidth: CGFloat = 150
-    static let rowIndent: CGFloat = 12
-}
-
-private struct SetupSection<Content: View>: View {
-    let title: String
-    let content: Content
-
-    init(title: String, @ViewBuilder content: () -> Content) {
-        self.title = title
-        self.content = content()
-    }
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            Text(title)
-                .font(.headline)
-
-            VStack(alignment: .leading, spacing: 16) {
-                content
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
-        }
-    }
+    static let rowIndent: CGFloat = 4
 }
 
 private struct SetupFieldRow<Content: View>: View {
@@ -446,11 +465,130 @@ private struct SetupFieldRow<Content: View>: View {
     }
 }
 
+private struct SettingsSectionCard<Content: View>: View {
+    let section: SettingsSection
+    let flashTrigger: Int
+    let content: Content
+
+    init(section: SettingsSection, flashTrigger: Int = 0, @ViewBuilder content: () -> Content) {
+        self.section = section
+        self.flashTrigger = flashTrigger
+        self.content = content()
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            Text(section.title)
+                .font(.title3.weight(.semibold))
+                .accessibilityIdentifier("setupWindow.section.\(section.rawValue).title")
+
+            content
+        }
+        .padding(20)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(
+            RoundedRectangle(cornerRadius: SettingsLayoutMetrics.cardCornerRadius, style: .continuous)
+                .fill(Color(white: 0.14))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: SettingsLayoutMetrics.cardCornerRadius, style: .continuous)
+                .strokeBorder(Color.white.opacity(0.06), lineWidth: 1)
+        )
+        .modifier(
+            SettingsCardFlashModifier(
+                cornerRadius: SettingsLayoutMetrics.cardCornerRadius,
+                flashTrigger: flashTrigger
+            )
+        )
+        .accessibilityIdentifier("setupWindow.section.\(section.rawValue)")
+    }
+}
+
+private struct SettingsCardFlashModifier: ViewModifier {
+    let cornerRadius: CGFloat
+    let flashTrigger: Int
+
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var flashOpacity: Double = 0
+    @State private var flashTask: Task<Void, Never>?
+
+    func body(content: Content) -> some View {
+        content
+            .overlay(
+                RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                    .fill(Color.accentColor.opacity(0.10 * flashOpacity))
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                    .strokeBorder(Color.accentColor.opacity(0.70 * flashOpacity), lineWidth: 2)
+            )
+            .onChange(of: flashTrigger) { newValue in
+                guard newValue > 0 else { return }
+                runFlash()
+            }
+    }
+
+    @MainActor
+    private func runFlash() {
+        flashTask?.cancel()
+        flashTask = Task { @MainActor in
+            flashOpacity = 0
+
+            let rampUp = reduceMotion ? 0 : 0.12
+            let rampDown = reduceMotion ? 0 : 0.45
+
+            withAnimation(.easeOut(duration: rampUp)) {
+                flashOpacity = 1
+            }
+
+            try? await Task.sleep(nanoseconds: 160_000_000)
+            guard !Task.isCancelled else { return }
+
+            withAnimation(.easeOut(duration: rampDown)) {
+                flashOpacity = 0
+            }
+        }
+    }
+}
+
+private struct SettingsSidebarButton: View {
+    let section: SettingsSection
+    let isActive: Bool
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            HStack {
+                Text(section.title)
+                    .font(.body.weight(isActive ? .semibold : .regular))
+                Spacer(minLength: 8)
+            }
+            .foregroundStyle(isActive ? Color.white : Color.secondary)
+            .padding(.horizontal, 12)
+            .padding(.vertical, 10)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .contentShape(Rectangle())
+            .background(
+                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                    .fill(isActive ? Color.accentColor.opacity(0.2) : Color.clear)
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                    .strokeBorder(isActive ? Color.accentColor.opacity(0.4) : Color.clear, lineWidth: 1)
+            )
+        }
+        .buttonStyle(.plain)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .accessibilityIdentifier("setupWindow.sidebar.\(section.rawValue)")
+        .accessibilityValue(isActive ? "Selected" : "Not Selected")
+    }
+}
+
 private struct KeyboardShortcutsRow: View {
     @ObservedObject var preferences: ShellPreferences
 
     var body: some View {
-        SetupFieldRow(title: "Hold to Transcribe:") {
+        SetupFieldRow(title: "Hold to record") {
             HStack(spacing: 12) {
                 HoldShortcutRecorder(
                     slot: .primary,
@@ -514,13 +652,13 @@ private struct AlwaysAutoPasteRow: View {
 
     var body: some View {
         HStack(alignment: .center, spacing: 8) {
-            Toggle("Always Auto Paste", isOn: $isOn)
+            Toggle("Auto Paste", isOn: $isOn)
                 .labelsHidden()
                 .toggleStyle(.switch)
                 .scaleEffect(0.8, anchor: .leading)
                 .frame(height: 22)
                 .fixedSize()
-                .accessibilityLabel("Always Auto Paste")
+                .accessibilityLabel("Auto Paste")
                 .accessibilityIdentifier("setupWindow.alwaysAutoPaste.toggle")
 
             if let helperText {
@@ -561,19 +699,19 @@ private struct RestoreClipboardRow: View {
     }
 }
 
-private struct MuteSoundEffectsRow: View {
+private struct PlaySoundEffectsRow: View {
     @Binding var isOn: Bool
-    var helperText: String? = "Mutes the start, success, and failure sound effects for transcription sessions. Off by default, so sounds continue playing unless you turn this on."
+    var helperText: String? = "Keeps the start, success, and failure sound effects enabled for transcription sessions."
 
     var body: some View {
         HStack(alignment: .center, spacing: 8) {
-            Toggle("Mute Sound Effects", isOn: $isOn)
+            Toggle("Play sound effects", isOn: $isOn)
                 .labelsHidden()
                 .toggleStyle(.switch)
                 .scaleEffect(0.8, anchor: .leading)
                 .frame(height: 22)
                 .fixedSize()
-                .accessibilityLabel("Mute Sound Effects")
+                .accessibilityLabel("Play sound effects")
                 .accessibilityIdentifier("setupWindow.muteSoundEffects.toggle")
 
             if let helperText {
@@ -583,63 +721,6 @@ private struct MuteSoundEffectsRow: View {
         }
         .frame(height: 22, alignment: .leading)
         .frame(maxWidth: .infinity, alignment: .leading)
-    }
-}
-
-private struct AssistantActivationGuidanceView: View {
-    @ObservedObject var viewModel: AIAssistantSettingsViewModel
-
-    private var resolvedAssistantName: String {
-        let trimmed = viewModel.activeName.trimmingCharacters(in: .whitespacesAndNewlines)
-        return trimmed.isEmpty ? AssistantDefaults.defaultAssistantName : trimmed
-    }
-
-    private var assistantUsageText: Text {
-        Text("Say ").foregroundColor(.primary)
-        + Text(resolvedAssistantName).bold().foregroundColor(.accentColor)
-        + Text(" in your transcription to send your message to the assistant.").foregroundColor(.primary)
-    }
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            SetupFieldRow(title: "Activation:", alignment: .top) {
-                assistantUsageText
-                    .font(.body)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-
-            SetupFieldRow(title: "Assistant Name:") {
-                HStack(alignment: .center, spacing: 8) {
-                    AssistantDisplayedNameChip(
-                        name: viewModel.displayedName,
-                        isPreviewing: viewModel.isPreviewingRecordedName
-                    )
-                    .accessibilityIdentifier("assistantRow.activeName")
-
-                    Spacer(minLength: 12)
-
-                    AIAssistantInlineRowView(
-                        viewModel: viewModel,
-                        showsActiveName: false
-                    )
-                }
-                .frame(maxWidth: .infinity, alignment: .leading)
-            }
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .accessibilityElement(children: .contain)
-        .accessibilityIdentifier("setupWindow.assistantActivation.section")
-    }
-}
-
-private struct AssistantActivationSupportingText: View {
-    let text: String
-
-    var body: some View {
-        Text(text)
-            .font(.body)
-            .foregroundStyle(.secondary)
-            .fixedSize(horizontal: false, vertical: true)
     }
 }
 
@@ -749,8 +830,10 @@ struct SetupWindowView: View {
     @State private var isLoadingCloudModels = false
     @State private var cloudModelFetchError: String?
     @State private var cloudConnectionTestResult: CloudConnectionTestResult?
-    private let postEventPermissionService = PostEventPermissionService.live
-    private let keyboardPermissionService = KeyboardPermissionService.live
+    @State private var activeSection: SettingsSection = .setup
+    @State private var flashedSection: SettingsSection?
+    @State private var flashNonce: Int = 0
+    @State private var scheduledFlashTask: Task<Void, Never>?
     let dismissWindow: () -> Void
     let openGuide: () -> Void
 
@@ -803,15 +886,6 @@ struct SetupWindowView: View {
         whisperModelLoadState.phase.isTransferInFlight || whisperModelLoadState.deletingModel != nil
     }
 
-    private var keyboardShortcutsStatus: PermissionGrantState {
-        keyboardPermissionService.currentStatus(hasPrompted: preferences.hasRequestedKeyboardPermission)
-    }
-
-    private func requestKeyboardShortcutsAccess() {
-        preferences.recordKeyboardPermissionPrompt()
-        _ = keyboardPermissionService.requestAccess()
-    }
-
     private var alwaysAutoPasteBinding: Binding<Bool> {
         Binding(
             get: {
@@ -834,13 +908,13 @@ struct SetupWindowView: View {
         )
     }
 
-    private var muteSoundEffectsBinding: Binding<Bool> {
+    private var playSoundEffectsBinding: Binding<Bool> {
         Binding(
             get: {
-                preferences.muteSoundEffects
+                !preferences.muteSoundEffects
             },
             set: { newValue in
-                preferences.muteSoundEffects = newValue
+                preferences.muteSoundEffects = !newValue
             }
         )
     }
@@ -1435,31 +1509,172 @@ struct SetupWindowView: View {
         )
     }
 
-    var body: some View {
-        VStack(spacing: 0) {
-            ScrollView {
-                VStack(alignment: .leading, spacing: 18) {
-                    HStack(alignment: .firstTextBaseline, spacing: 12) {
-                        Text("TypeLessBuddy Settings")
-                            .font(.title2.weight(.semibold))
-                            .accessibilityIdentifier("setupWindow.title")
+    private func updateActiveSection(using offsets: [SettingsSection: CGFloat]) {
+        guard let nearest = offsets.min(by: { abs($0.value - 12) < abs($1.value - 12) })?.key else {
+            return
+        }
+        activeSection = nearest
+    }
 
-                        Spacer()
+    private func scrollToSection(_ section: SettingsSection, proxy: ScrollViewProxy) {
+        activeSection = section
+        withAnimation(.easeInOut(duration: 0.22)) {
+            proxy.scrollTo(section, anchor: .top)
+        }
 
-                        Button("Guide") {
-                            openGuide()
-                        }
-                        .buttonStyle(.bordered)
-                        .accessibilityIdentifier("setupWindow.guideButton")
-                    }
+        scheduledFlashTask?.cancel()
+        scheduledFlashTask = Task { @MainActor in
+            // Slightly delay so the highlight happens after the scroll settles (or immediately if no scroll is needed).
+            try? await Task.sleep(nanoseconds: 260_000_000)
+            guard !Task.isCancelled else { return }
+            flashedSection = section
+            flashNonce &+= 1
+        }
+    }
 
-                    PermissionChecklistView(
-                        permissions: readinessStore.snapshot.permissions,
-                        requestPermission: { kind in readinessStore.requestPermission(for: kind) },
-                        openRecovery: { kind in readinessStore.openRecovery(for: kind) },
-                        launchAtLoginEnabled: preferences.launchAtLogin,
-                        onToggleLaunchAtLogin: { preferences.setLaunchAtLogin($0) }
+    private func flashTrigger(for section: SettingsSection) -> Int {
+        flashedSection == section ? flashNonce : 0
+    }
+
+    @ViewBuilder
+    private func trackedSection<Content: View>(
+        _ section: SettingsSection,
+        @ViewBuilder content: () -> Content
+    ) -> some View {
+        content()
+            .background(
+                GeometryReader { geometry in
+                    Color.clear.preference(
+                        key: SectionOffsetPreferenceKey.self,
+                        value: [section: geometry.frame(in: .named("settingsScroll")).minY]
                     )
+                }
+            )
+            // `.id` must come after modifiers like `.background` so the *outer* wrapper gets stable identity.
+            .id(section)
+    }
+
+    private var setupSectionContent: some View {
+        SettingsSectionCard(section: .setup, flashTrigger: flashTrigger(for: .setup)) {
+            PermissionChecklistView(
+                permissions: readinessStore.snapshot.permissions,
+                requestPermission: { kind in readinessStore.requestPermission(for: kind) },
+                openRecovery: { kind in readinessStore.openRecovery(for: kind) },
+                launchAtLoginEnabled: preferences.launchAtLogin,
+                onToggleLaunchAtLogin: { preferences.setLaunchAtLogin($0) }
+            )
+        }
+    }
+
+    private var generalSectionContent: some View {
+        SettingsSectionCard(section: .general, flashTrigger: flashTrigger(for: .general)) {
+            VStack(alignment: .leading, spacing: 14) {
+                SetupFieldRow(title: "Microphone") {
+                    Picker("", selection: microphoneSelection) {
+                        Text("System Default").tag(Optional<String>.none)
+                        ForEach(audioDeviceService.availableDevices) { device in
+                            Text(device.name).tag(Optional(device.uid))
+                        }
+                    }
+                    .labelsHidden()
+                    .pickerStyle(.menu)
+                }
+
+                SetupFieldRow(title: "Auto Paste") {
+                    AlwaysAutoPasteRow(isOn: alwaysAutoPasteBinding)
+                }
+
+                SetupFieldRow(title: "Restore Clipboard") {
+                    RestoreClipboardRow(
+                        isOn: restorePreviousClipboardBinding,
+                        isAutoPasteEnabled: preferences.alwaysAutoPaste
+                    )
+                }
+
+                SetupFieldRow(title: "Play sound effects") {
+                    PlaySoundEffectsRow(isOn: playSoundEffectsBinding)
+                }
+            }
+        }
+    }
+
+    private var assistantSectionContent: some View {
+        SettingsSectionCard(section: .assistant, flashTrigger: flashTrigger(for: .assistant)) {
+            SetupFieldRow(title: "Assistant name") {
+                HStack(alignment: .center, spacing: 12) {
+                    AssistantDisplayedNameChip(
+                        name: assistantSettingsViewModel.displayedName,
+                        isPreviewing: assistantSettingsViewModel.isPreviewingRecordedName
+                    )
+                    .accessibilityIdentifier("assistantRow.activeName")
+
+                    Spacer(minLength: 12)
+
+                    AIAssistantInlineRowView(
+                        viewModel: assistantSettingsViewModel,
+                        showsActiveName: false,
+                        showsResetButton: false,
+                        idleRecordButtonTitle: "Record Name"
+                    )
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+            }
+        }
+    }
+
+    private var shortcutsSectionContent: some View {
+        SettingsSectionCard(section: .shortcuts, flashTrigger: flashTrigger(for: .shortcuts)) {
+            VStack(alignment: .leading, spacing: 14) {
+                SetupFieldRow(title: "Start recording") {
+                    HStack(spacing: 12) {
+                        KeyComboRecorder(name: .activate, preferences: preferences)
+                        KeyComboRecorder(name: .activateAlt, preferences: preferences)
+                    }
+                }
+
+                SetupFieldRow(title: "Stop recording") {
+                    HStack(spacing: 12) {
+                        KeyComboRecorder(name: .stopSession, preferences: preferences)
+                        KeyComboRecorder(name: .stopSessionAlt, preferences: preferences)
+                    }
+                }
+
+                KeyboardShortcutsRow(
+                    preferences: preferences
+                )
+            }
+        }
+    }
+
+    private var advancedSectionContent: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            Button {
+                withAnimation(.easeInOut(duration: 0.18)) {
+                    isAdvancedSettingsExpanded.toggle()
+                }
+            } label: {
+                HStack(spacing: 12) {
+                    Text("Advanced")
+                        .font(.title3.weight(.semibold))
+
+                    Spacer()
+
+                    Image(systemName: "plus")
+                        .font(.headline.weight(.semibold))
+                        .foregroundStyle(.secondary)
+                        .rotationEffect(.degrees(isAdvancedSettingsExpanded ? 45 : 0))
+                }
+                .padding(20)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityIdentifier("setupWindow.advancedDisclosure")
+
+            if isAdvancedSettingsExpanded {
+                VStack(alignment: .leading, spacing: 16) {
+                    Divider()
+                        .overlay(Color.white.opacity(0.08))
 
                     if case .downloading(let model, let progress) = whisperModelLoadState.phase,
                        model == preferences.whisperModel {
@@ -1469,174 +1684,168 @@ struct SetupWindowView: View {
                         ModelDownloadStatusRow(modelName: model.displayName, progress: nil)
                     }
 
-                    Divider()
+                    VStack(alignment: .leading, spacing: 8) {
+                        HStack(alignment: .firstTextBaseline, spacing: 12) {
+                            Text("Speech Transcription Model")
+                                .font(.body)
 
-                    VStack(alignment: .leading, spacing: 10) {
-                        AssistantActivationGuidanceView(
-                            viewModel: assistantSettingsViewModel
-                        )
+                            Spacer()
 
-                        Divider()
-                    }
-
-                    VStack(alignment: .leading, spacing: 10) {
-                        SetupFieldRow(title: "Microphone:") {
-                            Picker("", selection: microphoneSelection) {
-                                Text("System Default").tag(Optional<String>.none)
-                                ForEach(audioDeviceService.availableDevices) { device in
-                                    Text(device.name).tag(Optional(device.uid))
-                                }
-                            }
-                            .labelsHidden()
-                            .pickerStyle(.menu)
+                            Text("Select a downloaded model. Use the icon to download it or remove its files.")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                                .multilineTextAlignment(.trailing)
                         }
 
-                        SetupFieldRow(title: "Always Auto Paste:") {
-                            AlwaysAutoPasteRow(isOn: alwaysAutoPasteBinding)
+                        ForEach(WhisperModelChoice.allCases) { model in
+                            whisperModelRow(for: model)
                         }
 
-                        SetupFieldRow(title: "Restore Clipboard:") {
-                            RestoreClipboardRow(
-                                isOn: restorePreviousClipboardBinding,
-                                isAutoPasteEnabled: preferences.alwaysAutoPaste
-                            )
+                        if case .failed(_, let message) = whisperModelLoadState.phase {
+                            Text(message)
+                                .font(.caption)
+                                .foregroundStyle(.red)
                         }
-
-                        SetupFieldRow(title: "Mute Sound Effects:") {
-                            MuteSoundEffectsRow(isOn: muteSoundEffectsBinding)
-                        }
-
                     }
 
                     Divider()
+                        .overlay(Color.white.opacity(0.08))
 
-                    VStack(alignment: .leading, spacing: 10) {
-                        SetupFieldRow(title: "Start Transcription:") {
-                            HStack(spacing: 12) {
-                                KeyComboRecorder(name: .activate, preferences: preferences)
-                                KeyComboRecorder(name: .activateAlt, preferences: preferences)
-                            }
+                    VStack(alignment: .leading, spacing: 8) {
+                        HStack(alignment: .firstTextBaseline, spacing: 12) {
+                            Text("Conversion Model")
+                                .font(.body)
+
+                            Spacer()
+
+                            Text("Select a downloaded model. Use the icon to download it or remove its files.")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                                .multilineTextAlignment(.trailing)
                         }
 
-                        SetupFieldRow(title: "Stop Transcription:") {
-                            HStack(spacing: 12) {
-                                KeyComboRecorder(name: .stopSession, preferences: preferences)
-                                KeyComboRecorder(name: .stopSessionAlt, preferences: preferences)
-                            }
+                        ForEach(RewriteModelTier.allCases) { tier in
+                            conversionModelRow(for: tier)
                         }
 
-                        KeyboardShortcutsRow(
-                            preferences: preferences
-                        )
+                        if case .failed(_, let message) = modelLoadState.phase {
+                            Text(message)
+                                .font(.caption)
+                                .foregroundStyle(.red)
+                        }
+
+                        if !canManageConversionModels {
+                            Text("Wait for the current recording or transcription to finish before downloading, deleting, or switching conversion models.")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
                     }
+                    .opacity(preferences.cloudLLMConfig.isEnabled ? 0.5 : 1.0)
+                    .disabled(preferences.cloudLLMConfig.isEnabled)
 
                     Divider()
+                        .overlay(Color.white.opacity(0.08))
 
-                    VStack(alignment: .leading, spacing: 0) {
-                        Button {
-                            withAnimation(.easeInOut(duration: 0.15)) {
-                                isAdvancedSettingsExpanded.toggle()
-                            }
-                        } label: {
-                            HStack(alignment: .firstTextBaseline, spacing: 12) {
-                                Text("Advanced")
-                                    .font(.headline)
+                    rewriteSystemPromptSection
 
-                                Spacer()
+                    Divider()
+                        .overlay(Color.white.opacity(0.08))
 
-                                Image(systemName: isAdvancedSettingsExpanded ? "chevron.down" : "chevron.right")
-                                    .font(.caption.weight(.semibold))
-                                    .foregroundStyle(.secondary)
-                            }
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                            .contentShape(Rectangle())
-                        }
-                        .buttonStyle(.plain)
-                        .accessibilityIdentifier("setupWindow.advancedDisclosure")
+                    cloudLLMSettingsSection
+                }
+                .padding(.horizontal, 20)
+                .padding(.bottom, 20)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(
+            RoundedRectangle(cornerRadius: SettingsLayoutMetrics.cardCornerRadius, style: .continuous)
+                .fill(Color(white: 0.14))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: SettingsLayoutMetrics.cardCornerRadius, style: .continuous)
+                .strokeBorder(Color.white.opacity(0.06), lineWidth: 1)
+        )
+        .modifier(
+            SettingsCardFlashModifier(
+                cornerRadius: SettingsLayoutMetrics.cardCornerRadius,
+                flashTrigger: flashTrigger(for: .advanced)
+            )
+        )
+        .accessibilityIdentifier("setupWindow.section.advanced")
+    }
 
-                        if isAdvancedSettingsExpanded {
-                            VStack(alignment: .leading, spacing: 16) {
-                                Divider()
-                                    .padding(.top, 16)
+    var body: some View {
+        VStack(spacing: 0) {
+            VStack(alignment: .leading, spacing: 20) {
+                HStack(alignment: .firstTextBaseline, spacing: 12) {
+                    Text("TypeLessBuddy Settings")
+                        .font(.title2.weight(.semibold))
+                        .accessibilityIdentifier("setupWindow.title")
 
-                                VStack(alignment: .leading, spacing: 8) {
-                                    HStack(alignment: .firstTextBaseline, spacing: 12) {
-                                        Text("Speech Transcription Model")
-                                            .font(.body)
+                    Spacer()
 
-                                        Spacer()
+                    Button("Guide") {
+                        openGuide()
+                    }
+                    .buttonStyle(.bordered)
+                    .accessibilityIdentifier("setupWindow.guideButton")
+                }
 
-                                        Text("Select a downloaded model. Use the icon to download it or remove its files.")
-                                            .font(.caption)
-                                            .foregroundStyle(.secondary)
-                                            .multilineTextAlignment(.trailing)
-                                    }
-
-                                    ForEach(WhisperModelChoice.allCases) { model in
-                                        whisperModelRow(for: model)
-                                    }
-
-                                    if case .failed(_, let message) = whisperModelLoadState.phase {
-                                        Text(message)
-                                            .font(.caption)
-                                            .foregroundStyle(.red)
-                                    }
+                ScrollViewReader { proxy in
+                    HStack(alignment: .top, spacing: SettingsLayoutMetrics.contentSpacing) {
+                        VStack(alignment: .leading, spacing: 8) {
+                            ForEach(SettingsSection.allCases) { section in
+                                SettingsSidebarButton(
+                                    section: section,
+                                    isActive: activeSection == section
+                                ) {
+                                    scrollToSection(section, proxy: proxy)
                                 }
-
-                                Divider()
-
-                                VStack(alignment: .leading, spacing: 8) {
-                                    HStack(alignment: .firstTextBaseline, spacing: 12) {
-                                        Text("Conversion Model")
-                                            .font(.body)
-
-                                        Spacer()
-
-                                        Text("Select a downloaded model. Use the icon to download it or remove its files.")
-                                            .font(.caption)
-                                            .foregroundStyle(.secondary)
-                                            .multilineTextAlignment(.trailing)
-                                    }
-
-                                    ForEach(RewriteModelTier.allCases) { tier in
-                                        conversionModelRow(for: tier)
-                                    }
-
-                                    if case .failed(_, let message) = modelLoadState.phase {
-                                        Text(message)
-                                            .font(.caption)
-                                            .foregroundStyle(.red)
-                                    }
-
-                                    if !canManageConversionModels {
-                                        Text("Wait for the current recording or transcription to finish before downloading, deleting, or switching conversion models.")
-                                            .font(.caption)
-                                            .foregroundStyle(.secondary)
-                                    }
-                                }
-                                .opacity(preferences.cloudLLMConfig.isEnabled ? 0.5 : 1.0)
-                                .disabled(preferences.cloudLLMConfig.isEnabled)
-
-                                Divider()
-
-                                rewriteSystemPromptSection
-
-                                Divider()
-
-                                cloudLLMSettingsSection
                             }
                         }
+                        .frame(width: SettingsLayoutMetrics.sidebarWidth, alignment: .topLeading)
+                        .accessibilityIdentifier("setupWindow.sidebar")
+
+                        ScrollView {
+                            VStack(alignment: .leading, spacing: 18) {
+                                trackedSection(.setup) {
+                                    setupSectionContent
+                                }
+
+                                trackedSection(.general) {
+                                    generalSectionContent
+                                }
+
+                                trackedSection(.assistant) {
+                                    assistantSectionContent
+                                }
+
+                                trackedSection(.shortcuts) {
+                                    shortcutsSectionContent
+                                }
+
+                                trackedSection(.advanced) {
+                                    advancedSectionContent
+                                }
+                            }
+                            .padding(.trailing, 4)
+                            .onPreferenceChange(SectionOffsetPreferenceKey.self) { offsets in
+                                updateActiveSection(using: offsets)
+                            }
+                        }
+                        .coordinateSpace(name: "settingsScroll")
+                        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
                     }
                 }
-                .padding(24)
-                .frame(maxWidth: .infinity, alignment: .leading)
             }
+            .padding(24)
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
 
             Divider()
 
             HStack(spacing: 12) {
-                Button("Shut Down App") {
+                Button("Quit App") {
                     NSApp.terminate(nil)
                 }
                 .foregroundStyle(.red)

@@ -289,8 +289,7 @@ final class AIAssistantSettingsViewModel: ObservableObject {
     }
 
     private static func sanitizedRecordedName(_ transcription: String) -> String {
-        transcription
-            .trimmingCharacters(in: .whitespacesAndNewlines)
+        TriggerTranscriptParser.normalizeTranscript(transcription)
             .trimmingCharacters(in: .punctuationCharacters)
             .replacingOccurrences(of: "\\s+", with: " ", options: .regularExpression)
             .trimmingCharacters(in: .whitespacesAndNewlines)
@@ -427,6 +426,8 @@ struct AssistantDisplayedNameChip: View {
 struct AIAssistantInlineRowView: View {
     @ObservedObject var viewModel: AIAssistantSettingsViewModel
     var showsActiveName: Bool = true
+    var showsResetButton: Bool = true
+    var idleRecordButtonTitle: String = "Record new name"
 
     private var cancelButton: some View {
         Button {
@@ -460,7 +461,7 @@ struct AIAssistantInlineRowView: View {
                     onRelease: { viewModel.stopRecording() }
                 )
             } else {
-                Button("Record new name") {
+                Button(idleRecordButtonTitle) {
                     viewModel.showRecordControl()
                 }
                 .frame(maxWidth: .infinity)
@@ -475,7 +476,7 @@ struct AIAssistantInlineRowView: View {
         switch viewModel.renameState {
         case .idle:
             HStack(spacing: 8) {
-                if !viewModel.isUsingDefaultName {
+                if showsResetButton && !viewModel.isUsingDefaultName {
                     Button("Reset to default") {
                         viewModel.resetToDefault()
                     }

@@ -182,7 +182,7 @@ struct GuideWindowView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 18) {
                 VStack(alignment: .leading, spacing: 6) {
-                    Text("Quick Guides")
+                    Text("Guides")
                         .font(.title2.weight(.semibold))
                         .accessibilityIdentifier("guideWindow.title")
 

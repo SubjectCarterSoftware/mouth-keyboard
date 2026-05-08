@@ -295,15 +295,9 @@ final class ActivationStore: ObservableObject {
             return
         }
 
-        let originalClipboard = shouldRestorePreviousClipboardAfterAutoPaste
-            ? clipboardService.snapshotCurrentClipboard()
-            : nil
         Task { [weak self] in
             guard let self else { return }
-            _ = await self.pasteWithClipboardProtection(
-                text: successText,
-                originalClipboard: originalClipboard
-            )
+            _ = await self.pasteWithClipboardProtection(text: successText)
         }
     }
 
@@ -496,7 +490,7 @@ final class ActivationStore: ObservableObject {
             ) { [whisperService] in
                 try await whisperService.transcribe(samples: samples)
             }
-            let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+            let trimmed = TriggerTranscriptParser.normalizeTranscript(text)
             let triggerNames = preferences.activeTriggerProfile.allCanonicalNames
 
             guard isCurrentSession(sessionID) else { return }
@@ -517,17 +511,11 @@ final class ActivationStore: ObservableObject {
 
             if !shouldConvert {
                 let didPaste = shouldPasteOnSuccessfulFinish
-                let originalClipboardForPaste = shouldRestorePreviousClipboardAfterAutoPaste
-                    ? clipboardSnapshot
-                    : nil
                 requestsPasteOnCompletion = false
                 lastTranscription = trimmed
                 var syntheticPasteSucceeded = false
                 if didPaste {
-                    syntheticPasteSucceeded = await pasteWithClipboardProtection(
-                        text: trimmed,
-                        originalClipboard: originalClipboardForPaste
-                    )
+                    syntheticPasteSucceeded = await pasteWithClipboardProtection(text: trimmed)
                 } else {
                     clipboardService.writeToClipboard(trimmed)
                 }
@@ -541,9 +529,6 @@ final class ActivationStore: ObservableObject {
                 beginSuccessDismissTiming(sessionID: sessionID)
             } else {
                 let didPaste = shouldPasteOnSuccessfulFinish
-                let originalClipboardForPaste = shouldRestorePreviousClipboardAfterAutoPaste
-                    ? clipboardSnapshot
-                    : nil
                 requestsPasteOnCompletion = false
 
                 guard isCurrentSession(sessionID) else { return }
@@ -649,10 +634,7 @@ final class ActivationStore: ObservableObject {
                 guard isCurrentSession(sessionID) else { return }
                 var syntheticPasteSucceeded = false
                 if didPaste {
-                    syntheticPasteSucceeded = await pasteWithClipboardProtection(
-                        text: rewritten,
-                        originalClipboard: originalClipboardForPaste
-                    )
+                    syntheticPasteSucceeded = await pasteWithClipboardProtection(text: rewritten)
                 } else {
                     clipboardService.writeToClipboard(rewritten)
                 }
@@ -730,10 +712,10 @@ final class ActivationStore: ObservableObject {
         soundPlayer.playFailure()
     }
 
-    private func pasteWithClipboardProtection(
-        text: String,
-        originalClipboard: ClipboardSnapshot?
-    ) async -> Bool {
+    private func pasteWithClipboardProtection(text: String) async -> Bool {
+        let originalClipboard = shouldRestorePreviousClipboardAfterAutoPaste
+            ? clipboardService.snapshotCurrentClipboard()
+            : nil
         guard let receipt = clipboardService.writeTemporaryText(text) else {
             return false
         }

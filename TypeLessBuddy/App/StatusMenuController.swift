@@ -193,7 +193,7 @@ final class StatusMenuController: NSObject, NSMenuDelegate {
             menu.addItem(setupItem)
             menu.addItem(
                 actionItem(
-                    title: "Quick Guides",
+                    title: "Guides",
                     action: #selector(openGuideFromMenu),
                     enabled: true,
                     symbolNames: ["book.closed", "questionmark.circle"]
@@ -222,6 +222,7 @@ final class StatusMenuController: NSObject, NSMenuDelegate {
                 )
             }
 
+            menu.addItem(microphoneMenuItem())
             menu.addItem(.separator())
 
             menu.addItem(
@@ -241,10 +242,9 @@ final class StatusMenuController: NSObject, NSMenuDelegate {
                 )
             )
             menu.addItem(.separator())
-            menu.addItem(microphoneMenuItem())
             menu.addItem(
                 actionItem(
-                    title: "Quick Guides",
+                    title: "Guides",
                     action: #selector(openGuideFromMenu),
                     enabled: true,
                     symbolNames: ["book.closed", "questionmark.circle"]

@@ -72,7 +72,7 @@ actor CloudLLMRewriteService: LLMRewriting {
         }
 
         let text = try extractText(from: data)
-        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        let trimmed = LLMRewriteService.sanitizeGeneratedOutput(text)
         guard !trimmed.isEmpty else {
             throw LLMRewriteError.emptyOutput
         }
