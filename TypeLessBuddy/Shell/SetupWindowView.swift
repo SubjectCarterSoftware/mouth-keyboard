@@ -22,6 +22,7 @@ private enum SettingsSection: String, CaseIterable, Identifiable {
     case setup
     case general
     case assistant
+    case replacements
     case shortcuts
     case advanced
 
@@ -37,10 +38,23 @@ private enum SettingsSection: String, CaseIterable, Identifiable {
             return "General"
         case .assistant:
             return "Assistant"
+        case .replacements:
+            return "Word Replacements"
         case .shortcuts:
-            return "Shortcuts"
+            return "Keyboard Shortcuts"
         case .advanced:
             return "Advanced"
+        }
+    }
+
+    var sidebarTitle: String {
+        switch self {
+        case .replacements:
+            return "Replacements"
+        case .shortcuts:
+            return "Keyboard"
+        default:
+            return title
         }
     }
 }
@@ -271,27 +285,6 @@ private struct HoldShortcutRecorder: View {
     @State private var modifiersBeforeRecording: UInt?
     @State private var lastCancelTime: Date = .distantPast
 
-    private static let modifierKeyCodes: Set<Int> = [54, 55, 56, 58, 59, 60, 61, 62, 63]
-
-    private static let modifierKeyNames: [Int: String] = [
-        54: "Right ⌘", 55: "Left ⌘",
-        56: "Left ⇧",
-        58: "Left ⌥", 59: "Left ⌃",
-        60: "Right ⇧", 61: "Right ⌥",
-        62: "Right ⌃", 63: "fn",
-    ]
-
-    private static func modifierFlag(for keyCode: Int) -> NSEvent.ModifierFlags {
-        switch keyCode {
-        case 54, 55: return .command
-        case 56, 60: return .shift
-        case 58, 61: return .option
-        case 59, 62: return .control
-        case 63: return .function
-        default: return []
-        }
-    }
-
     static func displayName(keyCode: Int, modifiers: UInt) -> String {
         let nsFlags = NSEvent.ModifierFlags(rawValue: modifiers)
         var symbols = ""
@@ -300,7 +293,7 @@ private struct HoldShortcutRecorder: View {
         if nsFlags.contains(.shift) { symbols += "⇧" }
         if nsFlags.contains(.command) { symbols += "⌘" }
 
-        if let modName = modifierKeyNames[keyCode] {
+        if let modName = HoldModifierKey.displayName(for: keyCode) {
             return symbols.isEmpty ? modName : symbols + " " + modName
         }
 
@@ -355,7 +348,7 @@ private struct HoldShortcutRecorder: View {
                     return nil
                 }
                 pendingModifierKeyCode = nil
-                let relevantModifiers: NSEvent.ModifierFlags = [.command, .option, .shift, .control]
+                let relevantModifiers = HoldModifierKey.relevantNSEventFlags
                 let kc = Int(event.keyCode)
                 let mods = event.modifierFlags.intersection(relevantModifiers).rawValue
                 if !conflictsWithOtherBindings(keyCode: kc, modifiers: mods) {
@@ -368,12 +361,12 @@ private struct HoldShortcutRecorder: View {
 
             if event.type == .flagsChanged {
                 let kc = Int(event.keyCode)
-                if Self.modifierKeyCodes.contains(kc) {
-                    let flag = Self.modifierFlag(for: kc)
+                if HoldModifierKey.contains(kc) {
+                    let flag = HoldModifierKey.nsEventFlag(for: kc)
                     if event.modifierFlags.contains(flag) {
                         pendingModifierKeyCode = kc
                     } else if pendingModifierKeyCode == kc {
-                        let relevantModifiers: NSEvent.ModifierFlags = [.command, .option, .shift, .control]
+                        let relevantModifiers = HoldModifierKey.relevantNSEventFlags
                         let remaining = event.modifierFlags.intersection(relevantModifiers)
                         if remaining.isEmpty {
                             recordKey(keyCode: kc, modifiers: 0)
@@ -559,7 +552,7 @@ private struct SettingsSidebarButton: View {
     var body: some View {
         Button(action: action) {
             HStack {
-                Text(section.title)
+                Text(section.sidebarTitle)
                     .font(.body.weight(isActive ? .semibold : .regular))
                 Spacer(minLength: 8)
             }
@@ -724,6 +717,114 @@ private struct PlaySoundEffectsRow: View {
     }
 }
 
+private struct PillPositionPickerRow: View {
+    private struct GridCell: Identifiable {
+        let id: String
+        let position: RecordingPillPosition?
+        let accessibilityIdentifier: String?
+    }
+
+    @Binding var selection: RecordingPillPosition
+    let onHoverChange: (RecordingPillPosition?) -> Void
+
+    private let tileSize: CGFloat = 40
+    private let tileCornerRadius: CGFloat = 10
+    private let gridDimension: CGFloat = 120
+    private let columns = Array(repeating: GridItem(.fixed(40), spacing: 0), count: 3)
+    private let cells: [GridCell] = [
+        GridCell(id: "topLeft", position: .topLeft, accessibilityIdentifier: "setupWindow.pillPosition.topLeft"),
+        GridCell(id: "topCenter", position: .topCenter, accessibilityIdentifier: "setupWindow.pillPosition.topCenter"),
+        GridCell(id: "topRight", position: .topRight, accessibilityIdentifier: "setupWindow.pillPosition.topRight"),
+        GridCell(id: "centerLeft", position: .centerLeft, accessibilityIdentifier: "setupWindow.pillPosition.centerLeft"),
+        GridCell(id: "centerSpacer", position: nil, accessibilityIdentifier: nil),
+        GridCell(id: "centerRight", position: .centerRight, accessibilityIdentifier: "setupWindow.pillPosition.centerRight"),
+        GridCell(id: "bottomLeft", position: .bottomLeft, accessibilityIdentifier: "setupWindow.pillPosition.bottomLeft"),
+        GridCell(id: "bottomCenter", position: .bottomCenter, accessibilityIdentifier: "setupWindow.pillPosition.bottomCenter"),
+        GridCell(id: "bottomRight", position: .bottomRight, accessibilityIdentifier: "setupWindow.pillPosition.bottomRight"),
+    ]
+
+    var body: some View {
+        LazyVGrid(columns: columns, alignment: .leading, spacing: 0) {
+            ForEach(cells) { cell in
+                cellView(for: cell)
+            }
+        }
+        .clipShape(
+            UnevenRoundedRectangle(
+                cornerRadii: .init(
+                    topLeading: tileCornerRadius,
+                    bottomLeading: tileCornerRadius,
+                    bottomTrailing: tileCornerRadius,
+                    topTrailing: tileCornerRadius
+                ),
+                style: .continuous
+            )
+        )
+        .overlay(
+            UnevenRoundedRectangle(
+                cornerRadii: .init(
+                    topLeading: tileCornerRadius,
+                    bottomLeading: tileCornerRadius,
+                    bottomTrailing: tileCornerRadius,
+                    topTrailing: tileCornerRadius
+                ),
+                style: .continuous
+            )
+            .stroke(Color.white.opacity(0.08), lineWidth: 1)
+        )
+        .frame(width: gridDimension, height: gridDimension, alignment: .topLeading)
+        .onHover { isHovering in
+            if !isHovering {
+                onHoverChange(nil)
+            }
+        }
+        .onDisappear {
+            onHoverChange(nil)
+        }
+    }
+
+    @ViewBuilder
+    private func cellView(for cell: GridCell) -> some View {
+        if let position = cell.position, let accessibilityIdentifier = cell.accessibilityIdentifier {
+            positionButton(for: position, accessibilityIdentifier: accessibilityIdentifier)
+        } else {
+            Rectangle()
+                .fill(Color.primary.opacity(0.08))
+                .frame(width: tileSize, height: tileSize)
+                .overlay(Rectangle().stroke(Color.white.opacity(0.06), lineWidth: 0.5))
+                .accessibilityHidden(true)
+        }
+    }
+
+    private func positionButton(
+        for position: RecordingPillPosition,
+        accessibilityIdentifier: String
+    ) -> some View {
+        let isSelected = selection == position
+
+        return Button {
+            selection = position
+        } label: {
+            Rectangle()
+                .fill(isSelected ? Color.accentColor : Color.primary.opacity(0.06))
+                .overlay(Rectangle().stroke(
+                    isSelected ? Color.accentColor.opacity(0.9) : Color.white.opacity(0.06),
+                    lineWidth: 0.5
+                ))
+                .frame(width: tileSize, height: tileSize)
+        }
+        .buttonStyle(.plain)
+        .onHover { isHovering in
+            if isHovering {
+                onHoverChange(position)
+            }
+        }
+        .accessibilityIdentifier(accessibilityIdentifier)
+        .accessibilityLabel(position.displayName)
+        .accessibilityValue(isSelected ? "Selected" : "Not selected")
+    }
+}
+
 private struct ImmediateHelpIcon: View {
     let text: String
     @State private var isHovering = false
@@ -780,20 +881,17 @@ private struct CircularProgressRing: View {
 }
 
 private struct ModelDownloadStatusRow: View {
-    let modelName: String
-    let progress: Double?  // nil = prewarming (indeterminate)
+    let title: String
+    let message: String
+    let progress: Double?  // nil = indeterminate
 
     var body: some View {
         HStack(alignment: .center, spacing: 12) {
             VStack(alignment: .leading, spacing: 2) {
-                Text(progress != nil ? "Preparing speech model" : "Loading speech model")
+                Text(title)
                     .font(.subheadline.weight(.medium))
                     .foregroundStyle(.primary)
-                Text(
-                    progress != nil
-                        ? "\(modelName) is downloading in the background and will be ready for first use when complete."
-                        : "\(modelName) is being compiled for your hardware. This only happens once."
-                )
+                Text(message)
                 .font(.caption)
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
@@ -834,6 +932,7 @@ struct SetupWindowView: View {
     @State private var flashedSection: SettingsSection?
     @State private var flashNonce: Int = 0
     @State private var scheduledFlashTask: Task<Void, Never>?
+    let updatePillPositionPreview: (RecordingPillPosition?) -> Void
     let dismissWindow: () -> Void
     let openGuide: () -> Void
 
@@ -915,6 +1014,17 @@ struct SetupWindowView: View {
             },
             set: { newValue in
                 preferences.muteSoundEffects = !newValue
+            }
+        )
+    }
+
+    private var recordingPillPositionBinding: Binding<RecordingPillPosition> {
+        Binding(
+            get: {
+                preferences.recordingPillPosition
+            },
+            set: { newValue in
+                preferences.recordingPillPosition = newValue
             }
         )
     }
@@ -1163,11 +1273,13 @@ struct SetupWindowView: View {
     init(
         preferences: ShellPreferences,
         readinessStore: ReadinessStore,
+        updatePillPositionPreview: @escaping (RecordingPillPosition?) -> Void,
         dismissWindow: @escaping () -> Void,
         openGuide: @escaping () -> Void
     ) {
         self.preferences = preferences
         self.readinessStore = readinessStore
+        self.updatePillPositionPreview = updatePillPositionPreview
         self.dismissWindow = dismissWindow
         self.openGuide = openGuide
         _assistantSettingsViewModel = StateObject(
@@ -1556,44 +1668,96 @@ struct SetupWindowView: View {
 
     private var setupSectionContent: some View {
         SettingsSectionCard(section: .setup, flashTrigger: flashTrigger(for: .setup)) {
-            PermissionChecklistView(
-                permissions: readinessStore.snapshot.permissions,
-                requestPermission: { kind in readinessStore.requestPermission(for: kind) },
-                openRecovery: { kind in readinessStore.openRecovery(for: kind) },
-                launchAtLoginEnabled: preferences.launchAtLogin,
-                onToggleLaunchAtLogin: { preferences.setLaunchAtLogin($0) }
+            VStack(alignment: .leading, spacing: 16) {
+                setupModelStatusContent
+
+                PermissionChecklistView(
+                    permissions: readinessStore.snapshot.permissions,
+                    requestPermission: { kind in readinessStore.requestPermission(for: kind) },
+                    openRecovery: { kind in readinessStore.openRecovery(for: kind) },
+                    launchAtLoginEnabled: preferences.launchAtLogin,
+                    onToggleLaunchAtLogin: { preferences.setLaunchAtLogin($0) }
+                )
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var setupModelStatusContent: some View {
+        if case .downloading(let model, let progress) = whisperModelLoadState.phase,
+           model == preferences.whisperModel {
+            ModelDownloadStatusRow(
+                title: "Preparing speech model",
+                message: "\(model.displayName) is downloading in the background and will be ready for first use when complete.",
+                progress: progress
             )
+            .accessibilityIdentifier("setupWindow.setupStatus.whisperDownload")
+        } else if case .prewarming(let model) = whisperModelLoadState.phase,
+                  model == preferences.whisperModel {
+            ModelDownloadStatusRow(
+                title: "Loading speech model",
+                message: "\(model.displayName) is being compiled for your hardware. This only happens once.",
+                progress: nil
+            )
+            .accessibilityIdentifier("setupWindow.setupStatus.whisperPrewarm")
+        }
+
+        if case .downloading(let tier, let progress) = modelLoadState.phase,
+           tier == preferences.rewriteModelTier {
+            ModelDownloadStatusRow(
+                title: "Preparing conversion model",
+                message: "\(tier.displayName) is downloading in the background and will be ready for rewrites when complete.",
+                progress: progress
+            )
+            .accessibilityIdentifier("setupWindow.setupStatus.rewriteDownload")
         }
     }
 
     private var generalSectionContent: some View {
         SettingsSectionCard(section: .general, flashTrigger: flashTrigger(for: .general)) {
-            VStack(alignment: .leading, spacing: 14) {
-                SetupFieldRow(title: "Microphone") {
-                    Picker("", selection: microphoneSelection) {
-                        Text("System Default").tag(Optional<String>.none)
-                        ForEach(audioDeviceService.availableDevices) { device in
-                            Text(device.name).tag(Optional(device.uid))
+            HStack(alignment: .top, spacing: 28) {
+                VStack(alignment: .leading, spacing: 14) {
+                    SetupFieldRow(title: "Microphone") {
+                        Picker("", selection: microphoneSelection) {
+                            Text("System Default").tag(Optional<String>.none)
+                            ForEach(audioDeviceService.availableDevices) { device in
+                                Text(device.name).tag(Optional(device.uid))
+                            }
                         }
+                        .labelsHidden()
+                        .pickerStyle(.menu)
+                        .frame(maxWidth: 240, alignment: .leading)
                     }
-                    .labelsHidden()
-                    .pickerStyle(.menu)
-                }
 
-                SetupFieldRow(title: "Auto Paste") {
-                    AlwaysAutoPasteRow(isOn: alwaysAutoPasteBinding)
-                }
+                    SetupFieldRow(title: "Auto Paste") {
+                        AlwaysAutoPasteRow(isOn: alwaysAutoPasteBinding)
+                    }
 
-                SetupFieldRow(title: "Restore Clipboard") {
-                    RestoreClipboardRow(
-                        isOn: restorePreviousClipboardBinding,
-                        isAutoPasteEnabled: preferences.alwaysAutoPaste
+                    SetupFieldRow(title: "Restore Clipboard") {
+                        RestoreClipboardRow(
+                            isOn: restorePreviousClipboardBinding,
+                            isAutoPasteEnabled: preferences.alwaysAutoPaste
+                        )
+                    }
+
+                    SetupFieldRow(title: "Play sound effects") {
+                        PlaySoundEffectsRow(isOn: playSoundEffectsBinding)
+                    }
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+
+                VStack(spacing: 10) {
+                    Text("Pill Position")
+                        .font(.body)
+                        .frame(maxWidth: .infinity, alignment: .center)
+
+                    PillPositionPickerRow(
+                        selection: recordingPillPositionBinding,
+                        onHoverChange: updatePillPositionPreview
                     )
+                    .frame(maxWidth: .infinity, alignment: .center)
                 }
-
-                SetupFieldRow(title: "Play sound effects") {
-                    PlaySoundEffectsRow(isOn: playSoundEffectsBinding)
-                }
+                .frame(width: 180, alignment: .center)
             }
         }
     }
@@ -1619,6 +1783,12 @@ struct SetupWindowView: View {
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
             }
+        }
+    }
+
+    private var replacementsSectionContent: some View {
+        SettingsSectionCard(section: .replacements, flashTrigger: flashTrigger(for: .replacements)) {
+            ReplacementsSectionView(preferences: preferences)
         }
     }
 
@@ -1675,14 +1845,6 @@ struct SetupWindowView: View {
                 VStack(alignment: .leading, spacing: 16) {
                     Divider()
                         .overlay(Color.white.opacity(0.08))
-
-                    if case .downloading(let model, let progress) = whisperModelLoadState.phase,
-                       model == preferences.whisperModel {
-                        ModelDownloadStatusRow(modelName: model.displayName, progress: progress)
-                    } else if case .prewarming(let model) = whisperModelLoadState.phase,
-                              model == preferences.whisperModel {
-                        ModelDownloadStatusRow(modelName: model.displayName, progress: nil)
-                    }
 
                     VStack(alignment: .leading, spacing: 8) {
                         HStack(alignment: .firstTextBaseline, spacing: 12) {
@@ -1821,6 +1983,10 @@ struct SetupWindowView: View {
                                     assistantSectionContent
                                 }
 
+                                trackedSection(.replacements) {
+                                    replacementsSectionContent
+                                }
+
                                 trackedSection(.shortcuts) {
                                     shortcutsSectionContent
                                 }
@@ -1892,6 +2058,7 @@ struct SetupWindowView: View {
             NSApp.activate(ignoringOtherApps: true)
         }
         .onDisappear {
+            updatePillPositionPreview(nil)
             assistantSettingsViewModel.handleSettingsDismissed()
         }
         .onReceive(Timer.publish(every: 3, on: .main, in: .common).autoconnect()) { _ in

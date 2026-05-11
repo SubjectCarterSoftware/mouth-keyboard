@@ -19,6 +19,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     private let forcePresentSetupOnLaunch = ProcessInfo.processInfo.arguments.contains("-open-setup-window")
 
     private var pillPanel: RecordingPillPanel?
+    private var pillPreviewPanel: RecordingPillPreviewPanel?
     private var stateObservation: AnyCancellable?
     private var permissionStartupTask: Task<Void, Never>?
     private var hasRequestedAccessibilityPromptThisRun = false
@@ -95,7 +96,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
 
 
         // Create the pill panel once — shown/hidden reactively via RecordingPillPanel's own state observer.
-        pillPanel = RecordingPillPanel(levelMonitor: levelMonitor, activationStore: activationStore)
+        pillPanel = RecordingPillPanel(
+            levelMonitor: levelMonitor,
+            activationStore: activationStore,
+            preferences: preferences
+        )
+        pillPreviewPanel = RecordingPillPreviewPanel(activationStore: activationStore)
 
         // Observe ActivationStore state to drive audio capture and menu bar icon.
         // Keep delivery on the current actor so recording startup does not pay
@@ -339,6 +345,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             rootView: SetupWindowView(
                 preferences: preferences,
                 readinessStore: readinessStore,
+                updatePillPositionPreview: { [weak self] position in
+                    self?.pillPreviewPanel?.updatePreview(position: position)
+                },
                 dismissWindow: { [weak self] in
                     self?.dismissSetupWindow()
                 },
@@ -354,6 +363,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     }
 
     func dismissSetupWindow() {
+        pillPreviewPanel?.updatePreview(position: nil)
         setupWindow?.performClose(nil)
     }
 
@@ -407,6 +417,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         }
 
         if closingWindow == setupWindow {
+            pillPreviewPanel?.updatePreview(position: nil)
             setupWindow = nil
         }
 

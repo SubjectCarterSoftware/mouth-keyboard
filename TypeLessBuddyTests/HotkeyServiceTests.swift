@@ -205,29 +205,6 @@ final class HotkeyServiceTests: XCTestCase {
         XCTAssertEqual(finishHoldCount, 0)
     }
 
-    func testInterferingKeyDownCancelsActiveHoldSession() {
-        var cancelCount = 0
-        var finishHoldCount = 0
-        let service = HotkeyService(
-            currentState: { .recording },
-            onArm: {},
-            onCancel: {
-                cancelCount += 1
-            },
-            onBeginHold: { true },
-            onFinishHold: {
-                finishHoldCount += 1
-            }
-        )
-
-        service.handleHoldKeyStateChange(isPressed: true)
-        service.handleInterferingKeyDown()
-        service.handleHoldKeyStateChange(isPressed: false)
-
-        XCTAssertEqual(cancelCount, 1)
-        XCTAssertEqual(finishHoldCount, 0)
-    }
-
     func testHoldKeyPressDoesNothingWhenHoldStartIsRejected() {
         var beginHoldCount = 0
         var finishHoldCount = 0
@@ -278,5 +255,161 @@ final class HotkeyServiceTests: XCTestCase {
         service.handleHoldKeyStateChange(isPressed: true)
 
         XCTAssertEqual(beginCount, 1)
+    }
+
+    func testModifierTargetKeyDownDoesNotCancelHeldRightOption() {
+        let monitor = HoldToTranscribeMonitor()
+        monitor.updateTarget(keyCode: 61, modifiers: 0)
+
+        var pressCount = 0
+        monitor.onHoldKeyPressed = {
+            pressCount += 1
+        }
+
+        monitor.handleModifierFlagsChanged(keyCode: 61, flags: .maskAlternate)
+        monitor.handleKeyDownEvent(keyCode: 61, isAutoRepeat: false)
+
+        XCTAssertEqual(pressCount, 1)
+    }
+
+    func testModifierTargetKeyDownDoesNotCancelHeldFn() {
+        let monitor = HoldToTranscribeMonitor()
+        monitor.updateTarget(keyCode: 63, modifiers: 0)
+
+        var pressCount = 0
+        monitor.onHoldKeyPressed = {
+            pressCount += 1
+        }
+
+        monitor.handleModifierFlagsChanged(keyCode: 63, flags: .maskSecondaryFn)
+        monitor.handleKeyDownEvent(keyCode: 63, isAutoRepeat: false)
+
+        XCTAssertEqual(pressCount, 1)
+    }
+
+    func testAlternateModifierReleaseDoesNotFinishOwnerSession() {
+        let monitor = HoldToTranscribeMonitor()
+        monitor.updateTarget(keyCode: 61, modifiers: 0)
+        monitor.updateSecondaryTarget(keyCode: 63, modifiers: 0)
+
+        var pressCount = 0
+        var releaseCount = 0
+        monitor.onHoldKeyPressed = {
+            pressCount += 1
+        }
+        monitor.onHoldKeyReleased = {
+            releaseCount += 1
+        }
+
+        monitor.handleModifierFlagsChanged(keyCode: 61, flags: .maskAlternate)
+        monitor.handleModifierFlagsChanged(keyCode: 63, flags: [])
+
+        XCTAssertEqual(pressCount, 1)
+        XCTAssertEqual(releaseCount, 0)
+    }
+
+    func testOwnerModifierReleaseFinishesSession() {
+        let monitor = HoldToTranscribeMonitor()
+        monitor.updateTarget(keyCode: 61, modifiers: 0)
+        monitor.updateSecondaryTarget(keyCode: 63, modifiers: 0)
+
+        let releaseExpectation = expectation(description: "modifier release finishes")
+        monitor.onHoldKeyPressed = {}
+        monitor.onHoldKeyReleased = {
+            releaseExpectation.fulfill()
+        }
+
+        monitor.handleModifierFlagsChanged(keyCode: 61, flags: .maskAlternate)
+        monitor.handleModifierFlagsChanged(keyCode: 61, flags: [])
+
+        wait(for: [releaseExpectation], timeout: 0.2)
+    }
+
+    func testAlternateRegularKeyReleaseDoesNotFinishModifierOwnerSession() {
+        let monitor = HoldToTranscribeMonitor()
+        monitor.updateTarget(keyCode: 61, modifiers: 0)
+        monitor.updateSecondaryTarget(keyCode: 49, modifiers: 0)
+
+        var releaseCount = 0
+        monitor.onHoldKeyPressed = {}
+        monitor.onHoldKeyReleased = {
+            releaseCount += 1
+        }
+
+        monitor.handleModifierFlagsChanged(keyCode: 61, flags: .maskAlternate)
+        monitor.handleKeyUpEvent(keyCode: 49)
+
+        XCTAssertEqual(releaseCount, 0)
+    }
+
+    func testAlternateModifierPressDoesNotStartWhileRegularOwnerIsActive() {
+        let monitor = HoldToTranscribeMonitor()
+        monitor.updateTarget(keyCode: 49, modifiers: 0)
+        monitor.updateSecondaryTarget(keyCode: 61, modifiers: 0)
+
+        var pressCount = 0
+        monitor.onHoldKeyPressed = {
+            pressCount += 1
+        }
+
+        monitor.handleKeyDownEvent(keyCode: 49, isAutoRepeat: false)
+        monitor.handleModifierFlagsChanged(keyCode: 61, flags: .maskAlternate)
+
+        XCTAssertEqual(pressCount, 1)
+    }
+
+    func testOwnerRegularKeyUpFinishesMixedBindingSession() {
+        let monitor = HoldToTranscribeMonitor()
+        monitor.updateTarget(keyCode: 49, modifiers: 0)
+        monitor.updateSecondaryTarget(keyCode: 61, modifiers: 0)
+
+        var pressCount = 0
+        var releaseCount = 0
+        monitor.onHoldKeyPressed = {
+            pressCount += 1
+        }
+        monitor.onHoldKeyReleased = {
+            releaseCount += 1
+        }
+
+        monitor.handleKeyDownEvent(keyCode: 49, isAutoRepeat: false)
+        monitor.handleKeyUpEvent(keyCode: 49)
+
+        XCTAssertEqual(pressCount, 1)
+        XCTAssertEqual(releaseCount, 1)
+    }
+
+    func testDroppingRequiredModifierFinishesOwningRegularKeySession() {
+        let monitor = HoldToTranscribeMonitor()
+        let controlMask = UInt(1 << 18)
+        monitor.updateTarget(keyCode: 9, modifiers: controlMask)
+
+        var releaseCount = 0
+        monitor.onHoldKeyPressed = {}
+        monitor.onHoldKeyReleased = {
+            releaseCount += 1
+        }
+
+        monitor.handleKeyDownEvent(keyCode: 9, isAutoRepeat: false, eventFlags: .maskControl)
+        monitor.handleModifierFlagsChanged(keyCode: 59, flags: [])
+
+        XCTAssertEqual(releaseCount, 1)
+    }
+
+    func testUnrelatedKeyPressDoesNotFinishActiveHoldSession() {
+        let monitor = HoldToTranscribeMonitor()
+        monitor.updateTarget(keyCode: 61, modifiers: 0)
+
+        var releaseCount = 0
+        monitor.onHoldKeyPressed = {}
+        monitor.onHoldKeyReleased = {
+            releaseCount += 1
+        }
+
+        monitor.handleModifierFlagsChanged(keyCode: 61, flags: .maskAlternate)
+        monitor.handleKeyDownEvent(keyCode: 12, isAutoRepeat: false)
+        monitor.handleKeyUpEvent(keyCode: 12)
+
+        XCTAssertEqual(releaseCount, 0)
     }
 }

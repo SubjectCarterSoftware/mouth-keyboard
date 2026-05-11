@@ -100,6 +100,30 @@ final class PermissionRecoveryFlowTests: XCTestCase {
         XCTAssertTrue(restoreToggle.exists)
     }
 
+    func testPillPositionSettingAppearsInSetupWindow() {
+        let app = XCUIApplication()
+        app.launchArguments = [
+            "-ui-testing",
+            "-reset-shell-preferences",
+            "-open-setup-window",
+            "-mock-microphone-status", "authorized",
+            "-mock-postevent-status", "authorized",
+            "-mock-keyboard-status", "authorized",
+        ]
+
+        app.launch()
+
+        XCTAssertTrue(app.staticTexts["setupWindow.title"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.buttons["setupWindow.pillPosition.topLeft"].exists)
+        XCTAssertTrue(app.buttons["setupWindow.pillPosition.topCenter"].exists)
+        XCTAssertTrue(app.buttons["setupWindow.pillPosition.topRight"].exists)
+        XCTAssertTrue(app.buttons["setupWindow.pillPosition.centerLeft"].exists)
+        XCTAssertTrue(app.buttons["setupWindow.pillPosition.centerRight"].exists)
+        XCTAssertTrue(app.buttons["setupWindow.pillPosition.bottomLeft"].exists)
+        XCTAssertTrue(app.buttons["setupWindow.pillPosition.bottomCenter"].exists)
+        XCTAssertTrue(app.buttons["setupWindow.pillPosition.bottomRight"].exists)
+    }
+
     func testHoldToTranscribeRowShowsRecoveryActionWhenAccessibilityIsBlocked() {
         let app = XCUIApplication()
         app.launchArguments = [

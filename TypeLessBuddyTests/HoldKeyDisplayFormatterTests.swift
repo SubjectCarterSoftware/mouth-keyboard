@@ -78,4 +78,18 @@ final class HoldKeyDisplayFormatterTests: XCTestCase {
         XCTAssertEqual(HoldKeyDisplayFormatter.symbol(keyCode: 61, modifiers: optionBit), "⌥")
     }
 
+    func testModifierKeySetContainsAllSupportedModifierOnlyHoldKeys() {
+        XCTAssertEqual(
+            HoldModifierKey.allCases.map(\.rawValue).sorted(),
+            [54, 55, 56, 58, 59, 60, 61, 62, 63]
+        )
+    }
+
+    func testModifierKeyFlagsMatchExpectedMappings() {
+        XCTAssertEqual(HoldModifierKey.rightCommand.cgEventFlag, .maskCommand)
+        XCTAssertEqual(HoldModifierKey.leftShift.cgEventFlag, .maskShift)
+        XCTAssertEqual(HoldModifierKey.rightOption.cgEventFlag, .maskAlternate)
+        XCTAssertEqual(HoldModifierKey.leftControl.cgEventFlag, .maskControl)
+        XCTAssertEqual(HoldModifierKey.fn.cgEventFlag, .maskSecondaryFn)
+    }
 }

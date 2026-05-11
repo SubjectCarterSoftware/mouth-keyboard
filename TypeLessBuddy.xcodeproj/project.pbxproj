@@ -64,6 +64,12 @@
 		A00000010000000000000041 /* StringSimilarity.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000020000000000000041 /* StringSimilarity.swift */; };
 		A00000010000000000000042 /* StringSimilarityTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000020000000000000042 /* StringSimilarityTests.swift */; };
 		A00000010000000000000049 /* TriggerProfile.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000020000000000000049 /* TriggerProfile.swift */; };
+		A00000010000000000000100 /* WordReplacement.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000020000000000000100 /* WordReplacement.swift */; };
+		A00000010000000000000102 /* TextReplacementEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000020000000000000102 /* TextReplacementEngine.swift */; };
+		A00000010000000000000103 /* DictionaryStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000020000000000000103 /* DictionaryStore.swift */; };
+		A00000010000000000000104 /* DictionarySettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000020000000000000104 /* DictionarySettingsView.swift */; };
+		A00000010000000000000105 /* TextReplacementEngineTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000020000000000000105 /* TextReplacementEngineTests.swift */; };
+		A00000010000000000000106 /* DictionaryStoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000020000000000000106 /* DictionaryStoreTests.swift */; };
 		A0000001000000000000004A /* TriggerProfileStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0000002000000000000004A /* TriggerProfileStore.swift */; };
 		A0000001000000000000004B /* TriggerProfileStoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0000002000000000000004B /* TriggerProfileStoreTests.swift */; };
 		A00000010000000000000050 /* TriggerTranscriptParserTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000020000000000000050 /* TriggerTranscriptParserTests.swift */; };
@@ -89,6 +95,7 @@
 		A00000010000000000000081 /* StatusMenuController.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000020000000000000081 /* StatusMenuController.swift */; };
 		A00000010000000000000082 /* ShortcutBindingPolicy.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000020000000000000082 /* ShortcutBindingPolicy.swift */; };
 		A00000010000000000000083 /* ShortcutBindingPolicyTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000020000000000000083 /* ShortcutBindingPolicyTests.swift */; };
+		A00000010000000000000085 /* RewritePipelineBenchmarkTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000020000000000000085 /* RewritePipelineBenchmarkTests.swift */; };
 		A00000010000000000000084 /* GuideWindowView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000020000000000000084 /* GuideWindowView.swift */; };
 		A000000100000000000000F1 /* AssistantDefaults.swift in Sources */ = {isa = PBXBuildFile; fileRef = A000000200000000000000F1 /* AssistantDefaults.swift */; };
 		A000000100000000000000FF /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = A000000200000000000000FF /* Assets.xcassets */; };
@@ -169,6 +176,12 @@
 		A00000020000000000000041 /* StringSimilarity.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StringSimilarity.swift; sourceTree = "<group>"; };
 		A00000020000000000000042 /* StringSimilarityTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StringSimilarityTests.swift; sourceTree = "<group>"; };
 		A00000020000000000000049 /* TriggerProfile.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TriggerProfile.swift; sourceTree = "<group>"; };
+		A00000020000000000000100 /* WordReplacement.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WordReplacement.swift; sourceTree = "<group>"; };
+		A00000020000000000000102 /* TextReplacementEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TextReplacementEngine.swift; sourceTree = "<group>"; };
+		A00000020000000000000103 /* DictionaryStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DictionaryStore.swift; sourceTree = "<group>"; };
+		A00000020000000000000104 /* DictionarySettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DictionarySettingsView.swift; sourceTree = "<group>"; };
+		A00000020000000000000105 /* TextReplacementEngineTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TextReplacementEngineTests.swift; sourceTree = "<group>"; };
+		A00000020000000000000106 /* DictionaryStoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DictionaryStoreTests.swift; sourceTree = "<group>"; };
 		A0000002000000000000004A /* TriggerProfileStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TriggerProfileStore.swift; sourceTree = "<group>"; };
 		A0000002000000000000004B /* TriggerProfileStoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TriggerProfileStoreTests.swift; sourceTree = "<group>"; };
 		A00000020000000000000050 /* TriggerTranscriptParserTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TriggerTranscriptParserTests.swift; sourceTree = "<group>"; };
@@ -194,6 +207,7 @@
 		A00000020000000000000081 /* StatusMenuController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StatusMenuController.swift; sourceTree = "<group>"; };
 		A00000020000000000000082 /* ShortcutBindingPolicy.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShortcutBindingPolicy.swift; sourceTree = "<group>"; };
 		A00000020000000000000083 /* ShortcutBindingPolicyTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShortcutBindingPolicyTests.swift; sourceTree = "<group>"; };
+		A00000020000000000000085 /* RewritePipelineBenchmarkTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RewritePipelineBenchmarkTests.swift; sourceTree = "<group>"; };
 		A00000020000000000000084 /* GuideWindowView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GuideWindowView.swift; sourceTree = "<group>"; };
 		A000000200000000000000F1 /* AssistantDefaults.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AssistantDefaults.swift; sourceTree = "<group>"; };
 		A000000200000000000000FF /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
@@ -286,6 +300,7 @@
 		A00000040000000000000005 /* Shell */ = {
 			isa = PBXGroup;
 			children = (
+				A00000020000000000000104 /* DictionarySettingsView.swift */,
 				A00000020000000000000084 /* GuideWindowView.swift */,
 				A0000002000000000000000C /* PermissionChecklistView.swift */,
 				A00000020000000000000063 /* HoldKeyDisplayFormatter.swift */,
@@ -302,6 +317,7 @@
 		A00000040000000000000006 /* Persistence */ = {
 			isa = PBXGroup;
 			children = (
+				A00000020000000000000103 /* DictionaryStore.swift */,
 				A00000020000000000000007 /* ShellPreferences.swift */,
 				A00000020000000000000061 /* StoreURLResolver.swift */,
 				A00000020000000000000062 /* StoreQuarantine.swift */,
@@ -333,7 +349,9 @@
 			isa = PBXGroup;
 			children = (
 				A00000020000000000000015 /* ActivationStoreTests.swift */,
+				A00000020000000000000106 /* DictionaryStoreTests.swift */,
 				A00000020000000000000064 /* HoldKeyDisplayFormatterTests.swift */,
+				A00000020000000000000105 /* TextReplacementEngineTests.swift */,
 				A0000002000000000000001B /* AudioCaptureServiceTests.swift */,
 				A0000002000000000000002B /* AudioBufferAccumulatorTests.swift */,
 				A00000020000000000000032 /* VoiceActivityDetectorTests.swift */,
@@ -353,6 +371,7 @@
 				A00000020000000000000053 /* AIAssistantSettingsViewModelTests.swift */,
 				A00000020000000000000078 /* CloudLLMTests.swift */,
 				A00000020000000000000083 /* ShortcutBindingPolicyTests.swift */,
+				A00000020000000000000085 /* RewritePipelineBenchmarkTests.swift */,
 			);
 			path = TypeLessBuddyTests;
 			sourceTree = "<group>";
@@ -375,10 +394,12 @@
 				A0000002000000000000001A /* HotkeyService.swift */,
 				A00000020000000000000018 /* RecordingState.swift */,
 				A00000020000000000000082 /* ShortcutBindingPolicy.swift */,
+				A00000020000000000000102 /* TextReplacementEngine.swift */,
 				A00000020000000000000049 /* TriggerProfile.swift */,
 				A0000002000000000000004A /* TriggerProfileStore.swift */,
 				A00000020000000000000051 /* TriggerTranscriptParser.swift */,
 				A00000020000000000000052 /* TriggerTranscriptSplit.swift */,
+				A00000020000000000000100 /* WordReplacement.swift */,
 			);
 			path = Activation;
 			sourceTree = "<group>";
@@ -607,6 +628,10 @@
 				A0000001000000000000001D /* RecordingPillView.swift in Sources */,
 				A00000010000000000000014 /* RecordingState.swift in Sources */,
 				A00000010000000000000049 /* TriggerProfile.swift in Sources */,
+				A00000010000000000000100 /* WordReplacement.swift in Sources */,
+				A00000010000000000000102 /* TextReplacementEngine.swift in Sources */,
+				A00000010000000000000103 /* DictionaryStore.swift in Sources */,
+				A00000010000000000000104 /* DictionarySettingsView.swift in Sources */,
 				A000000100000000000000F1 /* AssistantDefaults.swift in Sources */,
 				A0000001000000000000004A /* TriggerProfileStore.swift in Sources */,
 				A00000010000000000000051 /* TriggerTranscriptParser.swift in Sources */,
@@ -636,6 +661,8 @@
 			buildActionMask = 2147483647;
 			files = (
 				A00000010000000000000011 /* ActivationStoreTests.swift in Sources */,
+				A00000010000000000000106 /* DictionaryStoreTests.swift in Sources */,
+				A00000010000000000000105 /* TextReplacementEngineTests.swift in Sources */,
 				A00000010000000000000026 /* AudioBufferAccumulatorTests.swift in Sources */,
 				A0000001000000000000002E /* VoiceActivityDetectorTests.swift in Sources */,
 				A00000010000000000000018 /* AudioCaptureServiceTests.swift in Sources */,
@@ -656,6 +683,7 @@
 				A00000010000000000000053 /* AIAssistantSettingsViewModelTests.swift in Sources */,
 				A00000010000000000000078 /* CloudLLMTests.swift in Sources */,
 				A00000010000000000000083 /* ShortcutBindingPolicyTests.swift in Sources */,
+				A00000010000000000000085 /* RewritePipelineBenchmarkTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

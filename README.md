@@ -4,6 +4,8 @@ Just direct speech transcription and refinement. Nothing else.
 
 TypeLessBuddy is a local-first macOS voice writing app. It can give you the raw transcript when that's all you need, or use the built in ai buddy to turn what you said into finished writing you can actually send.
 
+![TypeLessBuddy recording pill](assets/Pill_recording_state.png)
+
 ## What It Does
 
 - Seamless dictation anywhere
@@ -19,9 +21,25 @@ Buddy mode: Just say "buddy" anywhere in your message, and it will be passed to 
 
 Once packaged releases are available, installation is simple:
 
-1. Download `TypeLessBuddy.app`.
-2. Drag it into `Applications`.
-3. Open it.
+1. Download `TypeLessBuddy.dmg` from GitHub Releases.
+2. Open the disk image.
+3. Drag `TypeLessBuddy.app` into `Applications`.
+4. Open it from `Applications`.
+
+To build that installer locally, run:
+
+```bash
+./scripts/build-dmg.sh
+```
+
+That produces:
+
+- `dist/TypeLessBuddy.app`
+- `dist/TypeLessBuddy.dmg`
+
+If you want to distribute the app publicly on the internet, you should also sign and notarize the DMG. The release steps are documented in [docs/RELEASING.md](/Users/elicarter/Workspace/TypeLessBuddy/docs/RELEASING.md).
+
+Do not commit the generated `.app` or `.dmg` into the repository. Keep source, docs, screenshots, and release scripts in Git, then upload the built DMG to GitHub Releases for each version.
 
 Packaged releases are not published yet.
 

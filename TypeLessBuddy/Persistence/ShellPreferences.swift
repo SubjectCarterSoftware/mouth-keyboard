@@ -2,6 +2,40 @@ import Combine
 import Foundation
 import ServiceManagement
 
+enum RecordingPillPosition: String, CaseIterable, Codable {
+    case topLeft
+    case topCenter
+    case topRight
+    case centerLeft
+    case centerRight
+    case bottomLeft
+    case bottomCenter
+    case bottomRight
+
+    static let `default` = RecordingPillPosition.bottomCenter
+
+    var displayName: String {
+        switch self {
+        case .topLeft:
+            return "Top Left"
+        case .topCenter:
+            return "Top Center"
+        case .topRight:
+            return "Top Right"
+        case .centerLeft:
+            return "Center Left"
+        case .centerRight:
+            return "Center Right"
+        case .bottomLeft:
+            return "Bottom Left"
+        case .bottomCenter:
+            return "Bottom Center"
+        case .bottomRight:
+            return "Bottom Right"
+        }
+    }
+}
+
 @MainActor
 final class ShellPreferences: ObservableObject {
     enum Keys {
@@ -26,6 +60,7 @@ final class ShellPreferences: ObservableObject {
         static let cloudLLMConfig = "cloudLLMConfig"
         static let legacyAllowClipboardAccess = "allowClipboardAccess"
         static let rewriteSystemPromptPrefix = "rewriteSystemPromptPrefix"
+        static let recordingPillPosition = "recordingPillPosition"
     }
 
     static let shared = makeShared()
@@ -90,6 +125,7 @@ final class ShellPreferences: ObservableObject {
 
     @Published private(set) var launchAtLogin: Bool
     @Published private(set) var activeTriggerProfile: TriggerProfile
+    @Published private(set) var activeDictionaryData: DictionaryData
 
     @Published var rewriteModelTier: RewriteModelTier {
         didSet {
@@ -122,6 +158,14 @@ final class ShellPreferences: ObservableObject {
         didSet {
             persistIfNeeded {
                 defaults.set(muteSoundEffects, forKey: Keys.muteSoundEffects)
+            }
+        }
+    }
+
+    @Published var recordingPillPosition: RecordingPillPosition {
+        didSet {
+            persistIfNeeded {
+                defaults.set(recordingPillPosition.rawValue, forKey: Keys.recordingPillPosition)
             }
         }
     }
@@ -189,15 +233,19 @@ final class ShellPreferences: ObservableObject {
 
     private let defaults: UserDefaults
     private let triggerProfileStore: TriggerProfileStore
+    private let dictionaryStore: DictionaryStore
     private var isPersistenceSuspended = false
 
     init(
         userDefaults: UserDefaults,
         triggerProfileStore: TriggerProfileStore = .shared,
-        initialTriggerProfile: TriggerProfile? = nil
+        dictionaryStore: DictionaryStore = .shared,
+        initialTriggerProfile: TriggerProfile? = nil,
+        initialDictionaryData: DictionaryData? = nil
     ) {
         defaults = userDefaults
         self.triggerProfileStore = triggerProfileStore
+        self.dictionaryStore = dictionaryStore
         hasCompletedInitialSetup = userDefaults.bool(forKey: Keys.hasCompletedInitialSetup)
         hasRequestedMicrophonePermission = userDefaults.bool(forKey: Keys.hasRequestedMicrophonePermission)
         hasRequestedKeyboardPermission = userDefaults.bool(forKey: Keys.hasRequestedKeyboardPermission)
@@ -260,6 +308,13 @@ final class ShellPreferences: ObservableObject {
             muteSoundEffects = userDefaults.bool(forKey: Keys.muteSoundEffects)
         }
 
+        if let storedPillPosition = userDefaults.string(forKey: Keys.recordingPillPosition),
+           let pillPosition = RecordingPillPosition(rawValue: storedPillPosition) {
+            recordingPillPosition = pillPosition
+        } else {
+            recordingPillPosition = .default
+        }
+
         if userDefaults.object(forKey: Keys.holdShortcutKeyCode) == nil {
             holdShortcutKeyCode = 61
         } else {
@@ -293,6 +348,7 @@ final class ShellPreferences: ObservableObject {
         }
 
         activeTriggerProfile = (initialTriggerProfile ?? TriggerProfileStore.loadSynchronously()).normalized()
+        activeDictionaryData = initialDictionaryData ?? DictionaryStore.loadSynchronously()
     }
 
     func completeInitialSetup() {
@@ -353,6 +409,23 @@ final class ShellPreferences: ObservableObject {
         await persistTriggerProfile(.defaultProfile, logContext: "assistant name reset")
     }
 
+    func updateDictionaryData(_ data: DictionaryData) {
+        Task { [weak self] in
+            _ = await self?.persistDictionaryData(data)
+        }
+    }
+
+    @discardableResult
+    func persistDictionaryData(_ data: DictionaryData) async -> Bool {
+        do {
+            try await dictionaryStore.save(data)
+            activeDictionaryData = data
+            return true
+        } catch {
+            NSLog("TypeLessBuddy: failed to persist dictionary data: \(error.localizedDescription)")
+            return false
+        }
+    }
 
     func reset() {
         withPersistenceSuspended {
@@ -368,11 +441,13 @@ final class ShellPreferences: ObservableObject {
             alwaysAutoPaste = true
             restorePreviousClipboardAfterAutoPaste = true
             muteSoundEffects = false
+            recordingPillPosition = .default
             rewriteSystemPromptPrefix = LLMRewriteService.defaultAssistantSystemPromptTemplate
             holdShortcutKeyCode = 61
             holdShortcutModifiers = 0
             cloudLLMConfig = .default
             activeTriggerProfile = .defaultProfile
+            activeDictionaryData = .empty
         }
 
         defaults.removeObject(forKey: Keys.hasCompletedInitialSetup)
@@ -388,17 +463,23 @@ final class ShellPreferences: ObservableObject {
         defaults.removeObject(forKey: Keys.alwaysAutoPaste)
         defaults.removeObject(forKey: Keys.restorePreviousClipboardAfterAutoPaste)
         defaults.removeObject(forKey: Keys.muteSoundEffects)
+        defaults.removeObject(forKey: Keys.recordingPillPosition)
         defaults.removeObject(forKey: Keys.legacyAllowClipboardAccess)
         defaults.removeObject(forKey: Keys.rewriteSystemPromptPrefix)
         defaults.removeObject(forKey: Keys.holdShortcutKeyCode)
         defaults.removeObject(forKey: Keys.holdShortcutModifiers)
         defaults.removeObject(forKey: Keys.cloudLLMConfig)
 
-        Task { [triggerProfileStore] in
+        Task { [triggerProfileStore, dictionaryStore] in
             do {
                 try await triggerProfileStore.save(.defaultProfile)
             } catch {
                 NSLog("TypeLessBuddy: failed to reset trigger profile store: \(error.localizedDescription)")
+            }
+            do {
+                try await dictionaryStore.save(.empty)
+            } catch {
+                NSLog("TypeLessBuddy: failed to reset dictionary store: \(error.localizedDescription)")
             }
         }
     }
@@ -467,6 +548,8 @@ final class ShellPreferences: ObservableObject {
 
         let triggerStore: TriggerProfileStore
         let initialTriggerProfile: TriggerProfile
+        let dictStore: DictionaryStore
+        let initialDictionaryData: DictionaryData
 
         if arguments.contains("-ui-testing") {
             // Use an isolated, temporary trigger-profile store for UI tests so
@@ -495,15 +578,24 @@ final class ShellPreferences: ObservableObject {
             }
 
             initialTriggerProfile = seedProfile
+
+            let dictTestURL = tempDir.appendingPathComponent("DictionaryStore.json")
+            try? FileManager.default.removeItem(at: dictTestURL)
+            dictStore = DictionaryStore(storeURL: dictTestURL)
+            initialDictionaryData = .empty
         } else {
             triggerStore = TriggerProfileStore.shared
             initialTriggerProfile = TriggerProfileStore.loadSynchronously()
+            dictStore = DictionaryStore.shared
+            initialDictionaryData = DictionaryStore.loadSynchronously()
         }
 
         return ShellPreferences(
             userDefaults: userDefaults,
             triggerProfileStore: triggerStore,
-            initialTriggerProfile: initialTriggerProfile
+            dictionaryStore: dictStore,
+            initialTriggerProfile: initialTriggerProfile,
+            initialDictionaryData: initialDictionaryData
         )
     }
 

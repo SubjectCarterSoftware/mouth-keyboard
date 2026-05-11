@@ -105,6 +105,7 @@ final class ActivationStore: ObservableObject {
     private static let whisperTranscriptionTimeout: UInt64 = 45_000_000_000
     private static let clipboardIntentTimeout: UInt64 = 8_000_000_000
     private static let rewriteTimeout: UInt64 = 45_000_000_000
+    private static let cloudRewritePromptWordLimit = 4_000
     private static let clipboardRestoreDelay: UInt64 = 150_000_000
     private static let selectedTextCaptureTimeout: UInt64 = 120_000_000
     private static let selectedTextCapturePollInterval: UInt64 = 15_000_000
@@ -174,6 +175,20 @@ final class ActivationStore: ObservableObject {
             return llmRewriteService
         }
         return CloudLLMRewriteService(config: config, apiKey: apiKey)
+    }
+
+    /// Word-count ceiling for the rewrite prompt body, matched to the active service.
+    /// Mirrors the cloud-vs-local check in activeRewriteService so the limit always
+    /// corresponds to the model that will actually run.
+    private var effectivePromptWordLimit: Int {
+        let config = preferences.cloudLLMConfig
+        guard config.isEnabled, !config.modelID.isEmpty else {
+            return preferences.rewriteModelTier.rewritePromptWordLimit
+        }
+        guard let apiKey = CloudLLMKeychain.loadAPIKey(for: config.provider), !apiKey.isEmpty else {
+            return preferences.rewriteModelTier.rewritePromptWordLimit
+        }
+        return Self.cloudRewritePromptWordLimit
     }
 
     // MARK: - Public API
@@ -474,7 +489,6 @@ final class ActivationStore: ObservableObject {
             finalSelectedText = await captureSelectedText()
 
             let selectedModel = preferences.whisperModel
-            NSLog("TypeLessBuddy: finalize session started (\(sessionID.uuidString.prefix(8))) using Whisper \(selectedModel.rawValue)")
             do {
                 let downloadObserver = observeWhisperModelDownloadProgress(
                     for: selectedModel,
@@ -506,14 +520,18 @@ final class ActivationStore: ObservableObject {
                 try await whisperService.transcribe(samples: samples)
             }
             let trimmed = TriggerTranscriptParser.normalizeTranscript(text)
+            let processed = TextReplacementEngine.applyReplacements(
+                to: trimmed,
+                replacements: preferences.activeDictionaryData.replacements
+            )
             let triggerNames = preferences.activeTriggerProfile.allCanonicalNames
 
             guard isCurrentSession(sessionID) else { return }
-            guard !trimmed.isEmpty else {
+            guard !processed.isEmpty else {
                 throw TranscriptionError.noSpeechDetected
             }
 
-            let detection = TriggerTranscriptParser.detect(transcript: trimmed, triggerNames: triggerNames)
+            let detection = TriggerTranscriptParser.detect(transcript: processed, triggerNames: triggerNames)
             let clipboardSnapshot = sessionClipboardSnapshot
             let shouldConvert: Bool
             switch detection {
@@ -527,15 +545,15 @@ final class ActivationStore: ObservableObject {
             if !shouldConvert {
                 let didPaste = shouldPasteOnSuccessfulFinish
                 requestsPasteOnCompletion = false
-                lastTranscription = trimmed
+                lastTranscription = processed
                 var syntheticPasteSucceeded = false
                 if didPaste {
-                    syntheticPasteSucceeded = await pasteWithClipboardProtection(text: trimmed)
+                    syntheticPasteSucceeded = await pasteWithClipboardProtection(text: processed)
                 } else {
-                    clipboardService.writeToClipboard(trimmed)
+                    clipboardService.writeToClipboard(processed)
                 }
                 state = .success(
-                    text: trimmed,
+                    text: processed,
                     pasted: syntheticPasteSucceeded,
                     converted: false,
                     noMatchPassthrough: false
@@ -556,70 +574,62 @@ final class ActivationStore: ObservableObject {
                 )
 
                 // Route external text context into the rewrite prompt when requested.
-                var effectiveBody = trimmed
-                var externalTextWasInjected = false
-                let clipboardText = clipboardSnapshot?.plainText?.trimmingCharacters(in: .whitespacesAndNewlines)
-                let selectedText = await preferredSelectedText()
-                let routingContext = ExternalTextSourceContext(
-                    selectedTextAvailable: selectedText != nil,
-                    clipboardTextAvailable: !(clipboardText?.isEmpty ?? true)
+                let externalTextSources = normalizedExternalTextSources(
+                    selectedText: await preferredSelectedText(),
+                    clipboardText: clipboardSnapshot?.plainText
                 )
+                let routingContext = ExternalTextSourceContext(
+                    selectedTextAvailable: externalTextSources.selectedText != nil,
+                    clipboardTextAvailable: externalTextSources.clipboardText != nil
+                )
+                let routedSource: ExternalTextSource
 
                 if routingContext.hasAvailableSource {
-                    let source = try await runWithTimeout(
+                    routedSource = try await runWithTimeout(
                         nanoseconds: Self.clipboardIntentTimeout,
                         step: "External text source routing"
                     ) { [llmRewriteService] in
                         await ExternalTextSourceClassifier.classify(
-                            message: trimmed,
+                            message: processed,
                             availableSources: routingContext,
                             using: llmRewriteService
                         )
                     }
 
                     guard isCurrentSession(sessionID) else { return }
-
-                    switch source {
-                    case .selectedText:
-                        if let selectedText {
-                            effectiveBody = ExternalTextPromptBuilder.buildBody(
-                                dictatedContent: trimmed,
-                                externalText: selectedText,
-                                source: .selectedText
-                            )
-                            externalTextWasInjected = true
-                        }
-                    case .clipboard:
-                        if let clipboardText, !clipboardText.isEmpty {
-                            effectiveBody = ExternalTextPromptBuilder.buildBody(
-                                dictatedContent: trimmed,
-                                externalText: clipboardText,
-                                source: .clipboard
-                            )
-                            externalTextWasInjected = true
-                        }
-                    case .none:
-                        break
-                    }
+                } else {
+                    routedSource = .none
                 }
 
-                // Prepend conversation history for retry sessions so the model
-                // sees prior attempts before the new instruction.
-                if !retryHistory.isEmpty {
-                    let turns = retryHistory.map {
-                        "<user>\($0.instruction)</user>\n<assistant>\($0.output)</assistant>"
-                    }.joined(separator: "\n")
-                    effectiveBody = "<prior_conversation>\n\(turns)\n</prior_conversation>\n\n\(effectiveBody)"
+                var promptConfiguration = buildRewritePromptBody(
+                    dictatedContent: processed,
+                    selectedText: externalTextSources.selectedText,
+                    clipboardText: externalTextSources.clipboardText,
+                    route: routedSource
+                )
+                var externalTextWasInjected = promptConfiguration.externalTextInjected
+                var effectiveBody = prependRetryHistory(to: promptConfiguration.body)
+
+                if Self.rewriteWordCount(for: effectiveBody) > effectivePromptWordLimit,
+                   promptConfiguration.usesDistinctBoth {
+                    promptConfiguration = buildRewritePromptBody(
+                        dictatedContent: processed,
+                        selectedText: externalTextSources.selectedText,
+                        clipboardText: nil,
+                        route: .selectedText
+                    )
+                    externalTextWasInjected = promptConfiguration.externalTextInjected
+                    effectiveBody = prependRetryHistory(to: promptConfiguration.body)
                 }
 
-                // Apply word limit to the effective body (including any clipboard content)
-                let effectiveWordCount = effectiveBody
-                    .split(separator: " ", omittingEmptySubsequences: true).count
-                guard effectiveWordCount <= 350 else {
+                // Apply the per-model rewrite prompt limit to the final effective body.
+                let wordLimit = effectivePromptWordLimit
+                let effectiveWordCount = Self.rewriteWordCount(for: effectiveBody)
+                guard effectiveWordCount <= wordLimit else {
                     guard isCurrentSession(sessionID) else { return }
-                    lastTranscription = trimmed
+                    lastTranscription = processed
                     if !didPaste {
-                        clipboardService.writeToClipboard(trimmed)
+                        clipboardService.writeToClipboard(processed)
                     }
                     let failureSessionID = activeSessionID
                     clearSuccessDismissTiming()
@@ -642,15 +652,15 @@ final class ActivationStore: ObservableObject {
                         )
                     }
                 } catch {
-                    // Surface rewrite errors visibly. In clipboard-only mode we keep the
-                    // raw transcript as a fallback; protected auto-paste preserves the
-                    // original clipboard instead.
+                    // Surface rewrite errors visibly. Clipboard-only mode keeps the raw
+                    // transcript as fallback; protected auto-paste preserves the original
+                    // clipboard instead.
                     guard isCurrentSession(sessionID) else { return }
                     let errorDescription = (error as? LLMRewriteError)?.errorDescription ?? error.localizedDescription
                     NSLog("TypeLessBuddy: assistant rewrite failed — \(errorDescription)")
-                    lastTranscription = trimmed
+                    lastTranscription = processed
                     if !didPaste {
-                        clipboardService.writeToClipboard(trimmed)
+                        clipboardService.writeToClipboard(processed)
                     }
                     clearSuccessDismissTiming()
                     state = .failure(reason: .modelError("Rewrite failed: \(errorDescription)"))
@@ -674,7 +684,7 @@ final class ActivationStore: ObservableObject {
                 } else {
                     clipboardService.writeToClipboard(rewritten)
                 }
-                lastTranscription = trimmed          // raw always stored
+                lastTranscription = processed
                 lastConvertedTranscription = rewritten
                 state = .success(
                     text: rewritten,
@@ -846,6 +856,84 @@ final class ActivationStore: ObservableObject {
             return nil
         }
         return text
+    }
+
+    private static func rewriteWordCount(for body: String) -> Int {
+        body.split(whereSeparator: { $0.isWhitespace }).count
+    }
+
+    private func normalizedExternalText(_ text: String?) -> String? {
+        guard let text else { return nil }
+        let trimmedText = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmedText.isEmpty ? nil : trimmedText
+    }
+
+    private func normalizedExternalTextSources(
+        selectedText: String?,
+        clipboardText: String?
+    ) -> (selectedText: String?, clipboardText: String?) {
+        let normalizedSelectedText = normalizedExternalText(selectedText)
+        let normalizedClipboardText = normalizedExternalText(clipboardText)
+
+        if let normalizedSelectedText,
+           let normalizedClipboardText,
+           normalizedSelectedText == normalizedClipboardText {
+            return (normalizedSelectedText, nil)
+        }
+
+        return (normalizedSelectedText, normalizedClipboardText)
+    }
+
+    private func buildRewritePromptBody(
+        dictatedContent: String,
+        selectedText: String?,
+        clipboardText: String?,
+        route: ExternalTextSource
+    ) -> (body: String, externalTextInjected: Bool, usesDistinctBoth: Bool) {
+        let promptSources: (selectedText: String?, clipboardText: String?, usesDistinctBoth: Bool)
+
+        switch route {
+        case .selectedText:
+            promptSources = (selectedText, nil, false)
+        case .clipboard:
+            promptSources = (nil, clipboardText, false)
+        case .both:
+            switch (selectedText, clipboardText) {
+            case let (selectedText?, clipboardText?):
+                promptSources = (selectedText, clipboardText, true)
+            case let (selectedText?, nil):
+                promptSources = (selectedText, nil, false)
+            case let (nil, clipboardText?):
+                promptSources = (nil, clipboardText, false)
+            case (nil, nil):
+                promptSources = (nil, nil, false)
+            }
+        case .none:
+            promptSources = (nil, nil, false)
+        }
+
+        guard promptSources.selectedText != nil || promptSources.clipboardText != nil else {
+            return (dictatedContent, false, false)
+        }
+
+        return (
+            ExternalTextPromptBuilder.buildBody(
+                dictatedContent: dictatedContent,
+                selectedText: promptSources.selectedText,
+                clipboardText: promptSources.clipboardText
+            ),
+            true,
+            promptSources.usesDistinctBoth
+        )
+    }
+
+    private func prependRetryHistory(to body: String) -> String {
+        guard !retryHistory.isEmpty else { return body }
+
+        let turns = retryHistory.map {
+            "<user>\($0.instruction)</user>\n<assistant>\($0.output)</assistant>"
+        }.joined(separator: "\n")
+        return "<prior_conversation>\n\(turns)\n</prior_conversation>\n\n\(body)"
     }
 
     var isHoldSessionActive: Bool {

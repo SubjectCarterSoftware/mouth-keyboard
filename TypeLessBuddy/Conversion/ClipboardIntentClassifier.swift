@@ -3,18 +3,8 @@ import Foundation
 enum ExternalTextSource {
     case selectedText
     case clipboard
+    case both
     case none
-
-    var promptLabel: String {
-        switch self {
-        case .selectedText:
-            return "Selected text"
-        case .clipboard:
-            return "Clipboard content"
-        case .none:
-            return "External text"
-        }
-    }
 }
 
 struct ExternalTextSourceContext {
@@ -31,10 +21,10 @@ struct ExternalTextSourceClassifier {
     You are a routing model for a voice transcription app.
 
     Task:
-    Decide whether the user's request intends to operate on currently selected text, clipboard text, or neither.
+    Decide whether the user's request intends to operate on currently selected text, clipboard text, both, or neither.
 
     Output rules:
-    - Respond with ONLY one token: SELECTED, CLIPBOARD, or NONE
+    - Respond with ONLY one token: SELECTED, CLIPBOARD, BOTH, or NONE
     - Do not output any other words, punctuation, or explanation.
 
     Decision rules:
@@ -42,8 +32,10 @@ struct ExternalTextSourceClassifier {
     - Words like "selected", "highlighted", "copied", "this", and "that" are evidence, not automatic triggers.
     - Choose SELECTED when the request most likely refers to text highlighted in the focused app.
     - Choose CLIPBOARD when the request most likely refers to previously copied text.
+    - Choose BOTH only when the request explicitly asks to use both highlighted/selected text and clipboard/copied text together.
     - Choose NONE when the request is about the spoken instruction itself or does not clearly refer to external text.
     - Never choose a source that is unavailable.
+    - If the request explicitly wants both but only one source is available, choose the available source instead of NONE.
 
     Examples:
     User: "format what I copied"
@@ -54,6 +46,15 @@ struct ExternalTextSourceClassifier {
 
     User: "can you use that text I grabbed earlier"
     Answer: CLIPBOARD
+
+    User: "use both this and what I copied"
+    Answer: BOTH
+
+    User: "compare this with my clipboard"
+    Answer: BOTH
+
+    User: "use both this and what I copied" (clipboard unavailable)
+    Answer: SELECTED
 
     User: "make this punchier"
     Answer: SELECTED
@@ -96,6 +97,8 @@ struct ExternalTextSourceClassifier {
                 routedSource = .selectedText
             case "CLIPBOARD":
                 routedSource = .clipboard
+            case "BOTH":
+                routedSource = .both
             default:
                 routedSource = .none
             }
@@ -105,6 +108,17 @@ struct ExternalTextSourceClassifier {
                 return .none
             case .clipboard where !availableSources.clipboardTextAvailable:
                 return .none
+            case .both:
+                switch (availableSources.selectedTextAvailable, availableSources.clipboardTextAvailable) {
+                case (true, true):
+                    return .both
+                case (true, false):
+                    return .selectedText
+                case (false, true):
+                    return .clipboard
+                case (false, false):
+                    return .none
+                }
             default:
                 return routedSource
             }

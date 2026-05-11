@@ -42,6 +42,17 @@ enum RewriteModelTier: String, CaseIterable, Identifiable, Hashable {
         }
     }
 
+    /// Maximum word count allowed in the rewrite prompt body for this tier.
+    /// Benchmark on 2B confirmed failure at ~1380w and quality degradation above ~700w.
+    /// Cloud overrides this entirely via ActivationStore.cloudRewritePromptWordLimit.
+    var rewritePromptWordLimit: Int {
+        switch self {
+        case .standard2B: return 1_000
+        case .standard4B: return 1_500
+        case .high9B:     return 2_000
+        }
+    }
+
     var ramGuidance: String {
         switch self {
         case .standard2B: return "8 GB+ (any Mac)"

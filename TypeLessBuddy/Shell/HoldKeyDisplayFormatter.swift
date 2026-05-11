@@ -5,17 +5,12 @@ enum HoldKeyDisplayFormatter {
     /// `keyCode` is a Carbon key code (same value stored in `ShellPreferences.holdShortcutKeyCode`).
     /// `modifiers` is an NSEvent.ModifierFlags bitmask (same value stored in `holdShortcutModifiers`).
     static func symbol(keyCode: Int, modifiers: UInt) -> String {
-        // Modifier-only keys: return just the modifier symbol — no prefix needed.
-        switch keyCode {
-        case 54, 55: return "⌘"   // right/left Command
-        case 56, 60: return "⇧"   // left/right Shift
-        case 58, 61: return "⌥"   // left/right Option
-        case 59, 62: return "⌃"   // left/right Control
-        case 63:     return "fn"
-        default:
-            // Regular key held with optional modifiers.
-            return modifierSymbols(from: modifiers) + keyCharacter(for: keyCode)
+        if let symbol = HoldModifierKey.displaySymbol(for: keyCode) {
+            return symbol
         }
+
+        // Regular key held with optional modifiers.
+        return modifierSymbols(from: modifiers) + keyCharacter(for: keyCode)
     }
 
     /// Returns the display character for a Carbon key code.

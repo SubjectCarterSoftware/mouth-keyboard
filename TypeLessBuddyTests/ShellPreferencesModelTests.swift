@@ -1,3 +1,4 @@
+import AppKit
 import Combine
 import ServiceManagement
 import XCTest
@@ -82,6 +83,72 @@ final class ShellPreferencesModelTests: XCTestCase {
         preferences.muteSoundEffects = true
         preferences.reset()
         XCTAssertFalse(preferences.muteSoundEffects)
+    }
+
+    func testRecordingPillPositionDefaultsToBottomCenter() {
+        let (_, preferences) = makePreferences()
+        XCTAssertEqual(preferences.recordingPillPosition, .bottomCenter)
+    }
+
+    func testRecordingPillPositionPersistsRoundTrip() {
+        let (defaults, preferences) = makePreferences()
+        preferences.recordingPillPosition = .topRight
+
+        let preferences2 = ShellPreferences(userDefaults: defaults)
+        XCTAssertEqual(preferences2.recordingPillPosition, .topRight)
+    }
+
+    func testRecordingPillPositionResetRestoresDefault() {
+        let (_, preferences) = makePreferences()
+        preferences.recordingPillPosition = .centerLeft
+        preferences.reset()
+        XCTAssertEqual(preferences.recordingPillPosition, .bottomCenter)
+    }
+
+    func testInvalidStoredRecordingPillPositionFallsBackToDefault() {
+        let (defaults, _) = makePreferences()
+        defaults.set("sideways", forKey: ShellPreferences.Keys.recordingPillPosition)
+
+        let preferences = ShellPreferences(userDefaults: defaults)
+        XCTAssertEqual(preferences.recordingPillPosition, .bottomCenter)
+    }
+
+    func testRecordingPillPanelPositioningReturnsExpectedOrigins() {
+        let visibleFrame = CGRect(x: 100, y: 200, width: 1000, height: 700)
+        let panelSize = NSSize(width: 220, height: 44)
+
+        XCTAssertEqual(
+            RecordingPillPanelPositioning.origin(for: .topLeft, in: visibleFrame, panelSize: panelSize),
+            CGPoint(x: 124, y: 828)
+        )
+        XCTAssertEqual(
+            RecordingPillPanelPositioning.origin(for: .topCenter, in: visibleFrame, panelSize: panelSize),
+            CGPoint(x: 490, y: 828)
+        )
+        XCTAssertEqual(
+            RecordingPillPanelPositioning.origin(for: .topRight, in: visibleFrame, panelSize: panelSize),
+            CGPoint(x: 856, y: 828)
+        )
+        XCTAssertEqual(
+            RecordingPillPanelPositioning.origin(for: .centerLeft, in: visibleFrame, panelSize: panelSize),
+            CGPoint(x: 124, y: 528)
+        )
+        XCTAssertEqual(
+            RecordingPillPanelPositioning.origin(for: .centerRight, in: visibleFrame, panelSize: panelSize),
+            CGPoint(x: 856, y: 528)
+        )
+        XCTAssertEqual(
+            RecordingPillPanelPositioning.origin(for: .bottomLeft, in: visibleFrame, panelSize: panelSize),
+            CGPoint(x: 124, y: 240)
+        )
+        XCTAssertEqual(
+            RecordingPillPanelPositioning.origin(for: .bottomCenter, in: visibleFrame, panelSize: panelSize),
+            CGPoint(x: 490, y: 240)
+        )
+        XCTAssertEqual(
+            RecordingPillPanelPositioning.origin(for: .bottomRight, in: visibleFrame, panelSize: panelSize),
+            CGPoint(x: 856, y: 240)
+        )
     }
 
     func testRewriteSystemPromptPrefixDefaultsToBuiltInPrompt() {

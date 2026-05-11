@@ -3,15 +3,18 @@ import Foundation
 enum ExternalTextPromptBuilder {
     /// Builds the body text for the rewrite service when external text
     /// should be included alongside dictated speech.
-    ///
-    /// Omits either block when its content is empty or whitespace-only.
     static func buildBody(
         dictatedContent: String,
-        externalText: String,
-        source: ExternalTextSource
+        selectedText: String?,
+        clipboardText: String?
     ) -> String {
         let trimmedDictation = dictatedContent.trimmingCharacters(in: .whitespacesAndNewlines)
-        let trimmedExternalText = externalText.trimmingCharacters(in: .whitespacesAndNewlines)
+        let trimmedSelectedText = selectedText?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let trimmedClipboardText = clipboardText?.trimmingCharacters(in: .whitespacesAndNewlines)
+
+        guard (trimmedSelectedText?.isEmpty == false) || (trimmedClipboardText?.isEmpty == false) else {
+            return trimmedDictation
+        }
 
         var parts: [String] = []
 
@@ -28,8 +31,12 @@ enum ExternalTextPromptBuilder {
             parts.append("Dictated speech:\n\(trimmedDictation)")
         }
 
-        if !trimmedExternalText.isEmpty {
-            parts.append("\(source.promptLabel):\n\(trimmedExternalText)")
+        if let trimmedSelectedText, !trimmedSelectedText.isEmpty {
+            parts.append("Selected text:\n\(trimmedSelectedText)")
+        }
+
+        if let trimmedClipboardText, !trimmedClipboardText.isEmpty {
+            parts.append("Clipboard content:\n\(trimmedClipboardText)")
         }
 
         return parts.joined(separator: "\n\n")
