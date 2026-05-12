@@ -7,7 +7,6 @@ final class ReadinessStateTests: XCTestCase {
         let snapshot = ReadinessSnapshot.derive(
             isSetupComplete: false,
             microphoneStatus: .notDetermined,
-            keyboardStatus: .notDetermined,
             postEventStatus: .notDetermined
         )
 
@@ -24,12 +23,6 @@ final class ReadinessStateTests: XCTestCase {
             microphoneService: MicrophonePermissionService(
                 statusProvider: { .denied },
                 requestHandler: { .denied }
-            ),
-            keyboardService: KeyboardPermissionService(
-                adapter: .init(
-                    isAuthorized: { false },
-                    requestAccess: { false }
-                )
             ),
             postEventService: PostEventPermissionService(
                 adapter: .init(
@@ -50,7 +43,6 @@ final class ReadinessStateTests: XCTestCase {
         let snapshot = ReadinessSnapshot.derive(
             isSetupComplete: true,
             microphoneStatus: .authorized,
-            keyboardStatus: .authorized,
             postEventStatus: .authorized
         )
 
@@ -69,12 +61,6 @@ final class ReadinessStateTests: XCTestCase {
             microphoneService: MicrophonePermissionService(
                 statusProvider: { microphoneStatus },
                 requestHandler: { microphoneStatus }
-            ),
-            keyboardService: KeyboardPermissionService(
-                adapter: .init(
-                    isAuthorized: { true },
-                    requestAccess: { true }
-                )
             ),
             postEventService: PostEventPermissionService(
                 adapter: .init(

@@ -72,7 +72,6 @@ private enum OnboardingStep: String, CaseIterable, Identifiable {
     case pillPosition
     case accessibility
     case speechEngine
-    case inputMonitoring
 
     var id: String {
         rawValue
@@ -90,8 +89,6 @@ private enum OnboardingStep: String, CaseIterable, Identifiable {
             return "Accessibility Permission"
         case .speechEngine:
             return "Preparing Speech Engine"
-        case .inputMonitoring:
-            return "Input Monitoring"
         }
     }
 
@@ -100,21 +97,19 @@ private enum OnboardingStep: String, CaseIterable, Identifiable {
         case .microphone:
             return "Grant microphone access first, then choose the input device TypeLessBuddy should use."
         case .shortcuts:
-            return "Configure the shortcuts now. They become active only after Accessibility and Input Monitoring are granted."
+            return "Configure the shortcuts now so they are ready as soon as setup finishes."
         case .pillPosition:
             return "Pick where the recording pill should appear on screen."
         case .accessibility:
             return "Accessibility is required for full cross-app control and unlocks auto-paste when you want it."
         case .speechEngine:
-            return "The recommended speech engine is preparing in the background. Finish this before the last permission step."
-        case .inputMonitoring:
-            return "This is the final required permission. macOS may relaunch the app after approval."
+            return "The recommended speech engine is preparing in the background. Once it is ready, setup can finish."
         }
     }
 
     var continueTitle: String {
         switch self {
-        case .inputMonitoring:
+        case .speechEngine:
             return "Finish Setup"
         default:
             return "Continue"
@@ -133,8 +128,6 @@ private enum OnboardingStep: String, CaseIterable, Identifiable {
             return "figure.wave"
         case .speechEngine:
             return "waveform.and.magnifyingglass"
-        case .inputMonitoring:
-            return "keyboard.fill"
         }
     }
 
@@ -150,8 +143,6 @@ private enum OnboardingStep: String, CaseIterable, Identifiable {
             return "Accessibility is required for the full control flow and underpins auto-paste when you want it."
         case .speechEngine:
             return "This Mac already has a recommended speech model selected. This step only waits for the first-time preparation to finish."
-        case .inputMonitoring:
-            return "Finish the last permission and TypeLessBuddy can activate its global shortcut handling."
         }
     }
 }
@@ -897,8 +888,6 @@ private struct OnboardingPermissionCard: View {
     private func handleAction() {
         if item.kind == .postEvent && item.status == .notDetermined {
             showsSetupGuide = true
-        } else if item.kind == .keyboardShortcuts && item.status == .denied {
-            showsSetupGuide = true
         } else if item.status == .denied {
             openRecovery(item.kind)
         } else {
@@ -908,23 +897,12 @@ private struct OnboardingPermissionCard: View {
 
     @ViewBuilder
     private var setupGuide: some View {
-        if item.kind == .keyboardShortcuts {
-            InputMonitoringSetupGuide {
-                showsSetupGuide = false
-                if item.status == .denied {
-                    openRecovery(item.kind)
-                } else {
-                    requestPermission(item.kind)
-                }
-            }
-        } else {
-            AccessibilitySetupGuide {
-                showsSetupGuide = false
-                if item.status == .denied {
-                    openRecovery(item.kind)
-                } else {
-                    requestPermission(item.kind)
-                }
+        AccessibilitySetupGuide {
+            showsSetupGuide = false
+            if item.status == .denied {
+                openRecovery(item.kind)
+            } else {
+                requestPermission(item.kind)
             }
         }
     }
@@ -1428,7 +1406,6 @@ struct SetupWindowView: View {
     @State private var scheduledFlashTask: Task<Void, Never>?
     @State private var onboardingStep: OnboardingStep = .microphone
     @State private var hasInitializedOnboardingStep = false
-    private let hotkeyService = HotkeyService.shared
     let updatePillPositionPreview: (RecordingPillPosition?) -> Void
     let dismissWindow: () -> Void
     let openGuide: () -> Void
@@ -1535,20 +1512,12 @@ struct SetupWindowView: View {
         readinessStore.snapshot.permissions.first(where: { $0.kind == .postEvent })
     }
 
-    private var inputMonitoringPermissionItem: PermissionChecklistItem? {
-        readinessStore.snapshot.permissions.first(where: { $0.kind == .keyboardShortcuts })
-    }
-
     private var isMicrophoneAuthorized: Bool {
         microphonePermissionItem?.isAuthorized ?? false
     }
 
     private var isAccessibilityAuthorized: Bool {
         accessibilityPermissionItem?.isAuthorized ?? false
-    }
-
-    private var isInputMonitoringAuthorized: Bool {
-        inputMonitoringPermissionItem?.isAuthorized ?? false
     }
 
     private var speechEngineStatus: WhisperModelLoadState.ModelStatus {
@@ -1566,16 +1535,6 @@ struct SetupWindowView: View {
 
     private var onboardingStepIndex: Int {
         (onboardingStepSequence.firstIndex(of: onboardingStep) ?? 0) + 1
-    }
-
-    static func shouldAutoTriggerInputMonitoringRequest(
-        mode: SetupWindowMode,
-        isInputMonitoringStep: Bool,
-        keyboardStatus: PermissionGrantState
-    ) -> Bool {
-        mode == .onboarding
-            && isInputMonitoringStep
-            && keyboardStatus != .authorized
     }
 
     private func badgeTone(for status: PermissionGrantState) -> OnboardingBadgeTone {
@@ -1597,21 +1556,6 @@ struct SetupWindowView: View {
         readinessStore.openRecovery(for: kind)
     }
 
-    private func autoTriggerInputMonitoringStepIfNeeded() {
-        guard let inputMonitoringPermissionItem else { return }
-        guard Self.shouldAutoTriggerInputMonitoringRequest(
-            mode: mode,
-            isInputMonitoringStep: onboardingStep == .inputMonitoring,
-            keyboardStatus: inputMonitoringPermissionItem.status
-        ) else {
-            return
-        }
-
-        requestPermission(.keyboardShortcuts)
-        _ = hotkeyService.primeHoldToTranscribeMonitoring()
-        readinessStore.refresh()
-    }
-
     private func microphoneActionTitle(for status: PermissionGrantState) -> String {
         switch status {
         case .authorized:
@@ -1631,17 +1575,6 @@ struct SetupWindowView: View {
             return "Grant Accessibility"
         case .denied:
             return "Open Accessibility Settings"
-        }
-    }
-
-    private func inputMonitoringActionTitle(for status: PermissionGrantState) -> String {
-        switch status {
-        case .authorized:
-            return "Input Monitoring Granted"
-        case .notDetermined:
-            return "Grant Input Monitoring"
-        case .denied:
-            return "Open Input Monitoring Settings"
         }
     }
 
@@ -2296,8 +2229,6 @@ struct SetupWindowView: View {
             return isAccessibilityAuthorized
         case .speechEngine:
             return isSpeechEngineReady
-        case .inputMonitoring:
-            return isSpeechEngineReady && isInputMonitoringAuthorized
         }
     }
 
@@ -2331,7 +2262,7 @@ struct SetupWindowView: View {
             return
         }
 
-        onboardingStep = firstIncompleteOnboardingStep() ?? .inputMonitoring
+        onboardingStep = firstIncompleteOnboardingStep() ?? .speechEngine
     }
 
     private func persistOnboardingProgress() {
@@ -2340,8 +2271,8 @@ struct SetupWindowView: View {
     }
 
     private func advanceOnboarding() {
-        if onboardingStep == .inputMonitoring {
-            guard isSpeechEngineReady, isInputMonitoringAuthorized else { return }
+        if onboardingStep == .speechEngine {
+            guard isSpeechEngineReady else { return }
             completeOnboarding()
             return
         }
@@ -2377,8 +2308,6 @@ struct SetupWindowView: View {
             return isAccessibilityAuthorized
         case .speechEngine:
             return isSpeechEngineReady
-        case .inputMonitoring:
-            return isSpeechEngineReady && isInputMonitoringAuthorized
         }
     }
 
@@ -2395,8 +2324,6 @@ struct SetupWindowView: View {
             onboardingAccessibilityStep
         case .speechEngine:
             onboardingSpeechEngineStep
-        case .inputMonitoring:
-            onboardingInputMonitoringStep
         }
     }
 
@@ -2444,7 +2371,7 @@ struct SetupWindowView: View {
     private var onboardingShortcutsStep: some View {
         VStack(alignment: .leading, spacing: 18) {
             OnboardingNoteBanner(
-                text: "Configure the shortcuts now, but none of them become active until both Accessibility and Input Monitoring are granted later in setup."
+                text: "Configure the shortcuts now so they are ready as soon as setup finishes."
             )
 
             OnboardingFeatureCard(
@@ -2557,32 +2484,6 @@ struct SetupWindowView: View {
                         message: "\(preferences.whisperModel.displayName) is queued for download.",
                         progress: nil
                     )
-                }
-            }
-        }
-    }
-
-    private var onboardingInputMonitoringStep: some View {
-        HStack(alignment: .top, spacing: 18) {
-            if let inputMonitoringPermissionItem {
-                OnboardingPermissionCard(
-                    item: inputMonitoringPermissionItem,
-                    headline: "Input Monitoring",
-                    message: "This final permission enables all global shortcut handling. macOS may ask to quit and reopen TypeLessBuddy after you approve it.",
-                    actionTitle: inputMonitoringActionTitle(for: inputMonitoringPermissionItem.status),
-                    requestPermission: requestPermission,
-                    openRecovery: openPermissionRecovery
-                )
-            }
-
-            OnboardingFeatureCard(
-                systemImage: "sparkles",
-                title: "What this enables"
-            ) {
-                VStack(alignment: .leading, spacing: 12) {
-                    OnboardingChecklistItem(text: "Hold-to-record works globally in any app.")
-                    OnboardingChecklistItem(text: "Your start and stop shortcuts can trigger from anywhere once macOS finishes approval.")
-                    OnboardingChecklistItem(text: "The shortcut setup you already chose becomes active after the system accepts this permission.")
                 }
             }
         }
@@ -3081,7 +2982,6 @@ struct SetupWindowView: View {
             loadCloudAPIKeyIfNeeded()
             synchronizeOnboardingStepIfNeeded()
             persistOnboardingProgress()
-            autoTriggerInputMonitoringStepIfNeeded()
             if mode == .onboarding && !preferences.launchAtLogin {
                 preferences.setLaunchAtLogin(true)
             }
@@ -3104,7 +3004,6 @@ struct SetupWindowView: View {
         }
         .onChange(of: onboardingStep) { _, _ in
             persistOnboardingProgress()
-            autoTriggerInputMonitoringStepIfNeeded()
         }
         .onChange(of: preferences.cloudLLMConfig.provider) { _, _ in
             cloudAPIKeyLoaded = false

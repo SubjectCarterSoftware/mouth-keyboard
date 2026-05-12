@@ -10,7 +10,7 @@ struct PermissionChecklistView: View {
     let openRecovery: (PermissionKind) -> Void
     let launchAtLoginEnabled: Bool
     let onToggleLaunchAtLogin: (Bool) -> Void
-    var includedKinds: [PermissionKind] = [.microphone, .postEvent, .keyboardShortcuts]
+    var includedKinds: [PermissionKind] = [.microphone, .postEvent]
     var showsLaunchAtLoginTile = true
     var usesGridLayout = false
 
@@ -96,8 +96,6 @@ struct PermissionTile: View {
                 Button(actionTitle) {
                     if item.kind == .postEvent {
                         showsSetupGuide = true
-                    } else if item.kind == .keyboardShortcuts && item.status == .denied {
-                        showsSetupGuide = true
                     } else if item.status == .denied {
                         openRecovery(item.kind)
                     } else {
@@ -109,25 +107,12 @@ struct PermissionTile: View {
                 .foregroundStyle(Color.accentColor)
                 .accessibilityIdentifier("permission.\(item.kind.rawValue).action")
                 .popover(isPresented: $showsSetupGuide, arrowEdge: .bottom) {
-                    Group {
-                        if item.kind == .keyboardShortcuts {
-                            InputMonitoringSetupGuide {
-                                showsSetupGuide = false
-                                if item.status == .denied {
-                                    openRecovery(item.kind)
-                                } else {
-                                    requestPermission(item.kind)
-                                }
-                            }
+                    AccessibilitySetupGuide {
+                        showsSetupGuide = false
+                        if item.status == .denied {
+                            openRecovery(item.kind)
                         } else {
-                            AccessibilitySetupGuide {
-                                showsSetupGuide = false
-                                if item.status == .denied {
-                                    openRecovery(item.kind)
-                                } else {
-                                    requestPermission(item.kind)
-                                }
-                            }
+                            requestPermission(item.kind)
                         }
                     }
                 }
@@ -161,33 +146,6 @@ struct AccessibilitySetupGuide: View {
                 SetupStep(number: 1, text: "Click the + button at the bottom of the app list")
                 SetupStep(number: 2, text: "Find TypeLessBuddy in Applications and click Open")
                 SetupStep(number: 3, text: "Return to TypeLessBuddy. The Accessibility tile should turn green without restarting the app.")
-            }
-
-            Button("Open Settings") {
-                onOpenSettings()
-            }
-            .buttonStyle(.borderedProminent)
-            .frame(maxWidth: .infinity)
-        }
-        .padding(20)
-        .frame(width: 270)
-    }
-}
-
-// MARK: - Input Monitoring setup guide
-
-struct InputMonitoringSetupGuide: View {
-    let onOpenSettings: () -> Void
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            Text("How to enable Hold to Transcribe")
-                .font(.headline)
-
-            VStack(alignment: .leading, spacing: 12) {
-                SetupStep(number: 1, text: "Click the + button in the Input Monitoring pane")
-                SetupStep(number: 2, text: "Find TypeLessBuddy in Applications and click Open")
-                SetupStep(number: 3, text: "If macOS asks to quit and reopen TypeLessBuddy, allow that restart there.")
             }
 
             Button("Open Settings") {

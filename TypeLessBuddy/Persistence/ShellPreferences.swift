@@ -45,7 +45,6 @@ final class ShellPreferences: ObservableObject {
         static let onboardingResumeToken = "onboardingResumeToken"
         static let showsMenuHints = "showsMenuHints"
         static let hasRequestedMicrophonePermission = "hasRequestedMicrophonePermission"
-        static let hasRequestedKeyboardPermission = "hasRequestedKeyboardPermission"
         static let hasRequestedPostEventPermission = "hasRequestedPostEventPermission"
         static let micDeviceUID = "micDeviceUID" // legacy — kept for migration only
         static let micDeviceUIDs = "micDeviceUIDs"
@@ -109,12 +108,6 @@ final class ShellPreferences: ObservableObject {
     @Published var hasRequestedMicrophonePermission: Bool {
         didSet {
             defaults.set(hasRequestedMicrophonePermission, forKey: Keys.hasRequestedMicrophonePermission)
-        }
-    }
-
-    @Published var hasRequestedKeyboardPermission: Bool {
-        didSet {
-            defaults.set(hasRequestedKeyboardPermission, forKey: Keys.hasRequestedKeyboardPermission)
         }
     }
 
@@ -288,7 +281,6 @@ final class ShellPreferences: ObservableObject {
         )
         onboardingResumeToken = userDefaults.string(forKey: Keys.onboardingResumeToken)
         hasRequestedMicrophonePermission = userDefaults.bool(forKey: Keys.hasRequestedMicrophonePermission)
-        hasRequestedKeyboardPermission = userDefaults.bool(forKey: Keys.hasRequestedKeyboardPermission)
         hasRequestedPostEventPermission = userDefaults.bool(forKey: Keys.hasRequestedPostEventPermission)
         if let data = userDefaults.data(forKey: Keys.micDeviceUIDs),
            let uids = try? JSONDecoder().decode([String].self, from: data) {
@@ -408,10 +400,6 @@ final class ShellPreferences: ObservableObject {
         hasRequestedMicrophonePermission = true
     }
 
-    func recordKeyboardPermissionPrompt() {
-        hasRequestedKeyboardPermission = true
-    }
-
     func recordPostEventPermissionPrompt() {
         hasRequestedPostEventPermission = true
     }
@@ -483,7 +471,6 @@ final class ShellPreferences: ObservableObject {
             onboardingResumeToken = nil
             showsMenuHints = true
             hasRequestedMicrophonePermission = false
-            hasRequestedKeyboardPermission = false
             hasRequestedPostEventPermission = false
             launchAtLogin = false
             micDeviceUIDs = []
@@ -506,7 +493,6 @@ final class ShellPreferences: ObservableObject {
         defaults.removeObject(forKey: Keys.onboardingResumeToken)
         defaults.removeObject(forKey: Keys.showsMenuHints)
         defaults.removeObject(forKey: Keys.hasRequestedMicrophonePermission)
-        defaults.removeObject(forKey: Keys.hasRequestedKeyboardPermission)
         defaults.removeObject(forKey: Keys.hasRequestedPostEventPermission)
         defaults.removeObject(forKey: Keys.launchAtLogin)
         defaults.removeObject(forKey: Keys.micDeviceUID)
@@ -607,10 +593,6 @@ final class ShellPreferences: ObservableObject {
 
         if arguments.contains("-mark-microphone-requested") {
             userDefaults.set(true, forKey: Keys.hasRequestedMicrophonePermission)
-        }
-
-        if arguments.contains("-mark-keyboard-requested") {
-            userDefaults.set(true, forKey: Keys.hasRequestedKeyboardPermission)
         }
 
         if arguments.contains("-mark-postevent-requested") {

@@ -47,7 +47,6 @@ Packaged releases are not published yet.
 
 - macOS 14 or later
 - Microphone permission
-- Input Monitoring for the trigger
 - Accessibility permission for auto-paste
 
 ## Privacy

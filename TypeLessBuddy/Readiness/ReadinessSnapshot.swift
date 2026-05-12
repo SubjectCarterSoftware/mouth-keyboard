@@ -23,7 +23,6 @@ enum PermissionGrantState: String, CaseIterable, Equatable {
 
 enum PermissionKind: String, CaseIterable, Identifiable {
     case microphone
-    case keyboardShortcuts
     case postEvent
 
     var id: String {
@@ -34,8 +33,6 @@ enum PermissionKind: String, CaseIterable, Identifiable {
         switch self {
         case .microphone:
             return "Microphone Access"
-        case .keyboardShortcuts:
-            return "Input Monitoring"
         case .postEvent:
             return "Accessibility"
         }
@@ -45,8 +42,6 @@ enum PermissionKind: String, CaseIterable, Identifiable {
         switch self {
         case .microphone:
             return "mic.fill"
-        case .keyboardShortcuts:
-            return "keyboard.fill"
         case .postEvent:
             return "doc.on.clipboard.fill"
         }
@@ -56,8 +51,6 @@ enum PermissionKind: String, CaseIterable, Identifiable {
         switch self {
         case .microphone:
             return URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Microphone")
-        case .keyboardShortcuts:
-            return URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_ListenEvent")
         case .postEvent:
             return URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility")
         }
@@ -71,12 +64,6 @@ enum PermissionKind: String, CaseIterable, Identifiable {
             return "Allow microphone access now so the first recording attempt does not surprise the user later."
         case (.microphone, .denied):
             return "Microphone access is denied. Re-enable it in System Settings to move past the blocked state."
-        case (.keyboardShortcuts, .authorized):
-            return "Ready — shortcuts enabled."
-        case (.keyboardShortcuts, .notDetermined):
-            return "Needs keyboard access."
-        case (.keyboardShortcuts, .denied):
-            return "Keyboard access is blocked."
         case (.postEvent, .authorized):
             return "Accessibility enables copying and pasting across apps."
         case (.postEvent, .notDetermined):
@@ -129,7 +116,6 @@ struct ReadinessSnapshot: Equatable {
     static func derive(
         isSetupComplete: Bool,
         microphoneStatus: PermissionGrantState,
-        keyboardStatus: PermissionGrantState,
         postEventStatus: PermissionGrantState
     ) -> Self {
         let permissions = [
@@ -137,12 +123,6 @@ struct ReadinessSnapshot: Equatable {
                 kind: .microphone,
                 status: microphoneStatus,
                 message: PermissionKind.microphone.message(for: microphoneStatus),
-                isRequired: true
-            ),
-            PermissionChecklistItem(
-                kind: .keyboardShortcuts,
-                status: keyboardStatus,
-                message: PermissionKind.keyboardShortcuts.message(for: keyboardStatus),
                 isRequired: true
             ),
             PermissionChecklistItem(

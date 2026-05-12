@@ -13,7 +13,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     private let audioDeviceService = AudioDeviceService.shared
     private let hotkeyService = HotkeyService.shared
     private let microphoneService = MicrophonePermissionService.live
-    private let keyboardService = KeyboardPermissionService.live
     private let activationStore = ActivationStore.shared
     private let audioCaptureService = AudioCaptureService.shared
     private let levelMonitor = AudioLevelMonitor()
@@ -164,8 +163,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             return
         }
 
-        // Defer the permission/startup chain off the launch callback to preserve
-        // the old Input Monitoring prompt timing that was working reliably.
         permissionStartupTask = Task { @MainActor [weak self] in
             guard let self else { return }
             let initialMicrophoneStatus = self.microphoneService.currentStatus()
@@ -188,7 +185,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             self.readinessStore.refresh()
             if shouldStartHotkeys {
                 self.requestAccessibilityIfEligible()
-                self.requestKeyboardShortcutsIfEligible()
                 self.hotkeyService.start()
             }
             self.permissionStartupTask = nil
@@ -214,27 +210,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         }
 
         preferences.completeInitialSetup()
-        readinessStore.refresh()
-    }
-
-    private func requestKeyboardShortcutsIfEligible() {
-        guard !suppressesAutomaticPermissionPrompts else {
-            return
-        }
-
-        let keyboardStatus = keyboardService.currentStatus(
-            hasPrompted: preferences.hasRequestedKeyboardPermission
-        )
-
-        guard Self.shouldRequestKeyboardPermission(
-            microphoneStatus: microphoneService.currentStatus(),
-            keyboardStatus: keyboardStatus
-        ) else {
-            return
-        }
-
-        preferences.recordKeyboardPermissionPrompt()
-        _ = keyboardService.requestAccess()
         readinessStore.refresh()
     }
 
@@ -576,17 +551,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         }
 
         return postEventStatus != .authorized
-    }
-
-    static func shouldRequestKeyboardPermission(
-        microphoneStatus: PermissionGrantState,
-        keyboardStatus: PermissionGrantState
-    ) -> Bool {
-        guard microphoneStatus == .authorized else {
-            return false
-        }
-
-        return keyboardStatus != .authorized
     }
 
     static func shouldSuppressAutomaticPermissionPrompts(

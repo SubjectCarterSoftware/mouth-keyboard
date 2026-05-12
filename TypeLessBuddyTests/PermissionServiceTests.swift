@@ -209,36 +209,6 @@ final class PermissionServiceTests: XCTestCase {
         XCTAssertFalse(shouldPrompt)
     }
 
-    func testInputMonitoringOnboardingAutoTriggerRunsOnFinalStepWhenNotAuthorized() {
-        let shouldTrigger = SetupWindowView.shouldAutoTriggerInputMonitoringRequest(
-            mode: .onboarding,
-            isInputMonitoringStep: true,
-            keyboardStatus: .notDetermined
-        )
-
-        XCTAssertTrue(shouldTrigger)
-    }
-
-    func testInputMonitoringOnboardingAutoTriggerSkipsSettingsMode() {
-        let shouldTrigger = SetupWindowView.shouldAutoTriggerInputMonitoringRequest(
-            mode: .settings,
-            isInputMonitoringStep: true,
-            keyboardStatus: .notDetermined
-        )
-
-        XCTAssertFalse(shouldTrigger)
-    }
-
-    func testInputMonitoringOnboardingAutoTriggerSkipsAuthorizedStatus() {
-        let shouldTrigger = SetupWindowView.shouldAutoTriggerInputMonitoringRequest(
-            mode: .onboarding,
-            isInputMonitoringStep: true,
-            keyboardStatus: .authorized
-        )
-
-        XCTAssertFalse(shouldTrigger)
-    }
-
     func testLaunchSetupWindowGatePresentsWhenReadinessNeedsSetup() {
         let shouldPresent = AppDelegate.shouldPresentSetupWindowOnLaunch(
             readinessState: .needsSetup,
@@ -364,7 +334,7 @@ final class PermissionServiceTests: XCTestCase {
         let shouldComplete = AppDelegate.shouldAutoCompleteSetupOnLaunch(
             isSetupComplete: false,
             launchAtLoginEnabled: true,
-            permissionStatuses: [.authorized, .authorized, .authorized]
+            permissionStatuses: [.authorized, .authorized]
         )
 
         XCTAssertTrue(shouldComplete)
@@ -374,46 +344,9 @@ final class PermissionServiceTests: XCTestCase {
         let shouldComplete = AppDelegate.shouldAutoCompleteSetupOnLaunch(
             isSetupComplete: false,
             launchAtLoginEnabled: true,
-            permissionStatuses: [.authorized, .notDetermined, .authorized]
+            permissionStatuses: [.authorized, .notDetermined]
         )
 
         XCTAssertFalse(shouldComplete)
     }
-
-    func testKeyboardGateRequestsInputMonitoringOnlyAfterMicrophoneIsAuthorized() {
-        let shouldRequest = AppDelegate.shouldRequestKeyboardPermission(
-            microphoneStatus: .authorized,
-            keyboardStatus: .notDetermined
-        )
-
-        XCTAssertTrue(shouldRequest)
-    }
-
-    func testKeyboardGateDoesNotRequestInputMonitoringBeforeMicrophoneIsAuthorized() {
-        let shouldRequest = AppDelegate.shouldRequestKeyboardPermission(
-            microphoneStatus: .notDetermined,
-            keyboardStatus: .notDetermined
-        )
-
-        XCTAssertFalse(shouldRequest)
-    }
-
-    func testKeyboardGateRequestsInputMonitoringAgainWhenStillNotAuthorized() {
-        let shouldRequest = AppDelegate.shouldRequestKeyboardPermission(
-            microphoneStatus: .authorized,
-            keyboardStatus: .denied
-        )
-
-        XCTAssertTrue(shouldRequest)
-    }
-
-    func testKeyboardGateDoesNotRequestInputMonitoringWhenAlreadyAuthorized() {
-        let shouldRequest = AppDelegate.shouldRequestKeyboardPermission(
-            microphoneStatus: .authorized,
-            keyboardStatus: .authorized
-        )
-
-        XCTAssertFalse(shouldRequest)
-    }
-
 }

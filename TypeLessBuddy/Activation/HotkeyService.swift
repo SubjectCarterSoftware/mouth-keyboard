@@ -318,14 +318,6 @@ final class HotkeyService {
         holdMonitor.updateTarget(keyCode: keyCode, modifiers: modifiers)
     }
 
-    /// Prime only the hold-to-transcribe listener so onboarding can exercise
-    /// the Input Monitoring path without enabling the full shortcut system yet.
-    @discardableResult
-    func primeHoldToTranscribeMonitoring() -> Bool {
-        configureHoldTarget()
-        return holdMonitor.start()
-    }
-
     func stop() {
         KeyboardShortcuts.disable(.activate, .activateAlt)
         KeyboardShortcuts.disable(.stopSession, .stopSessionAlt)
