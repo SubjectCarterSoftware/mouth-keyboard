@@ -10,35 +10,55 @@ struct PermissionChecklistView: View {
     let openRecovery: (PermissionKind) -> Void
     let launchAtLoginEnabled: Bool
     let onToggleLaunchAtLogin: (Bool) -> Void
+    var includedKinds: [PermissionKind] = [.microphone, .postEvent, .keyboardShortcuts]
+    var showsLaunchAtLoginTile = true
+    var usesGridLayout = false
 
     private var orderedPermissions: [PermissionChecklistItem] {
-        let orderedKinds: [PermissionKind] = [.microphone, .postEvent, .keyboardShortcuts]
-        return orderedKinds.compactMap { kind in
+        includedKinds.compactMap { kind in
             permissions.first(where: { $0.kind == kind })
         }
     }
 
     var body: some View {
-        HStack(spacing: 12) {
+        Group {
+            if usesGridLayout {
+                LazyVGrid(
+                    columns: [GridItem(.flexible(), spacing: 12), GridItem(.flexible(), spacing: 12)],
+                    spacing: 12
+                ) {
+                    tilesContent
+                }
+            } else {
+                HStack(spacing: 12) {
+                    tilesContent
+                }
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var tilesContent: some View {
+        if showsLaunchAtLoginTile {
             LaunchAtLoginTile(
                 isEnabled: launchAtLoginEnabled,
                 onToggle: onToggleLaunchAtLogin
             )
+        }
 
-            ForEach(orderedPermissions) { item in
-                PermissionTile(
-                    item: item,
-                    requestPermission: requestPermission,
-                    openRecovery: openRecovery
-                )
-            }
+        ForEach(orderedPermissions) { item in
+            PermissionTile(
+                item: item,
+                requestPermission: requestPermission,
+                openRecovery: openRecovery
+            )
         }
     }
 }
 
 // MARK: - Permission tile
 
-private struct PermissionTile: View {
+struct PermissionTile: View {
     let item: PermissionChecklistItem
     let requestPermission: (PermissionKind) -> Void
     let openRecovery: (PermissionKind) -> Void
@@ -201,7 +221,7 @@ private struct SetupStep: View {
 
 // MARK: - Launch at login tile
 
-private struct LaunchAtLoginTile: View {
+struct LaunchAtLoginTile: View {
     let isEnabled: Bool
     let onToggle: (Bool) -> Void
 

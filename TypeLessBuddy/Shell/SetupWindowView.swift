@@ -19,11 +19,11 @@ private enum RewriteSystemPromptSectionMetrics {
 }
 
 private enum SettingsSection: String, CaseIterable, Identifiable {
-    case setup
     case general
     case assistant
     case replacements
     case shortcuts
+    case permissions
     case advanced
 
     var id: String {
@@ -32,8 +32,6 @@ private enum SettingsSection: String, CaseIterable, Identifiable {
 
     var title: String {
         switch self {
-        case .setup:
-            return "Setup"
         case .general:
             return "General"
         case .assistant:
@@ -42,6 +40,8 @@ private enum SettingsSection: String, CaseIterable, Identifiable {
             return "Word Replacements"
         case .shortcuts:
             return "Keyboard Shortcuts"
+        case .permissions:
+            return "Permissions"
         case .advanced:
             return "Advanced"
         }
@@ -53,8 +53,105 @@ private enum SettingsSection: String, CaseIterable, Identifiable {
             return "Replacements"
         case .shortcuts:
             return "Keyboard"
+        case .permissions:
+            return "Permissions"
         default:
             return title
+        }
+    }
+}
+
+enum SetupWindowMode: Equatable {
+    case settings
+    case onboarding
+}
+
+private enum OnboardingStep: String, CaseIterable, Identifiable {
+    case microphone
+    case shortcuts
+    case pillPosition
+    case accessibility
+    case speechEngine
+    case inputMonitoring
+
+    var id: String {
+        rawValue
+    }
+
+    var title: String {
+        switch self {
+        case .microphone:
+            return "Microphone Access"
+        case .shortcuts:
+            return "Keyboard Shortcuts"
+        case .pillPosition:
+            return "Pill Position"
+        case .accessibility:
+            return "Accessibility Permission"
+        case .speechEngine:
+            return "Preparing Speech Engine"
+        case .inputMonitoring:
+            return "Input Monitoring"
+        }
+    }
+
+    var subtitle: String {
+        switch self {
+        case .microphone:
+            return "Grant microphone access first, then choose the input device TypeLessBuddy should use."
+        case .shortcuts:
+            return "Configure the shortcuts now. They become active only after Accessibility and Input Monitoring are granted."
+        case .pillPosition:
+            return "Pick where the recording pill should appear on screen."
+        case .accessibility:
+            return "Accessibility is required for full cross-app control and unlocks auto-paste when you want it."
+        case .speechEngine:
+            return "The recommended speech engine is preparing in the background. Finish this before the last permission step."
+        case .inputMonitoring:
+            return "This is the final required permission. macOS may relaunch the app after approval."
+        }
+    }
+
+    var continueTitle: String {
+        switch self {
+        case .inputMonitoring:
+            return "Finish Setup"
+        default:
+            return "Continue"
+        }
+    }
+
+    var symbolName: String {
+        switch self {
+        case .microphone:
+            return "mic.fill"
+        case .shortcuts:
+            return "command"
+        case .pillPosition:
+            return "rectangle.inset.filled.and.person.filled"
+        case .accessibility:
+            return "figure.wave"
+        case .speechEngine:
+            return "waveform.and.magnifyingglass"
+        case .inputMonitoring:
+            return "keyboard.fill"
+        }
+    }
+
+    var footerNote: String {
+        switch self {
+        case .microphone:
+            return "Approve microphone access first, then choose the input device you want TypeLessBuddy to use."
+        case .shortcuts:
+            return "Set the shortcuts now so they are ready as soon as the remaining permissions are granted."
+        case .pillPosition:
+            return "Choose a position that stays visible without covering the apps you use most."
+        case .accessibility:
+            return "Accessibility is required for the full control flow and underpins auto-paste when you want it."
+        case .speechEngine:
+            return "This Mac already has a recommended speech model selected. This step only waits for the first-time preparation to finish."
+        case .inputMonitoring:
+            return "Finish the last permission and TypeLessBuddy can activate its global shortcut handling."
         }
     }
 }
@@ -497,6 +594,342 @@ private struct SettingsSectionCard<Content: View>: View {
     }
 }
 
+private struct OnboardingCard<Content: View>: View {
+    let content: Content
+
+    init(@ViewBuilder content: () -> Content) {
+        self.content = content()
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            content
+        }
+        .padding(20)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(
+            RoundedRectangle(cornerRadius: SettingsLayoutMetrics.cardCornerRadius, style: .continuous)
+                .fill(Color(white: 0.14))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: SettingsLayoutMetrics.cardCornerRadius, style: .continuous)
+                .strokeBorder(Color.white.opacity(0.06), lineWidth: 1)
+        )
+    }
+}
+
+private enum OnboardingBadgeTone {
+    case neutral
+    case success
+    case warning
+    case danger
+
+    var foregroundStyle: Color {
+        switch self {
+        case .neutral:
+            return .secondary
+        case .success:
+            return .green
+        case .warning:
+            return .orange
+        case .danger:
+            return .red
+        }
+    }
+
+    var backgroundStyle: Color {
+        switch self {
+        case .neutral:
+            return Color.white.opacity(0.08)
+        case .success:
+            return Color.green.opacity(0.15)
+        case .warning:
+            return Color.orange.opacity(0.16)
+        case .danger:
+            return Color.red.opacity(0.16)
+        }
+    }
+}
+
+private struct OnboardingStatusBadge: View {
+    let title: String
+    let tone: OnboardingBadgeTone
+
+    var body: some View {
+        Text(title)
+            .font(.caption.weight(.semibold))
+            .foregroundStyle(tone.foregroundStyle)
+            .padding(.horizontal, 10)
+            .padding(.vertical, 6)
+            .background(tone.backgroundStyle, in: Capsule())
+    }
+}
+
+private struct OnboardingFeatureCard<Content: View>: View {
+    let systemImage: String
+    let title: String
+    var badgeTitle: String? = nil
+    var badgeTone: OnboardingBadgeTone = .neutral
+    var isHighlighted = false
+    let content: Content
+
+    init(
+        systemImage: String,
+        title: String,
+        badgeTitle: String? = nil,
+        badgeTone: OnboardingBadgeTone = .neutral,
+        isHighlighted: Bool = false,
+        @ViewBuilder content: () -> Content
+    ) {
+        self.systemImage = systemImage
+        self.title = title
+        self.badgeTitle = badgeTitle
+        self.badgeTone = badgeTone
+        self.isHighlighted = isHighlighted
+        self.content = content()
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            HStack(alignment: .top, spacing: 12) {
+                Label(title, systemImage: systemImage)
+                    .font(.headline)
+                    .labelStyle(.titleAndIcon)
+
+                Spacer(minLength: 12)
+
+                if let badgeTitle {
+                    OnboardingStatusBadge(title: badgeTitle, tone: badgeTone)
+                }
+            }
+
+            content
+        }
+        .padding(20)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        .background(
+            RoundedRectangle(cornerRadius: SettingsLayoutMetrics.cardCornerRadius, style: .continuous)
+                .fill(isHighlighted ? Color.accentColor.opacity(0.08) : Color(white: 0.14))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: SettingsLayoutMetrics.cardCornerRadius, style: .continuous)
+                .strokeBorder(
+                    isHighlighted ? Color.accentColor.opacity(0.28) : Color.white.opacity(0.06),
+                    lineWidth: 1
+                )
+        )
+    }
+}
+
+private struct OnboardingNoteBanner: View {
+    let text: String
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 10) {
+            Image(systemName: "info.circle.fill")
+                .foregroundStyle(Color.accentColor)
+            Text(text)
+                .font(.callout)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 14)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Color.white.opacity(0.05), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .strokeBorder(Color.white.opacity(0.05), lineWidth: 1)
+        )
+    }
+}
+
+private struct OnboardingChecklistItem: View {
+    let text: String
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 10) {
+            Image(systemName: "checkmark.circle.fill")
+                .font(.system(size: 14, weight: .semibold))
+                .foregroundStyle(Color.accentColor)
+            Text(text)
+                .font(.callout)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+    }
+}
+
+private struct OnboardingPillPreviewCard: View {
+    let position: RecordingPillPosition
+
+    private var alignment: Alignment {
+        switch position {
+        case .topLeft:
+            return .topLeading
+        case .topCenter:
+            return .top
+        case .topRight:
+            return .topTrailing
+        case .centerLeft:
+            return .leading
+        case .centerRight:
+            return .trailing
+        case .bottomLeft:
+            return .bottomLeading
+        case .bottomCenter:
+            return .bottom
+        case .bottomRight:
+            return .bottomTrailing
+        }
+    }
+
+    private var previewPadding: EdgeInsets {
+        switch position {
+        case .topLeft:
+            return EdgeInsets(top: 22, leading: 22, bottom: 0, trailing: 0)
+        case .topCenter:
+            return EdgeInsets(top: 22, leading: 0, bottom: 0, trailing: 0)
+        case .topRight:
+            return EdgeInsets(top: 22, leading: 0, bottom: 0, trailing: 22)
+        case .centerLeft:
+            return EdgeInsets(top: 0, leading: 22, bottom: 0, trailing: 0)
+        case .centerRight:
+            return EdgeInsets(top: 0, leading: 0, bottom: 0, trailing: 22)
+        case .bottomLeft:
+            return EdgeInsets(top: 0, leading: 22, bottom: 22, trailing: 0)
+        case .bottomCenter:
+            return EdgeInsets(top: 0, leading: 0, bottom: 22, trailing: 0)
+        case .bottomRight:
+            return EdgeInsets(top: 0, leading: 0, bottom: 22, trailing: 22)
+        }
+    }
+
+    var body: some View {
+        OnboardingFeatureCard(
+            systemImage: "display",
+            title: "Preview",
+            badgeTitle: position.displayName,
+            badgeTone: .neutral
+        ) {
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .fill(
+                    LinearGradient(
+                        colors: [Color.white.opacity(0.06), Color.white.opacity(0.02)],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    )
+                )
+                .overlay(
+                    RoundedRectangle(cornerRadius: 16, style: .continuous)
+                        .strokeBorder(Color.white.opacity(0.06), lineWidth: 1)
+                )
+                .frame(minHeight: 240)
+                .overlay(alignment: alignment) {
+                    HStack(spacing: 8) {
+                        Circle()
+                            .fill(Color.red)
+                            .frame(width: 10, height: 10)
+                        Text("Listening…")
+                            .font(.subheadline.weight(.medium))
+                            .foregroundStyle(.white)
+                    }
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 10)
+                    .background(Color.black.opacity(0.78), in: Capsule())
+                    .padding(previewPadding)
+                }
+        }
+    }
+}
+
+private struct OnboardingPermissionCard: View {
+    let item: PermissionChecklistItem
+    let headline: String
+    let message: String
+    let actionTitle: String
+    let requestPermission: (PermissionKind) -> Void
+    let openRecovery: (PermissionKind) -> Void
+
+    @State private var showsSetupGuide = false
+
+    private var badgeTone: OnboardingBadgeTone {
+        switch item.status {
+        case .authorized:
+            return .success
+        case .notDetermined:
+            return .warning
+        case .denied:
+            return .danger
+        }
+    }
+
+    var body: some View {
+        OnboardingFeatureCard(
+            systemImage: item.kind.systemImage,
+            title: headline,
+            badgeTitle: item.status.label,
+            badgeTone: badgeTone,
+            isHighlighted: true
+        ) {
+            Text(message)
+                .font(.callout)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+
+            if item.isAuthorized {
+                Label("Permission granted. You can continue when you are ready.", systemImage: "checkmark.circle.fill")
+                    .font(.callout.weight(.medium))
+                    .foregroundStyle(.green)
+            } else {
+                Button(actionTitle) {
+                    handleAction()
+                }
+                .buttonStyle(.borderedProminent)
+                .controlSize(.large)
+                .popover(isPresented: $showsSetupGuide, arrowEdge: .bottom) {
+                    setupGuide
+                }
+            }
+        }
+    }
+
+    private func handleAction() {
+        if item.kind == .postEvent && item.status == .notDetermined {
+            showsSetupGuide = true
+        } else if item.kind == .keyboardShortcuts && item.status == .denied {
+            showsSetupGuide = true
+        } else if item.status == .denied {
+            openRecovery(item.kind)
+        } else {
+            requestPermission(item.kind)
+        }
+    }
+
+    @ViewBuilder
+    private var setupGuide: some View {
+        if item.kind == .keyboardShortcuts {
+            InputMonitoringSetupGuide {
+                showsSetupGuide = false
+                if item.status == .denied {
+                    openRecovery(item.kind)
+                } else {
+                    requestPermission(item.kind)
+                }
+            }
+        } else {
+            AccessibilitySetupGuide {
+                showsSetupGuide = false
+                if item.status == .denied {
+                    openRecovery(item.kind)
+                } else {
+                    requestPermission(item.kind)
+                }
+            }
+        }
+    }
+}
+
 private struct SettingsCardFlashModifier: ViewModifier {
     let cornerRadius: CGFloat
     let flashTrigger: Int
@@ -913,9 +1346,70 @@ private struct ModelDownloadStatusRow: View {
     }
 }
 
+private struct OnboardingProgressDots: View {
+    let steps: [OnboardingStep]
+    let currentStep: OnboardingStep
+
+    var body: some View {
+        HStack(spacing: 8) {
+            ForEach(steps) { step in
+                Circle()
+                    .fill(step == currentStep ? Color.accentColor : Color.white.opacity(0.18))
+                    .frame(width: 9, height: 9)
+                    .overlay(
+                        Circle()
+                            .stroke(Color.white.opacity(step == currentStep ? 0.35 : 0.08), lineWidth: 1)
+                    )
+            }
+        }
+        .padding(.horizontal, 18)
+        .padding(.vertical, 10)
+        .background(Color.white.opacity(0.05), in: Capsule())
+    }
+}
+
+private struct CompactSetupStatusChip: View {
+    let title: String
+    let status: PermissionGrantState
+    let icon: String
+
+    private var tintColor: Color {
+        switch status {
+        case .authorized:
+            return .green
+        case .notDetermined:
+            return .orange
+        case .denied:
+            return .red
+        }
+    }
+
+    var body: some View {
+        HStack(spacing: 10) {
+            Image(systemName: icon)
+                .foregroundStyle(tintColor)
+                .font(.system(size: 15, weight: .semibold))
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title)
+                    .font(.subheadline.weight(.semibold))
+                Text(status.label)
+                    .font(.caption)
+                    .foregroundStyle(tintColor)
+            }
+
+            Spacer(minLength: 0)
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 12)
+        .background(Color.white.opacity(0.04), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+    }
+}
+
 struct SetupWindowView: View {
     @ObservedObject var preferences: ShellPreferences
     @ObservedObject var readinessStore: ReadinessStore
+    let mode: SetupWindowMode
     @ObservedObject private var modelLoadState = RewriteModelLoadState.shared
     @ObservedObject private var whisperModelLoadState = WhisperModelLoadState.shared
     @ObservedObject private var activationStore = ActivationStore.shared
@@ -928,13 +1422,16 @@ struct SetupWindowView: View {
     @State private var isLoadingCloudModels = false
     @State private var cloudModelFetchError: String?
     @State private var cloudConnectionTestResult: CloudConnectionTestResult?
-    @State private var activeSection: SettingsSection = .setup
+    @State private var activeSection: SettingsSection = .general
     @State private var flashedSection: SettingsSection?
     @State private var flashNonce: Int = 0
     @State private var scheduledFlashTask: Task<Void, Never>?
+    @State private var onboardingStep: OnboardingStep = .microphone
+    @State private var hasInitializedOnboardingStep = false
     let updatePillPositionPreview: (RecordingPillPosition?) -> Void
     let dismissWindow: () -> Void
     let openGuide: () -> Void
+    let completeOnboarding: () -> Void
 
     private var rewriteSystemPromptBinding: Binding<String> {
         Binding(
@@ -1027,6 +1524,99 @@ struct SetupWindowView: View {
                 preferences.recordingPillPosition = newValue
             }
         )
+    }
+
+    private var microphonePermissionItem: PermissionChecklistItem? {
+        readinessStore.snapshot.permissions.first(where: { $0.kind == .microphone })
+    }
+
+    private var accessibilityPermissionItem: PermissionChecklistItem? {
+        readinessStore.snapshot.permissions.first(where: { $0.kind == .postEvent })
+    }
+
+    private var inputMonitoringPermissionItem: PermissionChecklistItem? {
+        readinessStore.snapshot.permissions.first(where: { $0.kind == .keyboardShortcuts })
+    }
+
+    private var isMicrophoneAuthorized: Bool {
+        microphonePermissionItem?.isAuthorized ?? false
+    }
+
+    private var isAccessibilityAuthorized: Bool {
+        accessibilityPermissionItem?.isAuthorized ?? false
+    }
+
+    private var isInputMonitoringAuthorized: Bool {
+        inputMonitoringPermissionItem?.isAuthorized ?? false
+    }
+
+    private var speechEngineStatus: WhisperModelLoadState.ModelStatus {
+        whisperModelLoadState.status(for: preferences.whisperModel)
+    }
+
+    private var isSpeechEngineReady: Bool {
+        let status = speechEngineStatus
+        return status.isDownloaded && !status.isDownloading && !status.isPrewarming && !status.isLoading && !status.isDeleting
+    }
+
+    private var onboardingStepSequence: [OnboardingStep] {
+        OnboardingStep.allCases
+    }
+
+    private var onboardingStepIndex: Int {
+        (onboardingStepSequence.firstIndex(of: onboardingStep) ?? 0) + 1
+    }
+
+    private func badgeTone(for status: PermissionGrantState) -> OnboardingBadgeTone {
+        switch status {
+        case .authorized:
+            return .success
+        case .notDetermined:
+            return .warning
+        case .denied:
+            return .danger
+        }
+    }
+
+    private func requestPermission(_ kind: PermissionKind) {
+        readinessStore.requestPermission(for: kind)
+    }
+
+    private func openPermissionRecovery(_ kind: PermissionKind) {
+        readinessStore.openRecovery(for: kind)
+    }
+
+    private func microphoneActionTitle(for status: PermissionGrantState) -> String {
+        switch status {
+        case .authorized:
+            return "Microphone Granted"
+        case .notDetermined:
+            return "Grant Microphone Access"
+        case .denied:
+            return "Open Microphone Settings"
+        }
+    }
+
+    private func accessibilityActionTitle(for status: PermissionGrantState) -> String {
+        switch status {
+        case .authorized:
+            return "Accessibility Granted"
+        case .notDetermined:
+            return "Grant Accessibility"
+        case .denied:
+            return "Open Accessibility Settings"
+        }
+    }
+
+    private func inputMonitoringActionTitle(for status: PermissionGrantState) -> String {
+        switch status {
+        case .authorized:
+            return "Input Monitoring Granted"
+        case .notDetermined:
+            return "Grant Input Monitoring"
+        case .denied:
+            return "Open Input Monitoring Settings"
+        }
     }
 
     private func shortRamGuidance(for tier: RewriteModelTier) -> String {
@@ -1273,15 +1863,19 @@ struct SetupWindowView: View {
     init(
         preferences: ShellPreferences,
         readinessStore: ReadinessStore,
+        mode: SetupWindowMode,
         updatePillPositionPreview: @escaping (RecordingPillPosition?) -> Void,
         dismissWindow: @escaping () -> Void,
-        openGuide: @escaping () -> Void
+        openGuide: @escaping () -> Void,
+        completeOnboarding: @escaping () -> Void
     ) {
         self.preferences = preferences
         self.readinessStore = readinessStore
+        self.mode = mode
         self.updatePillPositionPreview = updatePillPositionPreview
         self.dismissWindow = dismissWindow
         self.openGuide = openGuide
+        self.completeOnboarding = completeOnboarding
         _assistantSettingsViewModel = StateObject(
             wrappedValue: AIAssistantSettingsViewModel(preferences: preferences)
         )
@@ -1666,24 +2260,410 @@ struct SetupWindowView: View {
             .id(section)
     }
 
-    private var setupSectionContent: some View {
-        SettingsSectionCard(section: .setup, flashTrigger: flashTrigger(for: .setup)) {
+    private func isStepComplete(_ step: OnboardingStep) -> Bool {
+        switch step {
+        case .microphone:
+            return isMicrophoneAuthorized
+        case .shortcuts, .pillPosition:
+            return true
+        case .accessibility:
+            return isAccessibilityAuthorized
+        case .speechEngine:
+            return isSpeechEngineReady
+        case .inputMonitoring:
+            return isSpeechEngineReady && isInputMonitoringAuthorized
+        }
+    }
+
+    private func canResume(step: OnboardingStep) -> Bool {
+        for candidate in onboardingStepSequence {
+            if candidate == step {
+                return true
+            }
+
+            guard isStepComplete(candidate) else {
+                return false
+            }
+        }
+
+        return true
+    }
+
+    private func firstIncompleteOnboardingStep() -> OnboardingStep? {
+        onboardingStepSequence.first(where: { !isStepComplete($0) })
+    }
+
+    private func synchronizeOnboardingStepIfNeeded() {
+        guard mode == .onboarding else { return }
+        guard !hasInitializedOnboardingStep else { return }
+        hasInitializedOnboardingStep = true
+
+        if let resumeToken = preferences.onboardingResumeToken,
+           let resumedStep = OnboardingStep(rawValue: resumeToken),
+           canResume(step: resumedStep) {
+            onboardingStep = resumedStep
+            return
+        }
+
+        onboardingStep = firstIncompleteOnboardingStep() ?? .inputMonitoring
+    }
+
+    private func persistOnboardingProgress() {
+        guard mode == .onboarding else { return }
+        preferences.setOnboardingResumeToken(onboardingStep.rawValue)
+    }
+
+    private func advanceOnboarding() {
+        if onboardingStep == .inputMonitoring {
+            guard isSpeechEngineReady, isInputMonitoringAuthorized else { return }
+            completeOnboarding()
+            return
+        }
+
+        guard let currentIndex = onboardingStepSequence.firstIndex(of: onboardingStep) else {
+            return
+        }
+
+        let nextIndex = onboardingStepSequence.index(after: currentIndex)
+        guard onboardingStepSequence.indices.contains(nextIndex) else {
+            return
+        }
+
+        onboardingStep = onboardingStepSequence[nextIndex]
+    }
+
+    private func goBackOnboarding() {
+        guard let currentIndex = onboardingStepSequence.firstIndex(of: onboardingStep),
+              currentIndex > onboardingStepSequence.startIndex else {
+            return
+        }
+
+        onboardingStep = onboardingStepSequence[onboardingStepSequence.index(before: currentIndex)]
+    }
+
+    private var canContinueOnboarding: Bool {
+        switch onboardingStep {
+        case .microphone:
+            return isMicrophoneAuthorized
+        case .shortcuts, .pillPosition:
+            return true
+        case .accessibility:
+            return isAccessibilityAuthorized
+        case .speechEngine:
+            return isSpeechEngineReady
+        case .inputMonitoring:
+            return isSpeechEngineReady && isInputMonitoringAuthorized
+        }
+    }
+
+    @ViewBuilder
+    private var onboardingStepContent: some View {
+        switch onboardingStep {
+        case .microphone:
+            onboardingMicrophoneStep
+        case .shortcuts:
+            onboardingShortcutsStep
+        case .pillPosition:
+            onboardingPillPositionStep
+        case .accessibility:
+            onboardingAccessibilityStep
+        case .speechEngine:
+            onboardingSpeechEngineStep
+        case .inputMonitoring:
+            onboardingInputMonitoringStep
+        }
+    }
+
+    private var onboardingMicrophoneStep: some View {
+        HStack(alignment: .top, spacing: 18) {
+            if let microphonePermissionItem {
+                OnboardingPermissionCard(
+                    item: microphonePermissionItem,
+                    headline: "Microphone Permission",
+                    message: "TypeLessBuddy only records when you trigger it. Audio stays on-device, and this permission is required before anything else can work.",
+                    actionTitle: microphoneActionTitle(for: microphonePermissionItem.status),
+                    requestPermission: requestPermission,
+                    openRecovery: openPermissionRecovery
+                )
+            }
+
+            OnboardingFeatureCard(
+                systemImage: "wave.3.left.circle.fill",
+                title: "Preferred Microphone",
+                badgeTitle: isMicrophoneAuthorized ? "Ready to pick" : "Locked",
+                badgeTone: isMicrophoneAuthorized ? .neutral : .warning
+            ) {
+                if isMicrophoneAuthorized {
+                    Text("Choose the input TypeLessBuddy should prefer whenever it is available.")
+                        .font(.callout)
+                        .foregroundStyle(.secondary)
+
+                    Picker("Preferred Microphone", selection: microphoneSelection) {
+                        Text("System Default").tag(Optional<String>.none)
+                        ForEach(audioDeviceService.availableDevices) { device in
+                            Text(device.name).tag(Optional(device.uid))
+                        }
+                    }
+                    .pickerStyle(.menu)
+                    .frame(maxWidth: 280, alignment: .leading)
+                } else {
+                    Text("Approve microphone access first. As soon as macOS grants it, this card unlocks so you can choose the specific input device.")
+                        .font(.callout)
+                        .foregroundStyle(.secondary)
+                }
+            }
+        }
+    }
+
+    private var onboardingShortcutsStep: some View {
+        VStack(alignment: .leading, spacing: 18) {
+            OnboardingNoteBanner(
+                text: "Configure the shortcuts now, but none of them become active until both Accessibility and Input Monitoring are granted later in setup."
+            )
+
+            OnboardingFeatureCard(
+                systemImage: "command",
+                title: "Shortcut Assignment",
+                isHighlighted: true
+            ) {
+                VStack(alignment: .leading, spacing: 14) {
+                    SetupFieldRow(title: "Start recording") {
+                        HStack(spacing: 12) {
+                            KeyComboRecorder(name: .activate, preferences: preferences)
+                            KeyComboRecorder(name: .activateAlt, preferences: preferences)
+                        }
+                    }
+
+                    SetupFieldRow(title: "Stop recording") {
+                        HStack(spacing: 12) {
+                            KeyComboRecorder(name: .stopSession, preferences: preferences)
+                            KeyComboRecorder(name: .stopSessionAlt, preferences: preferences)
+                        }
+                    }
+
+                    KeyboardShortcutsRow(preferences: preferences)
+                }
+            }
+        }
+    }
+
+    private var onboardingPillPositionStep: some View {
+        HStack(alignment: .top, spacing: 18) {
+            OnboardingFeatureCard(
+                systemImage: "rectangle.inset.filled.and.person.filled",
+                title: "Pill Position",
+                badgeTitle: preferences.recordingPillPosition.displayName,
+                badgeTone: .neutral,
+                isHighlighted: true
+            ) {
+                Text("Place the recording pill where it is easiest to notice without covering the apps you use most.")
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
+
+                HStack {
+                    Spacer()
+                    PillPositionPickerRow(
+                        selection: recordingPillPositionBinding,
+                        onHoverChange: updatePillPositionPreview
+                    )
+                    Spacer()
+                }
+            }
+
+            OnboardingPillPreviewCard(position: preferences.recordingPillPosition)
+        }
+    }
+
+    private var onboardingAccessibilityStep: some View {
+        HStack(alignment: .top, spacing: 18) {
+            if let accessibilityPermissionItem {
+                OnboardingPermissionCard(
+                    item: accessibilityPermissionItem,
+                    headline: "Accessibility Permission",
+                    message: "Accessibility is required for TypeLessBuddy’s full cross-app control behavior. It also unlocks auto-paste whenever you want to use it.",
+                    actionTitle: accessibilityActionTitle(for: accessibilityPermissionItem.status),
+                    requestPermission: requestPermission,
+                    openRecovery: openPermissionRecovery
+                )
+            }
+
+            OnboardingFeatureCard(
+                systemImage: "sparkles",
+                title: "What this enables"
+            ) {
+                VStack(alignment: .leading, spacing: 12) {
+                    OnboardingChecklistItem(text: "Auto-paste into the focused app whenever you want it.")
+                    OnboardingChecklistItem(text: "Reliable cross-app control after transcription finishes.")
+                    OnboardingChecklistItem(text: "The permission foundation the shortcut flow depends on later.")
+                }
+            }
+        }
+    }
+
+    private var onboardingSpeechEngineStep: some View {
+        OnboardingFeatureCard(
+            systemImage: "waveform.and.magnifyingglass",
+            title: "Preparing Speech Engine",
+            badgeTitle: isSpeechEngineReady ? "Ready" : "In Progress",
+            badgeTone: isSpeechEngineReady ? .success : .warning,
+            isHighlighted: true
+        ) {
+            Text("TypeLessBuddy already picked the right speech model for this Mac. This step makes the first-time download and hardware preparation visible so the final permission does not finish early.")
+                .font(.callout)
+                .foregroundStyle(.secondary)
+
+            if isSpeechEngineReady {
+                Label(
+                    "\(preferences.whisperModel.displayName) is downloaded and prepared for first use.",
+                    systemImage: "checkmark.circle.fill"
+                )
+                .font(.callout.weight(.medium))
+                .foregroundStyle(.green)
+                .padding(16)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(Color.green.opacity(0.12), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+            } else {
+                speechModelStatusContent
+
+                if !speechEngineStatus.isDownloaded && !whisperModelLoadState.phase.isTransferInFlight {
+                    ModelDownloadStatusRow(
+                        title: "Preparing speech model",
+                        message: "\(preferences.whisperModel.displayName) is queued for download.",
+                        progress: nil
+                    )
+                }
+            }
+        }
+    }
+
+    private var onboardingInputMonitoringStep: some View {
+        HStack(alignment: .top, spacing: 18) {
+            if let inputMonitoringPermissionItem {
+                OnboardingPermissionCard(
+                    item: inputMonitoringPermissionItem,
+                    headline: "Input Monitoring",
+                    message: "This final permission enables all global shortcut handling. macOS may ask to quit and reopen TypeLessBuddy after you approve it.",
+                    actionTitle: inputMonitoringActionTitle(for: inputMonitoringPermissionItem.status),
+                    requestPermission: requestPermission,
+                    openRecovery: openPermissionRecovery
+                )
+            }
+
+            OnboardingFeatureCard(
+                systemImage: "sparkles",
+                title: "What this enables"
+            ) {
+                VStack(alignment: .leading, spacing: 12) {
+                    OnboardingChecklistItem(text: "Hold-to-record works globally in any app.")
+                    OnboardingChecklistItem(text: "Your start and stop shortcuts can trigger from anywhere once macOS finishes approval.")
+                    OnboardingChecklistItem(text: "The shortcut setup you already chose becomes active after the system accepts this permission.")
+                }
+            }
+        }
+    }
+
+    private var onboardingBody: some View {
+        VStack(spacing: 0) {
+            VStack(alignment: .leading, spacing: 28) {
+                HStack(alignment: .center, spacing: 16) {
+                    Button {
+                        goBackOnboarding()
+                    } label: {
+                        Label("Back", systemImage: "chevron.left")
+                    }
+                    .buttonStyle(.borderless)
+                    .foregroundStyle(onboardingStep == onboardingStepSequence.first ? .clear : .secondary)
+                    .disabled(onboardingStep == onboardingStepSequence.first)
+
+                    Spacer()
+
+                    Text("Step \(onboardingStepIndex) of \(onboardingStepSequence.count)")
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(.secondary)
+                }
+                .overlay {
+                    OnboardingProgressDots(steps: onboardingStepSequence, currentStep: onboardingStep)
+                }
+
+                VStack(alignment: .center, spacing: 14) {
+                    ZStack {
+                        Circle()
+                            .fill(Color.accentColor.opacity(0.16))
+                            .frame(width: 64, height: 64)
+
+                        Image(systemName: onboardingStep.symbolName)
+                            .font(.system(size: 28, weight: .semibold))
+                            .foregroundStyle(Color.accentColor)
+                    }
+                    .frame(maxWidth: .infinity)
+
+                    VStack(alignment: .center, spacing: 8) {
+                        Text(onboardingStep.title)
+                            .font(.system(size: 34, weight: .bold, design: .rounded))
+                            .frame(maxWidth: .infinity, alignment: .center)
+
+                        Text(onboardingStep.subtitle)
+                            .font(.title3)
+                            .foregroundStyle(.secondary)
+                            .multilineTextAlignment(.center)
+                            .frame(maxWidth: 660)
+                            .frame(maxWidth: .infinity, alignment: .center)
+                    }
+                }
+
+                onboardingStepContent
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+            }
+            .padding(28)
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+
+            Divider()
+
+            HStack(alignment: .center, spacing: 16) {
+                Text(onboardingStep.footerNote)
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .frame(maxWidth: 460, alignment: .leading)
+
+                Spacer()
+
+                Button("Quit App") {
+                    NSApp.terminate(nil)
+                }
+                .foregroundStyle(.red)
+
+                Button(onboardingStep.continueTitle) {
+                    advanceOnboarding()
+                }
+                .buttonStyle(.borderedProminent)
+                .controlSize(.large)
+                .disabled(!canContinueOnboarding)
+            }
+            .padding(.horizontal, 28)
+            .padding(.vertical, 16)
+            .background(Color(red: 0.07, green: 0.07, blue: 0.08))
+        }
+    }
+
+    private var permissionsSectionContent: some View {
+        SettingsSectionCard(section: .permissions, flashTrigger: flashTrigger(for: .permissions)) {
             VStack(alignment: .leading, spacing: 16) {
                 setupModelStatusContent
-
                 PermissionChecklistView(
                     permissions: readinessStore.snapshot.permissions,
-                    requestPermission: { kind in readinessStore.requestPermission(for: kind) },
-                    openRecovery: { kind in readinessStore.openRecovery(for: kind) },
+                    requestPermission: requestPermission,
+                    openRecovery: openPermissionRecovery,
                     launchAtLoginEnabled: preferences.launchAtLogin,
-                    onToggleLaunchAtLogin: { preferences.setLaunchAtLogin($0) }
+                    onToggleLaunchAtLogin: { preferences.setLaunchAtLogin($0) },
+                    usesGridLayout: true
                 )
             }
         }
     }
 
     @ViewBuilder
-    private var setupModelStatusContent: some View {
+    private var speechModelStatusContent: some View {
         if case .downloading(let model, let progress) = whisperModelLoadState.phase,
            model == preferences.whisperModel {
             ModelDownloadStatusRow(
@@ -1701,6 +2681,11 @@ struct SetupWindowView: View {
             )
             .accessibilityIdentifier("setupWindow.setupStatus.whisperPrewarm")
         }
+    }
+
+    @ViewBuilder
+    private var setupModelStatusContent: some View {
+        speechModelStatusContent
 
         if case .downloading(let tier, let progress) = modelLoadState.phase,
            tier == preferences.rewriteModelTier {
@@ -1937,7 +2922,7 @@ struct SetupWindowView: View {
         .accessibilityIdentifier("setupWindow.section.advanced")
     }
 
-    var body: some View {
+    private var settingsBody: some View {
         VStack(spacing: 0) {
             VStack(alignment: .leading, spacing: 20) {
                 HStack(alignment: .firstTextBaseline, spacing: 12) {
@@ -1971,10 +2956,6 @@ struct SetupWindowView: View {
 
                         ScrollView {
                             VStack(alignment: .leading, spacing: 18) {
-                                trackedSection(.setup) {
-                                    setupSectionContent
-                                }
-
                                 trackedSection(.general) {
                                     generalSectionContent
                                 }
@@ -1991,6 +2972,10 @@ struct SetupWindowView: View {
                                     shortcutsSectionContent
                                 }
 
+                                trackedSection(.permissions) {
+                                    permissionsSectionContent
+                                }
+
                                 trackedSection(.advanced) {
                                     advancedSectionContent
                                 }
@@ -2002,6 +2987,9 @@ struct SetupWindowView: View {
                         }
                         .coordinateSpace(name: "settingsScroll")
                         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+                    }
+                    .onReceive(NotificationCenter.default.publisher(for: .postEventGuideRequested)) { _ in
+                        scrollToSection(.permissions, proxy: proxy)
                     }
                 }
             }
@@ -2040,6 +3028,16 @@ struct SetupWindowView: View {
             .padding(.vertical, 16)
             .background(Color(red: 0.07, green: 0.07, blue: 0.08))
         }
+    }
+
+    var body: some View {
+        Group {
+            if mode == .onboarding {
+                onboardingBody
+            } else {
+                settingsBody
+            }
+        }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .frame(
             minWidth: SetupWindowMetrics.width,
@@ -2055,6 +3053,11 @@ struct SetupWindowView: View {
             whisperModelLoadState.refreshStatus()
             configureSetupWindowSize()
             loadCloudAPIKeyIfNeeded()
+            synchronizeOnboardingStepIfNeeded()
+            persistOnboardingProgress()
+            if mode == .onboarding && !preferences.launchAtLogin {
+                preferences.setLaunchAtLogin(true)
+            }
             NSApp.activate(ignoringOtherApps: true)
         }
         .onDisappear {
@@ -2071,6 +3074,9 @@ struct SetupWindowView: View {
         }
         .onChange(of: preferences.whisperModel) { _ in
             whisperModelLoadState.refreshStatus()
+        }
+        .onChange(of: onboardingStep) { _, _ in
+            persistOnboardingProgress()
         }
         .onChange(of: preferences.cloudLLMConfig.provider) { _, _ in
             cloudAPIKeyLoaded = false

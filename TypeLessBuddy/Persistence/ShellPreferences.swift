@@ -41,6 +41,8 @@ final class ShellPreferences: ObservableObject {
     enum Keys {
         static let suiteName = "com.elicarter.TypeLessBuddy.shell"
         static let hasCompletedInitialSetup = "hasCompletedInitialSetup"
+        static let completedOnboardingBuildIdentifier = "completedOnboardingBuildIdentifier"
+        static let onboardingResumeToken = "onboardingResumeToken"
         static let showsMenuHints = "showsMenuHints"
         static let hasRequestedMicrophonePermission = "hasRequestedMicrophonePermission"
         static let hasRequestedKeyboardPermission = "hasRequestedKeyboardPermission"
@@ -68,6 +70,33 @@ final class ShellPreferences: ObservableObject {
     @Published var hasCompletedInitialSetup: Bool {
         didSet {
             defaults.set(hasCompletedInitialSetup, forKey: Keys.hasCompletedInitialSetup)
+        }
+    }
+
+    @Published private(set) var completedOnboardingBuildIdentifier: String? {
+        didSet {
+            persistIfNeeded {
+                if let completedOnboardingBuildIdentifier {
+                    defaults.set(
+                        completedOnboardingBuildIdentifier,
+                        forKey: Keys.completedOnboardingBuildIdentifier
+                    )
+                } else {
+                    defaults.removeObject(forKey: Keys.completedOnboardingBuildIdentifier)
+                }
+            }
+        }
+    }
+
+    @Published private(set) var onboardingResumeToken: String? {
+        didSet {
+            persistIfNeeded {
+                if let onboardingResumeToken {
+                    defaults.set(onboardingResumeToken, forKey: Keys.onboardingResumeToken)
+                } else {
+                    defaults.removeObject(forKey: Keys.onboardingResumeToken)
+                }
+            }
         }
     }
 
@@ -231,9 +260,14 @@ final class ShellPreferences: ObservableObject {
         !hasCompletedInitialSetup
     }
 
+    var shouldPresentOnboardingOnLaunch: Bool {
+        completedOnboardingBuildIdentifier != currentBuildIdentifier
+    }
+
     private let defaults: UserDefaults
     private let triggerProfileStore: TriggerProfileStore
     private let dictionaryStore: DictionaryStore
+    private let currentBuildIdentifier: String
     private var isPersistenceSuspended = false
 
     init(
@@ -241,12 +275,18 @@ final class ShellPreferences: ObservableObject {
         triggerProfileStore: TriggerProfileStore = .shared,
         dictionaryStore: DictionaryStore = .shared,
         initialTriggerProfile: TriggerProfile? = nil,
-        initialDictionaryData: DictionaryData? = nil
+        initialDictionaryData: DictionaryData? = nil,
+        currentBuildIdentifier: String? = nil
     ) {
         defaults = userDefaults
         self.triggerProfileStore = triggerProfileStore
         self.dictionaryStore = dictionaryStore
+        self.currentBuildIdentifier = currentBuildIdentifier ?? Self.resolveCurrentBuildIdentifier()
         hasCompletedInitialSetup = userDefaults.bool(forKey: Keys.hasCompletedInitialSetup)
+        completedOnboardingBuildIdentifier = userDefaults.string(
+            forKey: Keys.completedOnboardingBuildIdentifier
+        )
+        onboardingResumeToken = userDefaults.string(forKey: Keys.onboardingResumeToken)
         hasRequestedMicrophonePermission = userDefaults.bool(forKey: Keys.hasRequestedMicrophonePermission)
         hasRequestedKeyboardPermission = userDefaults.bool(forKey: Keys.hasRequestedKeyboardPermission)
         hasRequestedPostEventPermission = userDefaults.bool(forKey: Keys.hasRequestedPostEventPermission)
@@ -355,6 +395,15 @@ final class ShellPreferences: ObservableObject {
         hasCompletedInitialSetup = true
     }
 
+    func acknowledgeOnboardingForCurrentBuild() {
+        completedOnboardingBuildIdentifier = currentBuildIdentifier
+        onboardingResumeToken = nil
+    }
+
+    func setOnboardingResumeToken(_ token: String?) {
+        onboardingResumeToken = token
+    }
+
     func recordMicrophonePermissionPrompt() {
         hasRequestedMicrophonePermission = true
     }
@@ -430,6 +479,8 @@ final class ShellPreferences: ObservableObject {
     func reset() {
         withPersistenceSuspended {
             hasCompletedInitialSetup = false
+            completedOnboardingBuildIdentifier = nil
+            onboardingResumeToken = nil
             showsMenuHints = true
             hasRequestedMicrophonePermission = false
             hasRequestedKeyboardPermission = false
@@ -451,6 +502,8 @@ final class ShellPreferences: ObservableObject {
         }
 
         defaults.removeObject(forKey: Keys.hasCompletedInitialSetup)
+        defaults.removeObject(forKey: Keys.completedOnboardingBuildIdentifier)
+        defaults.removeObject(forKey: Keys.onboardingResumeToken)
         defaults.removeObject(forKey: Keys.showsMenuHints)
         defaults.removeObject(forKey: Keys.hasRequestedMicrophonePermission)
         defaults.removeObject(forKey: Keys.hasRequestedKeyboardPermission)
@@ -514,6 +567,24 @@ final class ShellPreferences: ObservableObject {
 
     private static func normalizedRewritePromptPrefix(_ value: String) -> String {
         LLMRewriteService.normalizeAssistantSystemPromptTemplate(value)
+    }
+
+    private static func resolveCurrentBuildIdentifier(bundle: Bundle = .main) -> String {
+        let shortVersion = bundle.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "unknown"
+        let buildVersion = bundle.object(forInfoDictionaryKey: "CFBundleVersion") as? String ?? "unknown"
+        let buildDate = bundle.executableURL
+            .flatMap { try? $0.resourceValues(forKeys: [.contentModificationDateKey]).contentModificationDate }
+            ?? (try? bundle.bundleURL.resourceValues(forKeys: [.contentModificationDateKey]))?.contentModificationDate
+
+        guard let buildDate else {
+            return [shortVersion, buildVersion].joined(separator: "|")
+        }
+
+        return [
+            shortVersion,
+            buildVersion,
+            ISO8601DateFormatter().string(from: buildDate)
+        ].joined(separator: "|")
     }
 
     private static func makeShared() -> ShellPreferences {

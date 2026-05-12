@@ -272,6 +272,37 @@ final class ShellPreferencesModelTests: XCTestCase {
         )
     }
 
+    func testOnboardingPresentsWhenBuildIdentifierChanges() {
+        let (defaults, preferences) = makePreferences(currentBuildIdentifier: "build-A")
+        preferences.acknowledgeOnboardingForCurrentBuild()
+
+        let nextPreferences = ShellPreferences(
+            userDefaults: defaults,
+            currentBuildIdentifier: "build-B"
+        )
+
+        XCTAssertTrue(nextPreferences.shouldPresentOnboardingOnLaunch)
+    }
+
+    func testOnboardingDoesNotPresentAfterAcknowledgingCurrentBuild() {
+        let (_, preferences) = makePreferences(currentBuildIdentifier: "build-A")
+        preferences.acknowledgeOnboardingForCurrentBuild()
+
+        XCTAssertFalse(preferences.shouldPresentOnboardingOnLaunch)
+    }
+
+    func testOnboardingResumeTokenPersistsRoundTrip() {
+        let (defaults, preferences) = makePreferences(currentBuildIdentifier: "build-A")
+        preferences.setOnboardingResumeToken("speechEngine")
+
+        let preferences2 = ShellPreferences(
+            userDefaults: defaults,
+            currentBuildIdentifier: "build-A"
+        )
+
+        XCTAssertEqual(preferences2.onboardingResumeToken, "speechEngine")
+    }
+
     func testResetAssistantNameToDefaultClearsCustomTrigger() async {
         let (_, preferences) = makePreferences(
             initialTriggerProfile: TriggerProfile(
@@ -287,6 +318,7 @@ final class ShellPreferencesModelTests: XCTestCase {
 
     private func makePreferences(
         initialTriggerProfile: TriggerProfile? = nil,
+        currentBuildIdentifier: String = "test-build",
         file: StaticString = #filePath,
         line: UInt = #line
     ) -> (UserDefaults, ShellPreferences) {
@@ -303,7 +335,8 @@ final class ShellPreferencesModelTests: XCTestCase {
                 triggerProfileStore: TriggerProfileStore(
                     storeURL: FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString + ".json")
                 ),
-                initialTriggerProfile: initialTriggerProfile
+                initialTriggerProfile: initialTriggerProfile,
+                currentBuildIdentifier: currentBuildIdentifier
             )
         )
     }

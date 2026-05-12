@@ -7,6 +7,7 @@ import SwiftUI
 final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     private var setupWindow: NSWindow?
     private var guideWindow: NSWindow?
+    private var setupWindowMode: SetupWindowMode = .settings
     private let preferences = ShellPreferences.shared
     private let readinessStore = ReadinessStore.shared
     private let audioDeviceService = AudioDeviceService.shared
@@ -47,17 +48,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
 
         readinessStore.refresh()
         statusMenuController.install()
-        let shouldPresentSetupWindowOnLaunch = Self.shouldPresentSetupWindowOnLaunch(
+        performInitialSetupCompletionCheck()
+        let launchSetupWindowMode = Self.launchSetupWindowMode(
             readinessState: readinessStore.snapshot.state,
+            shouldPresentOnboarding: preferences.shouldPresentOnboardingOnLaunch,
             forcePresentSetupOnLaunch: forcePresentSetupOnLaunch
         )
-        performInitialSetupCompletionCheck()
 
-        if shouldPresentSetupWindowOnLaunch {
+        if let launchSetupWindowMode {
             DispatchQueue.main.async { [weak self] in
                 guard let self else { return }
-                self.presentSetupWindow()
-                self.requestMicrophoneThenStartHotkeysIfAllowed()
+                self.presentSetupWindow(mode: launchSetupWindowMode)
+                if launchSetupWindowMode != .onboarding {
+                    self.requestMicrophoneThenStartHotkeysIfAllowed()
+                }
             }
         } else {
             requestMicrophoneThenStartHotkeysIfAllowed()
@@ -87,7 +91,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         }
 
         activationStore.onPastePermissionNeeded = { [weak self] in
-            self?.presentSetupWindow()
+            self?.presentSetupWindow(mode: .settings)
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
                 NotificationCenter.default.post(name: .postEventGuideRequested, object: nil)
             }
@@ -137,15 +141,26 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         stateObservation?.cancel()
     }
 
+    private var suppressesAutomaticPermissionPrompts: Bool {
+        Self.shouldSuppressAutomaticPermissionPrompts(
+            shouldPresentOnboarding: preferences.shouldPresentOnboardingOnLaunch,
+            isOnboardingWindowVisible: setupWindow != nil && setupWindowMode == .onboarding
+        )
+    }
+
     func applicationDidBecomeActive(_ notification: Notification) {
         readinessStore.refresh()
+
+        if suppressesAutomaticPermissionPrompts {
+            return
+        }
 
         // Retry registration in case settings changed while the app was inactive.
         requestMicrophoneThenStartHotkeysIfAllowed()
     }
 
     private func requestMicrophoneThenStartHotkeysIfAllowed() {
-        guard permissionStartupTask == nil else {
+        guard !suppressesAutomaticPermissionPrompts, permissionStartupTask == nil else {
             return
         }
 
@@ -203,6 +218,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     }
 
     private func requestKeyboardShortcutsIfEligible() {
+        guard !suppressesAutomaticPermissionPrompts else {
+            return
+        }
+
         let keyboardStatus = keyboardService.currentStatus(
             hasPrompted: preferences.hasRequestedKeyboardPermission
         )
@@ -220,6 +239,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     }
 
     private func requestAccessibilityIfEligible() {
+        guard !suppressesAutomaticPermissionPrompts else {
+            return
+        }
+
         guard !ProcessInfo.processInfo.arguments.contains("-ui-testing") else {
             return
         }
@@ -309,8 +332,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
 
     // MARK: - Setup window
 
-    func presentSetupWindow() {
+    func presentSetupWindow(mode: SetupWindowMode = .settings) {
         if let setupWindow {
+            if setupWindowMode != mode {
+                configureSetupWindow(setupWindow, mode: mode)
+            }
             setupWindow.makeKeyAndOrderFront(nil)
             NSApp.activate(ignoringOtherApps: true)
             readinessStore.refresh()
@@ -332,7 +358,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         window.delegate = self
         window.identifier = NSUserInterfaceItemIdentifier("TypeLessBuddySetupWindow")
         window.isReleasedWhenClosed = false
-        window.title = "TypeLessBuddy Settings"
         window.contentMinSize = NSSize(
             width: SetupWindowMetrics.width,
             height: SetupWindowMetrics.collapsedHeight
@@ -341,21 +366,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             width: SetupWindowMetrics.width,
             height: SetupWindowMetrics.collapsedHeight
         )
-        window.contentViewController = NSHostingController(
-            rootView: SetupWindowView(
-                preferences: preferences,
-                readinessStore: readinessStore,
-                updatePillPositionPreview: { [weak self] position in
-                    self?.pillPreviewPanel?.updatePreview(position: position)
-                },
-                dismissWindow: { [weak self] in
-                    self?.dismissSetupWindow()
-                },
-                openGuide: { [weak self] in
-                    self?.presentGuideWindow()
-                }
-            )
-        )
+        configureSetupWindow(window, mode: mode)
 
         setupWindow = window
         window.makeKeyAndOrderFront(nil)
@@ -365,6 +376,34 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     func dismissSetupWindow() {
         pillPreviewPanel?.updatePreview(position: nil)
         setupWindow?.performClose(nil)
+    }
+
+    private func configureSetupWindow(_ window: NSWindow, mode: SetupWindowMode) {
+        setupWindowMode = mode
+        window.title = mode == .onboarding ? "TypeLessBuddy Setup" : "TypeLessBuddy Settings"
+        window.contentViewController = NSHostingController(
+            rootView: SetupWindowView(
+                preferences: preferences,
+                readinessStore: readinessStore,
+                mode: mode,
+                updatePillPositionPreview: { [weak self] position in
+                    self?.pillPreviewPanel?.updatePreview(position: position)
+                },
+                dismissWindow: { [weak self] in
+                    self?.dismissSetupWindow()
+                },
+                openGuide: { [weak self] in
+                    self?.presentGuideWindow()
+                },
+                completeOnboarding: { [weak self] in
+                    self?.preferences.completeInitialSetup()
+                    self?.preferences.acknowledgeOnboardingForCurrentBuild()
+                    self?.readinessStore.refresh()
+                    self?.dismissSetupWindow()
+                    self?.requestMicrophoneThenStartHotkeysIfAllowed()
+                }
+            )
+        )
     }
 
     func presentGuideWindow() {
@@ -484,6 +523,22 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         forcePresentSetupOnLaunch || readinessState != .ready
     }
 
+    static func launchSetupWindowMode(
+        readinessState: ReadinessState,
+        shouldPresentOnboarding: Bool,
+        forcePresentSetupOnLaunch: Bool
+    ) -> SetupWindowMode? {
+        if forcePresentSetupOnLaunch {
+            return .settings
+        }
+
+        if shouldPresentOnboarding || readinessState != .ready {
+            return .onboarding
+        }
+
+        return nil
+    }
+
     static func shouldEnableLaunchAtLoginDuringSetup(
         isSetupComplete: Bool,
         launchAtLoginEnabled: Bool
@@ -532,6 +587,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         }
 
         return keyboardStatus != .authorized
+    }
+
+    static func shouldSuppressAutomaticPermissionPrompts(
+        shouldPresentOnboarding: Bool,
+        isOnboardingWindowVisible: Bool
+    ) -> Bool {
+        shouldPresentOnboarding || isOnboardingWindowVisible
     }
 
 }

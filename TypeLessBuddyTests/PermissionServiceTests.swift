@@ -245,6 +245,73 @@ final class PermissionServiceTests: XCTestCase {
         XCTAssertTrue(shouldPresent)
     }
 
+    func testLaunchSetupWindowModeUsesOnboardingWhenBuildNeedsAcknowledgement() {
+        let mode = AppDelegate.launchSetupWindowMode(
+            readinessState: .ready,
+            shouldPresentOnboarding: true,
+            forcePresentSetupOnLaunch: false
+        )
+
+        XCTAssertEqual(mode, .onboarding)
+    }
+
+    func testLaunchSetupWindowModeUsesOnboardingWhenReadinessNeedsSetup() {
+        let mode = AppDelegate.launchSetupWindowMode(
+            readinessState: .needsSetup,
+            shouldPresentOnboarding: false,
+            forcePresentSetupOnLaunch: false
+        )
+
+        XCTAssertEqual(mode, .onboarding)
+    }
+
+    func testLaunchSetupWindowModeUsesSettingsWhenForced() {
+        let mode = AppDelegate.launchSetupWindowMode(
+            readinessState: .ready,
+            shouldPresentOnboarding: true,
+            forcePresentSetupOnLaunch: true
+        )
+
+        XCTAssertEqual(mode, .settings)
+    }
+
+    func testLaunchSetupWindowModeStaysQuietWhenNothingNeedsAttention() {
+        let mode = AppDelegate.launchSetupWindowMode(
+            readinessState: .ready,
+            shouldPresentOnboarding: false,
+            forcePresentSetupOnLaunch: false
+        )
+
+        XCTAssertNil(mode)
+    }
+
+    func testAutomaticPermissionPromptsAreSuppressedWhenOnboardingIsStillRequired() {
+        let shouldSuppress = AppDelegate.shouldSuppressAutomaticPermissionPrompts(
+            shouldPresentOnboarding: true,
+            isOnboardingWindowVisible: false
+        )
+
+        XCTAssertTrue(shouldSuppress)
+    }
+
+    func testAutomaticPermissionPromptsAreSuppressedWhileOnboardingWindowIsVisible() {
+        let shouldSuppress = AppDelegate.shouldSuppressAutomaticPermissionPrompts(
+            shouldPresentOnboarding: false,
+            isOnboardingWindowVisible: true
+        )
+
+        XCTAssertTrue(shouldSuppress)
+    }
+
+    func testAutomaticPermissionPromptsResumeWhenOnboardingIsNotRequired() {
+        let shouldSuppress = AppDelegate.shouldSuppressAutomaticPermissionPrompts(
+            shouldPresentOnboarding: false,
+            isOnboardingWindowVisible: false
+        )
+
+        XCTAssertFalse(shouldSuppress)
+    }
+
     func testLaunchSetupCheckEnablesLaunchAtLoginWhileSetupIsIncomplete() {
         let shouldEnable = AppDelegate.shouldEnableLaunchAtLoginDuringSetup(
             isSetupComplete: false,
