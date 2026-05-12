@@ -1428,6 +1428,7 @@ struct SetupWindowView: View {
     @State private var scheduledFlashTask: Task<Void, Never>?
     @State private var onboardingStep: OnboardingStep = .microphone
     @State private var hasInitializedOnboardingStep = false
+    private let hotkeyService = HotkeyService.shared
     let updatePillPositionPreview: (RecordingPillPosition?) -> Void
     let dismissWindow: () -> Void
     let openGuide: () -> Void
@@ -1567,6 +1568,16 @@ struct SetupWindowView: View {
         (onboardingStepSequence.firstIndex(of: onboardingStep) ?? 0) + 1
     }
 
+    static func shouldAutoTriggerInputMonitoringRequest(
+        mode: SetupWindowMode,
+        isInputMonitoringStep: Bool,
+        keyboardStatus: PermissionGrantState
+    ) -> Bool {
+        mode == .onboarding
+            && isInputMonitoringStep
+            && keyboardStatus != .authorized
+    }
+
     private func badgeTone(for status: PermissionGrantState) -> OnboardingBadgeTone {
         switch status {
         case .authorized:
@@ -1584,6 +1595,21 @@ struct SetupWindowView: View {
 
     private func openPermissionRecovery(_ kind: PermissionKind) {
         readinessStore.openRecovery(for: kind)
+    }
+
+    private func autoTriggerInputMonitoringStepIfNeeded() {
+        guard let inputMonitoringPermissionItem else { return }
+        guard Self.shouldAutoTriggerInputMonitoringRequest(
+            mode: mode,
+            isInputMonitoringStep: onboardingStep == .inputMonitoring,
+            keyboardStatus: inputMonitoringPermissionItem.status
+        ) else {
+            return
+        }
+
+        requestPermission(.keyboardShortcuts)
+        _ = hotkeyService.primeHoldToTranscribeMonitoring()
+        readinessStore.refresh()
     }
 
     private func microphoneActionTitle(for status: PermissionGrantState) -> String {
@@ -3055,6 +3081,7 @@ struct SetupWindowView: View {
             loadCloudAPIKeyIfNeeded()
             synchronizeOnboardingStepIfNeeded()
             persistOnboardingProgress()
+            autoTriggerInputMonitoringStepIfNeeded()
             if mode == .onboarding && !preferences.launchAtLogin {
                 preferences.setLaunchAtLogin(true)
             }
@@ -3077,6 +3104,7 @@ struct SetupWindowView: View {
         }
         .onChange(of: onboardingStep) { _, _ in
             persistOnboardingProgress()
+            autoTriggerInputMonitoringStepIfNeeded()
         }
         .onChange(of: preferences.cloudLLMConfig.provider) { _, _ in
             cloudAPIKeyLoaded = false

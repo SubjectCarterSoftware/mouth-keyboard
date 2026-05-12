@@ -209,6 +209,36 @@ final class PermissionServiceTests: XCTestCase {
         XCTAssertFalse(shouldPrompt)
     }
 
+    func testInputMonitoringOnboardingAutoTriggerRunsOnFinalStepWhenNotAuthorized() {
+        let shouldTrigger = SetupWindowView.shouldAutoTriggerInputMonitoringRequest(
+            mode: .onboarding,
+            isInputMonitoringStep: true,
+            keyboardStatus: .notDetermined
+        )
+
+        XCTAssertTrue(shouldTrigger)
+    }
+
+    func testInputMonitoringOnboardingAutoTriggerSkipsSettingsMode() {
+        let shouldTrigger = SetupWindowView.shouldAutoTriggerInputMonitoringRequest(
+            mode: .settings,
+            isInputMonitoringStep: true,
+            keyboardStatus: .notDetermined
+        )
+
+        XCTAssertFalse(shouldTrigger)
+    }
+
+    func testInputMonitoringOnboardingAutoTriggerSkipsAuthorizedStatus() {
+        let shouldTrigger = SetupWindowView.shouldAutoTriggerInputMonitoringRequest(
+            mode: .onboarding,
+            isInputMonitoringStep: true,
+            keyboardStatus: .authorized
+        )
+
+        XCTAssertFalse(shouldTrigger)
+    }
+
     func testLaunchSetupWindowGatePresentsWhenReadinessNeedsSetup() {
         let shouldPresent = AppDelegate.shouldPresentSetupWindowOnLaunch(
             readinessState: .needsSetup,
