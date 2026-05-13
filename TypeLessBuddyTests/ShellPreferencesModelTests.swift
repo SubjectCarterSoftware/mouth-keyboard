@@ -38,13 +38,6 @@ final class ShellPreferencesModelTests: XCTestCase {
         XCTAssertTrue(preferences2.alwaysAutoPaste)
     }
 
-    func testAlwaysAutoPasteResetRestoresDefault() {
-        let (_, preferences) = makePreferences()
-        preferences.alwaysAutoPaste = false
-        preferences.reset()
-        XCTAssertTrue(preferences.alwaysAutoPaste)
-    }
-
     func testRestorePreviousClipboardAfterAutoPasteDefaultsToTrue() {
         let (_, preferences) = makePreferences()
         XCTAssertTrue(preferences.restorePreviousClipboardAfterAutoPaste)
@@ -56,13 +49,6 @@ final class ShellPreferencesModelTests: XCTestCase {
 
         let preferences2 = ShellPreferences(userDefaults: defaults)
         XCTAssertFalse(preferences2.restorePreviousClipboardAfterAutoPaste)
-    }
-
-    func testRestorePreviousClipboardAfterAutoPasteResetRestoresDefault() {
-        let (_, preferences) = makePreferences()
-        preferences.restorePreviousClipboardAfterAutoPaste = false
-        preferences.reset()
-        XCTAssertTrue(preferences.restorePreviousClipboardAfterAutoPaste)
     }
 
     func testMuteSoundEffectsDefaultsToFalse() {
@@ -78,13 +64,6 @@ final class ShellPreferencesModelTests: XCTestCase {
         XCTAssertTrue(preferences2.muteSoundEffects)
     }
 
-    func testMuteSoundEffectsResetRestoresDefault() {
-        let (_, preferences) = makePreferences()
-        preferences.muteSoundEffects = true
-        preferences.reset()
-        XCTAssertFalse(preferences.muteSoundEffects)
-    }
-
     func testRecordingPillPositionDefaultsToBottomCenter() {
         let (_, preferences) = makePreferences()
         XCTAssertEqual(preferences.recordingPillPosition, .bottomCenter)
@@ -96,13 +75,6 @@ final class ShellPreferencesModelTests: XCTestCase {
 
         let preferences2 = ShellPreferences(userDefaults: defaults)
         XCTAssertEqual(preferences2.recordingPillPosition, .topRight)
-    }
-
-    func testRecordingPillPositionResetRestoresDefault() {
-        let (_, preferences) = makePreferences()
-        preferences.recordingPillPosition = .centerLeft
-        preferences.reset()
-        XCTAssertEqual(preferences.recordingPillPosition, .bottomCenter)
     }
 
     func testInvalidStoredRecordingPillPositionFallsBackToDefault() {
@@ -167,17 +139,6 @@ final class ShellPreferencesModelTests: XCTestCase {
         XCTAssertEqual(preferences2.rewriteSystemPromptPrefix, "Custom system prompt")
     }
 
-    func testRewriteSystemPromptPrefixResetRestoresDefault() {
-        let (_, preferences) = makePreferences()
-        preferences.rewriteSystemPromptPrefix = "Custom system prompt"
-        preferences.reset()
-
-        XCTAssertEqual(
-            preferences.rewriteSystemPromptPrefix,
-            LLMRewriteService.defaultAssistantSystemPromptTemplate
-        )
-    }
-
     func testBlankStoredRewriteSystemPromptPrefixResolvesToDefault() {
         let (defaults, _) = makePreferences()
         defaults.set("   ", forKey: ShellPreferences.Keys.rewriteSystemPromptPrefix)
@@ -226,37 +187,12 @@ final class ShellPreferencesModelTests: XCTestCase {
         XCTAssertEqual(preferences2.holdShortcutModifiers, NSEvent.ModifierFlags.control.rawValue)
     }
 
-    func testHoldShortcutResetRestoresDefault() {
-        let (_, preferences) = makePreferences()
-        preferences.holdShortcutKeyCode = 105
-        preferences.holdShortcutModifiers = 123
-        preferences.reset()
-        XCTAssertEqual(preferences.holdShortcutKeyCode, 61)
-        XCTAssertEqual(preferences.holdShortcutModifiers, 0)
-    }
-
     func testRewriteModelTierPersistsRoundTrip() {
         let (defaults, preferences) = makePreferences()
         preferences.rewriteModelTier = .high9B
 
         let preferences2 = ShellPreferences(userDefaults: defaults)
         XCTAssertEqual(preferences2.rewriteModelTier, .high9B)
-    }
-
-    func testRewriteModelTierResetRestoresDefault() {
-        let (_, preferences) = makePreferences()
-        preferences.rewriteModelTier = .standard4B
-        preferences.reset()
-        XCTAssertEqual(preferences.rewriteModelTier, .standard2B)
-    }
-
-    func testRewriteModelTierResetRemovesStoredValue() {
-        let (defaults, preferences) = makePreferences()
-        preferences.rewriteModelTier = .standard4B
-        preferences.reset()
-
-        let preferences2 = ShellPreferences(userDefaults: defaults)
-        XCTAssertEqual(preferences2.rewriteModelTier, .standard2B)
     }
 
     func testLegacyLargeTurboWhisperPreferenceMigratesToMedium() {
@@ -303,6 +239,38 @@ final class ShellPreferencesModelTests: XCTestCase {
         XCTAssertEqual(preferences2.onboardingResumeToken, "speechEngine")
     }
 
+    func testRestoreDefaultGeneralSettingsRestoresDefaults() {
+        let (_, preferences) = makePreferences()
+        preferences.promoteMicDevice("usb-mic")
+        preferences.alwaysAutoPaste = false
+        preferences.restorePreviousClipboardAfterAutoPaste = false
+        preferences.muteSoundEffects = true
+        preferences.recordingPillPosition = .centerLeft
+
+        preferences.restoreDefaultGeneralSettings()
+
+        XCTAssertTrue(preferences.micDeviceUIDs.isEmpty)
+        XCTAssertTrue(preferences.alwaysAutoPaste)
+        XCTAssertTrue(preferences.restorePreviousClipboardAfterAutoPaste)
+        XCTAssertFalse(preferences.muteSoundEffects)
+        XCTAssertEqual(preferences.recordingPillPosition, .bottomCenter)
+    }
+
+    func testRestoreDefaultHoldShortcutsRestoresDefaults() {
+        let (_, preferences) = makePreferences()
+        preferences.holdShortcutKeyCode = 105
+        preferences.holdShortcutModifiers = NSEvent.ModifierFlags.control.rawValue
+        preferences.holdShortcutKeyCodeAlt = 106
+        preferences.holdShortcutModifiersAlt = NSEvent.ModifierFlags.shift.rawValue
+
+        preferences.restoreDefaultHoldShortcuts()
+
+        XCTAssertEqual(preferences.holdShortcutKeyCode, ShellPreferences.defaultHoldShortcutKeyCode)
+        XCTAssertEqual(preferences.holdShortcutModifiers, ShellPreferences.defaultHoldShortcutModifiers)
+        XCTAssertEqual(preferences.holdShortcutKeyCodeAlt, ShellPreferences.defaultHoldShortcutKeyCodeAlt)
+        XCTAssertEqual(preferences.holdShortcutModifiersAlt, ShellPreferences.defaultHoldShortcutModifiersAlt)
+    }
+
     func testResetAssistantNameToDefaultClearsCustomTrigger() async {
         let (_, preferences) = makePreferences(
             initialTriggerProfile: TriggerProfile(
@@ -316,8 +284,30 @@ final class ShellPreferencesModelTests: XCTestCase {
         XCTAssertEqual(preferences.activeTriggerProfile, .defaultProfile)
     }
 
+    func testClearWordReplacementsRemovesAllEntries() async {
+        let (_, preferences) = makePreferences()
+        var data = DictionaryData.empty
+        data.replacements = [
+            WordReplacement(originals: ["gonna"], replacement: "going to"),
+            WordReplacement(originals: ["wanna"], replacement: "want to"),
+        ]
+        _ = await preferences.persistDictionaryData(data)
+
+        preferences.clearWordReplacements()
+
+        for _ in 0..<50 {
+            if preferences.activeDictionaryData.replacements.isEmpty {
+                break
+            }
+            try? await Task.sleep(nanoseconds: 10_000_000)
+        }
+
+        XCTAssertTrue(preferences.activeDictionaryData.replacements.isEmpty)
+    }
+
     private func makePreferences(
         initialTriggerProfile: TriggerProfile? = nil,
+        initialDictionaryData: DictionaryData? = nil,
         currentBuildIdentifier: String = "test-build",
         file: StaticString = #filePath,
         line: UInt = #line
@@ -328,14 +318,19 @@ final class ShellPreferencesModelTests: XCTestCase {
             fatalError("Unable to create test defaults")
         }
         defaults.removePersistentDomain(forName: suiteName)
+        let tempDirectory = FileManager.default.temporaryDirectory
         return (
             defaults,
             ShellPreferences(
                 userDefaults: defaults,
                 triggerProfileStore: TriggerProfileStore(
-                    storeURL: FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString + ".json")
+                    storeURL: tempDirectory.appendingPathComponent(UUID().uuidString + ".json")
+                ),
+                dictionaryStore: DictionaryStore(
+                    storeURL: tempDirectory.appendingPathComponent(UUID().uuidString + ".dictionary.json")
                 ),
                 initialTriggerProfile: initialTriggerProfile,
+                initialDictionaryData: initialDictionaryData,
                 currentBuildIdentifier: currentBuildIdentifier
             )
         )

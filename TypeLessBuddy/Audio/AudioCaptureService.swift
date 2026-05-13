@@ -49,11 +49,17 @@ final class AudioCaptureService {
     private let authorizationStatusProvider: () -> AVAuthorizationStatus
     private let hasDefaultInputDeviceProvider: () -> Bool
     private let tapBufferSize: AVAudioFrameCount
+    private let probeMonitorFactory: () -> MicProbeMonitor
+    private let probeDelay: Duration
     private var levelMonitor: AudioLevelMonitor?
     private var bufferReceiver: (any AudioBufferReceiving)?
     private var hasInstalledTap = false
     private var observedDeviceUID: String?
+    private var probeMonitor: MicProbeMonitor?
+    private var probeTask: Task<Void, Never>?
+    private var probeCandidates: [AudioInputDevice] = []
     var onCaptureFailure: (@MainActor (AudioCaptureError) -> Void)?
+    var onDeviceHotSwapped: (@MainActor (AudioInputDevice) -> Void)?
 
     @MainActor
     init(
@@ -63,7 +69,9 @@ final class AudioCaptureService {
         engineStarter: ((AVAudioEngine) throws -> Void)? = nil,
         authorizationStatusProvider: @escaping () -> AVAuthorizationStatus = { AVCaptureDevice.authorizationStatus(for: .audio) },
         hasDefaultInputDeviceProvider: @escaping () -> Bool = { AudioCaptureService.hasDefaultInputDevice() },
-        tapBufferSize: AVAudioFrameCount = 1_024
+        tapBufferSize: AVAudioFrameCount = 1_024,
+        probeMonitorFactory: @escaping () -> MicProbeMonitor = { MicProbeMonitor() },
+        probeDelay: Duration = .milliseconds(400)
     ) {
         self.engineFactory = engineFactory
         self.preferences = preferences
@@ -72,6 +80,8 @@ final class AudioCaptureService {
         self.authorizationStatusProvider = authorizationStatusProvider
         self.hasDefaultInputDeviceProvider = hasDefaultInputDeviceProvider
         self.tapBufferSize = tapBufferSize
+        self.probeMonitorFactory = probeMonitorFactory
+        self.probeDelay = probeDelay
     }
 
     @MainActor
@@ -136,7 +146,8 @@ final class AudioCaptureService {
         let engine = try ensureEngine()
 
         audioDeviceService.refresh()
-        let selectedDevice = preferredInputDevice()
+        let rankedDevices = rankedInputDevices()
+        let selectedDevice = rankedDevices.first
         let defaultDevice = audioDeviceService.currentDefaultInputDevice()
         let effectiveDevice = selectedDevice ?? defaultDevice
 
@@ -147,6 +158,7 @@ final class AudioCaptureService {
         self.levelMonitor = levelMonitor
         self.bufferReceiver = bufferReceiver
         levelMonitor.reset()
+        cancelProbe()
         audioDeviceService.unregisterDisconnectListener()
         observedDeviceUID = nil
 
@@ -159,44 +171,25 @@ final class AudioCaptureService {
             }
         }
 
-        var inputNode: AVAudioInputNode!
-        var caughtError: NSError?
-        let ok = S2TCatchObjCException({
-            inputNode = engine.inputNode
-        }, &caughtError)
-        if !ok || inputNode == nil {
-            self.engine = nil
-            throw AudioCaptureError.engineException(
-                caughtError ?? NSError(domain: "AudioCaptureService", code: -1,
-                                       userInfo: [NSLocalizedDescriptionKey: "inputNode is nil"])
-            )
+        let candidates = rankedDevices.dropFirst().map { $0 }
+        if !candidates.isEmpty {
+            probeCandidates = candidates
+            let monitor = probeMonitorFactory()
+            probeMonitor = monitor
+            let delay = probeDelay
+            probeTask = Task { [weak self] in
+                try? await Task.sleep(for: delay)
+                guard !Task.isCancelled else { return }
+                self?.evaluateProbe()
+            }
         }
 
-        // Pass nil format — lets the engine use the input device's native format.
-        // Specifying a mismatched format causes silent -10877 errors.
-        // Use a smaller tap buffer to cut the delay between a hotkey press and
-        // the first chunk reaching the meter/transcription pipeline.
-        inputNode.installTap(onBus: 0, bufferSize: tapBufferSize, format: nil) { [weak self] buffer, _ in
-            self?.levelMonitor?.process(buffer: buffer)
-            self?.bufferReceiver?.append(buffer)
-        }
-        hasInstalledTap = true
-
-        do {
-            try engineStarter(engine)
-        } catch {
-            inputNode.removeTap(onBus: 0)
-            hasInstalledTap = false
-            observedDeviceUID = nil
-            audioDeviceService.unregisterDisconnectListener()
-            levelMonitor.reset()
-            self.levelMonitor = nil
-            throw error
-        }
+        try installTapAndStart(on: engine)
     }
 
     @MainActor
     func stop() {
+        cancelProbe()
         audioDeviceService.unregisterDisconnectListener()
         observedDeviceUID = nil
 
@@ -206,12 +199,17 @@ final class AudioCaptureService {
         }
 
         engine?.stop()
-        // Keep engine alive to avoid CoreAudio hardware teardown/rebuild races
-        // when re-pressing Ctrl-V quickly. The engine will be recreated only if
-        // ensureEngine() detects it is no longer usable.
         levelMonitor?.reset()
         levelMonitor = nil
         bufferReceiver = nil
+    }
+
+    @MainActor
+    private func cancelProbe() {
+        probeTask?.cancel()
+        probeTask = nil
+        probeMonitor = nil
+        probeCandidates = []
     }
 
     @MainActor
@@ -231,6 +229,81 @@ final class AudioCaptureService {
     }
 
     @MainActor
+    private func installTapAndStart(on engine: AVAudioEngine) throws {
+        var inputNode: AVAudioInputNode!
+        var caughtError: NSError?
+        let ok = S2TCatchObjCException({
+            inputNode = engine.inputNode
+        }, &caughtError)
+        if !ok || inputNode == nil {
+            self.engine = nil
+            throw AudioCaptureError.engineException(
+                caughtError ?? NSError(domain: "AudioCaptureService", code: -1,
+                                       userInfo: [NSLocalizedDescriptionKey: "inputNode is nil"])
+            )
+        }
+
+        inputNode.installTap(onBus: 0, bufferSize: tapBufferSize, format: nil) { [weak self] buffer, _ in
+            self?.probeMonitor?.process(buffer: buffer)
+            self?.levelMonitor?.process(buffer: buffer)
+            self?.bufferReceiver?.append(buffer)
+        }
+        hasInstalledTap = true
+
+        do {
+            try engineStarter(engine)
+        } catch {
+            inputNode.removeTap(onBus: 0)
+            hasInstalledTap = false
+            observedDeviceUID = nil
+            audioDeviceService.unregisterDisconnectListener()
+            levelMonitor?.reset()
+            levelMonitor = nil
+            throw error
+        }
+    }
+
+    @MainActor
+    private func evaluateProbe() {
+        guard let monitor = probeMonitor, monitor.verdict == .dead,
+              let nextCandidate = probeCandidates.first,
+              let engine else {
+            cancelProbe()
+            return
+        }
+
+        hotSwapToNextCandidate(nextCandidate, engine: engine)
+    }
+
+    @MainActor
+    private func hotSwapToNextCandidate(_ device: AudioInputDevice, engine: AVAudioEngine) {
+        if hasInstalledTap {
+            engine.inputNode.removeTap(onBus: 0)
+            hasInstalledTap = false
+        }
+        engine.stop()
+
+        audioDeviceService.unregisterDisconnectListener()
+
+        do {
+            try audioDeviceService.setInputDevice(device, on: engine)
+            observedDeviceUID = device.uid
+
+            audioDeviceService.registerDisconnectListener(for: device.uid) { [weak self] in
+                self?.handleSelectedDeviceDisconnect()
+            }
+
+            engine.prepare()
+            try installTapAndStart(on: engine)
+            onDeviceHotSwapped?(device)
+        } catch {
+            // Swap failed — stay stopped; the recording will fail naturally.
+        }
+
+        cancelProbe()
+    }
+
+    @MainActor
     private func handleSelectedDeviceDisconnect() {
         guard observedDeviceUID != nil else {
             return
@@ -246,12 +319,9 @@ final class AudioCaptureService {
     }
 
     @MainActor
-    private func preferredInputDevice() -> AudioInputDevice? {
-        for uid in preferences.micDeviceUIDs {
-            if let device = audioDeviceService.device(forUID: uid) {
-                return device
-            }
+    private func rankedInputDevices() -> [AudioInputDevice] {
+        preferences.micDeviceUIDs.compactMap { uid in
+            audioDeviceService.device(forUID: uid)
         }
-        return nil
     }
 }

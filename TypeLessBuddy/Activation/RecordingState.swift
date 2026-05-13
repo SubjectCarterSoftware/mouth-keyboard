@@ -9,7 +9,6 @@ enum RecordingState: Equatable {
     case failure(reason: FailureReason)
 
     enum RecoveryFeedback: Equatable {
-        case canceled
         case restarted
     }
 

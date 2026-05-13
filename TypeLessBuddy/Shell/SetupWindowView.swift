@@ -1,5 +1,4 @@
 import AppKit
-import Carbon.HIToolbox
 import Combine
 import KeyboardShortcuts
 import SwiftUI
@@ -88,7 +87,7 @@ private enum OnboardingStep: String, CaseIterable, Identifiable {
         case .accessibility:
             return "Accessibility Permission"
         case .speechEngine:
-            return "Preparing Speech Engine"
+            return "Preparing Local Models"
         }
     }
 
@@ -103,7 +102,7 @@ private enum OnboardingStep: String, CaseIterable, Identifiable {
         case .accessibility:
             return "Accessibility is required for full cross-app control and unlocks auto-paste when you want it."
         case .speechEngine:
-            return "The recommended speech engine is preparing in the background. Once it is ready, setup can finish."
+            return "The speech transcription model and local assistant model are being prepared in the background. Once both are ready, setup can finish."
         }
     }
 
@@ -127,7 +126,7 @@ private enum OnboardingStep: String, CaseIterable, Identifiable {
         case .accessibility:
             return "figure.wave"
         case .speechEngine:
-            return "waveform.and.magnifyingglass"
+            return "cpu"
         }
     }
 
@@ -142,7 +141,7 @@ private enum OnboardingStep: String, CaseIterable, Identifiable {
         case .accessibility:
             return "Accessibility is required for the full control flow and underpins auto-paste when you want it."
         case .speechEngine:
-            return "This Mac already has a recommended speech model selected. This step only waits for the first-time preparation to finish."
+            return "This step waits for the first-time preparation of the speech transcription model and the local assistant model."
         }
     }
 }
@@ -247,6 +246,7 @@ private struct ShortcutRecorderField: View {
 private struct KeyComboRecorder: View {
     let name: KeyboardShortcuts.Name
     let preferences: ShellPreferences
+    var onShortcutChanged: () -> Void = {}
     @State private var isRecording = false
     @State private var eventMonitor: Any?
     @State private var clickMonitor: Any?
@@ -272,6 +272,7 @@ private struct KeyComboRecorder: View {
             onClear: {
                 KeyboardShortcuts.setShortcut(nil, for: name)
                 currentShortcut = nil
+                onShortcutChanged()
             },
             onStartRecording: {
                 guard Date().timeIntervalSince(lastCancelTime) > 0.3 else { return }
@@ -280,6 +281,7 @@ private struct KeyComboRecorder: View {
             onReset: {
                 KeyboardShortcuts.reset(name)
                 currentShortcut = KeyboardShortcuts.getShortcut(for: name)
+                onShortcutChanged()
             }
         )
         .onAppear {
@@ -313,6 +315,7 @@ private struct KeyComboRecorder: View {
                 if !ShortcutBindingPolicy.tapShortcutConflictsWithHold(shortcut, snapshot: snapshot) {
                     KeyboardShortcuts.setShortcut(shortcut, for: name)
                     currentShortcut = shortcut
+                    onShortcutChanged()
                     finishRecording()
                 } else {
                     NSSound.beep()
@@ -546,22 +549,43 @@ private struct SetupFieldRow<Content: View>: View {
     }
 }
 
-private struct SettingsSectionCard<Content: View>: View {
+private struct SettingsSectionCard<Content: View, HeaderAccessory: View>: View {
     let section: SettingsSection
     let flashTrigger: Int
+    let headerAccessory: HeaderAccessory
     let content: Content
 
-    init(section: SettingsSection, flashTrigger: Int = 0, @ViewBuilder content: () -> Content) {
+    init(section: SettingsSection, flashTrigger: Int = 0, @ViewBuilder content: () -> Content)
+    where HeaderAccessory == EmptyView {
         self.section = section
         self.flashTrigger = flashTrigger
+        self.headerAccessory = EmptyView()
+        self.content = content()
+    }
+
+    init(
+        section: SettingsSection,
+        flashTrigger: Int = 0,
+        @ViewBuilder headerAccessory: () -> HeaderAccessory,
+        @ViewBuilder content: () -> Content
+    ) {
+        self.section = section
+        self.flashTrigger = flashTrigger
+        self.headerAccessory = headerAccessory()
         self.content = content()
     }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
-            Text(section.title)
-                .font(.title3.weight(.semibold))
-                .accessibilityIdentifier("setupWindow.section.\(section.rawValue).title")
+            HStack(alignment: .firstTextBaseline, spacing: 12) {
+                Text(section.title)
+                    .font(.title3.weight(.semibold))
+                    .accessibilityIdentifier("setupWindow.section.\(section.rawValue).title")
+
+                Spacer(minLength: 12)
+
+                headerAccessory
+            }
 
             content
         }
@@ -582,6 +606,19 @@ private struct SettingsSectionCard<Content: View>: View {
             )
         )
         .accessibilityIdentifier("setupWindow.section.\(section.rawValue)")
+    }
+}
+
+private struct SettingsSectionActionButton: View {
+    let title: String
+    let accessibilityIdentifier: String
+    let action: () -> Void
+
+    var body: some View {
+        Button(title, action: action)
+            .buttonStyle(.bordered)
+            .controlSize(.small)
+            .accessibilityIdentifier(accessibilityIdentifier)
     }
 }
 
@@ -926,7 +963,7 @@ private struct SettingsCardFlashModifier: ViewModifier {
                 RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
                     .strokeBorder(Color.accentColor.opacity(0.70 * flashOpacity), lineWidth: 2)
             )
-            .onChange(of: flashTrigger) { newValue in
+            .onChange(of: flashTrigger) { _, newValue in
                 guard newValue > 0 else { return }
                 runFlash()
             }
@@ -999,8 +1036,8 @@ private struct KeyboardShortcutsRow: View {
                     preferences: preferences,
                     keyCode: preferences.holdShortcutKeyCode,
                     modifiers: preferences.holdShortcutModifiers,
-                    defaultKeyCode: 61,
-                    defaultModifiers: 0,
+                    defaultKeyCode: ShellPreferences.defaultHoldShortcutKeyCode,
+                    defaultModifiers: ShellPreferences.defaultHoldShortcutModifiers,
                     accessibilityID: "setupWindow.holdShortcut.recorder",
                     onRecord: { kc, mods in
                         preferences.holdShortcutKeyCode = kc
@@ -1013,8 +1050,8 @@ private struct KeyboardShortcutsRow: View {
                         HotkeyService.shared.configureHoldTarget()
                     },
                     onReset: {
-                        preferences.holdShortcutKeyCode = 61
-                        preferences.holdShortcutModifiers = 0
+                        preferences.holdShortcutKeyCode = ShellPreferences.defaultHoldShortcutKeyCode
+                        preferences.holdShortcutModifiers = ShellPreferences.defaultHoldShortcutModifiers
                         HotkeyService.shared.configureHoldTarget()
                     }
                 )
@@ -1024,8 +1061,8 @@ private struct KeyboardShortcutsRow: View {
                     preferences: preferences,
                     keyCode: preferences.holdShortcutKeyCodeAlt,
                     modifiers: preferences.holdShortcutModifiersAlt,
-                    defaultKeyCode: -1,
-                    defaultModifiers: 0,
+                    defaultKeyCode: ShellPreferences.defaultHoldShortcutKeyCodeAlt,
+                    defaultModifiers: ShellPreferences.defaultHoldShortcutModifiersAlt,
                     accessibilityID: "setupWindow.holdShortcutAlt.recorder",
                     onRecord: { kc, mods in
                         preferences.holdShortcutKeyCodeAlt = kc
@@ -1038,8 +1075,8 @@ private struct KeyboardShortcutsRow: View {
                         HotkeyService.shared.configureHoldTarget()
                     },
                     onReset: {
-                        preferences.holdShortcutKeyCodeAlt = -1
-                        preferences.holdShortcutModifiersAlt = 0
+                        preferences.holdShortcutKeyCodeAlt = ShellPreferences.defaultHoldShortcutKeyCodeAlt
+                        preferences.holdShortcutModifiersAlt = ShellPreferences.defaultHoldShortcutModifiersAlt
                         HotkeyService.shared.configureHoldTarget()
                     }
                 )
@@ -1403,7 +1440,10 @@ struct SetupWindowView: View {
     @State private var activeSection: SettingsSection = .general
     @State private var flashedSection: SettingsSection?
     @State private var flashNonce: Int = 0
+    @State private var keyboardShortcutChangeNonce: Int = 0
+    @State private var isShowingClearAllReplacementsConfirmation = false
     @State private var scheduledFlashTask: Task<Void, Never>?
+    @State private var isProgrammaticScroll = false
     @State private var onboardingStep: OnboardingStep = .microphone
     @State private var hasInitializedOnboardingStep = false
     let updatePillPositionPreview: (RecordingPillPosition?) -> Void
@@ -1422,32 +1462,6 @@ struct SetupWindowView: View {
         )
     }
 
-    /// The effective mic UID: first entry in the priority list that is currently available.
-    /// Returns nil when no priority device is connected (fall through to system default).
-    private var effectiveMicDeviceUID: String? {
-        for uid in preferences.micDeviceUIDs {
-            if audioDeviceService.availableDevices.contains(where: { $0.uid == uid }) {
-                return uid
-            }
-        }
-        return nil
-    }
-
-    private var microphoneSelection: Binding<String?> {
-        Binding(
-            get: {
-                effectiveMicDeviceUID
-            },
-            set: { newValue in
-                if let uid = newValue {
-                    preferences.promoteMicDevice(uid)
-                } else {
-                    preferences.micDeviceUIDs = []
-                }
-            }
-        )
-    }
-
     private var isAnyModelTransferInFlight: Bool {
         modelLoadState.phase.downloadProgress != nil || modelLoadState.deletingTier != nil
     }
@@ -1458,6 +1472,39 @@ struct SetupWindowView: View {
 
     private var isAnyWhisperTransferInFlight: Bool {
         whisperModelLoadState.phase.isTransferInFlight || whisperModelLoadState.deletingModel != nil
+    }
+
+    private var isGeneralSectionCustomized: Bool {
+        !preferences.micDeviceUIDs.isEmpty
+            || !preferences.alwaysAutoPaste
+            || !preferences.restorePreviousClipboardAfterAutoPaste
+            || preferences.muteSoundEffects
+            || preferences.recordingPillPosition != .default
+    }
+
+    private var isKeyboardShortcutsCustomized: Bool {
+        _ = keyboardShortcutChangeNonce
+
+        let managedTapShortcuts: [KeyboardShortcuts.Name] = [
+            .activate,
+            .activateAlt,
+            .stopSession,
+            .stopSessionAlt,
+        ]
+        let hasCustomizedTapShortcut = managedTapShortcuts.contains {
+            KeyboardShortcuts.getShortcut(for: $0) != $0.defaultShortcut
+        }
+        let hasCustomizedHoldShortcut =
+            preferences.holdShortcutKeyCode != ShellPreferences.defaultHoldShortcutKeyCode
+            || preferences.holdShortcutModifiers != ShellPreferences.defaultHoldShortcutModifiers
+            || preferences.holdShortcutKeyCodeAlt != ShellPreferences.defaultHoldShortcutKeyCodeAlt
+            || preferences.holdShortcutModifiersAlt != ShellPreferences.defaultHoldShortcutModifiersAlt
+
+        return hasCustomizedTapShortcut || hasCustomizedHoldShortcut
+    }
+
+    private var hasWordReplacements: Bool {
+        !preferences.activeDictionaryData.replacements.isEmpty
     }
 
     private var alwaysAutoPasteBinding: Binding<Bool> {
@@ -1527,6 +1574,24 @@ struct SetupWindowView: View {
     private var isSpeechEngineReady: Bool {
         let status = speechEngineStatus
         return status.isDownloaded && !status.isDownloading && !status.isPrewarming && !status.isLoading && !status.isDeleting
+    }
+
+    private var localAssistantModelStatus: RewriteModelLoadState.TierStatus {
+        modelLoadState.status(for: preferences.rewriteModelTier)
+    }
+
+    private var usesLocalAssistantModel: Bool {
+        !preferences.cloudLLMConfig.isEnabled
+    }
+
+    private var isLocalAssistantModelReady: Bool {
+        guard usesLocalAssistantModel else { return true }
+        let status = localAssistantModelStatus
+        return status.isDownloaded && status.isPrepared && !status.isDownloading && !status.isPrewarming && !status.isDeleting
+    }
+
+    private var areOnboardingModelsReady: Bool {
+        isSpeechEngineReady && isLocalAssistantModelReady
     }
 
     private var onboardingStepSequence: [OnboardingStep] {
@@ -2159,6 +2224,26 @@ struct SetupWindowView: View {
         }
     }
 
+    private func restoreDefaultGeneralSettings() {
+        updatePillPositionPreview(nil)
+        preferences.restoreDefaultGeneralSettings()
+    }
+
+    private func restoreDefaultKeyboardShortcuts() {
+        KeyboardShortcuts.reset(.activate, .activateAlt, .stopSession, .stopSessionAlt)
+        preferences.restoreDefaultHoldShortcuts()
+        HotkeyService.shared.configureHoldTarget()
+        keyboardShortcutChangeNonce &+= 1
+    }
+
+    private func clearAllWordReplacements() {
+        preferences.clearWordReplacements()
+    }
+
+    private func onTapShortcutChanged() {
+        keyboardShortcutChangeNonce &+= 1
+    }
+
     private func configureSetupWindowSize() {
         guard let window = NSApp.windows.first(where: {
             $0.identifier == NSUserInterfaceItemIdentifier("TypeLessBuddySetupWindow")
@@ -2175,6 +2260,7 @@ struct SetupWindowView: View {
     }
 
     private func updateActiveSection(using offsets: [SettingsSection: CGFloat]) {
+        guard !isProgrammaticScroll else { return }
         guard let nearest = offsets.min(by: { abs($0.value - 12) < abs($1.value - 12) })?.key else {
             return
         }
@@ -2183,6 +2269,7 @@ struct SetupWindowView: View {
 
     private func scrollToSection(_ section: SettingsSection, proxy: ScrollViewProxy) {
         activeSection = section
+        isProgrammaticScroll = true
         withAnimation(.easeInOut(duration: 0.22)) {
             proxy.scrollTo(section, anchor: .top)
         }
@@ -2194,6 +2281,10 @@ struct SetupWindowView: View {
             guard !Task.isCancelled else { return }
             flashedSection = section
             flashNonce &+= 1
+            // Allow scroll-based section tracking to resume after the flash starts.
+            try? await Task.sleep(nanoseconds: 600_000_000)
+            guard !Task.isCancelled else { return }
+            isProgrammaticScroll = false
         }
     }
 
@@ -2228,7 +2319,7 @@ struct SetupWindowView: View {
         case .accessibility:
             return isAccessibilityAuthorized
         case .speechEngine:
-            return isSpeechEngineReady
+            return areOnboardingModelsReady
         }
     }
 
@@ -2272,7 +2363,7 @@ struct SetupWindowView: View {
 
     private func advanceOnboarding() {
         if onboardingStep == .speechEngine {
-            guard isSpeechEngineReady else { return }
+            guard areOnboardingModelsReady else { return }
             completeOnboarding()
             return
         }
@@ -2307,7 +2398,7 @@ struct SetupWindowView: View {
         case .accessibility:
             return isAccessibilityAuthorized
         case .speechEngine:
-            return isSpeechEngineReady
+            return areOnboardingModelsReady
         }
     }
 
@@ -2351,13 +2442,10 @@ struct SetupWindowView: View {
                         .font(.callout)
                         .foregroundStyle(.secondary)
 
-                    Picker("Preferred Microphone", selection: microphoneSelection) {
-                        Text("System Default").tag(Optional<String>.none)
-                        ForEach(audioDeviceService.availableDevices) { device in
-                            Text(device.name).tag(Optional(device.uid))
-                        }
-                    }
-                    .pickerStyle(.menu)
+                    MicPriorityPicker(
+                        preferences: preferences,
+                        audioDeviceService: audioDeviceService
+                    )
                     .frame(maxWidth: 280, alignment: .leading)
                 } else {
                     Text("Approve microphone access first. As soon as macOS grants it, this card unlocks so you can choose the specific input device.")
@@ -2455,19 +2543,19 @@ struct SetupWindowView: View {
 
     private var onboardingSpeechEngineStep: some View {
         OnboardingFeatureCard(
-            systemImage: "waveform.and.magnifyingglass",
-            title: "Preparing Speech Engine",
-            badgeTitle: isSpeechEngineReady ? "Ready" : "In Progress",
-            badgeTone: isSpeechEngineReady ? .success : .warning,
+            systemImage: "cpu",
+            title: "Preparing Local Models",
+            badgeTitle: areOnboardingModelsReady ? "Ready" : "In Progress",
+            badgeTone: areOnboardingModelsReady ? .success : .warning,
             isHighlighted: true
         ) {
-            Text("TypeLessBuddy already picked the right speech model for this Mac. This step makes the first-time download and hardware preparation visible so the final permission does not finish early.")
+            Text("TypeLessBuddy already picked the right local models for this Mac. This step makes the first-time download and hardware preparation visible so setup does not finish before both are ready.")
                 .font(.callout)
                 .foregroundStyle(.secondary)
 
-            if isSpeechEngineReady {
+            if areOnboardingModelsReady {
                 Label(
-                    "\(preferences.whisperModel.displayName) is downloaded and prepared for first use.",
+                    "\(preferences.whisperModel.displayName) and \(preferences.rewriteModelTier.displayName) are downloaded and prepared for first use.",
                     systemImage: "checkmark.circle.fill"
                 )
                 .font(.callout.weight(.medium))
@@ -2477,14 +2565,7 @@ struct SetupWindowView: View {
                 .background(Color.green.opacity(0.12), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
             } else {
                 speechModelStatusContent
-
-                if !speechEngineStatus.isDownloaded && !whisperModelLoadState.phase.isTransferInFlight {
-                    ModelDownloadStatusRow(
-                        title: "Preparing speech model",
-                        message: "\(preferences.whisperModel.displayName) is queued for download.",
-                        progress: nil
-                    )
-                }
+                assistantModelStatusContent
             }
         }
     }
@@ -2607,6 +2688,53 @@ struct SetupWindowView: View {
                 progress: nil
             )
             .accessibilityIdentifier("setupWindow.setupStatus.whisperPrewarm")
+        } else if !speechEngineStatus.isDownloaded && !whisperModelLoadState.phase.isTransferInFlight {
+            ModelDownloadStatusRow(
+                title: "Speech transcription model",
+                message: "\(preferences.whisperModel.displayName) is queued for download.",
+                progress: nil
+            )
+            .accessibilityIdentifier("setupWindow.setupStatus.whisperQueued")
+        }
+    }
+
+    @ViewBuilder
+    private var assistantModelStatusContent: some View {
+        if !usesLocalAssistantModel {
+            Label(
+                "Cloud assistant mode is enabled, so local assistant model setup is skipped.",
+                systemImage: "checkmark.circle.fill"
+            )
+            .font(.callout.weight(.medium))
+            .foregroundStyle(.green)
+            .padding(16)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(Color.green.opacity(0.12), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+        } else if case .downloading(let tier, let progress) = modelLoadState.phase,
+                  tier == preferences.rewriteModelTier {
+            ModelDownloadStatusRow(
+                title: "Local assistant model",
+                message: "\(tier.displayName) is downloading in the background and will be ready for assistant requests when complete.",
+                progress: progress
+            )
+            .accessibilityIdentifier("setupWindow.setupStatus.rewriteDownload")
+        } else if case .prewarming(let tier) = modelLoadState.phase,
+                  tier == preferences.rewriteModelTier {
+            ModelDownloadStatusRow(
+                title: "Local assistant model",
+                message: "\(tier.displayName) is being loaded and cached for first use. This only happens once.",
+                progress: nil
+            )
+            .accessibilityIdentifier("setupWindow.setupStatus.rewritePrewarm")
+        } else if !localAssistantModelStatus.isPrepared && !modelLoadState.phase.isTransferInFlight {
+            ModelDownloadStatusRow(
+                title: "Local assistant model",
+                message: localAssistantModelStatus.isDownloaded
+                    ? "\(preferences.rewriteModelTier.displayName) is queued for first-time setup."
+                    : "\(preferences.rewriteModelTier.displayName) is queued for download.",
+                progress: nil
+            )
+            .accessibilityIdentifier("setupWindow.setupStatus.rewriteQueued")
         }
     }
 
@@ -2617,27 +2745,42 @@ struct SetupWindowView: View {
         if case .downloading(let tier, let progress) = modelLoadState.phase,
            tier == preferences.rewriteModelTier {
             ModelDownloadStatusRow(
-                title: "Preparing conversion model",
+                title: "Preparing local assistant model",
                 message: "\(tier.displayName) is downloading in the background and will be ready for rewrites when complete.",
                 progress: progress
             )
             .accessibilityIdentifier("setupWindow.setupStatus.rewriteDownload")
+        } else if case .prewarming(let tier) = modelLoadState.phase,
+                  tier == preferences.rewriteModelTier {
+            ModelDownloadStatusRow(
+                title: "Preparing local assistant model",
+                message: "\(tier.displayName) is being loaded and cached for first use. This only happens once.",
+                progress: nil
+            )
+            .accessibilityIdentifier("setupWindow.setupStatus.rewritePrewarm")
         }
     }
 
     private var generalSectionContent: some View {
-        SettingsSectionCard(section: .general, flashTrigger: flashTrigger(for: .general)) {
+        SettingsSectionCard(
+            section: .general,
+            flashTrigger: flashTrigger(for: .general)
+        ) {
+            SettingsSectionActionButton(
+                title: "Restore Defaults",
+                accessibilityIdentifier: "setupWindow.section.general.restoreDefaults"
+            ) {
+                restoreDefaultGeneralSettings()
+            }
+            .disabled(!isGeneralSectionCustomized)
+        } content: {
             HStack(alignment: .top, spacing: 28) {
                 VStack(alignment: .leading, spacing: 14) {
                     SetupFieldRow(title: "Microphone") {
-                        Picker("", selection: microphoneSelection) {
-                            Text("System Default").tag(Optional<String>.none)
-                            ForEach(audioDeviceService.availableDevices) { device in
-                                Text(device.name).tag(Optional(device.uid))
-                            }
-                        }
-                        .labelsHidden()
-                        .pickerStyle(.menu)
+                        MicPriorityPicker(
+                            preferences: preferences,
+                            audioDeviceService: audioDeviceService
+                        )
                         .frame(maxWidth: 240, alignment: .leading)
                     }
 
@@ -2699,25 +2842,47 @@ struct SetupWindowView: View {
     }
 
     private var replacementsSectionContent: some View {
-        SettingsSectionCard(section: .replacements, flashTrigger: flashTrigger(for: .replacements)) {
+        SettingsSectionCard(
+            section: .replacements,
+            flashTrigger: flashTrigger(for: .replacements)
+        ) {
+            SettingsSectionActionButton(
+                title: "Clear All…",
+                accessibilityIdentifier: "setupWindow.section.replacements.clearAll"
+            ) {
+                isShowingClearAllReplacementsConfirmation = true
+            }
+            .disabled(!hasWordReplacements)
+        } content: {
             ReplacementsSectionView(preferences: preferences)
         }
     }
 
     private var shortcutsSectionContent: some View {
-        SettingsSectionCard(section: .shortcuts, flashTrigger: flashTrigger(for: .shortcuts)) {
+        SettingsSectionCard(
+            section: .shortcuts,
+            flashTrigger: flashTrigger(for: .shortcuts)
+        ) {
+            SettingsSectionActionButton(
+                title: "Restore Defaults",
+                accessibilityIdentifier: "setupWindow.section.shortcuts.restoreDefaults"
+            ) {
+                restoreDefaultKeyboardShortcuts()
+            }
+            .disabled(!isKeyboardShortcutsCustomized)
+        } content: {
             VStack(alignment: .leading, spacing: 14) {
                 SetupFieldRow(title: "Start recording") {
                     HStack(spacing: 12) {
-                        KeyComboRecorder(name: .activate, preferences: preferences)
-                        KeyComboRecorder(name: .activateAlt, preferences: preferences)
+                        KeyComboRecorder(name: .activate, preferences: preferences, onShortcutChanged: onTapShortcutChanged)
+                        KeyComboRecorder(name: .activateAlt, preferences: preferences, onShortcutChanged: onTapShortcutChanged)
                     }
                 }
 
                 SetupFieldRow(title: "Stop recording") {
                     HStack(spacing: 12) {
-                        KeyComboRecorder(name: .stopSession, preferences: preferences)
-                        KeyComboRecorder(name: .stopSessionAlt, preferences: preferences)
+                        KeyComboRecorder(name: .stopSession, preferences: preferences, onShortcutChanged: onTapShortcutChanged)
+                        KeyComboRecorder(name: .stopSessionAlt, preferences: preferences, onShortcutChanged: onTapShortcutChanged)
                     }
                 }
 
@@ -2933,18 +3098,6 @@ struct SetupWindowView: View {
 
                 Spacer()
 
-                Button("Reset") {
-                    KeyboardShortcuts.reset(.activate, .activateAlt, .stopSession, .stopSessionAlt)
-                    preferences.holdShortcutKeyCode = Int(kVK_RightOption)
-                    preferences.holdShortcutModifiers = 0
-                    preferences.holdShortcutKeyCodeAlt = -1
-                    preferences.holdShortcutModifiersAlt = 0
-                    HotkeyService.shared.configureHoldTarget()
-                    preferences.micDeviceUIDs = []
-                    preferences.whisperModel = .smallEN
-                    preferences.muteSoundEffects = false
-                }
-
                 Button("Close") {
                     dismissWindow()
                 }
@@ -2954,6 +3107,18 @@ struct SetupWindowView: View {
             .padding(.horizontal, 24)
             .padding(.vertical, 16)
             .background(Color(red: 0.07, green: 0.07, blue: 0.08))
+        }
+        .confirmationDialog(
+            "Clear all word replacements?",
+            isPresented: $isShowingClearAllReplacementsConfirmation,
+            titleVisibility: .visible
+        ) {
+            Button("Clear All", role: .destructive) {
+                clearAllWordReplacements()
+            }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("This removes every replacement in this section.")
         }
     }
 

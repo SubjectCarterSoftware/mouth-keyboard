@@ -313,9 +313,36 @@ final class StatusMenuController: NSObject, NSMenuDelegate {
         systemDefaultItem.state = preferences.micDeviceUIDs.isEmpty ? .on : .off
         submenu.addItem(systemDefaultItem)
 
-        if !audioDeviceService.availableDevices.isEmpty {
+        let connectedUIDs = Set(audioDeviceService.availableDevices.map(\.uid))
+        let effectiveUID: String? = preferences.micDeviceUIDs.first { connectedUIDs.contains($0) }
+
+        let prioritizedUIDs = preferences.micDeviceUIDs
+        if !prioritizedUIDs.isEmpty {
             submenu.addItem(.separator())
-            for device in audioDeviceService.availableDevices {
+            for (index, uid) in prioritizedUIDs.enumerated() {
+                let connected = connectedUIDs.contains(uid)
+                let name = audioDeviceService.availableDevices.first(where: { $0.uid == uid })?.name ?? uid
+                let title = connected ? "\(index + 1). \(name)" : "\(index + 1). \(name) (disconnected)"
+                let deviceItem = NSMenuItem(
+                    title: title,
+                    action: connected ? #selector(selectMicDeviceFromMenu(_:)) : nil,
+                    keyEquivalent: ""
+                )
+                deviceItem.target = self
+                deviceItem.representedObject = uid
+                deviceItem.isEnabled = connected
+                deviceItem.state = uid == effectiveUID ? .on : .off
+                submenu.addItem(deviceItem)
+            }
+        }
+
+        let nonPrioritizedDevices = audioDeviceService.availableDevices
+            .filter { !prioritizedUIDs.contains($0.uid) }
+            .sorted { $0.name.localizedStandardCompare($1.name) == .orderedAscending }
+
+        if !nonPrioritizedDevices.isEmpty {
+            submenu.addItem(.separator())
+            for device in nonPrioritizedDevices {
                 let deviceItem = NSMenuItem(
                     title: device.name,
                     action: #selector(selectMicDeviceFromMenu(_:)),
@@ -323,7 +350,6 @@ final class StatusMenuController: NSObject, NSMenuDelegate {
                 )
                 deviceItem.target = self
                 deviceItem.representedObject = device.uid
-                deviceItem.state = preferences.micDeviceUIDs.first == device.uid ? .on : .off
                 submenu.addItem(deviceItem)
             }
         }

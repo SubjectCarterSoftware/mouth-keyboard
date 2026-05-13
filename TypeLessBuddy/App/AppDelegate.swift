@@ -81,8 +81,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         // Keep the selected rewrite tier ready for first use. On a fresh install
         // this is the default 2B tier; on later launches this only runs if the
         // selected tier isn't already downloaded.
-        if !LLMRewriteService.isModelDownloaded(preferences.rewriteModelTier) {
-            RewriteModelLoadState.shared.startDownload(for: preferences.rewriteModelTier)
+        if !LLMRewriteService.isModelPrepared(preferences.rewriteModelTier) {
+            RewriteModelLoadState.shared.startDownload(
+                for: preferences.rewriteModelTier,
+                prewarmAfterDownload: true
+            )
         }
 
         audioCaptureService.onCaptureFailure = { [weak self] error in

@@ -699,28 +699,13 @@ struct RecordingPillView: View {
         .frame(width: PillCopyControlConfiguration.slotWidth, height: PillCopyControlConfiguration.slotHeight)
     }
 
-    private func recoveryContent(feedback: RecordingState.RecoveryFeedback) -> some View {
-        let symbolName: String
-        let label: String
-        let tint: Color
-
-        switch feedback {
-        case .canceled:
-            symbolName = "xmark.circle.fill"
-            label = "Canceled"
-            tint = .orange
-        case .restarted:
-            symbolName = "arrow.clockwise.circle.fill"
-            label = "Restarted"
-            tint = .blue
-        }
-
+    private func recoveryContent(feedback _: RecordingState.RecoveryFeedback) -> some View {
         return HStack(spacing: 8) {
-            Image(systemName: symbolName)
+            Image(systemName: "arrow.clockwise.circle.fill")
                 .font(.system(size: 16, weight: .semibold))
-                .foregroundStyle(tint)
+                .foregroundStyle(.blue)
 
-            Text(label)
+            Text("Restarted")
                 .font(.system(size: 13, weight: .semibold))
                 .foregroundStyle(.white)
         }

@@ -116,6 +116,7 @@ final class ActivationStore: ObservableObject {
 
     private var requestsPasteOnCompletion = false
     private var forceLLMNextSession = false
+    private var restartFromSuccessNextSession = false
     private var retryHistory: [(instruction: String, output: String)] = []
     private var activeSessionID = UUID()
     private var activeActivationOrigin: ActivationOrigin?
@@ -272,7 +273,7 @@ final class ActivationStore: ObservableObject {
 
         invalidateActiveSession()
         bufferAccumulator.reset()
-        publishRecoveryFeedback(.canceled)
+        recoveryFeedback = nil
         state = .idle
         scheduleWhisperModelIdleUnload()
         scheduleRewriteModelIdleUnload()
@@ -350,6 +351,7 @@ final class ActivationStore: ObservableObject {
                 retryHistory.append((instruction: raw, output: output))
             }
         }
+        restartFromSuccessNextSession = true
         requestsPasteOnCompletion = pasted
         _ = beginRecording(origin: .toggle)
     }
@@ -533,6 +535,9 @@ final class ActivationStore: ObservableObject {
 
             let detection = TriggerTranscriptParser.detect(transcript: processed, triggerNames: triggerNames)
             let clipboardSnapshot = sessionClipboardSnapshot
+            let wasForcedRetrySession = forceLLMNextSession
+            let restartedFromSuccess = restartFromSuccessNextSession
+            let isRetrySession = wasForcedRetrySession || restartedFromSuccess || !retryHistory.isEmpty
             let shouldConvert: Bool
             switch detection {
             case .noTrigger:
@@ -541,6 +546,7 @@ final class ActivationStore: ObservableObject {
                 shouldConvert = true
             }
             forceLLMNextSession = false
+            restartFromSuccessNextSession = false
 
             if !shouldConvert {
                 let didPaste = shouldPasteOnSuccessfulFinish
@@ -576,11 +582,13 @@ final class ActivationStore: ObservableObject {
                 // Route external text context into the rewrite prompt when requested.
                 let externalTextSources = normalizedExternalTextSources(
                     selectedText: await preferredSelectedText(),
-                    clipboardText: clipboardSnapshot?.plainText
+                    clipboardText: clipboardSnapshot?.plainText,
+                    lastTranscription: isRetrySession ? nil : lastTranscription
                 )
                 let routingContext = ExternalTextSourceContext(
                     selectedTextAvailable: externalTextSources.selectedText != nil,
-                    clipboardTextAvailable: externalTextSources.clipboardText != nil
+                    clipboardTextAvailable: externalTextSources.clipboardText != nil,
+                    lastTranscriptionAvailable: externalTextSources.lastTranscription != nil
                 )
                 let routedSource: ExternalTextSource
 
@@ -603,22 +611,22 @@ final class ActivationStore: ObservableObject {
 
                 var promptConfiguration = buildRewritePromptBody(
                     dictatedContent: processed,
-                    selectedText: externalTextSources.selectedText,
-                    clipboardText: externalTextSources.clipboardText,
+                    sources: externalTextSources,
                     route: routedSource
                 )
                 var externalTextWasInjected = promptConfiguration.externalTextInjected
+                var effectiveRoute = promptConfiguration.routeUsed
                 var effectiveBody = prependRetryHistory(to: promptConfiguration.body)
 
-                if Self.rewriteWordCount(for: effectiveBody) > effectivePromptWordLimit,
-                   promptConfiguration.usesDistinctBoth {
+                while Self.rewriteWordCount(for: effectiveBody) > effectivePromptWordLimit,
+                      let reducedRoute = reducedRouteForPromptLimit(from: effectiveRoute) {
                     promptConfiguration = buildRewritePromptBody(
                         dictatedContent: processed,
-                        selectedText: externalTextSources.selectedText,
-                        clipboardText: nil,
-                        route: .selectedText
+                        sources: externalTextSources,
+                        route: reducedRoute
                     )
                     externalTextWasInjected = promptConfiguration.externalTextInjected
+                    effectiveRoute = promptConfiguration.routeUsed
                     effectiveBody = prependRetryHistory(to: promptConfiguration.body)
                 }
 
@@ -642,12 +650,13 @@ final class ActivationStore: ObservableObject {
                 // LLM call — routes to cloud or local service based on config
                 let rewritten: String
                 do {
+                    let promptBody = effectiveBody
                     rewritten = try await runWithTimeout(
                         nanoseconds: Self.rewriteTimeout,
                         step: "Assistant rewrite"
                     ) { [activeRewriteService] in
                         try await activeRewriteService.generate(
-                            prompt: effectiveBody,
+                            prompt: promptBody,
                             systemPrompt: systemPrompt
                         )
                     }
@@ -729,6 +738,7 @@ final class ActivationStore: ObservableObject {
     private func invalidateActiveSession() {
         requestsPasteOnCompletion = false
         forceLLMNextSession = false
+        restartFromSuccessNextSession = false
         retryHistory = []
         sessionClipboardSnapshot = nil
         initialSelectedText = nil
@@ -868,62 +878,105 @@ final class ActivationStore: ObservableObject {
         return trimmedText.isEmpty ? nil : trimmedText
     }
 
-    private func normalizedExternalTextSources(
-        selectedText: String?,
-        clipboardText: String?
-    ) -> (selectedText: String?, clipboardText: String?) {
-        let normalizedSelectedText = normalizedExternalText(selectedText)
-        let normalizedClipboardText = normalizedExternalText(clipboardText)
+    private struct ExternalTextInputs {
+        let selectedText: String?
+        let clipboardText: String?
+        let lastTranscription: String?
 
-        if let normalizedSelectedText,
-           let normalizedClipboardText,
-           normalizedSelectedText == normalizedClipboardText {
-            return (normalizedSelectedText, nil)
+        var route: ExternalTextSource {
+            var route: ExternalTextSource = .none
+
+            if selectedText != nil {
+                route.insert(.selectedText)
+            }
+
+            if clipboardText != nil {
+                route.insert(.clipboard)
+            }
+
+            if lastTranscription != nil {
+                route.insert(.lastTranscription)
+            }
+
+            return route
         }
 
-        return (normalizedSelectedText, normalizedClipboardText)
+        func filtered(by route: ExternalTextSource) -> ExternalTextInputs {
+            ExternalTextInputs(
+                selectedText: route.contains(.selectedText) ? selectedText : nil,
+                clipboardText: route.contains(.clipboard) ? clipboardText : nil,
+                lastTranscription: route.contains(.lastTranscription) ? lastTranscription : nil
+            )
+        }
+    }
+
+    private func normalizedExternalTextSources(
+        selectedText: String?,
+        clipboardText: String?,
+        lastTranscription: String?
+    ) -> ExternalTextInputs {
+        let normalizedSelectedText = normalizedExternalText(selectedText)
+        let normalizedLastTranscription = normalizedExternalText(lastTranscription)
+        let normalizedClipboardText = normalizedExternalText(clipboardText)
+
+        var seenTexts = Set<String>()
+
+        let dedupedSelectedText = dedupedExternalText(normalizedSelectedText, seenTexts: &seenTexts)
+        let dedupedLastTranscription = dedupedExternalText(normalizedLastTranscription, seenTexts: &seenTexts)
+        let dedupedClipboardText = dedupedExternalText(normalizedClipboardText, seenTexts: &seenTexts)
+
+        return ExternalTextInputs(
+            selectedText: dedupedSelectedText,
+            clipboardText: dedupedClipboardText,
+            lastTranscription: dedupedLastTranscription
+        )
+    }
+
+    private func dedupedExternalText(_ text: String?, seenTexts: inout Set<String>) -> String? {
+        guard let text else { return nil }
+        guard seenTexts.insert(text).inserted else { return nil }
+        return text
+    }
+
+    private func reducedRouteForPromptLimit(from route: ExternalTextSource) -> ExternalTextSource? {
+        guard let primaryTarget = route.primaryRewriteTarget else {
+            return nil
+        }
+
+        for supportingSource in [ExternalTextSource.clipboard, .lastTranscription, .selectedText] {
+            guard supportingSource != primaryTarget, route.contains(supportingSource) else {
+                continue
+            }
+
+            var reducedRoute = route
+            reducedRoute.remove(supportingSource)
+            return reducedRoute.hasAnySource ? reducedRoute : nil
+        }
+
+        return nil
     }
 
     private func buildRewritePromptBody(
         dictatedContent: String,
-        selectedText: String?,
-        clipboardText: String?,
+        sources: ExternalTextInputs,
         route: ExternalTextSource
-    ) -> (body: String, externalTextInjected: Bool, usesDistinctBoth: Bool) {
-        let promptSources: (selectedText: String?, clipboardText: String?, usesDistinctBoth: Bool)
+    ) -> (body: String, externalTextInjected: Bool, routeUsed: ExternalTextSource) {
+        let promptSources = sources.filtered(by: route)
+        let effectiveRoute = promptSources.route
 
-        switch route {
-        case .selectedText:
-            promptSources = (selectedText, nil, false)
-        case .clipboard:
-            promptSources = (nil, clipboardText, false)
-        case .both:
-            switch (selectedText, clipboardText) {
-            case let (selectedText?, clipboardText?):
-                promptSources = (selectedText, clipboardText, true)
-            case let (selectedText?, nil):
-                promptSources = (selectedText, nil, false)
-            case let (nil, clipboardText?):
-                promptSources = (nil, clipboardText, false)
-            case (nil, nil):
-                promptSources = (nil, nil, false)
-            }
-        case .none:
-            promptSources = (nil, nil, false)
-        }
-
-        guard promptSources.selectedText != nil || promptSources.clipboardText != nil else {
-            return (dictatedContent, false, false)
+        guard effectiveRoute.hasAnySource else {
+            return (dictatedContent, false, .none)
         }
 
         return (
             ExternalTextPromptBuilder.buildBody(
                 dictatedContent: dictatedContent,
                 selectedText: promptSources.selectedText,
-                clipboardText: promptSources.clipboardText
+                clipboardText: promptSources.clipboardText,
+                lastTranscription: promptSources.lastTranscription
             ),
             true,
-            promptSources.usesDistinctBoth
+            effectiveRoute
         )
     }
 
@@ -966,9 +1019,8 @@ final class ActivationStore: ObservableObject {
     private func publishRecoveryFeedback(_ feedback: RecordingState.RecoveryFeedback) {
         feedbackClearTask?.cancel()
         recoveryFeedback = feedback
-        let delay: UInt64 = feedback == .restarted ? 250_000_000 : 1_500_000_000
         feedbackClearTask = Task { [weak self] in
-            try? await Task.sleep(nanoseconds: delay)
+            try? await Task.sleep(nanoseconds: 250_000_000)
             guard let self, !Task.isCancelled else { return }
             self.recoveryFeedback = nil
             self.feedbackClearTask = nil

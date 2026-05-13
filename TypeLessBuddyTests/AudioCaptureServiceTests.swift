@@ -290,6 +290,163 @@ final class AudioCaptureServiceTests: XCTestCase {
         return buffer
     }
 
+    // MARK: - Hot-swap probe tests
+
+    @MainActor
+    func testProbeSwapsToSecondDeviceWhenFirstIsDead() async throws {
+        let preferences = makePreferences()
+        let deviceA = AudioInputDevice(id: 1, name: "Dead Mic", uid: "dead-mic")
+        let deviceB = AudioInputDevice(id: 2, name: "Live Mic", uid: "live-mic")
+        preferences.micDeviceUIDs = ["dead-mic", "live-mic"]
+
+        var appliedDeviceIDs: [AudioDeviceID] = []
+        let audioDeviceService = AudioDeviceService(
+            deviceEnumerator: { [deviceA, deviceB] },
+            defaultInputDeviceResolver: { deviceA },
+            audioUnitSetter: { _, deviceID in
+                appliedDeviceIDs.append(deviceID)
+                return noErr
+            }
+        )
+
+        let deadMonitor = MicProbeMonitor(deadThreshold: 1e-7, probeDuration: 0, dateProvider: { Date() })
+
+        var swappedDevice: AudioInputDevice?
+        let service = AudioCaptureService(
+            preferences: preferences,
+            audioDeviceService: audioDeviceService,
+            engineStarter: { _ in },
+            authorizationStatusProvider: { .authorized },
+            hasDefaultInputDeviceProvider: { true },
+            probeMonitorFactory: { deadMonitor },
+            probeDelay: .zero
+        )
+        service.onDeviceHotSwapped = { device in
+            swappedDevice = device
+        }
+
+        try service.start(levelMonitor: AudioLevelMonitor())
+
+        // Feed a zero buffer so the probe monitor resolves to .dead
+        let format = AVAudioFormat(standardFormatWithSampleRate: 44100, channels: 1)!
+        let buffer = AVAudioPCMBuffer(pcmFormat: format, frameCapacity: 1024)!
+        buffer.frameLength = 1024
+        deadMonitor.process(buffer: buffer)
+
+        // Let the probe task fire
+        try await Task.sleep(nanoseconds: 50_000_000)
+
+        XCTAssertEqual(swappedDevice?.uid, "live-mic")
+        XCTAssertEqual(appliedDeviceIDs.last, deviceB.id)
+    }
+
+    @MainActor
+    func testProbeDoesNotSwapWhenFirstDeviceIsAlive() async throws {
+        let preferences = makePreferences()
+        let deviceA = AudioInputDevice(id: 1, name: "Live Mic", uid: "live-mic")
+        let deviceB = AudioInputDevice(id: 2, name: "Backup Mic", uid: "backup-mic")
+        preferences.micDeviceUIDs = ["live-mic", "backup-mic"]
+
+        var appliedDeviceIDs: [AudioDeviceID] = []
+        let audioDeviceService = AudioDeviceService(
+            deviceEnumerator: { [deviceA, deviceB] },
+            defaultInputDeviceResolver: { deviceA },
+            audioUnitSetter: { _, deviceID in
+                appliedDeviceIDs.append(deviceID)
+                return noErr
+            }
+        )
+
+        let aliveMonitor = MicProbeMonitor(deadThreshold: 1e-7, probeDuration: 0, dateProvider: { Date() })
+
+        var swappedDevice: AudioInputDevice?
+        let service = AudioCaptureService(
+            preferences: preferences,
+            audioDeviceService: audioDeviceService,
+            engineStarter: { _ in },
+            authorizationStatusProvider: { .authorized },
+            hasDefaultInputDeviceProvider: { true },
+            probeMonitorFactory: { aliveMonitor },
+            probeDelay: .zero
+        )
+        service.onDeviceHotSwapped = { device in
+            swappedDevice = device
+        }
+
+        try service.start(levelMonitor: AudioLevelMonitor())
+
+        // Feed a non-zero buffer so the probe monitor resolves to .alive
+        let format = AVAudioFormat(standardFormatWithSampleRate: 44100, channels: 1)!
+        let buffer = AVAudioPCMBuffer(pcmFormat: format, frameCapacity: 1024)!
+        buffer.frameLength = 1024
+        if let data = buffer.floatChannelData?[0] {
+            for i in 0..<1024 { data[i] = 0.1 }
+        }
+        aliveMonitor.process(buffer: buffer)
+
+        try await Task.sleep(nanoseconds: 50_000_000)
+
+        XCTAssertNil(swappedDevice)
+        XCTAssertEqual(appliedDeviceIDs, [deviceA.id])
+    }
+
+    @MainActor
+    func testNoProbeWhenSinglePriorityDevice() throws {
+        let preferences = makePreferences()
+        let device = AudioInputDevice(id: 1, name: "Solo Mic", uid: "solo-mic")
+        preferences.micDeviceUIDs = ["solo-mic"]
+
+        var probeCreated = false
+        let service = AudioCaptureService(
+            preferences: preferences,
+            audioDeviceService: AudioDeviceService(
+                deviceEnumerator: { [device] },
+                defaultInputDeviceResolver: { device },
+                audioUnitSetter: { _, _ in noErr }
+            ),
+            engineStarter: { _ in },
+            authorizationStatusProvider: { .authorized },
+            hasDefaultInputDeviceProvider: { true },
+            probeMonitorFactory: {
+                probeCreated = true
+                return MicProbeMonitor()
+            },
+            probeDelay: .zero
+        )
+
+        try service.start(levelMonitor: AudioLevelMonitor())
+
+        XCTAssertFalse(probeCreated)
+    }
+
+    @MainActor
+    func testNoProbeWhenPriorityListIsEmpty() throws {
+        let preferences = makePreferences()
+        let defaultDevice = AudioInputDevice(id: 3, name: "Built-in", uid: "built-in")
+
+        var probeCreated = false
+        let service = AudioCaptureService(
+            preferences: preferences,
+            audioDeviceService: AudioDeviceService(
+                deviceEnumerator: { [defaultDevice] },
+                defaultInputDeviceResolver: { defaultDevice },
+                audioUnitSetter: { _, _ in noErr }
+            ),
+            engineStarter: { _ in },
+            authorizationStatusProvider: { .authorized },
+            hasDefaultInputDeviceProvider: { true },
+            probeMonitorFactory: {
+                probeCreated = true
+                return MicProbeMonitor()
+            },
+            probeDelay: .zero
+        )
+
+        try service.start(levelMonitor: AudioLevelMonitor())
+
+        XCTAssertFalse(probeCreated)
+    }
+
     @MainActor
     private func makePreferences() -> ShellPreferences {
         let suiteName = "AudioCaptureServiceTests.\(UUID().uuidString)"

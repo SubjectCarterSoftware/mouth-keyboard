@@ -161,16 +161,15 @@ extension RewritePipelineBenchmarkTests {
         )
         var didFallBack = false
 
-        // Mirrors ActivationStore's BOTH→SELECTED fallback when the combined prompt
-        // body exceeds the global word limit.
-        if route == .both, wordCount(body) > Self.wordLimit {
+        while wordCount(body) > Self.wordLimit,
+              let reducedRoute = reduceRouteForWordLimit(effectiveRoute) {
             body = buildPromptBody(
-                route: .selectedText,
+                route: reducedRoute,
                 dictated: dictated,
                 selected: selectedText,
-                clipboard: nil
+                clipboard: clipboardText
             )
-            effectiveRoute = .selectedText
+            effectiveRoute = reducedRoute
             didFallBack = true
         }
 
@@ -232,28 +231,30 @@ extension RewritePipelineBenchmarkTests {
         selected: String?,
         clipboard: String?
     ) -> String {
-        switch route {
-        case .clipboard:
-            return ExternalTextPromptBuilder.buildBody(
-                dictatedContent: dictated,
-                selectedText: nil,
-                clipboardText: clipboard
-            )
-        case .selectedText:
-            return ExternalTextPromptBuilder.buildBody(
-                dictatedContent: dictated,
-                selectedText: selected,
-                clipboardText: nil
-            )
-        case .both:
-            return ExternalTextPromptBuilder.buildBody(
-                dictatedContent: dictated,
-                selectedText: selected,
-                clipboardText: clipboard
-            )
-        case .none:
-            return dictated
+        ExternalTextPromptBuilder.buildBody(
+            dictatedContent: dictated,
+            selectedText: route.contains(.selectedText) ? selected : nil,
+            clipboardText: route.contains(.clipboard) ? clipboard : nil,
+            lastTranscription: route.contains(.lastTranscription) ? dictated : nil
+        )
+    }
+
+    private func reduceRouteForWordLimit(_ route: ExternalTextSource) -> ExternalTextSource? {
+        guard let primaryTarget = route.primaryRewriteTarget else {
+            return nil
         }
+
+        for supportingSource in [ExternalTextSource.clipboard, .lastTranscription, .selectedText] {
+            guard supportingSource != primaryTarget, route.contains(supportingSource) else {
+                continue
+            }
+
+            var reducedRoute = route
+            reducedRoute.remove(supportingSource)
+            return reducedRoute.hasAnySource ? reducedRoute : nil
+        }
+
+        return nil
     }
 
     private func wordCount(_ text: String) -> Int {
@@ -300,12 +301,7 @@ extension RewritePipelineBenchmarkTests {
     }
 
     private func routeLabel(_ route: ExternalTextSource) -> String {
-        switch route {
-        case .clipboard:    return ".clipboard"
-        case .selectedText: return ".selectedText"
-        case .both:         return ".both"
-        case .none:         return ".none"
-        }
+        ".\(route.tokenString.lowercased())"
     }
 }
 

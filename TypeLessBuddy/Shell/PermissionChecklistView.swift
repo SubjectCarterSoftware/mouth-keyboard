@@ -20,11 +20,22 @@ struct PermissionChecklistView: View {
         }
     }
 
+    private var tileCount: Int {
+        orderedPermissions.count + (showsLaunchAtLoginTile ? 1 : 0)
+    }
+
+    private var gridColumns: [GridItem] {
+        Array(
+            repeating: GridItem(.flexible(), spacing: 12),
+            count: max(1, min(tileCount, 3))
+        )
+    }
+
     var body: some View {
         Group {
             if usesGridLayout {
                 LazyVGrid(
-                    columns: [GridItem(.flexible(), spacing: 12), GridItem(.flexible(), spacing: 12)],
+                    columns: gridColumns,
                     spacing: 12
                 ) {
                     tilesContent

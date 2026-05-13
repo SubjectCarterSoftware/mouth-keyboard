@@ -531,27 +531,6 @@ final class CloudLLMConfigPersistenceTests: XCTestCase {
         XCTAssertEqual(prefs2.cloudLLMConfig.maxTokens, 4096)
     }
 
-    @MainActor
-    func testResetClearsCloudConfig() {
-        let suiteName = "com.elicarter.TypeLessBuddy.shell.cloudtest.\(UUID().uuidString)"
-        let defaults = UserDefaults(suiteName: suiteName)!
-        defer { defaults.removePersistentDomain(forName: suiteName) }
-
-        let prefs = ShellPreferences(userDefaults: defaults)
-        prefs.cloudLLMConfig = CloudLLMConfig(
-            isEnabled: true,
-            provider: .google,
-            baseURL: "https://custom.example.com",
-            modelID: "gemini-2.0-flash",
-            maxTokens: 4096
-        )
-
-        prefs.reset()
-
-        XCTAssertFalse(prefs.cloudLLMConfig.isEnabled)
-        XCTAssertEqual(prefs.cloudLLMConfig.provider, .openAI)
-        XCTAssertEqual(prefs.cloudLLMConfig.modelID, "")
-    }
 }
 
 // MARK: - Mock URL Protocol

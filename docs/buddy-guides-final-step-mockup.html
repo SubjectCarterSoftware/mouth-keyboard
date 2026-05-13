@@ -1,0 +1,880 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>TypeLessBuddy Buddy Guides Final Step Mockup</title>
+  <style>
+    :root {
+      --bg-top: #161718;
+      --bg-bottom: #0e1012;
+      --shell-line: rgba(255, 255, 255, 0.08);
+      --card: rgba(255, 255, 255, 0.045);
+      --card-strong: rgba(255, 255, 255, 0.072);
+      --ink: #f4efe7;
+      --muted: #b0aba1;
+      --subtle: #7d7a73;
+      --accent: #f0b54f;
+      --accent-deep: #cc8d1d;
+      --accent-soft: rgba(240, 181, 79, 0.16);
+      --good: #45c27d;
+      --good-soft: rgba(69, 194, 125, 0.14);
+      --blue: #6ea9ff;
+      --blue-soft: rgba(110, 169, 255, 0.14);
+      --shadow: 0 28px 80px rgba(0, 0, 0, 0.42);
+      --radius-xl: 30px;
+      --radius-lg: 22px;
+      --radius-md: 16px;
+      --radius-sm: 12px;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    html, body {
+      margin: 0;
+      min-height: 100%;
+    }
+
+    body {
+      font-family: "Avenir Next", "Segoe UI", sans-serif;
+      color: var(--ink);
+      background:
+        radial-gradient(circle at top left, rgba(240, 181, 79, 0.15), transparent 24%),
+        radial-gradient(circle at top right, rgba(92, 146, 255, 0.10), transparent 22%),
+        linear-gradient(180deg, var(--bg-top) 0%, var(--bg-bottom) 100%);
+      overflow-x: hidden;
+    }
+
+    .page {
+      min-height: 100vh;
+      padding: 32px 24px 48px;
+      display: grid;
+      place-items: center;
+    }
+
+    .backdrop {
+      width: min(1280px, 100%);
+      min-height: 920px;
+      border-radius: 36px;
+      position: relative;
+      overflow: hidden;
+      border: 1px solid rgba(255, 255, 255, 0.06);
+      background:
+        linear-gradient(135deg, rgba(255, 255, 255, 0.035), transparent 42%),
+        linear-gradient(180deg, rgba(255, 255, 255, 0.02), rgba(255, 255, 255, 0.01));
+      box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.02) inset;
+    }
+
+    .ambient {
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
+      background:
+        radial-gradient(circle at 16% 18%, rgba(240, 181, 79, 0.10), transparent 18%),
+        radial-gradient(circle at 86% 12%, rgba(255, 255, 255, 0.05), transparent 14%),
+        radial-gradient(circle at 50% 100%, rgba(58, 98, 181, 0.18), transparent 30%);
+      opacity: 0.8;
+    }
+
+    .ambient::before,
+    .ambient::after {
+      content: "";
+      position: absolute;
+      border-radius: 999px;
+      opacity: 0.48;
+    }
+
+    .ambient::before {
+      width: 420px;
+      height: 420px;
+      right: -100px;
+      top: 60px;
+      background: radial-gradient(circle, rgba(240, 181, 79, 0.16), transparent 68%);
+    }
+
+    .ambient::after {
+      width: 360px;
+      height: 360px;
+      left: -120px;
+      bottom: -80px;
+      background: radial-gradient(circle, rgba(70, 134, 224, 0.14), transparent 68%);
+    }
+
+    .mock-chrome {
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
+      opacity: 0.34;
+      background-image:
+        linear-gradient(rgba(255, 255, 255, 0.015) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(255, 255, 255, 0.015) 1px, transparent 1px);
+      background-size: 90px 90px;
+      mask-image: linear-gradient(180deg, rgba(0,0,0,0.22), rgba(0,0,0,0.7));
+    }
+
+    .modal {
+      position: relative;
+      width: min(1020px, calc(100vw - 64px));
+      min-height: 760px;
+      margin: 72px auto;
+      padding: 24px 24px 0;
+      border-radius: 32px;
+      border: 1px solid var(--shell-line);
+      background:
+        linear-gradient(180deg, rgba(34, 37, 41, 0.95), rgba(18, 20, 23, 0.97));
+      box-shadow: var(--shadow);
+      backdrop-filter: blur(18px);
+      display: grid;
+      grid-template-rows: auto auto 1fr auto;
+      gap: 22px;
+    }
+
+    .modal::before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      border-radius: inherit;
+      background:
+        radial-gradient(circle at top center, rgba(240, 181, 79, 0.08), transparent 18%),
+        linear-gradient(180deg, rgba(255, 255, 255, 0.015), transparent 20%);
+      pointer-events: none;
+    }
+
+    .topbar {
+      display: grid;
+      grid-template-columns: 120px 1fr 120px;
+      align-items: center;
+      gap: 12px;
+      position: relative;
+      z-index: 1;
+    }
+
+    .ghost-button {
+      appearance: none;
+      border: 0;
+      background: transparent;
+      color: var(--muted);
+      font: inherit;
+      font-size: 14px;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 0;
+      cursor: pointer;
+    }
+
+    .progress-dots {
+      justify-self: center;
+      display: inline-flex;
+      gap: 8px;
+      padding: 12px 18px;
+      border-radius: 999px;
+      background: rgba(255, 255, 255, 0.04);
+      border: 1px solid rgba(255, 255, 255, 0.05);
+    }
+
+    .progress-dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      background: rgba(255, 255, 255, 0.18);
+    }
+
+    .progress-dot.is-active {
+      background: var(--accent);
+      transform: scale(1.06);
+    }
+
+    .eyebrow {
+      justify-self: end;
+      color: var(--subtle);
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: 0.12em;
+    }
+
+    .hero {
+      position: relative;
+      z-index: 1;
+      text-align: center;
+      display: grid;
+      gap: 10px;
+      padding-top: 10px;
+    }
+
+    .hero-icon {
+      width: 64px;
+      height: 64px;
+      margin: 0 auto;
+      border-radius: 20px;
+      display: grid;
+      place-items: center;
+      font-size: 30px;
+      background: linear-gradient(180deg, rgba(240, 181, 79, 0.22), rgba(240, 181, 79, 0.08));
+      color: var(--accent);
+      border: 1px solid rgba(240, 181, 79, 0.14);
+      box-shadow: inset 0 1px 0 rgba(255,255,255,0.08);
+    }
+
+    .hero h1 {
+      margin: 0;
+      font-size: clamp(36px, 4vw, 52px);
+      line-height: 0.95;
+      letter-spacing: -0.05em;
+      font-family: "Avenir Next Condensed", "Avenir Next", sans-serif;
+      font-weight: 700;
+    }
+
+    .hero p {
+      margin: 0 auto;
+      max-width: 680px;
+      font-size: 18px;
+      line-height: 1.45;
+      color: var(--muted);
+    }
+
+    .content {
+      position: relative;
+      z-index: 1;
+      min-height: 0;
+    }
+
+    .surface {
+      border-radius: 24px;
+      padding: 22px;
+      background: rgba(255, 255, 255, 0.035);
+      border: 1px solid rgba(255, 255, 255, 0.05);
+      box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.03);
+      display: grid;
+      gap: 18px;
+    }
+
+    .status-strip {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 12px;
+    }
+
+    .status-card,
+    .card,
+    .mini-guide {
+      background: var(--card);
+      border: 1px solid rgba(255,255,255,0.05);
+      border-radius: 18px;
+      padding: 18px;
+      display: grid;
+      gap: 12px;
+    }
+
+    .status-card {
+      background: linear-gradient(180deg, rgba(255,255,255,0.06), rgba(255,255,255,0.035));
+    }
+
+    .status-label,
+    .mini-guide-label,
+    .composer-label,
+    .preview-label {
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: 0.12em;
+      color: var(--subtle);
+    }
+
+    .status-card strong,
+    .card h2,
+    .mini-guide h3 {
+      margin: 0;
+      font-size: 17px;
+      font-weight: 600;
+    }
+
+    .status-copy,
+    .card p,
+    .composer-copy,
+    .preview-copy,
+    .mini-guide p,
+    .list li {
+      margin: 0;
+      color: var(--muted);
+      line-height: 1.55;
+      font-size: 14px;
+    }
+
+    .status-badge,
+    .chip,
+    .helper-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+      padding: 7px 10px;
+      border-radius: 999px;
+      font-size: 12px;
+      font-weight: 600;
+      letter-spacing: 0.02em;
+      width: fit-content;
+    }
+
+    .status-badge.good {
+      background: var(--good-soft);
+      color: #87e2af;
+    }
+
+    .status-badge.blue {
+      background: var(--blue-soft);
+      color: #b9d6ff;
+    }
+
+    .status-badge.accent,
+    .chip.is-selected {
+      background: var(--accent-soft);
+      color: #ffd27d;
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: minmax(0, 1.22fr) minmax(0, 0.88fr);
+      gap: 16px;
+    }
+
+    .stack {
+      display: grid;
+      gap: 16px;
+    }
+
+    .card.is-highlight {
+      background: linear-gradient(180deg, rgba(240, 181, 79, 0.10), rgba(255, 255, 255, 0.035));
+      border-color: rgba(240, 181, 79, 0.22);
+    }
+
+    .card-head {
+      display: flex;
+      align-items: start;
+      justify-content: space-between;
+      gap: 12px;
+    }
+
+    .card-title {
+      display: grid;
+      gap: 6px;
+    }
+
+    .card-title h2 {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .card-subtitle {
+      color: var(--muted);
+      font-size: 14px;
+      line-height: 1.5;
+    }
+
+    .demo-shell,
+    .selection-shell {
+      border-radius: 16px;
+      background: rgba(10, 11, 14, 0.36);
+      border: 1px solid rgba(255,255,255,0.05);
+      padding: 14px;
+      display: grid;
+      gap: 12px;
+    }
+
+    .record-row {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+
+    .record-button,
+    .ghost-chip,
+    .primary-button,
+    .secondary-button {
+      font: inherit;
+    }
+
+    .record-button,
+    .primary-button,
+    .secondary-button {
+      appearance: none;
+      border: 0;
+      border-radius: 14px;
+      padding: 12px 16px;
+      cursor: pointer;
+      transition: transform 140ms ease, opacity 140ms ease, background 140ms ease;
+    }
+
+    .record-button:hover,
+    .primary-button:hover,
+    .secondary-button:hover,
+    .ghost-chip:hover {
+      transform: translateY(-1px);
+    }
+
+    .record-button {
+      background: linear-gradient(180deg, #f6bd5c 0%, #e8a93f 100%);
+      color: #2f2208;
+      font-weight: 700;
+    }
+
+    .primary-button {
+      background: linear-gradient(180deg, #f6bd5c 0%, #e8a93f 100%);
+      color: #2f2208;
+      font-weight: 700;
+    }
+
+    .secondary-button {
+      background: rgba(255, 255, 255, 0.06);
+      color: var(--ink);
+    }
+
+    .ghost-chip {
+      appearance: none;
+      border: 1px solid rgba(255,255,255,0.07);
+      background: rgba(255,255,255,0.04);
+      color: var(--muted);
+      padding: 10px 14px;
+      border-radius: 14px;
+      cursor: pointer;
+      transition: border-color 140ms ease, background 140ms ease, color 140ms ease, transform 140ms ease;
+    }
+
+    .ghost-chip.is-selected {
+      color: var(--ink);
+      background: rgba(240, 181, 79, 0.12);
+      border-color: rgba(240, 181, 79, 0.28);
+    }
+
+    .record-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      padding: 9px 14px;
+      border-radius: 999px;
+      background: rgba(255,255,255,0.04);
+      border: 1px solid rgba(255,255,255,0.05);
+      color: var(--ink);
+      font-size: 13px;
+    }
+
+    .record-dot {
+      width: 9px;
+      height: 9px;
+      border-radius: 50%;
+      background: var(--accent);
+      box-shadow: 0 0 16px rgba(240, 181, 79, 0.45);
+    }
+
+    .composer-box,
+    .transcript-box,
+    .question-box {
+      border-radius: 14px;
+      padding: 14px 15px;
+      background: rgba(255,255,255,0.04);
+      border: 1px solid rgba(255,255,255,0.06);
+      min-height: 86px;
+      color: var(--ink);
+      font-size: 15px;
+      line-height: 1.55;
+    }
+
+    .composer-box {
+      min-height: 120px;
+    }
+
+    .composer-box strong,
+    .transcript-box strong,
+    .selection-title strong {
+      color: var(--ink);
+    }
+
+    .chip-row,
+    .helper-row,
+    .action-row {
+      display: flex;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 10px;
+    }
+
+    .selection-block {
+      border-radius: 14px;
+      padding: 14px 15px;
+      background: rgba(255,255,255,0.03);
+      border: 1px solid rgba(255,255,255,0.05);
+      display: grid;
+      gap: 8px;
+    }
+
+    .selection-title {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      font-size: 14px;
+      color: var(--ink);
+    }
+
+    .selection-copy mark {
+      background: rgba(110, 169, 255, 0.20);
+      color: #d7e6ff;
+      border-radius: 6px;
+      padding: 1px 2px;
+    }
+
+    .mini-guide-grid {
+      display: grid;
+      gap: 12px;
+    }
+
+    .mini-guide h3 {
+      font-size: 15px;
+    }
+
+    .list {
+      display: grid;
+      gap: 10px;
+      padding: 0;
+      margin: 0;
+      list-style: none;
+    }
+
+    .list li {
+      position: relative;
+      padding-left: 22px;
+    }
+
+    .list li::before {
+      content: "•";
+      position: absolute;
+      left: 6px;
+      color: var(--accent);
+    }
+
+    .footer {
+      position: relative;
+      z-index: 1;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      padding: 18px 0 22px;
+      border-top: 1px solid rgba(255,255,255,0.06);
+    }
+
+    .footer-copy {
+      color: var(--subtle);
+      font-size: 13px;
+      max-width: 480px;
+    }
+
+    .footer-actions {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    @media (max-width: 960px) {
+      .modal {
+        width: min(100%, calc(100vw - 28px));
+      }
+
+      .status-strip,
+      .grid {
+        grid-template-columns: 1fr;
+      }
+
+      .topbar {
+        grid-template-columns: 1fr;
+        justify-items: center;
+      }
+
+      .topbar .ghost-button,
+      .topbar .eyebrow {
+        justify-self: center;
+      }
+
+      .footer {
+        flex-direction: column;
+        align-items: stretch;
+      }
+
+      .footer-actions {
+        justify-content: stretch;
+      }
+
+      .footer-actions button {
+        flex: 1;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="page">
+    <div class="backdrop">
+      <div class="ambient"></div>
+      <div class="mock-chrome"></div>
+
+      <div class="modal">
+        <div class="topbar">
+          <button class="ghost-button" type="button">
+            <span>‹</span>
+            <span>Back</span>
+          </button>
+
+          <div class="progress-dots" aria-label="Onboarding progress">
+            <div class="progress-dot"></div>
+            <div class="progress-dot"></div>
+            <div class="progress-dot"></div>
+            <div class="progress-dot"></div>
+            <div class="progress-dot"></div>
+            <div class="progress-dot"></div>
+            <div class="progress-dot is-active"></div>
+          </div>
+
+          <div class="eyebrow">Step 7 of 7</div>
+        </div>
+
+        <div class="hero">
+          <div class="hero-icon">✦</div>
+          <h1>Buddy Guides</h1>
+          <p>This last page only appears after the local speech model and the assistant model are both ready. It teaches the interaction model by letting people try one clean recording, one assistant request, and one selected-text question.</p>
+        </div>
+
+        <div class="content">
+          <div class="surface">
+            <div class="status-strip">
+              <div class="status-card">
+                <div class="status-label">Speech Model</div>
+                <strong>Whisper Small Ready</strong>
+                <div class="status-badge good">Downloaded and warmed up</div>
+                <p class="status-copy">The speech path is ready before the user reaches the practice page.</p>
+              </div>
+
+              <div class="status-card">
+                <div class="status-label">Assistant Model</div>
+                <strong>Buddy Engine Ready</strong>
+                <div class="status-badge blue">Loaded for first request</div>
+                <p class="status-copy">The second local model clears its own gate so the first demo never feels broken.</p>
+              </div>
+
+              <div class="status-card">
+                <div class="status-label">Why This Page</div>
+                <strong>Show, Don’t Explain</strong>
+                <div class="status-badge accent">Examples beat docs</div>
+                <p class="status-copy">Everything here is framed as a try-it-now flow instead of a manual.</p>
+              </div>
+            </div>
+
+            <div class="grid">
+              <div class="stack">
+                <div class="card">
+                  <div class="card-head">
+                    <div class="card-title">
+                      <h2><span>🎙</span><span>Try A Clean Recording</span></h2>
+                      <div class="card-subtitle">A single guided recording shows the basic capture flow before assistant prompting is introduced.</div>
+                    </div>
+                    <div class="helper-badge status-badge good">First run</div>
+                  </div>
+
+                  <div class="demo-shell">
+                    <div class="record-row">
+                      <button class="record-button" id="recordDemoButton" type="button">Press To Record</button>
+                      <div class="record-pill">
+                        <span class="record-dot"></span>
+                        <span id="recordStateLabel">Waiting for a sample</span>
+                      </div>
+                    </div>
+
+                    <div>
+                      <div class="preview-label">Transcript Preview</div>
+                      <div class="transcript-box" id="transcriptBox">Press the button once and the sample transcript lands here so the user sees exactly where speech becomes text.</div>
+                    </div>
+                  </div>
+                </div>
+
+                <div class="card is-highlight">
+                  <div class="card-head">
+                    <div class="card-title">
+                      <h2><span>✨</span><span>Try An Assistant Request</span></h2>
+                      <div class="card-subtitle">Immediately after the raw transcript, show one assistant-powered example so the mental model is obvious.</div>
+                    </div>
+                    <div class="helper-badge status-badge accent">Recommended</div>
+                  </div>
+
+                  <div class="demo-shell">
+                    <div>
+                      <div class="composer-label">What You Say</div>
+                      <div class="composer-box" id="assistantComposer"><strong>Buddy,</strong> rewrite this to sound polished: hey just checking if you had a chance to look at the mockups yet</div>
+                    </div>
+
+                    <div class="chip-row" id="assistantExamples">
+                      <button class="ghost-chip is-selected" data-example="rewrite" type="button">Rewrite</button>
+                      <button class="ghost-chip" data-example="summarize" type="button">Summarize</button>
+                      <button class="ghost-chip" data-example="extract" type="button">Extract</button>
+                      <button class="ghost-chip" data-example="brainstorm" type="button">Brainstorm</button>
+                    </div>
+
+                    <p class="composer-copy" id="assistantHint">Short examples here teach the categories without making the user read a separate guide first.</p>
+                  </div>
+                </div>
+              </div>
+
+              <div class="stack">
+                <div class="card">
+                  <div class="card-head">
+                    <div class="card-title">
+                      <h2><span>📝</span><span>Ask About Selected Text</span></h2>
+                      <div class="card-subtitle">This makes the clipboard-aware flow concrete instead of hidden behind a setting.</div>
+                    </div>
+                    <div class="helper-badge status-badge blue">Selection aware</div>
+                  </div>
+
+                  <div class="selection-shell">
+                    <div class="selection-block">
+                      <div class="selection-title">
+                        <strong>Selected text preview</strong>
+                        <span class="preview-label">Auto-attached</span>
+                      </div>
+                      <p class="selection-copy" id="selectionCopy">The timeline moved because the migration had to be split across two releases, and QA only had access to the second environment after the API contract stabilized. <mark>This is the text Buddy receives as context.</mark></p>
+                    </div>
+
+                    <div>
+                      <div class="composer-label">Question To Buddy</div>
+                      <div class="question-box" id="selectionQuestion">What does this actually mean in plain English, and what changed?</div>
+                    </div>
+
+                    <div class="action-row">
+                      <button class="secondary-button" id="toggleSelectionButton" type="button">Swap Example</button>
+                      <button class="secondary-button" type="button">Ask About Selection</button>
+                    </div>
+                  </div>
+                </div>
+
+                <div class="card">
+                  <div class="card-head">
+                    <div class="card-title">
+                      <h2><span>⌘</span><span>Buddy Guides At A Glance</span></h2>
+                      <div class="card-subtitle">If this survives onboarding, it can later live in a permanent Guides section in the app.</div>
+                    </div>
+                  </div>
+
+                  <div class="mini-guide-grid">
+                    <div class="mini-guide">
+                      <div class="mini-guide-label">Guide 01</div>
+                      <h3>Start with the job</h3>
+                      <p>Say what you want done first: rewrite, summarize, extract, brainstorm, explain.</p>
+                    </div>
+
+                    <div class="mini-guide">
+                      <div class="mini-guide-label">Guide 02</div>
+                      <h3>Add context when it matters</h3>
+                      <p>Mention audience, tone, length, or whether selected text should be used as source material.</p>
+                    </div>
+
+                    <div class="mini-guide">
+                      <div class="mini-guide-label">Guide 03</div>
+                      <h3>Ask for the shape you want</h3>
+                      <p>People learn faster when the examples ask for bullets, plain English, a draft reply, or key takeaways.</p>
+                    </div>
+                  </div>
+                </div>
+
+                <div class="card">
+                  <div class="card-head">
+                    <div class="card-title">
+                      <h2><span>↗</span><span>Why This Layout</span></h2>
+                    </div>
+                  </div>
+
+                  <ul class="list">
+                    <li>The user sees model readiness first, so the system feels dependable before they test it.</li>
+                    <li>The page teaches the three most important flows in the same order they are likely to discover them.</li>
+                    <li>A persistent Buddy Guides concept is introduced here without forcing a long doc-first experience.</li>
+                  </ul>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="footer">
+          <div class="footer-copy">This mock keeps the existing onboarding shell, then shifts the last step from permissions into guided practice. The key product bet is that examples live inside onboarding instead of behind documentation.</div>
+
+          <div class="footer-actions">
+            <button class="secondary-button" type="button">Skip For Now</button>
+            <button class="primary-button" type="button">Finish Setup</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const assistantExamples = {
+      rewrite: {
+        copy: "<strong>Buddy,</strong> rewrite this to sound polished: hey just checking if you had a chance to look at the mockups yet",
+        hint: "Short examples here teach the categories without making the user read a separate guide first."
+      },
+      summarize: {
+        copy: "<strong>Buddy,</strong> summarize this update in three bullets I can send to the team",
+        hint: "Summarize shows that the assistant is useful for compressing content, not just rewriting it."
+      },
+      extract: {
+        copy: "<strong>Buddy,</strong> pull out the action items and due dates from this note",
+        hint: "Extract examples communicate that structured outputs are fair game and often the most practical."
+      },
+      brainstorm: {
+        copy: "<strong>Buddy,</strong> brainstorm three friendlier ways to announce this delay to customers",
+        hint: "Brainstorm broadens the mental model beyond editing and into generation."
+      }
+    };
+
+    const transcriptSamples = [
+      "Schedule a follow-up with Dana for Thursday afternoon and mention the latest prototype is ready for review.",
+      "Turn this into a quick Slack update for the design channel and keep it under four lines."
+    ];
+
+    const selectionSamples = [
+      "The timeline moved because the migration had to be split across two releases, and QA only had access to the second environment after the API contract stabilized. <mark>This is the text Buddy receives as context.</mark>",
+      "We kept the launch scope the same, but we shifted the rollout path so support could stage the documentation first and the success team could test the handoff. <mark>This selected passage is attached automatically.</mark>"
+    ];
+
+    const composer = document.getElementById("assistantComposer");
+    const hint = document.getElementById("assistantHint");
+    const exampleButtons = [...document.querySelectorAll("#assistantExamples .ghost-chip")];
+    const recordButton = document.getElementById("recordDemoButton");
+    const recordStateLabel = document.getElementById("recordStateLabel");
+    const transcriptBox = document.getElementById("transcriptBox");
+    const toggleSelectionButton = document.getElementById("toggleSelectionButton");
+    const selectionCopy = document.getElementById("selectionCopy");
+
+    let transcriptIndex = 0;
+    let selectionIndex = 0;
+
+    exampleButtons.forEach((button) => {
+      button.addEventListener("click", () => {
+        exampleButtons.forEach((candidate) => candidate.classList.remove("is-selected"));
+        button.classList.add("is-selected");
+        const example = assistantExamples[button.dataset.example];
+        composer.innerHTML = example.copy;
+        hint.textContent = example.hint;
+      });
+    });
+
+    recordButton.addEventListener("click", () => {
+      transcriptBox.textContent = transcriptSamples[transcriptIndex];
+      recordStateLabel.textContent = "Sample captured";
+      transcriptIndex = (transcriptIndex + 1) % transcriptSamples.length;
+    });
+
+    toggleSelectionButton.addEventListener("click", () => {
+      selectionIndex = (selectionIndex + 1) % selectionSamples.length;
+      selectionCopy.innerHTML = selectionSamples[selectionIndex];
+    });
+  </script>
+</body>
+</html>

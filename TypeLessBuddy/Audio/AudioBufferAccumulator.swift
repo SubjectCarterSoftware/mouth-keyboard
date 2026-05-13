@@ -9,6 +9,9 @@ enum AudioBufferAccumulatorError: Error {
 
 private let whisperSampleRate: Double = 16_000.0
 private let defaultAccumulatorMaxDuration: TimeInterval = 5 * 60
+private let trimmingWindowDuration: TimeInterval = 0.1
+private let trimmingPreRollDuration: TimeInterval = 0.3
+private let speechThresholdRMS: Float = 0.0056
 
 class AudioBufferAccumulator: AudioBufferReceiving {
     private var buffers: [AVAudioPCMBuffer] = []
@@ -86,9 +89,10 @@ class AudioBufferAccumulator: AudioBufferReceiving {
 
         let minimumSampleCount = max(0, Int(ceil(minimumDuration * whisperSampleRate)))
         let trailingSilenceSampleCount = max(0, Int(ceil(trailingSilenceDuration * whisperSampleRate)))
+        let trimmed = trimBoundarySilence(from: samples)
 
-        var prepared = samples
-        prepared.reserveCapacity(max(samples.count + trailingSilenceSampleCount, minimumSampleCount))
+        var prepared = trimmed
+        prepared.reserveCapacity(max(trimmed.count + trailingSilenceSampleCount, minimumSampleCount))
 
         if trailingSilenceSampleCount > 0 {
             prepared.append(contentsOf: repeatElement(0, count: trailingSilenceSampleCount))
@@ -99,6 +103,54 @@ class AudioBufferAccumulator: AudioBufferReceiving {
         }
 
         return prepared
+    }
+
+    private static func trimBoundarySilence(from samples: [Float]) -> [Float] {
+        let windowSampleCount = max(1, Int(ceil(trimmingWindowDuration * whisperSampleRate)))
+        let preRollSampleCount = max(0, Int(ceil(trimmingPreRollDuration * whisperSampleRate)))
+
+        guard let firstSpeechRange = firstSpeechWindow(in: samples, windowSampleCount: windowSampleCount),
+              let lastSpeechRange = lastSpeechWindow(in: samples, windowSampleCount: windowSampleCount) else {
+            return samples
+        }
+
+        let startIndex = max(0, firstSpeechRange.lowerBound - preRollSampleCount)
+        let endIndex = max(startIndex, lastSpeechRange.upperBound)
+        return Array(samples[startIndex..<endIndex])
+    }
+
+    private static func firstSpeechWindow(in samples: [Float], windowSampleCount: Int) -> Range<Int>? {
+        var lowerBound = 0
+        while lowerBound < samples.count {
+            let upperBound = min(samples.count, lowerBound + windowSampleCount)
+            if rms(of: samples[lowerBound..<upperBound]) > speechThresholdRMS {
+                return lowerBound..<upperBound
+            }
+            lowerBound += windowSampleCount
+        }
+        return nil
+    }
+
+    private static func lastSpeechWindow(in samples: [Float], windowSampleCount: Int) -> Range<Int>? {
+        var lowerBound = max(0, samples.count - windowSampleCount)
+        while true {
+            let upperBound = min(samples.count, lowerBound + windowSampleCount)
+            if rms(of: samples[lowerBound..<upperBound]) > speechThresholdRMS {
+                return lowerBound..<upperBound
+            }
+            if lowerBound == 0 {
+                return nil
+            }
+            lowerBound = max(0, lowerBound - windowSampleCount)
+        }
+    }
+
+    private static func rms(of samples: ArraySlice<Float>) -> Float {
+        guard !samples.isEmpty else { return 0 }
+        let meanSquare = samples.reduce(into: Float.zero) { partialResult, sample in
+            partialResult += sample * sample
+        } / Float(samples.count)
+        return sqrt(meanSquare)
     }
 
     func reset() {

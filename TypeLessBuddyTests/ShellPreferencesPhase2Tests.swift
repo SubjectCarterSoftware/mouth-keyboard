@@ -9,11 +9,11 @@ final class ShellPreferencesPhase2Tests: XCTestCase {
         XCTAssertEqual(preferences.micDeviceUIDs, [])
     }
 
-    func testResetClearsPhase2KeysBackToDefaults() {
+    func testRestoreDefaultGeneralSettingsClearsPhase2KeysBackToDefaults() {
         let (defaults, preferences) = makePreferences()
         preferences.micDeviceUIDs = ["BuiltInMic"]
 
-        preferences.reset()
+        preferences.restoreDefaultGeneralSettings()
 
         XCTAssertEqual(preferences.micDeviceUIDs, [])
         XCTAssertNil(defaults.object(forKey: ShellPreferences.Keys.micDeviceUIDs))
@@ -31,6 +31,33 @@ final class ShellPreferencesPhase2Tests: XCTestCase {
         XCTAssertEqual(preferences.micDeviceUIDs, ["legacy-uid"])
 
         defaults.removePersistentDomain(forName: suiteName)
+    }
+
+    func testRemoveMicDeviceRemovesSpecifiedUID() {
+        let (_, preferences) = makePreferences()
+        preferences.micDeviceUIDs = ["mic-A", "mic-B", "mic-C"]
+
+        preferences.removeMicDevice("mic-B")
+
+        XCTAssertEqual(preferences.micDeviceUIDs, ["mic-A", "mic-C"])
+    }
+
+    func testRemoveMicDeviceNoOpForUnknownUID() {
+        let (_, preferences) = makePreferences()
+        preferences.micDeviceUIDs = ["mic-A", "mic-B"]
+
+        preferences.removeMicDevice("mic-Z")
+
+        XCTAssertEqual(preferences.micDeviceUIDs, ["mic-A", "mic-B"])
+    }
+
+    func testRemoveMicDeviceLastUIDYieldsEmptyList() {
+        let (_, preferences) = makePreferences()
+        preferences.micDeviceUIDs = ["mic-A"]
+
+        preferences.removeMicDevice("mic-A")
+
+        XCTAssertEqual(preferences.micDeviceUIDs, [])
     }
 
     private func makePreferences(file: StaticString = #filePath, line: UInt = #line) -> (UserDefaults, ShellPreferences) {

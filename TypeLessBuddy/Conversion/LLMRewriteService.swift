@@ -446,6 +446,7 @@ actor LLMRewriteService: LLMRewriting {
         do {
             let model = try await task.value
             cachedModel = model
+            try? Self.markModelPrepared(tier, fileManager: .default)
             loadTask = nil
             loadProgressObservers.removeAll()
             return model
@@ -948,6 +949,21 @@ actor LLMRewriteService: LLMRewriting {
         return hasRequiredMetadata && hasWeights
     }
 
+    static func isModelPrepared(
+        _ tier: RewriteModelTier,
+        baseURL: URL? = nil,
+        fileManager: FileManager = .default
+    ) -> Bool {
+        guard isModelDownloaded(tier, baseURL: baseURL, fileManager: fileManager),
+              let directory = try? downloadedModelDirectory(for: tier, baseURL: baseURL, fileManager: fileManager)
+        else {
+            return false
+        }
+
+        let markerURL = preparedMarkerURL(for: directory)
+        return fileManager.fileExists(atPath: markerURL.path)
+    }
+
     private static func makePersistentHub() throws -> HubApi {
         let fileManager = FileManager.default
         let downloadBase = try persistentDownloadBaseURL(fileManager: fileManager)
@@ -1012,6 +1028,20 @@ actor LLMRewriteService: LLMRewriting {
             eosTokenIds: source.eosTokenIds,
             toolCallFormat: source.toolCallFormat
         )
+    }
+
+    private static func markModelPrepared(_ tier: RewriteModelTier, fileManager: FileManager) throws {
+        let directory = try downloadedModelDirectory(for: tier, fileManager: fileManager)
+        guard fileManager.fileExists(atPath: directory.path) else { return }
+
+        let markerURL = preparedMarkerURL(for: directory)
+        if !fileManager.fileExists(atPath: markerURL.path) {
+            fileManager.createFile(atPath: markerURL.path, contents: Data(), attributes: nil)
+        }
+    }
+
+    private static func preparedMarkerURL(for directory: URL) -> URL {
+        directory.appendingPathComponent(".typelessbuddy-prepared", isDirectory: false)
     }
 
     private func completedProgress() -> Progress {

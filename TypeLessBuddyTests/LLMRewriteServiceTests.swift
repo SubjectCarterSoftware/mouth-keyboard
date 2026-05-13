@@ -545,6 +545,55 @@ final class LLMRewriteServiceTests: XCTestCase {
         )
     }
 
+    func testPreparedModelDetectionReturnsFalseWithoutPreparedMarker() throws {
+        let fileManager = FileManager.default
+        let baseURL = fileManager.temporaryDirectory
+            .appendingPathComponent("LLMRewriteServiceTests.PreparedMissing.\(UUID().uuidString)", isDirectory: true)
+        let modelDirectory = try LLMRewriteService.downloadedModelDirectory(
+            for: .standard2B,
+            baseURL: baseURL,
+            fileManager: fileManager
+        )
+        try fileManager.createDirectory(at: modelDirectory, withIntermediateDirectories: true)
+        try Data("{}".utf8).write(to: modelDirectory.appendingPathComponent("config.json"))
+        try Data("{}".utf8).write(to: modelDirectory.appendingPathComponent("tokenizer.json"))
+        try Data("{}".utf8).write(to: modelDirectory.appendingPathComponent("tokenizer_config.json"))
+        try Data("{% raw %}".utf8).write(to: modelDirectory.appendingPathComponent("chat_template.jinja"))
+        try Data("{}".utf8).write(to: modelDirectory.appendingPathComponent("optiq_metadata.json"))
+        try Data("weights".utf8).write(to: modelDirectory.appendingPathComponent("model.safetensors"))
+
+        XCTAssertFalse(
+            LLMRewriteService.isModelPrepared(.standard2B, baseURL: baseURL, fileManager: fileManager)
+        )
+    }
+
+    func testPreparedModelDetectionReturnsTrueWithPreparedMarker() throws {
+        let fileManager = FileManager.default
+        let baseURL = fileManager.temporaryDirectory
+            .appendingPathComponent("LLMRewriteServiceTests.PreparedPresent.\(UUID().uuidString)", isDirectory: true)
+        let modelDirectory = try LLMRewriteService.downloadedModelDirectory(
+            for: .standard2B,
+            baseURL: baseURL,
+            fileManager: fileManager
+        )
+        try fileManager.createDirectory(at: modelDirectory, withIntermediateDirectories: true)
+        try Data("{}".utf8).write(to: modelDirectory.appendingPathComponent("config.json"))
+        try Data("{}".utf8).write(to: modelDirectory.appendingPathComponent("tokenizer.json"))
+        try Data("{}".utf8).write(to: modelDirectory.appendingPathComponent("tokenizer_config.json"))
+        try Data("{% raw %}".utf8).write(to: modelDirectory.appendingPathComponent("chat_template.jinja"))
+        try Data("{}".utf8).write(to: modelDirectory.appendingPathComponent("optiq_metadata.json"))
+        try Data("weights".utf8).write(to: modelDirectory.appendingPathComponent("model.safetensors"))
+        fileManager.createFile(
+            atPath: modelDirectory.appendingPathComponent(".typelessbuddy-prepared").path,
+            contents: Data(),
+            attributes: nil
+        )
+
+        XCTAssertTrue(
+            LLMRewriteService.isModelPrepared(.standard2B, baseURL: baseURL, fileManager: fileManager)
+        )
+    }
+
     func testDownloadedModelDetectionReturnsFalseWhenTierDirectoryIsMissingRequiredArtifacts() throws {
         let fileManager = FileManager.default
         let baseURL = fileManager.temporaryDirectory

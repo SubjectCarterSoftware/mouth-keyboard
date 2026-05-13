@@ -227,7 +227,7 @@ final class ActivationStoreTests: XCTestCase {
         try await Task.sleep(nanoseconds: 50_000_000)
 
         XCTAssertEqual(store.state, .idle)
-        XCTAssertEqual(store.recoveryFeedback, .canceled)
+        XCTAssertNil(store.recoveryFeedback)
     }
 
     func test_finish_no_op_when_not_recording() {
@@ -491,7 +491,7 @@ final class ActivationStoreTests: XCTestCase {
         try await Task.sleep(nanoseconds: 100_000_000)
 
         XCTAssertEqual(store.state, .idle)
-        XCTAssertEqual(store.recoveryFeedback, .canceled)
+        XCTAssertNil(store.recoveryFeedback)
         XCTAssertNil(mockClipboard.lastWrittenText)
         XCTAssertEqual(
             mockRewriter.scheduledIdleUnloadDurations.last,
@@ -542,7 +542,7 @@ final class ActivationStoreTests: XCTestCase {
         try await Task.sleep(nanoseconds: 500_000_000)
 
         XCTAssertEqual(store.state, .idle)
-        XCTAssertEqual(store.recoveryFeedback, .canceled)
+        XCTAssertNil(store.recoveryFeedback)
         XCTAssertNil(mockClipboard.lastWrittenText)
     }
 
@@ -573,7 +573,7 @@ final class ActivationStoreTests: XCTestCase {
         try await Task.sleep(nanoseconds: 600_000_000)
 
         XCTAssertEqual(store.state, .idle)
-        XCTAssertEqual(store.recoveryFeedback, .canceled)
+        XCTAssertNil(store.recoveryFeedback)
         XCTAssertNil(mockClipboard.lastWrittenText)
     }
 
@@ -682,7 +682,7 @@ final class ActivationStoreTests: XCTestCase {
         try await Task.sleep(nanoseconds: 220_000_000)
 
         XCTAssertEqual(store.state, .idle)
-        XCTAssertEqual(store.recoveryFeedback, .canceled)
+        XCTAssertNil(store.recoveryFeedback)
         XCTAssertNil(mockClipboard.lastWrittenText)
     }
 
@@ -1700,7 +1700,7 @@ final class ActivationStoreTests: XCTestCase {
         let mockTranscriber = ActivationStoreMockTranscriber(result: .success(transcript))
         let mockRewriter = MockLLMRewriter(result: .success("Combined output"))
         mockRewriter.queuedGenerateResults = [
-            .success("BOTH"),
+            .success("SELECTED|CLIPBOARD"),
             .success("Combined output")
         ]
         let mockClipboard = ActivationStoreMockClipboard()
@@ -1758,7 +1758,7 @@ final class ActivationStoreTests: XCTestCase {
         let mockTranscriber = ActivationStoreMockTranscriber(result: .success(transcript))
         let mockRewriter = MockLLMRewriter(result: .success("Combined output"))
         mockRewriter.queuedGenerateResults = [
-            .success("BOTH"),
+            .success("SELECTED|CLIPBOARD"),
             .success("Combined output")
         ]
         let mockClipboard = ActivationStoreMockClipboard()
@@ -2041,7 +2041,7 @@ final class ActivationStoreTests: XCTestCase {
         let mockTranscriber = ActivationStoreMockTranscriber(result: .success(transcript))
         let mockRewriter = MockLLMRewriter(result: .success("Deduped output"))
         mockRewriter.queuedGenerateResults = [
-            .success("BOTH"),
+            .success("SELECTED|CLIPBOARD"),
             .success("Deduped output")
         ]
         let mockClipboard = ActivationStoreMockClipboard()
@@ -2080,7 +2080,7 @@ final class ActivationStoreTests: XCTestCase {
         let mockTranscriber = ActivationStoreMockTranscriber(result: .success(transcript))
         let mockRewriter = MockLLMRewriter(result: .success("Selected fallback output"))
         mockRewriter.queuedGenerateResults = [
-            .success("BOTH"),
+            .success("SELECTED|CLIPBOARD"),
             .success("Selected fallback output")
         ]
         let mockClipboard = ActivationStoreMockClipboard()
@@ -2119,7 +2119,7 @@ final class ActivationStoreTests: XCTestCase {
         let mockTranscriber = ActivationStoreMockTranscriber(result: .success(transcript))
         let mockRewriter = MockLLMRewriter(result: .success("Clipboard fallback output"))
         mockRewriter.queuedGenerateResults = [
-            .success("BOTH"),
+            .success("SELECTED|CLIPBOARD"),
             .success("Clipboard fallback output")
         ]
         let mockClipboard = ActivationStoreMockClipboard()
@@ -2152,7 +2152,7 @@ final class ActivationStoreTests: XCTestCase {
         let mockTranscriber = ActivationStoreMockTranscriber(result: .success(transcript))
         let mockRewriter = MockLLMRewriter(result: .success("Selected fallback output"))
         mockRewriter.queuedGenerateResults = [
-            .success("BOTH"),
+            .success("SELECTED|CLIPBOARD"),
             .success("Selected fallback output")
         ]
         let mockClipboard = ActivationStoreMockClipboard()
@@ -2200,7 +2200,7 @@ final class ActivationStoreTests: XCTestCase {
         let mockTranscriber = ActivationStoreMockTranscriber(result: .success(transcript))
         let mockRewriter = MockLLMRewriter(result: .success("Should not be called"))
         mockRewriter.queuedGenerateResults = [
-            .success("BOTH")
+            .success("SELECTED|CLIPBOARD")
         ]
         let mockClipboard = ActivationStoreMockClipboard()
         mockClipboard.stubbedClipboardContent = clipboardText
@@ -2518,12 +2518,16 @@ final class ActivationStoreTests: XCTestCase {
         store.finish()
         try await Task.sleep(nanoseconds: 300_000_000)
 
-        XCTAssertEqual(mockRewriter.generateCallCount, 1, "Only rewrite generation should run in the second session")
+        XCTAssertEqual(mockRewriter.generateCallCount, 1, "Retry sessions must skip last-transcription routing when retryHistory is the only prior-context mechanism")
 
         let prompt = try XCTUnwrap(mockRewriter.generatePrompts.last)
         XCTAssertFalse(
             prompt.contains("<prior_conversation>"),
             "Prompt must NOT contain prior_conversation when first session was not converted. Prompt:\n\(prompt)"
+        )
+        XCTAssertFalse(
+            prompt.contains("Previous text:"),
+            "Prompt must NOT inject last transcription during retry sessions. Prompt:\n\(prompt)"
         )
     }
 
@@ -2544,6 +2548,7 @@ final class ActivationStoreTests: XCTestCase {
         let mockRewriter = MockLLMRewriter(result: .success("Slack output"))
         mockRewriter.queuedGenerateResults = [
             .success("Slack output"),
+            .success("NONE"),
             .success("Email output"),
         ]
         let store = makeStore(
@@ -2569,7 +2574,8 @@ final class ActivationStoreTests: XCTestCase {
         store.finish()
         try await Task.sleep(nanoseconds: 300_000_000)
 
-        XCTAssertEqual(mockRewriter.generateCallCount, 2)
+        // 3 calls: session 1 rewrite + session 2 external-text routing + session 2 rewrite
+        XCTAssertEqual(mockRewriter.generateCallCount, 3)
 
         let secondPrompt = try XCTUnwrap(mockRewriter.generatePrompts.last)
         XCTAssertFalse(
@@ -2595,6 +2601,7 @@ final class ActivationStoreTests: XCTestCase {
         let mockRewriter = MockLLMRewriter(result: .success("Email output"))
         mockRewriter.queuedGenerateResults = [
             .success("Email output"),
+            .success("NONE"),
             .success("Slack output"),
         ]
         let store = makeStore(
@@ -2619,7 +2626,8 @@ final class ActivationStoreTests: XCTestCase {
         store.finish()
         try await Task.sleep(nanoseconds: 300_000_000)
 
-        XCTAssertEqual(mockRewriter.generateCallCount, 2)
+        // 3 calls: session 1 rewrite + session 2 external-text routing + session 2 rewrite
+        XCTAssertEqual(mockRewriter.generateCallCount, 3)
 
         let secondPrompt = try XCTUnwrap(mockRewriter.generatePrompts.last)
         XCTAssertFalse(
@@ -2836,6 +2844,536 @@ final class ActivationStoreTests: XCTestCase {
                 return currentReason == reason
             }
         }
+    }
+}
+
+extension ActivationStoreTests {
+    func test_externalTextSourceClassifier_supportsAllEffectiveRoutes() async {
+        let context = ExternalTextSourceContext(
+            selectedTextAvailable: true,
+            clipboardTextAvailable: true,
+            lastTranscriptionAvailable: true
+        )
+        let cases: [(token: String, expected: ExternalTextSource)] = [
+            ("NONE", .none),
+            ("SELECTED", .selectedText),
+            ("CLIPBOARD", .clipboard),
+            ("LAST_TRANSCRIPTION", .lastTranscription),
+            ("SELECTED|CLIPBOARD", .both),
+            ("SELECTED|LAST_TRANSCRIPTION", .selectedAndLastTranscription),
+            ("CLIPBOARD|LAST_TRANSCRIPTION", .clipboardAndLastTranscription),
+            ("SELECTED|CLIPBOARD|LAST_TRANSCRIPTION", .all),
+        ]
+
+        for testCase in cases {
+            let rewriter = MockLLMRewriter(result: .success(testCase.token))
+            let routedSource = await ExternalTextSourceClassifier.classify(
+                message: "irrelevant",
+                availableSources: context,
+                using: rewriter
+            )
+            XCTAssertEqual(routedSource, testCase.expected, "Unexpected route for token \(testCase.token)")
+        }
+    }
+
+    func test_externalTextSourceClassifier_stripsUnavailableSourcesFromCombination() async {
+        let rewriter = MockLLMRewriter(result: .success("SELECTED|CLIPBOARD|LAST_TRANSCRIPTION"))
+        let context = ExternalTextSourceContext(
+            selectedTextAvailable: true,
+            clipboardTextAvailable: false,
+            lastTranscriptionAvailable: true
+        )
+
+        let routedSource = await ExternalTextSourceClassifier.classify(
+            message: "irrelevant",
+            availableSources: context,
+            using: rewriter
+        )
+
+        XCTAssertEqual(routedSource, .selectedAndLastTranscription)
+    }
+
+    func test_externalTextSourceClassifier_invalidOutputFallsBackToNone() async {
+        let rewriter = MockLLMRewriter(result: .success("BOTH"))
+        let context = ExternalTextSourceContext(
+            selectedTextAvailable: true,
+            clipboardTextAvailable: true,
+            lastTranscriptionAvailable: true
+        )
+
+        let routedSource = await ExternalTextSourceClassifier.classify(
+            message: "irrelevant",
+            availableSources: context,
+            using: rewriter
+        )
+
+        XCTAssertEqual(routedSource, .none)
+    }
+
+    func test_externalTextPromptBuilder_buildsExpectedBodiesForAllEffectiveRoutes() {
+        let dictation = "Buddy use my clipboard and my last transcription to improve this selected draft."
+        let selectedText = "Selected draft"
+        let clipboardText = "Clipboard notes"
+        let previousText = "Previous dictation"
+
+        let cases: [(body: String, expected: String)] = [
+            (
+                ExternalTextPromptBuilder.buildBody(
+                    dictatedContent: dictation,
+                    selectedText: nil,
+                    clipboardText: nil,
+                    lastTranscription: nil
+                ),
+                dictation
+            ),
+            (
+                ExternalTextPromptBuilder.buildBody(
+                    dictatedContent: "Buddy make this sound more confident.",
+                    selectedText: selectedText,
+                    clipboardText: nil,
+                    lastTranscription: nil
+                ),
+                """
+                App context:
+                - The user is referring to the selected text below.
+                - Rewrite the selected text according to the dictated speech.
+                - Do not answer conversationally about the text; transform the text itself.
+                - Do not echo the source text unchanged.
+                - Output only the final rewritten text.
+
+                Dictated speech:
+                Buddy make this sound more confident.
+
+                Selected text:
+                Selected draft
+                """
+            ),
+            (
+                ExternalTextPromptBuilder.buildBody(
+                    dictatedContent: "Buddy clean up what’s in my clipboard.",
+                    selectedText: nil,
+                    clipboardText: clipboardText,
+                    lastTranscription: nil
+                ),
+                """
+                App context:
+                - The user is referring to the clipboard text below.
+                - Rewrite the clipboard text according to the dictated speech.
+                - Do not answer conversationally about the text; transform the text itself.
+                - Do not echo the source text unchanged.
+                - Output only the final rewritten text.
+
+                Dictated speech:
+                Buddy clean up what’s in my clipboard.
+
+                Clipboard content:
+                Clipboard notes
+                """
+            ),
+            (
+                ExternalTextPromptBuilder.buildBody(
+                    dictatedContent: "Buddy make my last transcription sound nicer.",
+                    selectedText: nil,
+                    clipboardText: nil,
+                    lastTranscription: previousText
+                ),
+                """
+                App context:
+                - The user is referring to the previous text below.
+                - Rewrite the previous text according to the dictated speech.
+                - Do not answer conversationally about the text; transform the text itself.
+                - Do not echo the source text unchanged.
+                - Output only the final rewritten text.
+
+                Dictated speech:
+                Buddy make my last transcription sound nicer.
+
+                Previous text:
+                Previous dictation
+                """
+            ),
+            (
+                ExternalTextPromptBuilder.buildBody(
+                    dictatedContent: "Buddy use what I copied to improve this selected paragraph.",
+                    selectedText: selectedText,
+                    clipboardText: clipboardText,
+                    lastTranscription: nil
+                ),
+                """
+                App context:
+                - The user is referring to both the selected text and the clipboard content below.
+                - Use the dictated speech to decide which source is the text to rewrite and which source is supporting reference.
+                - If the instruction is ambiguous, rewrite the selected text and use the clipboard as reference.
+                - Only merge, compare, or borrow wording if the dictated speech asks for that.
+                - Do not echo the source text unchanged.
+                - Output only the final rewritten text.
+
+                Dictated speech:
+                Buddy use what I copied to improve this selected paragraph.
+
+                Selected text:
+                Selected draft
+
+                Clipboard content:
+                Clipboard notes
+                """
+            ),
+            (
+                ExternalTextPromptBuilder.buildBody(
+                    dictatedContent: "Buddy use my last transcription to improve this selected text.",
+                    selectedText: selectedText,
+                    clipboardText: nil,
+                    lastTranscription: previousText
+                ),
+                """
+                App context:
+                - The user is referring to both the selected text and the previous text below.
+                - Use the dictated speech to decide which source is the text to rewrite and which source is supporting reference.
+                - If the instruction is ambiguous, rewrite the selected text and use the previous text as reference.
+                - Only merge, compare, or borrow wording if the dictated speech asks for that.
+                - Do not echo the source text unchanged.
+                - Output only the final rewritten text.
+
+                Dictated speech:
+                Buddy use my last transcription to improve this selected text.
+
+                Selected text:
+                Selected draft
+
+                Previous text:
+                Previous dictation
+                """
+            ),
+            (
+                ExternalTextPromptBuilder.buildBody(
+                    dictatedContent: "Buddy make my last transcription match the tone of what’s in my clipboard.",
+                    selectedText: nil,
+                    clipboardText: clipboardText,
+                    lastTranscription: previousText
+                ),
+                """
+                App context:
+                - The user is referring to both the clipboard content and the previous text below.
+                - Use the dictated speech to decide which source is the text to rewrite and which source is supporting reference.
+                - If the instruction is ambiguous, rewrite the previous text and use the clipboard as reference.
+                - Only merge, compare, or borrow wording if the dictated speech asks for that.
+                - Do not echo the source text unchanged.
+                - Output only the final rewritten text.
+
+                Dictated speech:
+                Buddy make my last transcription match the tone of what’s in my clipboard.
+
+                Previous text:
+                Previous dictation
+
+                Clipboard content:
+                Clipboard notes
+                """
+            ),
+            (
+                ExternalTextPromptBuilder.buildBody(
+                    dictatedContent: dictation,
+                    selectedText: selectedText,
+                    clipboardText: clipboardText,
+                    lastTranscription: previousText
+                ),
+                """
+                App context:
+                - The user is referring to the selected text, clipboard content, and previous text below.
+                - Use the dictated speech to decide which source is the text to rewrite and which sources are supporting reference.
+                - If the instruction is ambiguous, rewrite the selected text first, then treat the previous text as secondary reference and the clipboard as tertiary reference.
+                - Only merge, compare, or borrow wording if the dictated speech asks for that.
+                - Do not echo the source text unchanged.
+                - Output only the final rewritten text.
+
+                Dictated speech:
+                Buddy use my clipboard and my last transcription to improve this selected draft.
+
+                Selected text:
+                Selected draft
+
+                Previous text:
+                Previous dictation
+
+                Clipboard content:
+                Clipboard notes
+                """
+            ),
+        ]
+
+        for testCase in cases {
+            XCTAssertEqual(testCase.body, testCase.expected)
+        }
+    }
+
+    func test_externalTextRouter_selectedAndLastTranscriptionUsesBothContexts() async throws {
+        let preferences = makePreferencesWithTriggerStore()
+        preferences.setCustomTrigger(primary: "Atlas")
+        try await Task.sleep(nanoseconds: 80_000_000)
+
+        let firstTranscript = "these designs suck and you need to do them again"
+        let secondTranscript = "atlas use my last transcription to improve this selected text"
+        let transcriber = SequentialMockTranscriber(results: [
+            .success(firstTranscript),
+            .success(secondTranscript),
+        ])
+        let mockRewriter = MockLLMRewriter(result: .success("Refined selection"))
+        mockRewriter.queuedGenerateResults = [
+            .success("SELECTED|LAST_TRANSCRIPTION"),
+            .success("Refined selection"),
+        ]
+        let mockClipboard = ActivationStoreMockClipboard()
+        mockClipboard.stubbedClipboardContent = "original clipboard"
+        let pasteStub = StubSelectionAwarePasteService(
+            clipboard: mockClipboard,
+            queuedCopyResults: [
+                .dispatched("first session initial"),
+                .dispatched("first session final"),
+                .dispatched("second session initial"),
+                .dispatched("final selected draft"),
+            ]
+        )
+        let store = makeStore(
+            permissionsAuthorized: true,
+            postEventAuthorized: true,
+            transcriber: transcriber,
+            llmRewriter: mockRewriter,
+            clipboard: mockClipboard,
+            pasteService: pasteStub,
+            preferences: preferences
+        )
+
+        store.arm()
+        store.finish()
+        let firstSessionSucceeded = try await waitForSuccess(of: store)
+        XCTAssertTrue(firstSessionSucceeded)
+
+        store.arm()
+        store.finish()
+        let secondSessionSucceeded = try await waitForSuccess(of: store)
+        XCTAssertTrue(secondSessionSucceeded)
+
+        let finalPrompt = try XCTUnwrap(mockRewriter.generatePrompts.last)
+        let selectedRange = try XCTUnwrap(finalPrompt.range(of: "Selected text:\nfinal selected draft"))
+        let previousRange = try XCTUnwrap(finalPrompt.range(of: "Previous text:\n\(firstTranscript)"))
+        XCTAssertLessThan(
+            finalPrompt.distance(from: finalPrompt.startIndex, to: selectedRange.lowerBound),
+            finalPrompt.distance(from: finalPrompt.startIndex, to: previousRange.lowerBound)
+        )
+        XCTAssertFalse(finalPrompt.contains("Clipboard content:"))
+    }
+
+    func test_externalTextRouter_clipboardAndLastTranscriptionUsesBothContexts() async throws {
+        let preferences = makePreferencesWithTriggerStore()
+        preferences.setCustomTrigger(primary: "Atlas")
+        try await Task.sleep(nanoseconds: 80_000_000)
+
+        let firstTranscript = "these designs suck and you need to do them again"
+        let secondTranscript = "atlas make my last transcription match the tone of what's in my clipboard"
+        let transcriber = SequentialMockTranscriber(results: [
+            .success(firstTranscript),
+            .success(secondTranscript),
+        ])
+        let mockRewriter = MockLLMRewriter(result: .success("Aligned tone"))
+        mockRewriter.queuedGenerateResults = [
+            .success("CLIPBOARD|LAST_TRANSCRIPTION"),
+            .success("Aligned tone"),
+        ]
+        let mockClipboard = ActivationStoreMockClipboard()
+        mockClipboard.stubbedClipboardContent = "clipboard context"
+        let store = makeStore(
+            permissionsAuthorized: true,
+            postEventAuthorized: false,
+            transcriber: transcriber,
+            llmRewriter: mockRewriter,
+            clipboard: mockClipboard,
+            preferences: preferences
+        )
+
+        store.arm()
+        store.finish()
+        let firstSessionSucceeded = try await waitForSuccess(of: store)
+        XCTAssertTrue(firstSessionSucceeded)
+
+        store.arm()
+        store.finish()
+        let secondSessionSucceeded = try await waitForSuccess(of: store)
+        XCTAssertTrue(secondSessionSucceeded)
+
+        let finalPrompt = try XCTUnwrap(mockRewriter.generatePrompts.last)
+        let previousRange = try XCTUnwrap(finalPrompt.range(of: "Previous text:\n\(firstTranscript)"))
+        let clipboardRange = try XCTUnwrap(finalPrompt.range(of: "Clipboard content:\nclipboard context"))
+        XCTAssertLessThan(
+            finalPrompt.distance(from: finalPrompt.startIndex, to: previousRange.lowerBound),
+            finalPrompt.distance(from: finalPrompt.startIndex, to: clipboardRange.lowerBound)
+        )
+        XCTAssertFalse(finalPrompt.contains("Selected text:"))
+    }
+
+    func test_externalTextRouter_allContextsUsesSelectedPreviousClipboardOrder() async throws {
+        let preferences = makePreferencesWithTriggerStore()
+        preferences.setCustomTrigger(primary: "Atlas")
+        try await Task.sleep(nanoseconds: 80_000_000)
+
+        let firstTranscript = "previous draft"
+        let secondTranscript = "atlas use my clipboard and my last transcription to improve this selected draft"
+        let transcriber = SequentialMockTranscriber(results: [
+            .success(firstTranscript),
+            .success(secondTranscript),
+        ])
+        let mockRewriter = MockLLMRewriter(result: .success("Combined result"))
+        mockRewriter.queuedGenerateResults = [
+            .success("SELECTED|CLIPBOARD|LAST_TRANSCRIPTION"),
+            .success("Combined result"),
+        ]
+        let mockClipboard = ActivationStoreMockClipboard()
+        mockClipboard.stubbedClipboardContent = "clipboard context"
+        let pasteStub = StubSelectionAwarePasteService(
+            clipboard: mockClipboard,
+            queuedCopyResults: [
+                .dispatched("first session initial"),
+                .dispatched("first session final"),
+                .dispatched("second session initial"),
+                .dispatched("selected context"),
+            ]
+        )
+        let store = makeStore(
+            permissionsAuthorized: true,
+            postEventAuthorized: true,
+            transcriber: transcriber,
+            llmRewriter: mockRewriter,
+            clipboard: mockClipboard,
+            pasteService: pasteStub,
+            preferences: preferences
+        )
+
+        store.arm()
+        store.finish()
+        let firstSessionSucceeded = try await waitForSuccess(of: store)
+        XCTAssertTrue(firstSessionSucceeded)
+
+        store.arm()
+        store.finish()
+        let secondSessionSucceeded = try await waitForSuccess(of: store)
+        XCTAssertTrue(secondSessionSucceeded)
+
+        let finalPrompt = try XCTUnwrap(mockRewriter.generatePrompts.last)
+        let selectedRange = try XCTUnwrap(finalPrompt.range(of: "Selected text:\nselected context"))
+        let previousRange = try XCTUnwrap(finalPrompt.range(of: "Previous text:\nprevious draft"))
+        let clipboardRange = try XCTUnwrap(finalPrompt.range(of: "Clipboard content:\nclipboard context"))
+        let selectedOffset = finalPrompt.distance(from: finalPrompt.startIndex, to: selectedRange.lowerBound)
+        let previousOffset = finalPrompt.distance(from: finalPrompt.startIndex, to: previousRange.lowerBound)
+        let clipboardOffset = finalPrompt.distance(from: finalPrompt.startIndex, to: clipboardRange.lowerBound)
+        XCTAssertLessThan(selectedOffset, previousOffset)
+        XCTAssertLessThan(previousOffset, clipboardOffset)
+    }
+
+    func test_externalTextRouter_tripleContextOverflowDropsClipboardThenLastTranscription() async throws {
+        let preferences = makePreferencesWithTriggerStore()
+        preferences.setCustomTrigger(primary: "Atlas")
+        try await Task.sleep(nanoseconds: 80_000_000)
+
+        let firstTranscript = repeatedWords(400, token: "previous")
+        let secondTranscript = "atlas use my clipboard and my last transcription to improve this selected draft"
+        let selectedText = repeatedWords(850, token: "selected")
+        let clipboardText = repeatedWords(200, token: "clipboard")
+        let transcriber = SequentialMockTranscriber(results: [
+            .success(firstTranscript),
+            .success(secondTranscript),
+        ])
+        let mockRewriter = MockLLMRewriter(result: .success("Selected only output"))
+        mockRewriter.queuedGenerateResults = [
+            .success("SELECTED|CLIPBOARD|LAST_TRANSCRIPTION"),
+            .success("Selected only output"),
+        ]
+        let mockClipboard = ActivationStoreMockClipboard()
+        mockClipboard.stubbedClipboardContent = clipboardText
+        let pasteStub = StubSelectionAwarePasteService(
+            clipboard: mockClipboard,
+            queuedCopyResults: [
+                .dispatched("first session initial"),
+                .dispatched("first session final"),
+                .dispatched("second session initial"),
+                .dispatched(selectedText),
+            ]
+        )
+        let store = makeStore(
+            permissionsAuthorized: true,
+            postEventAuthorized: true,
+            transcriber: transcriber,
+            llmRewriter: mockRewriter,
+            clipboard: mockClipboard,
+            pasteService: pasteStub,
+            preferences: preferences
+        )
+
+        store.arm()
+        store.finish()
+        let firstSessionSucceeded = try await waitForSuccess(of: store)
+        XCTAssertTrue(firstSessionSucceeded)
+
+        store.arm()
+        store.finish()
+        let secondSessionSucceeded = try await waitForSuccess(of: store)
+        XCTAssertTrue(secondSessionSucceeded)
+
+        let finalPrompt = try XCTUnwrap(mockRewriter.generatePrompts.last)
+        XCTAssertTrue(finalPrompt.contains("Selected text:\n\(selectedText)"))
+        XCTAssertFalse(finalPrompt.contains("Previous text:"))
+        XCTAssertFalse(finalPrompt.contains("Clipboard content:"))
+    }
+
+    func test_externalTextRouter_dedupesLastTranscriptionBehindSelectedText() async throws {
+        let preferences = makePreferencesWithTriggerStore()
+        preferences.setCustomTrigger(primary: "Atlas")
+        try await Task.sleep(nanoseconds: 80_000_000)
+
+        let firstTranscript = "shared external text"
+        let secondTranscript = "atlas use my last transcription to improve this selected text"
+        let transcriber = SequentialMockTranscriber(results: [
+            .success(firstTranscript),
+            .success(secondTranscript),
+        ])
+        let mockRewriter = MockLLMRewriter(result: .success("Selected output"))
+        mockRewriter.queuedGenerateResults = [
+            .success("SELECTED|LAST_TRANSCRIPTION"),
+            .success("Selected output"),
+        ]
+        let mockClipboard = ActivationStoreMockClipboard()
+        mockClipboard.stubbedClipboardContent = "original clipboard"
+        let pasteStub = StubSelectionAwarePasteService(
+            clipboard: mockClipboard,
+            queuedCopyResults: [
+                .dispatched("first session initial"),
+                .dispatched("first session final"),
+                .dispatched("second session initial"),
+                .dispatched(firstTranscript),
+            ]
+        )
+        let store = makeStore(
+            permissionsAuthorized: true,
+            postEventAuthorized: true,
+            transcriber: transcriber,
+            llmRewriter: mockRewriter,
+            clipboard: mockClipboard,
+            pasteService: pasteStub,
+            preferences: preferences
+        )
+
+        store.arm()
+        store.finish()
+        let firstSessionSucceeded = try await waitForSuccess(of: store)
+        XCTAssertTrue(firstSessionSucceeded)
+
+        store.arm()
+        store.finish()
+        let secondSessionSucceeded = try await waitForSuccess(of: store)
+        XCTAssertTrue(secondSessionSucceeded)
+
+        XCTAssertTrue(mockRewriter.generatePrompts.first?.contains("Last transcription available: NO") ?? false)
+        let finalPrompt = try XCTUnwrap(mockRewriter.generatePrompts.last)
+        XCTAssertTrue(finalPrompt.contains("Selected text:\n\(firstTranscript)"))
+        XCTAssertFalse(finalPrompt.contains("Previous text:"))
     }
 }
 

@@ -75,9 +75,4 @@ final class ReadinessStore: ObservableObject {
         recoveryActionPerformer.openSettings(for: kind)
     }
 
-    func resetSetup() {
-        preferences.reset()
-        readyConfirmation = nil
-        refresh()
-    }
 }

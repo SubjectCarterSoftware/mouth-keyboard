@@ -3,6 +3,7 @@ import XCTest
 @testable import TypeLessBuddy
 
 final class AudioBufferAccumulatorTests: XCTestCase {
+    private let windowSampleCount = 1_600
 
     func makeBuffer(samples: [Float], sampleRate: Double = 16000) -> AVAudioPCMBuffer {
         let format = AVAudioFormat(standardFormatWithSampleRate: sampleRate, channels: 1)!
@@ -108,4 +109,84 @@ final class AudioBufferAccumulatorTests: XCTestCase {
         XCTAssertTrue(prepared.dropFirst(original.count).allSatisfy { $0 == 0 })
     }
 
+    func testPrepareForTranscriptionTrimsLeadingSilenceAndKeepsPreroll() {
+        let prepared = AudioBufferAccumulator.prepareForTranscription(
+            repeating(0, count: 5)
+                + repeating(0.02, count: 1),
+            minimumDuration: 0,
+            trailingSilenceDuration: 0
+        )
+
+        XCTAssertEqual(prepared.count, windowSampleCount * 4)
+        XCTAssertTrue(Array(prepared.prefix(windowSampleCount * 3)).allSatisfy { $0 == 0 })
+        XCTAssertTrue(Array(prepared.suffix(windowSampleCount)).allSatisfy { $0 == 0.02 })
+    }
+
+    func testPrepareForTranscriptionTrimsTrailingSilence() {
+        let prepared = AudioBufferAccumulator.prepareForTranscription(
+            repeating(0.02, count: 1)
+                + repeating(0, count: 5),
+            minimumDuration: 0,
+            trailingSilenceDuration: 0
+        )
+
+        XCTAssertEqual(prepared.count, windowSampleCount)
+        XCTAssertTrue(prepared.allSatisfy { $0 == 0.02 })
+    }
+
+    func testPrepareForTranscriptionPreservesMiddleSilence() {
+        let prepared = AudioBufferAccumulator.prepareForTranscription(
+            repeating(0, count: 5)
+                + repeating(0.02, count: 1)
+                + repeating(0, count: 4)
+                + repeating(0.02, count: 1)
+                + repeating(0, count: 5),
+            minimumDuration: 0,
+            trailingSilenceDuration: 0
+        )
+
+        XCTAssertEqual(prepared.count, windowSampleCount * 9)
+        XCTAssertTrue(Array(prepared.prefix(windowSampleCount * 3)).allSatisfy { $0 == 0 })
+        XCTAssertTrue(Array(prepared[(windowSampleCount * 4)..<(windowSampleCount * 8)]).allSatisfy { $0 == 0 })
+        XCTAssertTrue(Array(prepared.suffix(windowSampleCount)).allSatisfy { $0 == 0.02 })
+    }
+
+    func testPrepareForTranscriptionLeavesFullySilentInputUnchangedBeforePadding() {
+        let silent = repeating(0, count: 4)
+        let prepared = AudioBufferAccumulator.prepareForTranscription(
+            silent,
+            minimumDuration: 0,
+            trailingSilenceDuration: 0
+        )
+
+        XCTAssertEqual(prepared, silent)
+    }
+
+    func testPrepareForTranscriptionPadsVeryShortSpokenInputToMinimumDuration() {
+        let prepared = AudioBufferAccumulator.prepareForTranscription(
+            repeating(0.02, count: 1),
+            minimumDuration: 1,
+            trailingSilenceDuration: 0
+        )
+
+        XCTAssertEqual(prepared.count, 16_000)
+        XCTAssertTrue(Array(prepared.prefix(windowSampleCount)).allSatisfy { $0 == 0.02 })
+        XCTAssertTrue(prepared.dropFirst(windowSampleCount).allSatisfy { $0 == 0 })
+    }
+
+    func testPrepareForTranscriptionPreservesSpeechWithoutTrailingSilence() {
+        let original = repeating(0, count: 2) + repeating(0.02, count: 2)
+        let prepared = AudioBufferAccumulator.prepareForTranscription(
+            original,
+            minimumDuration: 0,
+            trailingSilenceDuration: 0
+        )
+
+        XCTAssertEqual(prepared.count, windowSampleCount * 4)
+        XCTAssertEqual(prepared, original)
+    }
+
+    private func repeating(_ sample: Float, count windows: Int) -> [Float] {
+        Array(repeating: sample, count: windows * windowSampleCount)
+    }
 }

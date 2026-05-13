@@ -65,6 +65,10 @@ final class ShellPreferences: ObservableObject {
     }
 
     static let shared = makeShared()
+    static let defaultHoldShortcutKeyCode = 61
+    static let defaultHoldShortcutModifiers: UInt = 0
+    static let defaultHoldShortcutKeyCodeAlt = -1
+    static let defaultHoldShortcutModifiersAlt: UInt = 0
 
     @Published var hasCompletedInitialSetup: Bool {
         didSet {
@@ -122,6 +126,11 @@ final class ShellPreferences: ObservableObject {
     @Published var micDeviceUIDs: [String] {
         didSet {
             persistIfNeeded {
+                guard !micDeviceUIDs.isEmpty else {
+                    defaults.removeObject(forKey: Keys.micDeviceUIDs)
+                    return
+                }
+
                 if let data = try? JSONEncoder().encode(micDeviceUIDs) {
                     defaults.set(data, forKey: Keys.micDeviceUIDs)
                 }
@@ -135,6 +144,10 @@ final class ShellPreferences: ObservableObject {
         list.removeAll { $0 == uid }
         list.insert(uid, at: 0)
         micDeviceUIDs = list
+    }
+
+    func removeMicDevice(_ uid: String) {
+        micDeviceUIDs.removeAll { $0 == uid }
     }
 
     @Published var whisperModel: WhisperModelChoice {
@@ -261,7 +274,6 @@ final class ShellPreferences: ObservableObject {
     private let triggerProfileStore: TriggerProfileStore
     private let dictionaryStore: DictionaryStore
     private let currentBuildIdentifier: String
-    private var isPersistenceSuspended = false
 
     init(
         userDefaults: UserDefaults,
@@ -348,7 +360,7 @@ final class ShellPreferences: ObservableObject {
         }
 
         if userDefaults.object(forKey: Keys.holdShortcutKeyCode) == nil {
-            holdShortcutKeyCode = 61
+            holdShortcutKeyCode = Self.defaultHoldShortcutKeyCode
         } else {
             holdShortcutKeyCode = userDefaults.integer(forKey: Keys.holdShortcutKeyCode)
         }
@@ -356,7 +368,7 @@ final class ShellPreferences: ObservableObject {
         holdShortcutModifiers = UInt(max(0, userDefaults.integer(forKey: Keys.holdShortcutModifiers)))
 
         if userDefaults.object(forKey: Keys.holdShortcutKeyCodeAlt) == nil {
-            holdShortcutKeyCodeAlt = -1
+            holdShortcutKeyCodeAlt = Self.defaultHoldShortcutKeyCodeAlt
         } else {
             holdShortcutKeyCodeAlt = userDefaults.integer(forKey: Keys.holdShortcutKeyCodeAlt)
         }
@@ -464,63 +476,29 @@ final class ShellPreferences: ObservableObject {
         }
     }
 
-    func reset() {
-        withPersistenceSuspended {
-            hasCompletedInitialSetup = false
-            completedOnboardingBuildIdentifier = nil
-            onboardingResumeToken = nil
-            showsMenuHints = true
-            hasRequestedMicrophonePermission = false
-            hasRequestedPostEventPermission = false
-            launchAtLogin = false
-            micDeviceUIDs = []
-            whisperModel = .smallEN
-            rewriteModelTier = .standard2B
-            alwaysAutoPaste = true
-            restorePreviousClipboardAfterAutoPaste = true
-            muteSoundEffects = false
-            recordingPillPosition = .default
-            rewriteSystemPromptPrefix = LLMRewriteService.defaultAssistantSystemPromptTemplate
-            holdShortcutKeyCode = 61
-            holdShortcutModifiers = 0
-            cloudLLMConfig = .default
-            activeTriggerProfile = .defaultProfile
-            activeDictionaryData = .empty
+    func restoreDefaultGeneralSettings() {
+        micDeviceUIDs = []
+        alwaysAutoPaste = true
+        restorePreviousClipboardAfterAutoPaste = true
+        muteSoundEffects = false
+        recordingPillPosition = .default
+    }
+
+    func restoreDefaultHoldShortcuts() {
+        holdShortcutKeyCode = Self.defaultHoldShortcutKeyCode
+        holdShortcutModifiers = Self.defaultHoldShortcutModifiers
+        holdShortcutKeyCodeAlt = Self.defaultHoldShortcutKeyCodeAlt
+        holdShortcutModifiersAlt = Self.defaultHoldShortcutModifiersAlt
+    }
+
+    func clearWordReplacements() {
+        guard !activeDictionaryData.replacements.isEmpty else {
+            return
         }
 
-        defaults.removeObject(forKey: Keys.hasCompletedInitialSetup)
-        defaults.removeObject(forKey: Keys.completedOnboardingBuildIdentifier)
-        defaults.removeObject(forKey: Keys.onboardingResumeToken)
-        defaults.removeObject(forKey: Keys.showsMenuHints)
-        defaults.removeObject(forKey: Keys.hasRequestedMicrophonePermission)
-        defaults.removeObject(forKey: Keys.hasRequestedPostEventPermission)
-        defaults.removeObject(forKey: Keys.launchAtLogin)
-        defaults.removeObject(forKey: Keys.micDeviceUID)
-        defaults.removeObject(forKey: Keys.micDeviceUIDs)
-        defaults.removeObject(forKey: Keys.whisperModel)
-        defaults.removeObject(forKey: Keys.rewriteModelTier)
-        defaults.removeObject(forKey: Keys.alwaysAutoPaste)
-        defaults.removeObject(forKey: Keys.restorePreviousClipboardAfterAutoPaste)
-        defaults.removeObject(forKey: Keys.muteSoundEffects)
-        defaults.removeObject(forKey: Keys.recordingPillPosition)
-        defaults.removeObject(forKey: Keys.legacyAllowClipboardAccess)
-        defaults.removeObject(forKey: Keys.rewriteSystemPromptPrefix)
-        defaults.removeObject(forKey: Keys.holdShortcutKeyCode)
-        defaults.removeObject(forKey: Keys.holdShortcutModifiers)
-        defaults.removeObject(forKey: Keys.cloudLLMConfig)
-
-        Task { [triggerProfileStore, dictionaryStore] in
-            do {
-                try await triggerProfileStore.save(.defaultProfile)
-            } catch {
-                NSLog("TypeLessBuddy: failed to reset trigger profile store: \(error.localizedDescription)")
-            }
-            do {
-                try await dictionaryStore.save(.empty)
-            } catch {
-                NSLog("TypeLessBuddy: failed to reset dictionary store: \(error.localizedDescription)")
-            }
-        }
+        var data = activeDictionaryData
+        data.replacements.removeAll()
+        updateDictionaryData(data)
     }
 
     @discardableResult
@@ -652,17 +630,7 @@ final class ShellPreferences: ObservableObject {
         )
     }
 
-    private func withPersistenceSuspended(_ operation: () -> Void) {
-        isPersistenceSuspended = true
-        operation()
-        isPersistenceSuspended = false
-    }
-
     private func persistIfNeeded(_ operation: () -> Void) {
-        guard !isPersistenceSuspended else {
-            return
-        }
-
         operation()
     }
 }
