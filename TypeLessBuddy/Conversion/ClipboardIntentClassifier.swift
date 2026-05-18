@@ -1,215 +1,528 @@
 import Foundation
 
-struct ExternalTextSource: OptionSet, Sendable, Hashable {
-    let rawValue: Int
+enum AssistantContextTargetMode: String, Sendable, Equatable, CaseIterable {
+    case none = "NONE"
+    case selectedText = "SELECTED_TEXT"
+    case clipboard = "CLIPBOARD"
+    case lastTranscription = "LAST_TRANSCRIPTION"
+    case priorConvertedResult = "PRIOR_CONVERTED_RESULT"
+}
 
-    static let selectedText = ExternalTextSource(rawValue: 1 << 0)
-    static let clipboard = ExternalTextSource(rawValue: 1 << 1)
-    static let lastTranscription = ExternalTextSource(rawValue: 1 << 2)
+enum RoutingDecisionSource: Sendable, Equatable {
+    case explicitFastPath
+    case modelStructured
+    case fallbackParseFailure
+    case noAvailableContext
+}
 
-    static let none: ExternalTextSource = []
-    static let both: ExternalTextSource = [.selectedText, .clipboard]
-    static let selectedAndLastTranscription: ExternalTextSource = [.selectedText, .lastTranscription]
-    static let clipboardAndLastTranscription: ExternalTextSource = [.clipboard, .lastTranscription]
-    static let all: ExternalTextSource = [.selectedText, .clipboard, .lastTranscription]
+struct AssistantContextRoutingDecision: Sendable, Equatable {
+    let targetMode: AssistantContextTargetMode
+    let decisionSource: RoutingDecisionSource
 
-    private static let canonicalSources: [ExternalTextSource] = [
-        .selectedText,
-        .clipboard,
-        .lastTranscription
-    ]
-
-    var hasAnySource: Bool {
-        !isEmpty
+    var usesPriorConversationTarget: Bool {
+        targetMode == .priorConvertedResult
     }
 
-    var primaryRewriteTarget: ExternalTextSource? {
-        if contains(.selectedText) {
-            return .selectedText
+    var injectsExternalText: Bool {
+        switch targetMode {
+        case .selectedText, .clipboard, .lastTranscription, .priorConvertedResult:
+            return true
+        case .none:
+            return false
         }
-
-        if contains(.lastTranscription) {
-            return .lastTranscription
-        }
-
-        if contains(.clipboard) {
-            return .clipboard
-        }
-
-        return nil
-    }
-
-    var tokenString: String {
-        let tokens = Self.canonicalSources.compactMap { source -> String? in
-            guard contains(source) else { return nil }
-
-            switch source {
-            case .selectedText:
-                return "SELECTED"
-            case .clipboard:
-                return "CLIPBOARD"
-            case .lastTranscription:
-                return "LAST_TRANSCRIPTION"
-            default:
-                return nil
-            }
-        }
-
-        return tokens.isEmpty ? "NONE" : tokens.joined(separator: "|")
-    }
-
-    static func parsed(from result: String) -> ExternalTextSource? {
-        let normalized = result.trimmingCharacters(in: .whitespacesAndNewlines).uppercased()
-        guard !normalized.isEmpty else { return nil }
-        guard normalized != "NONE" else { return ExternalTextSource.none }
-
-        var route: ExternalTextSource = .none
-
-        for token in normalized.split(separator: "|").map(String.init) {
-            switch token {
-            case "SELECTED":
-                route.insert(.selectedText)
-            case "CLIPBOARD":
-                route.insert(.clipboard)
-            case "LAST_TRANSCRIPTION":
-                route.insert(.lastTranscription)
-            default:
-                return nil
-            }
-        }
-
-        return route
     }
 }
 
-struct ExternalTextSourceContext {
-    let selectedTextAvailable: Bool
-    let clipboardTextAvailable: Bool
-    let lastTranscriptionAvailable: Bool
+struct ExternalTextSourceContext: Sendable, Equatable {
+    let selectedText: String?
+    let clipboardText: String?
+    let lastTranscription: String?
+    let priorConvertedResultAvailable: Bool
 
-    var hasAvailableSource: Bool {
-        availableSources.hasAnySource
+    private let selectedTextAvailableOverride: Bool?
+    private let clipboardTextAvailableOverride: Bool?
+    private let lastTranscriptionAvailableOverride: Bool?
+
+    init(
+        selectedTextAvailable: Bool,
+        clipboardTextAvailable: Bool,
+        lastTranscriptionAvailable: Bool,
+        priorConvertedResultAvailable: Bool
+    ) {
+        self.selectedText = nil
+        self.clipboardText = nil
+        self.lastTranscription = nil
+        self.priorConvertedResultAvailable = priorConvertedResultAvailable
+        self.selectedTextAvailableOverride = selectedTextAvailable
+        self.clipboardTextAvailableOverride = clipboardTextAvailable
+        self.lastTranscriptionAvailableOverride = lastTranscriptionAvailable
     }
 
-    var availableSources: ExternalTextSource {
-        var route: ExternalTextSource = .none
+    init(
+        selectedText: String?,
+        clipboardText: String?,
+        lastTranscription: String?,
+        priorConvertedResultAvailable: Bool
+    ) {
+        self.selectedText = selectedText
+        self.clipboardText = clipboardText
+        self.lastTranscription = lastTranscription
+        self.priorConvertedResultAvailable = priorConvertedResultAvailable
+        self.selectedTextAvailableOverride = nil
+        self.clipboardTextAvailableOverride = nil
+        self.lastTranscriptionAvailableOverride = nil
+    }
+
+    var selectedTextAvailable: Bool {
+        selectedTextAvailableOverride ?? (selectedText != nil)
+    }
+
+    var clipboardTextAvailable: Bool {
+        clipboardTextAvailableOverride ?? (clipboardText != nil)
+    }
+
+    var lastTranscriptionAvailable: Bool {
+        lastTranscriptionAvailableOverride ?? (lastTranscription != nil)
+    }
+
+    var hasAvailableSource: Bool {
+        !availableTargetModes.isEmpty
+    }
+
+    var availableTargetModes: [AssistantContextTargetMode] {
+        var modes: [AssistantContextTargetMode] = []
 
         if selectedTextAvailable {
-            route.insert(.selectedText)
+            modes.append(.selectedText)
         }
 
         if clipboardTextAvailable {
-            route.insert(.clipboard)
+            modes.append(.clipboard)
         }
 
         if lastTranscriptionAvailable {
-            route.insert(.lastTranscription)
+            modes.append(.lastTranscription)
         }
 
-        return route
+        if priorConvertedResultAvailable {
+            modes.append(.priorConvertedResult)
+        }
+
+        return modes
+    }
+
+    func isAvailable(_ targetMode: AssistantContextTargetMode) -> Bool {
+        switch targetMode {
+        case .selectedText:
+            return selectedTextAvailable
+        case .clipboard:
+            return clipboardTextAvailable
+        case .lastTranscription:
+            return lastTranscriptionAvailable
+        case .priorConvertedResult:
+            return priorConvertedResultAvailable
+        case .none:
+            return true
+        }
     }
 }
 
 struct ExternalTextSourceClassifier {
     private static let systemPrompt = """
-    You are a routing model for a voice transcription app.
-
-    Task:
-    Decide whether the user's request intends to operate on currently selected text, clipboard text, their last transcription, a combination of those sources, or neither.
-
-    Output rules:
-    - Respond with ONLY one token list: NONE, SELECTED, CLIPBOARD, LAST_TRANSCRIPTION, SELECTED|CLIPBOARD, SELECTED|LAST_TRANSCRIPTION, CLIPBOARD|LAST_TRANSCRIPTION, or SELECTED|CLIPBOARD|LAST_TRANSCRIPTION
-    - If multiple sources apply, output the tokens in this exact order: SELECTED|CLIPBOARD|LAST_TRANSCRIPTION
-    - Do not output any other words, punctuation, or explanation.
-
-    Decision rules:
-    - Decide intent semantically, not with keyword matching.
-    - Words like "selected", "highlighted", "copied", "this", and "that" are evidence, not automatic triggers.
-    - Include SELECTED when the request most likely refers to text highlighted in the focused app.
-    - Include CLIPBOARD when the request most likely refers to previously copied text.
-    - Include LAST_TRANSCRIPTION when the request refers to what the app previously transcribed, such as their last dictation or the previous result.
-    - Include multiple sources when the user intends to use them together.
-    - Choose NONE when the request is about the spoken instruction itself or does not clearly refer to external text.
-    - Never include a source that is unavailable.
-    - If the request explicitly wants multiple sources but only some are available, include only the available sources instead of NONE.
-
-    Examples:
-    User: "format what I copied"
-    Answer: CLIPBOARD
-
-    User: "summarize what's in my clipboard"
-    Answer: CLIPBOARD
-
-    User: "make this punchier"
-    Answer: SELECTED
-
-    User: "can you fix my last transcription"
-    Answer: LAST_TRANSCRIPTION
-
-    User: "use both this and what I copied"
-    Answer: SELECTED|CLIPBOARD
-
-    User: "compare this with my clipboard"
-    Answer: SELECTED|CLIPBOARD
-
-    User: "use my last transcription to improve this selected text"
-    Answer: SELECTED|LAST_TRANSCRIPTION
-
-    User: "make my last transcription match the tone of what's in my clipboard"
-    Answer: CLIPBOARD|LAST_TRANSCRIPTION
-
-    User: "use my clipboard and my last transcription to improve this selected draft"
-    Answer: SELECTED|CLIPBOARD|LAST_TRANSCRIPTION
-
-    User: "use both this and what I copied" (clipboard unavailable)
-    Answer: SELECTED
-
-    User: "rewrite my previous transcription using both this and what I copied" (clipboard unavailable)
-    Answer: SELECTED|LAST_TRANSCRIPTION
-
-    User: "rewrite this to sound professional"
-    Answer: NONE
-
-    User: "what do you think about this sentence"
-    Answer: NONE
+    Return exactly one allowed value and nothing else.
     """
 
-    /// Routes the message to the most likely external text source.
-    /// Uses the local LLM with a dedicated routing prompt.
     static func classify(
         message: String,
         availableSources: ExternalTextSourceContext,
+        mostRecentSuccessWasConverted: Bool,
         using rewriteService: any LLMRewriting
-    ) async -> ExternalTextSource {
-        let availableRoute = availableSources.availableSources
-        guard availableRoute.hasAnySource else {
-            return .none
+    ) async -> AssistantContextRoutingDecision {
+        guard availableSources.hasAvailableSource else {
+            return AssistantContextRoutingDecision(
+                targetMode: .none,
+                decisionSource: .noAvailableContext
+            )
         }
 
-        let routingPrompt = """
-        User request:
-        \(message)
+        let explicitTargets = explicitTargets(
+            in: message,
+            availableSources: availableSources
+        )
 
-        Selected text available: \(availableSources.selectedTextAvailable ? "YES" : "NO")
-        Clipboard text available: \(availableSources.clipboardTextAvailable ? "YES" : "NO")
-        Last transcription available: \(availableSources.lastTranscriptionAvailable ? "YES" : "NO")
-        """
+        if explicitTargets.count == 1, let explicitTarget = explicitTargets.first {
+            return AssistantContextRoutingDecision(
+                targetMode: explicitTarget,
+                decisionSource: .explicitFastPath
+            )
+        }
+
+        if explicitTargets.isEmpty,
+           let retryDecision = retryDecision(
+               for: message,
+               availableSources: availableSources,
+               mostRecentSuccessWasConverted: mostRecentSuccessWasConverted
+           ) {
+            return retryDecision
+        }
+
+        let candidateTargets = explicitTargets.isEmpty
+            ? availableSources.availableTargetModes
+            : explicitTargets
+
+        guard !candidateTargets.isEmpty else {
+            return AssistantContextRoutingDecision(
+                targetMode: .none,
+                decisionSource: .noAvailableContext
+            )
+        }
+
+        let prompt = fallbackPrompt(
+            for: message,
+            allowedTargets: candidateTargets
+        )
 
         do {
             let result = try await rewriteService.generate(
-                prompt: routingPrompt,
+                prompt: prompt,
                 systemPrompt: systemPrompt
             )
 
-            guard let requestedRoute = ExternalTextSource.parsed(from: result) else {
-                return .none
+            guard let parsedTargetMode = parsedTargetMode(
+                from: result,
+                allowedTargets: candidateTargets
+            ) else {
+                return AssistantContextRoutingDecision(
+                    targetMode: .none,
+                    decisionSource: .fallbackParseFailure
+                )
             }
 
-            let routedSource = requestedRoute.intersection(availableRoute)
-            return routedSource.hasAnySource ? routedSource : .none
+            return AssistantContextRoutingDecision(
+                targetMode: parsedTargetMode,
+                decisionSource: .modelStructured
+            )
         } catch {
             NSLog("TypeLessBuddy: external text source routing failed: \(error.localizedDescription)")
-            return .none
+            return AssistantContextRoutingDecision(
+                targetMode: .none,
+                decisionSource: .fallbackParseFailure
+            )
         }
     }
+
+    private static func explicitTargets(
+        in message: String,
+        availableSources: ExternalTextSourceContext
+    ) -> [AssistantContextTargetMode] {
+        let normalizedMessage = normalized(message)
+        var targets: [AssistantContextTargetMode] = []
+
+        if availableSources.selectedTextAvailable,
+           selectedPhrases.contains(where: { normalizedMessage.contains($0) }) {
+            targets.append(.selectedText)
+        }
+
+        if availableSources.clipboardTextAvailable,
+           clipboardPhrases.contains(where: { normalizedMessage.contains($0) }) {
+            targets.append(.clipboard)
+        }
+
+        if availableSources.lastTranscriptionAvailable,
+           transcriptionPhrases.contains(where: { normalizedMessage.contains($0) }) {
+            targets.append(.lastTranscription)
+        }
+
+        return targets
+    }
+
+    private static func retryDecision(
+        for message: String,
+        availableSources: ExternalTextSourceContext,
+        mostRecentSuccessWasConverted: Bool
+    ) -> AssistantContextRoutingDecision? {
+        let normalizedMessage = normalized(message)
+        let hasRetryCue = continuationPhrases.contains(where: { normalizedMessage.contains($0) })
+            || normalizedMessage.contains(" again")
+            || normalizedMessage.hasPrefix("again ")
+
+        guard hasRetryCue else { return nil }
+
+        if mostRecentSuccessWasConverted && availableSources.priorConvertedResultAvailable {
+            return AssistantContextRoutingDecision(
+                targetMode: .priorConvertedResult,
+                decisionSource: .explicitFastPath
+            )
+        }
+
+        if availableSources.lastTranscriptionAvailable {
+            return AssistantContextRoutingDecision(
+                targetMode: .lastTranscription,
+                decisionSource: .explicitFastPath
+            )
+        }
+
+        return nil
+    }
+
+    private static func fallbackPrompt(
+        for message: String,
+        allowedTargets: [AssistantContextTargetMode]
+    ) -> String {
+        let optionLines = allowedTargets.map { targetMode in
+            "- \(targetMode.rawValue): \(description(for: targetMode))"
+        } + [
+            "- NONE: the request clearly does not involve transforming or rewriting any text"
+        ]
+
+        return """
+        You are classifying a voice command from a user of a text rewriting assistant.
+
+        The user speaks short commands to transform, rewrite, or improve text. One or more text sources are currently available. Your job is to identify which source the command is referring to.
+
+        Available sources:
+        \(optionLines.joined(separator: "\n"))
+
+        Choose the source that best fits the intent and language of the command. Only reply NONE if the request clearly does not involve transforming any text.
+
+        User command:
+        \(message)
+        """
+    }
+
+    private static func description(for targetMode: AssistantContextTargetMode) -> String {
+        switch targetMode {
+        case .selectedText:
+            return "text the user currently has highlighted or selected in another app"
+        case .clipboard:
+            return "text the user recently copied from somewhere — a website, document, email, etc."
+        case .lastTranscription:
+            return "the user's most recent voice dictation transcribed to text — what they just spoke aloud"
+        case .priorConvertedResult:
+            return "the last AI-rewritten output this assistant produced"
+        case .none:
+            return "no text source is needed"
+        }
+    }
+
+    private static func parsedTargetMode(
+        from result: String,
+        allowedTargets: [AssistantContextTargetMode]
+    ) -> AssistantContextTargetMode? {
+        let lines = result
+            .split(whereSeparator: \.isNewline)
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty && !$0.hasPrefix("```") }
+
+        guard let firstLine = lines.first else { return nil }
+
+        var cleaned = firstLine
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .trimmingCharacters(in: CharacterSet(charactersIn: "-*• \t"))
+
+        if let colonIndex = cleaned.firstIndex(of: ":") {
+            cleaned = String(cleaned[..<colonIndex])
+        }
+
+        cleaned = cleaned
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .uppercased()
+
+        if cleaned == AssistantContextTargetMode.none.rawValue {
+            return .none
+        }
+
+        return allowedTargets.first { $0.rawValue == cleaned }
+    }
+
+    private static func normalized(_ message: String) -> String {
+        message.lowercased()
+    }
+
+    private static let selectedPhrases = [
+        // explicit selection references
+        "selected text",
+        "the selected text",
+        "selected paragraph",
+        "selected draft",
+        "selected content",
+        "selected portion",
+        "the selection",
+        "my selection",
+        "currently selected",
+        "the current selection",
+        "what's selected",
+        "whats selected",
+        "what is selected",
+        "what i've selected",
+        "what ive selected",
+        "what i have selected",
+        "what i selected",
+        // highlighted references (common synonym for selected)
+        "highlighted text",
+        "the highlighted text",
+        "highlighted content",
+        "the highlighted",
+        "what i highlighted",
+        "what's highlighted",
+        "whats highlighted",
+        "what is highlighted",
+        "what i have highlighted",
+        "i've highlighted",
+        "ive highlighted",
+        // "this X" references (pointing at visible/selected content)
+        "this text",
+        "this sentence",
+        "this paragraph",
+        "this section",
+        "this passage",
+        "this excerpt",
+        "this content",
+        "this draft",
+        "this writing",
+        "this block",
+        // "that X" references (speech-to-text often produces "that" instead of "this")
+        "that text",
+        "that sentence",
+        "that paragraph",
+        "that section",
+        "that passage",
+        "that excerpt",
+        "that content",
+        "that draft",
+        "that writing",
+        "that block",
+        "that selection",
+        "that selected text",
+        // informal "the thing I" references
+        "the thing i selected",
+        "the thing i highlighted"
+    ]
+
+    private static let clipboardPhrases = [
+        // explicit clipboard references
+        "clipboard",
+        "my clipboard",
+        "from my clipboard",
+        "from the clipboard",
+        "what's in my clipboard",
+        "whats in my clipboard",
+        "what is in my clipboard",
+        // natural "copied" references that don't say clipboard
+        "what i copied",
+        "what i just copied",
+        "i just copied",
+        "what was copied",
+        "that i copied",
+        "the copied text",
+        "the text i copied",
+        "the thing i copied"
+    ]
+
+    private static let transcriptionPhrases = [
+        // explicit transcription references
+        "transcription",
+        "the transcription",
+        "last transcription",
+        "the last transcription",
+        "my last transcription",
+        "transcribed text",
+        "what was transcribed",
+        // dictation references
+        "my dictation",
+        "what i dictated",
+        "my last dictation",
+        "what i just dictated",
+        // speech/voice references
+        "what i said",
+        "what i just said",
+        "i just said",
+        "what i spoke",
+        "my voice note",
+        "the voice note",
+        // recording references
+        "my recording",
+        "the recording",
+        "my last recording",
+        "last recording",
+        "latest recording",
+        "recent recording",
+        "previous recording",
+        "what i recorded",
+        // dictation time variants
+        "the dictation",
+        "last dictation",
+        "latest dictation",
+        "recent dictation",
+        "previous dictation",
+        "my latest dictation",
+        "my recent dictation",
+        "my previous dictation",
+        // transcription time variants
+        "latest transcription",
+        "recent transcription",
+        "previous transcription",
+        // informal "the thing I" references
+        "the thing i said",
+        "the thing i dictated",
+        "the thing i recorded"
+    ]
+
+    private static let continuationPhrases = [
+        // redo/retry cues
+        "do that again",
+        "do it again",
+        "try that again",
+        "try again",
+        "redo that",
+        "go again",
+        "one more time",
+        "once more",
+        "another version",
+        "different version",
+        "another attempt",
+        // improve/rewrite cues
+        "improve that",
+        "improve it",
+        "rewrite that",
+        "rewrite it",
+        "make that better",
+        "make it better",
+        // length adjustments
+        "make that shorter",
+        "make it shorter",
+        "shorten that",
+        "shorten it",
+        "make that longer",
+        "make it longer",
+        "lengthen that",
+        "lengthen it",
+        // tone/quality adjustments — "that" variants
+        "make that cleaner",
+        "make that more formal",
+        "make that more concise",
+        "make that more casual",
+        "make that more professional",
+        "make that more conversational",
+        "make that simpler",
+        "make that friendlier",
+        "make that punchier",
+        "make that warmer",
+        // tone/quality adjustments — "it" variants
+        "make it cleaner",
+        "make it more formal",
+        "make it more concise",
+        "make it more casual",
+        "make it more professional",
+        "make it more conversational",
+        "make it simpler",
+        "make it friendlier",
+        "make it punchier",
+        "make it warmer",
+        // shorthand tone shifts
+        "less formal",
+        "more informal",
+        "clean that up",
+        "clean it up"
+    ]
 }
