@@ -350,7 +350,6 @@ private struct RecordingPillViewWrapper: View {
             onRestart: { activationStore.restartCurrentSession() },
             onSuccessClose: { activationStore.dismissCurrentSuccess() },
             onSuccessCopy: { activationStore.copyCurrentSuccessResult() },
-            onSuccessRestart: { activationStore.restartFromSuccess() },
             onSuccessAppend: { activationStore.appendFromSuccess() }
         )
     }

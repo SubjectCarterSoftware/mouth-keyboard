@@ -436,12 +436,14 @@ final class ShellPreferences: ObservableObject {
     }
 
     func setCustomTrigger(primary: String) {
+        activeTriggerProfile = activeTriggerProfile.updatingCustom(primary: primary)
         Task { [weak self] in
             _ = await self?.persistCustomTrigger(primary: primary)
         }
     }
 
     func resetAssistantNameToDefault() {
+        activeTriggerProfile = .defaultProfile
         Task { [weak self] in
             _ = await self?.persistAssistantNameResetToDefault()
         }

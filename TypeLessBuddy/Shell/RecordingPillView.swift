@@ -191,7 +191,6 @@ struct RecordingPillView: View {
     var onRestart: (() -> Void)?
     var onSuccessClose: (() -> Void)?
     var onSuccessCopy: (() -> Void)?
-    var onSuccessRestart: (() -> Void)?
     var onSuccessAppend: (() -> Void)?
 
     private static let pillBackground = Color(red: 0.11, green: 0.11, blue: 0.13)
@@ -211,7 +210,6 @@ struct RecordingPillView: View {
         onRestart: (() -> Void)? = nil,
         onSuccessClose: (() -> Void)? = nil,
         onSuccessCopy: (() -> Void)? = nil,
-        onSuccessRestart: (() -> Void)? = nil,
         onSuccessAppend: (() -> Void)? = nil
     ) {
         self.levelMonitor = levelMonitor
@@ -225,7 +223,6 @@ struct RecordingPillView: View {
         self.onRestart = onRestart
         self.onSuccessClose = onSuccessClose
         self.onSuccessCopy = onSuccessCopy
-        self.onSuccessRestart = onSuccessRestart
         self.onSuccessAppend = onSuccessAppend
         barScales = (0..<7).map { _ in CGFloat.random(in: 0.55...1.0) }
     }
@@ -649,15 +646,16 @@ struct RecordingPillView: View {
     }
 
     private var successRestartButton: some View {
-        Button(action: { onSuccessRestart?() }) {
+        Button(action: {}) {
             Image(systemName: "arrow.counterclockwise.circle.fill")
                 .font(.system(size: Self.actionButtonSymbolSize, weight: .bold))
                 .symbolRenderingMode(.palette)
-                .foregroundStyle(Color(white: 0.9), Color.orange)
+                .foregroundStyle(Color(white: 0.72), Color(white: 0.42))
                 .frame(width: Self.actionButtonFrame, height: Self.actionButtonFrame)
                 .contentShape(Circle())
         }
         .buttonStyle(.plain)
+        .disabled(true)
         .accessibilityIdentifier("pill.successRestart")
     }
 

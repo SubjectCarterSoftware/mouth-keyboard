@@ -55,6 +55,13 @@ final class ActivationStore: ObservableObject {
         case hold
     }
 
+    private struct ConvertedInteraction: Equatable {
+        let instruction: String
+        let output: String
+        let matchedAssistantAlias: String?
+        let capturedAt: Date
+    }
+
     private enum PipelineTimeoutError: LocalizedError {
         case stepTimedOut(String)
 
@@ -91,6 +98,7 @@ final class ActivationStore: ObservableObject {
     private let llmRewriteService: any LLMRewriting
     private let clipboardService: ClipboardService
     private let pasteService: any PasteServicing
+    private let dateProvider: () -> Date
     private let resetSessionMonitoring: @MainActor () -> Void
     let bufferAccumulator: AudioBufferAccumulator
     var soundPlayer: ActivationSoundPlayer = .init()
@@ -106,6 +114,8 @@ final class ActivationStore: ObservableObject {
     private static let clipboardIntentTimeout: UInt64 = 8_000_000_000
     private static let rewriteTimeout: UInt64 = 45_000_000_000
     private static let cloudRewritePromptWordLimit = 4_000
+    private static let minimumDirectAssistantPromptWordLimit = 1_500
+    private static let lastTranscriptionContextMaxAge: TimeInterval = 30 * 60
     private static let clipboardRestoreDelay: UInt64 = 150_000_000
     private static let selectedTextCaptureTimeout: UInt64 = 120_000_000
     private static let selectedTextCapturePollInterval: UInt64 = 15_000_000
@@ -115,9 +125,8 @@ final class ActivationStore: ObservableObject {
     var onPastePermissionNeeded: () -> Void = {}
 
     private var requestsPasteOnCompletion = false
-    private var forceLLMNextSession = false
-    private var restartFromSuccessNextSession = false
-    private var retryHistory: [(instruction: String, output: String)] = []
+    private var lastConvertedInteraction: ConvertedInteraction?
+    private var lastSuccessWasConverted = false
     private var activeSessionID = UUID()
     private var activeActivationOrigin: ActivationOrigin?
     private var transcriptionTask: Task<Void, Never>?
@@ -125,6 +134,7 @@ final class ActivationStore: ObservableObject {
     private var feedbackClearTask: Task<Void, Never>?
     private var maxDurationTask: Task<Void, Never>?
     private var sessionClipboardSnapshot: ClipboardSnapshot?
+    private var lastTranscriptionCapturedAt: Date?
     private var initialSelectedText: String?
     private var finalSelectedText: String?
     private var initialSelectedTextCaptureTask: Task<String?, Never>?
@@ -152,6 +162,7 @@ final class ActivationStore: ObservableObject {
         clipboardService: ClipboardService = ClipboardService(),
         pasteService: any PasteServicing = PasteService(),
         bufferAccumulator: AudioBufferAccumulator = AudioBufferAccumulator(),
+        dateProvider: @escaping () -> Date = { Date() },
         resetSessionMonitoring: @escaping @MainActor () -> Void = {}
     ) {
         self.preferences = preferences
@@ -162,6 +173,7 @@ final class ActivationStore: ObservableObject {
         self.clipboardService = clipboardService
         self.pasteService = pasteService
         self.bufferAccumulator = bufferAccumulator
+        self.dateProvider = dateProvider
         self.resetSessionMonitoring = resetSessionMonitoring
     }
 
@@ -334,45 +346,17 @@ final class ActivationStore: ObservableObject {
         dismissTask?.cancel()
         dismissTask = nil
         clearSuccessDismissTiming()
-        retryHistory = []
         recoveryFeedback = nil
         state = .idle
         scheduleWhisperModelIdleUnload()
         scheduleRewriteModelIdleUnload()
     }
 
-    /// Restart from success: undoes the paste, re-enters recording, and re-enables LLM if it was used.
-    func restartFromSuccess() {
-        guard case .success(_, let pasted, let converted, _, _) = state else { return }
-        if pasted { sendUndo() }
-        if converted {
-            forceLLMNextSession = true
-            if let raw = lastTranscription, let output = lastConvertedTranscription {
-                retryHistory.append((instruction: raw, output: output))
-            }
-        }
-        restartFromSuccessNextSession = true
-        requestsPasteOnCompletion = pasted
-        _ = beginRecording(origin: .toggle)
-    }
-
     /// Append from success: re-enters recording and pastes the new result after the existing paste.
     func appendFromSuccess() {
         guard state.isSuccess else { return }
-        retryHistory = []
         requestsPasteOnCompletion = true
         _ = beginRecording(origin: .toggle)
-    }
-
-    private func sendUndo() {
-        guard let source = CGEventSource(stateID: .hidSystemState),
-              let keyDown = CGEvent(keyboardEventSource: source, virtualKey: 6, keyDown: true),
-              let keyUp = CGEvent(keyboardEventSource: source, virtualKey: 6, keyDown: false)
-        else { return }
-        keyDown.flags = .maskCommand
-        keyUp.flags = .maskCommand
-        keyDown.post(tap: .cghidEventTap)
-        keyUp.post(tap: .cghidEventTap)
     }
 
     /// Finish recording: stops capture and runs the transcription -> clipboard -> dismiss flow.
@@ -535,29 +519,28 @@ final class ActivationStore: ObservableObject {
 
             let detection = TriggerTranscriptParser.detect(transcript: processed, triggerNames: triggerNames)
             let clipboardSnapshot = sessionClipboardSnapshot
-            let wasForcedRetrySession = forceLLMNextSession
-            let restartedFromSuccess = restartFromSuccessNextSession
-            let isRetrySession = wasForcedRetrySession || restartedFromSuccess || !retryHistory.isEmpty
             let shouldConvert: Bool
+            let matchedAssistantAlias: String?
             switch detection {
             case .noTrigger:
-                shouldConvert = forceLLMNextSession
-            case .triggered:
+                shouldConvert = false
+                matchedAssistantAlias = nil
+            case .triggered(_, let alias):
                 shouldConvert = true
+                matchedAssistantAlias = alias
             }
-            forceLLMNextSession = false
-            restartFromSuccessNextSession = false
 
             if !shouldConvert {
                 let didPaste = shouldPasteOnSuccessfulFinish
                 requestsPasteOnCompletion = false
-                lastTranscription = processed
+                recordLastTranscription(processed)
                 var syntheticPasteSucceeded = false
                 if didPaste {
                     syntheticPasteSucceeded = await pasteWithClipboardProtection(text: processed)
                 } else {
                     clipboardService.writeToClipboard(processed)
                 }
+                lastSuccessWasConverted = false
                 state = .success(
                     text: processed,
                     pasted: syntheticPasteSucceeded,
@@ -580,62 +563,62 @@ final class ActivationStore: ObservableObject {
                 )
 
                 // Route external text context into the rewrite prompt when requested.
-                let externalTextSources = normalizedExternalTextSources(
+                let externalTextInputs = validatedExternalTextInputs(
                     selectedText: await preferredSelectedText(),
                     clipboardText: clipboardSnapshot?.plainText,
-                    lastTranscription: isRetrySession ? nil : lastTranscription
+                    lastTranscription: freshLastTranscriptionForRouting()
                 )
                 let routingContext = ExternalTextSourceContext(
-                    selectedTextAvailable: externalTextSources.selectedText != nil,
-                    clipboardTextAvailable: externalTextSources.clipboardText != nil,
-                    lastTranscriptionAvailable: externalTextSources.lastTranscription != nil
+                    selectedText: externalTextInputs.selectedText,
+                    clipboardText: externalTextInputs.clipboardText,
+                    lastTranscription: externalTextInputs.lastTranscription,
+                    priorConvertedResultAvailable: freshLastConvertedInteractionForRouting() != nil
                 )
-                let routedSource: ExternalTextSource
+                let routingDecision: AssistantContextRoutingDecision
 
                 if routingContext.hasAvailableSource {
-                    routedSource = try await runWithTimeout(
+                    routingDecision = try await runWithTimeout(
                         nanoseconds: Self.clipboardIntentTimeout,
                         step: "External text source routing"
                     ) { [llmRewriteService] in
                         await ExternalTextSourceClassifier.classify(
                             message: processed,
                             availableSources: routingContext,
+                            mostRecentSuccessWasConverted: self.lastSuccessWasConverted,
                             using: llmRewriteService
                         )
                     }
 
                     guard isCurrentSession(sessionID) else { return }
                 } else {
-                    routedSource = .none
-                }
-
-                var promptConfiguration = buildRewritePromptBody(
-                    dictatedContent: processed,
-                    sources: externalTextSources,
-                    route: routedSource
-                )
-                var externalTextWasInjected = promptConfiguration.externalTextInjected
-                var effectiveRoute = promptConfiguration.routeUsed
-                var effectiveBody = prependRetryHistory(to: promptConfiguration.body)
-
-                while Self.rewriteWordCount(for: effectiveBody) > effectivePromptWordLimit,
-                      let reducedRoute = reducedRouteForPromptLimit(from: effectiveRoute) {
-                    promptConfiguration = buildRewritePromptBody(
-                        dictatedContent: processed,
-                        sources: externalTextSources,
-                        route: reducedRoute
+                    routingDecision = AssistantContextRoutingDecision(
+                        targetMode: .none,
+                        decisionSource: .noAvailableContext
                     )
-                    externalTextWasInjected = promptConfiguration.externalTextInjected
-                    effectiveRoute = promptConfiguration.routeUsed
-                    effectiveBody = prependRetryHistory(to: promptConfiguration.body)
                 }
 
-                // Apply the per-model rewrite prompt limit to the final effective body.
-                let wordLimit = effectivePromptWordLimit
+                let promptConfiguration = buildRewritePromptBody(
+                    dictatedContent: processed,
+                    inputs: externalTextInputs,
+                    decision: routingDecision
+                )
+                let routingDecisionForPrompt = promptConfiguration.decisionUsed
+                let externalTextWasInjected = promptConfiguration.externalTextInjected
+                var effectiveBody = prependPriorConversation(
+                    to: promptConfiguration.body,
+                    decision: routingDecisionForPrompt
+                )
+
+                // Direct assistant prompts keep the historical 1500-word floor,
+                // while context-injected prompts still use the stricter model limit.
+                let wordLimit = rewritePromptWordLimit(
+                    for: routingDecisionForPrompt,
+                    externalTextInjected: externalTextWasInjected
+                )
                 let effectiveWordCount = Self.rewriteWordCount(for: effectiveBody)
                 guard effectiveWordCount <= wordLimit else {
                     guard isCurrentSession(sessionID) else { return }
-                    lastTranscription = processed
+                    recordLastTranscription(processed)
                     if !didPaste {
                         clipboardService.writeToClipboard(processed)
                     }
@@ -667,7 +650,7 @@ final class ActivationStore: ObservableObject {
                     guard isCurrentSession(sessionID) else { return }
                     let errorDescription = (error as? LLMRewriteError)?.errorDescription ?? error.localizedDescription
                     NSLog("TypeLessBuddy: assistant rewrite failed — \(errorDescription)")
-                    lastTranscription = processed
+                    recordLastTranscription(processed)
                     if !didPaste {
                         clipboardService.writeToClipboard(processed)
                     }
@@ -693,8 +676,15 @@ final class ActivationStore: ObservableObject {
                 } else {
                     clipboardService.writeToClipboard(rewritten)
                 }
-                lastTranscription = processed
+                recordLastTranscription(processed)
                 lastConvertedTranscription = rewritten
+                lastConvertedInteraction = ConvertedInteraction(
+                    instruction: processed,
+                    output: rewritten,
+                    matchedAssistantAlias: matchedAssistantAlias,
+                    capturedAt: dateProvider()
+                )
+                lastSuccessWasConverted = true
                 state = .success(
                     text: rewritten,
                     pasted: syntheticPasteSucceeded,
@@ -737,9 +727,6 @@ final class ActivationStore: ObservableObject {
 
     private func invalidateActiveSession() {
         requestsPasteOnCompletion = false
-        forceLLMNextSession = false
-        restartFromSuccessNextSession = false
-        retryHistory = []
         sessionClipboardSnapshot = nil
         initialSelectedText = nil
         finalSelectedText = nil
@@ -878,39 +865,57 @@ final class ActivationStore: ObservableObject {
         return trimmedText.isEmpty ? nil : trimmedText
     }
 
+    private func recordLastTranscription(_ text: String) {
+        lastTranscription = text
+        lastTranscriptionCapturedAt = dateProvider()
+    }
+
+    private func freshLastTranscriptionForRouting() -> String? {
+        guard let lastTranscription else { return nil }
+        guard let lastTranscriptionCapturedAt else {
+            return lastTranscription
+        }
+
+        let age = dateProvider().timeIntervalSince(lastTranscriptionCapturedAt)
+        guard age <= Self.lastTranscriptionContextMaxAge else {
+            return nil
+        }
+
+        return lastTranscription
+    }
+
+    private func freshLastConvertedInteractionForRouting() -> ConvertedInteraction? {
+        guard let lastConvertedInteraction else { return nil }
+
+        let age = dateProvider().timeIntervalSince(lastConvertedInteraction.capturedAt)
+        guard age <= Self.lastTranscriptionContextMaxAge else {
+            return nil
+        }
+
+        return lastConvertedInteraction
+    }
+
+    private func rewritePromptWordLimit(
+        for decision: AssistantContextRoutingDecision,
+        externalTextInjected: Bool
+    ) -> Int {
+        guard !externalTextInjected, !decision.usesPriorConversationTarget else {
+            return effectivePromptWordLimit
+        }
+
+        return max(
+            effectivePromptWordLimit,
+            Self.minimumDirectAssistantPromptWordLimit
+        )
+    }
+
     private struct ExternalTextInputs {
         let selectedText: String?
         let clipboardText: String?
         let lastTranscription: String?
-
-        var route: ExternalTextSource {
-            var route: ExternalTextSource = .none
-
-            if selectedText != nil {
-                route.insert(.selectedText)
-            }
-
-            if clipboardText != nil {
-                route.insert(.clipboard)
-            }
-
-            if lastTranscription != nil {
-                route.insert(.lastTranscription)
-            }
-
-            return route
-        }
-
-        func filtered(by route: ExternalTextSource) -> ExternalTextInputs {
-            ExternalTextInputs(
-                selectedText: route.contains(.selectedText) ? selectedText : nil,
-                clipboardText: route.contains(.clipboard) ? clipboardText : nil,
-                lastTranscription: route.contains(.lastTranscription) ? lastTranscription : nil
-            )
-        }
     }
 
-    private func normalizedExternalTextSources(
+    private func validatedExternalTextInputs(
         selectedText: String?,
         clipboardText: String?,
         lastTranscription: String?
@@ -919,73 +924,79 @@ final class ActivationStore: ObservableObject {
         let normalizedLastTranscription = normalizedExternalText(lastTranscription)
         let normalizedClipboardText = normalizedExternalText(clipboardText)
 
-        var seenTexts = Set<String>()
-
-        let dedupedSelectedText = dedupedExternalText(normalizedSelectedText, seenTexts: &seenTexts)
-        let dedupedLastTranscription = dedupedExternalText(normalizedLastTranscription, seenTexts: &seenTexts)
-        let dedupedClipboardText = dedupedExternalText(normalizedClipboardText, seenTexts: &seenTexts)
-
         return ExternalTextInputs(
-            selectedText: dedupedSelectedText,
-            clipboardText: dedupedClipboardText,
-            lastTranscription: dedupedLastTranscription
+            selectedText: validatedSizedContext(normalizedSelectedText),
+            clipboardText: validatedSizedContext(normalizedClipboardText),
+            lastTranscription: normalizedLastTranscription
         )
     }
 
-    private func dedupedExternalText(_ text: String?, seenTexts: inout Set<String>) -> String? {
+    private func validatedSizedContext(_ text: String?) -> String? {
         guard let text else { return nil }
-        guard seenTexts.insert(text).inserted else { return nil }
-        return text
-    }
-
-    private func reducedRouteForPromptLimit(from route: ExternalTextSource) -> ExternalTextSource? {
-        guard let primaryTarget = route.primaryRewriteTarget else {
+        guard Self.rewriteWordCount(for: text) <= effectivePromptWordLimit else {
             return nil
         }
-
-        for supportingSource in [ExternalTextSource.clipboard, .lastTranscription, .selectedText] {
-            guard supportingSource != primaryTarget, route.contains(supportingSource) else {
-                continue
-            }
-
-            var reducedRoute = route
-            reducedRoute.remove(supportingSource)
-            return reducedRoute.hasAnySource ? reducedRoute : nil
-        }
-
-        return nil
+        return text
     }
 
     private func buildRewritePromptBody(
         dictatedContent: String,
-        sources: ExternalTextInputs,
-        route: ExternalTextSource
-    ) -> (body: String, externalTextInjected: Bool, routeUsed: ExternalTextSource) {
-        let promptSources = sources.filtered(by: route)
-        let effectiveRoute = promptSources.route
+        inputs: ExternalTextInputs,
+        decision: AssistantContextRoutingDecision
+    ) -> (body: String, externalTextInjected: Bool, decisionUsed: AssistantContextRoutingDecision) {
+        let targetMode = adjustedTargetMode(for: decision.targetMode, inputs: inputs)
+        let decisionUsed = AssistantContextRoutingDecision(
+            targetMode: targetMode,
+            decisionSource: decision.decisionSource
+        )
 
-        guard effectiveRoute.hasAnySource else {
-            return (dictatedContent, false, .none)
+        guard decisionUsed.injectsExternalText else {
+            return (dictatedContent, false, decisionUsed)
         }
 
-        return (
-            ExternalTextPromptBuilder.buildBody(
-                dictatedContent: dictatedContent,
-                selectedText: promptSources.selectedText,
-                clipboardText: promptSources.clipboardText,
-                lastTranscription: promptSources.lastTranscription
-            ),
-            true,
-            effectiveRoute
+        let body = ExternalTextPromptBuilder.buildBody(
+            dictatedContent: dictatedContent,
+            selectedText: inputs.selectedText,
+            clipboardText: inputs.clipboardText,
+            lastTranscription: inputs.lastTranscription,
+            routingDecision: decisionUsed
         )
+        let injected = decisionUsed.injectsExternalText && body != dictatedContent
+        return (body, injected, decisionUsed)
     }
 
-    private func prependRetryHistory(to body: String) -> String {
-        guard !retryHistory.isEmpty else { return body }
+    private func adjustedTargetMode(
+        for targetMode: AssistantContextTargetMode,
+        inputs: ExternalTextInputs
+    ) -> AssistantContextTargetMode {
+        switch targetMode {
+        case .selectedText where inputs.selectedText == nil:
+            return .none
+        case .clipboard where inputs.clipboardText == nil:
+            return .none
+        case .lastTranscription where inputs.lastTranscription == nil:
+            return .none
+        case .priorConvertedResult where freshLastConvertedInteractionForRouting() == nil:
+            return .none
+        default:
+            return targetMode
+        }
+    }
 
-        let turns = retryHistory.map {
-            "<user>\($0.instruction)</user>\n<assistant>\($0.output)</assistant>"
-        }.joined(separator: "\n")
+    private func prependPriorConversation(
+        to body: String,
+        decision: AssistantContextRoutingDecision
+    ) -> String {
+        let turns: String?
+
+        if decision.usesPriorConversationTarget,
+           let lastConvertedInteraction = freshLastConvertedInteractionForRouting() {
+            turns = "<user>\(lastConvertedInteraction.instruction)</user>\n<assistant>\(lastConvertedInteraction.output)</assistant>"
+        } else {
+            turns = nil
+        }
+
+        guard let turns else { return body }
         return "<prior_conversation>\n\(turns)\n</prior_conversation>\n\n\(body)"
     }
 

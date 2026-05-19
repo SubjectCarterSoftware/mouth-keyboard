@@ -29,7 +29,7 @@ final class RealModelIntegrationTests: XCTestCase {
             let result = try await service.generate(
                 prompt: detectedTranscript,
                 systemPrompt: LLMRewriteService.resolveAssistantSystemPrompt(
-                    assistantName: triggerName
+                    assistantName: "Zeus"
                 )
             )
 
