@@ -53,3 +53,26 @@ enum RecordingState: Equatable {
         return false
     }
 }
+
+enum SuccessNoteSaveState: Equatable {
+    case available
+    case saving
+    case saved
+    case disabledMissingConfiguration
+
+    var canStartSave: Bool {
+        switch self {
+        case .available:
+            return true
+        case .saving, .saved, .disabledMissingConfiguration:
+            return false
+        }
+    }
+
+    var isSaved: Bool {
+        if case .saved = self {
+            return true
+        }
+        return false
+    }
+}

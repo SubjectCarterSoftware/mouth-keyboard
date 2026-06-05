@@ -1,23 +1,75 @@
 import AppKit
 import Combine
 import Foundation
+import MLXLMCommon
 
 // MARK: - ActivationSoundPlayer
 
 struct ActivationSoundPlayer {
+    private let playStartImpl: () -> Void
+    private let playSuccessImpl: () -> Void
+    private let playFailureImpl: () -> Void
+    private let playNoteSavedImpl: () -> Void
+    private let playSuccessThenNoteSavedImpl: () -> Void
+
+    init(
+        playStart: @escaping () -> Void = { Self.playNamedSound("Tink") },
+        playSuccess: @escaping () -> Void = { Self.playNamedSound("Glass") },
+        playFailure: @escaping () -> Void = { Self.playNamedSound("Basso") },
+        playNoteSaved: @escaping () -> Void = { Self.playNamedSound("NoteSaved") },
+        playSuccessThenNoteSaved: @escaping () -> Void = { Self.playSuccessThenNoteSavedDefault() }
+    ) {
+        self.playStartImpl = playStart
+        self.playSuccessImpl = playSuccess
+        self.playFailureImpl = playFailure
+        self.playNoteSavedImpl = playNoteSaved
+        self.playSuccessThenNoteSavedImpl = playSuccessThenNoteSaved
+    }
+
     func play() {
-        sound(named: "Tink")?.play()
+        playStartImpl()
     }
 
     func playSuccess() {
-        sound(named: "Glass")?.play()
+        playSuccessImpl()
     }
 
     func playFailure() {
-        sound(named: "Basso")?.play()
+        playFailureImpl()
     }
 
-    private func sound(named name: String) -> NSSound? {
+    func playNoteSaved() {
+        playNoteSavedImpl()
+    }
+
+    func playSuccessThenNoteSaved() {
+        playSuccessThenNoteSavedImpl()
+    }
+
+    private static func playSuccessThenNoteSavedDefault() {
+        let successSound = sound(named: "Glass")
+        guard let noteSound = sound(named: "NoteSaved") else {
+            successSound?.play()
+            return
+        }
+        guard let successSound else {
+            noteSound.play()
+            return
+        }
+
+        let delay = max(successSound.duration, 0.1)
+        successSound.play()
+        DispatchQueue.main.asyncAfter(deadline: .now() + delay) { [successSound, noteSound] in
+            _ = successSound
+            noteSound.play()
+        }
+    }
+
+    private static func playNamedSound(_ name: String) {
+        sound(named: name)?.play()
+    }
+
+    private static func sound(named name: String) -> NSSound? {
         if let url = Bundle.main.url(forResource: name, withExtension: "aiff") {
             return NSSound(contentsOf: url, byReference: false)
         }
@@ -55,13 +107,6 @@ final class ActivationStore: ObservableObject {
         case hold
     }
 
-    private struct ConvertedInteraction: Equatable {
-        let instruction: String
-        let output: String
-        let matchedAssistantAlias: String?
-        let capturedAt: Date
-    }
-
     private enum PipelineTimeoutError: LocalizedError {
         case stepTimedOut(String)
 
@@ -78,6 +123,8 @@ final class ActivationStore: ObservableObject {
         readinessProvider: ReadinessStore.shared,
         whisperService: WhisperService.shared,
         llmRewriteService: LLMRewriteService.shared,
+        noteCaptureService: NoteCaptureService(),
+        historyCaptureService: HistoryCaptureService(),
         clipboardService: ClipboardService(),
         pasteService: PasteService(),
         bufferAccumulator: AudioBufferAccumulator(),
@@ -90,43 +137,63 @@ final class ActivationStore: ObservableObject {
     @Published private(set) var lastConvertedTranscription: String?
     @Published private(set) var successDismissStartedAt: Date?
     @Published private(set) var successDismissDeadline: Date?
+    @Published private(set) var successNoteSaveState: SuccessNoteSaveState?
 
     private let preferences: ShellPreferences
     private let readinessProvider: any ReadinessProviding
     private let whisperModelLoadState: any WhisperModelLoadStateProviding
     private let whisperService: any WhisperTranscribing
     private let llmRewriteService: any LLMRewriting
+    private let noteCaptureService: any NoteCapturing
+    private let historyCaptureService: any HistoryCapturing
     private let clipboardService: ClipboardService
     private let pasteService: any PasteServicing
     private let dateProvider: () -> Date
     private let resetSessionMonitoring: @MainActor () -> Void
     let bufferAccumulator: AudioBufferAccumulator
     var soundPlayer: ActivationSoundPlayer = .init()
-    private static let maxRecordingDuration: UInt64 = 5 * 60 * 1_000_000_000 // 5 minutes
-    private static let audioCaptureStopSettleDelay: UInt64 = 40_000_000
+    var finalizeAudioCaptureBeforeTranscription: @MainActor () async -> Void = {}
+    private static let maxRecordingDuration: UInt64 = 15 * 60 * 1_000_000_000 // 15 minutes
     private static let minimumTranscriptionAudioDuration: TimeInterval = 1.0
     private static let appendedTrailingSilenceDuration: TimeInterval = 0.35
     private static let minimumConvertingDisplayDuration: UInt64 = 200_000_000
     private static let whisperModelIdleUnloadDelay: UInt64 = WhisperService.idleUnloadDelayNanoseconds
     private static let rewriteModelIdleUnloadDelay: UInt64 = LLMRewriteService.idleUnloadDelayNanoseconds
     private static let whisperPrepareTimeout: UInt64 = 20_000_000_000
-    private static let whisperTranscriptionTimeout: UInt64 = 45_000_000_000
-    private static let clipboardIntentTimeout: UInt64 = 8_000_000_000
+    // Transcription time grows with audio length, so the timeout is a hang-guard
+    // that scales with duration rather than a flat ceiling that long recordings
+    // would falsely trip. Base covers model warmup + short clips; the per-second
+    // allowance is generous enough for slower (e.g. Intel) hardware.
+    private static let whisperTranscriptionBaseTimeout: UInt64 = 45_000_000_000
+    private static let whisperTranscriptionTimeoutPerAudioSecond: UInt64 = 4_000_000_000
+    private static let whisperSampleRate: Double = 16_000
     private static let rewriteTimeout: UInt64 = 45_000_000_000
-    private static let cloudRewritePromptWordLimit = 4_000
     private static let minimumDirectAssistantPromptWordLimit = 1_500
     private static let lastTranscriptionContextMaxAge: TimeInterval = 30 * 60
     private static let clipboardRestoreDelay: UInt64 = 150_000_000
     private static let selectedTextCaptureTimeout: UInt64 = 120_000_000
     private static let selectedTextCapturePollInterval: UInt64 = 15_000_000
+    private static let minimumStartSoundInterval: TimeInterval = 0.15
     private static let successDismissDelay: UInt64 = 10_000_000_000
     private static let successDismissDurationSeconds = TimeInterval(successDismissDelay) / 1_000_000_000
+    private static let noteTitleGenerationTimeout: UInt64 = 8_000_000_000
+    private static let noteTitleSystemPrompt = """
+    You create concise note titles.
+    Return only a short title of 2 to 6 words.
+    Do not use quotes, markdown, labels, emojis, or trailing punctuation.
+    Prefer concrete words already present in the content.
+    """
 
     var onPastePermissionNeeded: () -> Void = {}
 
+    private struct SelectedClipboardCapture: Equatable {
+        let text: String?
+        let imageContent: ClipboardImageContent?
+
+        static let empty = Self(text: nil, imageContent: nil)
+    }
+
     private var requestsPasteOnCompletion = false
-    private var lastConvertedInteraction: ConvertedInteraction?
-    private var lastSuccessWasConverted = false
     private var activeSessionID = UUID()
     private var activeActivationOrigin: ActivationOrigin?
     private var transcriptionTask: Task<Void, Never>?
@@ -135,10 +202,12 @@ final class ActivationStore: ObservableObject {
     private var maxDurationTask: Task<Void, Never>?
     private var sessionClipboardSnapshot: ClipboardSnapshot?
     private var lastTranscriptionCapturedAt: Date?
-    private var initialSelectedText: String?
-    private var finalSelectedText: String?
-    private var initialSelectedTextCaptureTask: Task<String?, Never>?
+    private var currentSuccessNoteContent: NoteCaptureContent?
+    private var initialSelectedCapture: SelectedClipboardCapture?
+    private var finalSelectedCapture: SelectedClipboardCapture?
+    private var initialSelectedCaptureTask: Task<SelectedClipboardCapture, Never>?
     private var downloadGateCancellable: AnyCancellable?
+    private var lastStartSoundAt: Date?
 
     convenience init(preferences: ShellPreferences, readinessStore: ReadinessStore) {
         self.init(
@@ -146,6 +215,8 @@ final class ActivationStore: ObservableObject {
             readinessProvider: readinessStore,
             whisperModelLoadState: WhisperModelLoadState.shared,
             whisperService: WhisperService(),
+            noteCaptureService: NoteCaptureService(),
+            historyCaptureService: HistoryCaptureService(),
             clipboardService: ClipboardService(),
             pasteService: PasteService(),
             bufferAccumulator: AudioBufferAccumulator(),
@@ -159,6 +230,8 @@ final class ActivationStore: ObservableObject {
         whisperModelLoadState: any WhisperModelLoadStateProviding = WhisperModelLoadState.shared,
         whisperService: any WhisperTranscribing = WhisperService(),
         llmRewriteService: any LLMRewriting = LLMRewriteService.shared,
+        noteCaptureService: any NoteCapturing = NoteCaptureService(),
+        historyCaptureService: any HistoryCapturing = HistoryCaptureService(),
         clipboardService: ClipboardService = ClipboardService(),
         pasteService: any PasteServicing = PasteService(),
         bufferAccumulator: AudioBufferAccumulator = AudioBufferAccumulator(),
@@ -170,6 +243,8 @@ final class ActivationStore: ObservableObject {
         self.whisperModelLoadState = whisperModelLoadState
         self.whisperService = whisperService
         self.llmRewriteService = llmRewriteService
+        self.noteCaptureService = noteCaptureService
+        self.historyCaptureService = historyCaptureService
         self.clipboardService = clipboardService
         self.pasteService = pasteService
         self.bufferAccumulator = bufferAccumulator
@@ -191,8 +266,8 @@ final class ActivationStore: ObservableObject {
     }
 
     /// Word-count ceiling for the rewrite prompt body, matched to the active service.
-    /// Mirrors the cloud-vs-local check in activeRewriteService so the limit always
-    /// corresponds to the model that will actually run.
+    /// Built-in local tiers keep their guardrails; cloud models are allowed to
+    /// attempt full input without an app-side context cap.
     private var effectivePromptWordLimit: Int {
         let config = preferences.cloudLLMConfig
         guard config.isEnabled, !config.modelID.isEmpty else {
@@ -201,26 +276,17 @@ final class ActivationStore: ObservableObject {
         guard let apiKey = CloudLLMKeychain.loadAPIKey(for: config.provider), !apiKey.isEmpty else {
             return preferences.rewriteModelTier.rewritePromptWordLimit
         }
-        return Self.cloudRewritePromptWordLimit
+        return .max
+    }
+
+    private func configureLocalRewriteServiceSelection() async {
+        await llmRewriteService.setTier(preferences.rewriteModelTier)
     }
 
     // MARK: - Public API
 
     func arm() {
         guard state != .recording else { return }
-        _ = beginRecording(origin: .toggle)
-    }
-
-    /// Arm with paste intent: records then pastes the transcription to the active cursor position.
-    func armAndPaste() {
-        requestsPasteOnCompletion = true
-        if !isPostEventPermissionGranted {
-            onPastePermissionNeeded()
-        }
-        if state == .recording {
-            finish()
-            return
-        }
         _ = beginRecording(origin: .toggle)
     }
 
@@ -231,15 +297,6 @@ final class ActivationStore: ObservableObject {
 
     func finishHoldSession() {
         guard state == .recording, activeActivationOrigin == .hold else { return }
-        finish()
-    }
-
-    /// Finish recording and paste the transcription to the active cursor position.
-    func finishAndPaste() {
-        requestsPasteOnCompletion = true
-        if !isPostEventPermissionGranted {
-            onPastePermissionNeeded()
-        }
         finish()
     }
 
@@ -319,25 +376,38 @@ final class ActivationStore: ObservableObject {
         }
     }
 
-    func pasteCurrentSuccessResult() {
-        guard let successText = currentSuccessText else { return }
-
-        refreshSuccessDismissTimer()
-        guard isPostEventPermissionGranted else {
-            onPastePermissionNeeded()
-            return
-        }
-
-        Task { [weak self] in
-            guard let self else { return }
-            _ = await self.pasteWithClipboardProtection(text: successText)
-        }
-    }
-
     func copyCurrentSuccessResult() {
         guard let successText = currentSuccessText else { return }
         clipboardService.writeToClipboard(successText)
         refreshSuccessDismissTimer()
+    }
+
+    func saveCurrentSuccessResultAsNote() {
+        guard currentSuccessText != nil else { return }
+        guard let noteContent = currentSuccessNoteContent else { return }
+        guard successNoteSaveState?.canStartSave == true else { return }
+
+        let configuration = preferences.assistantNoteConfiguration
+        guard configuration.isConfigured else {
+            successNoteSaveState = .disabledMissingConfiguration
+            refreshSuccessDismissTimer()
+            return
+        }
+
+        successNoteSaveState = .saving
+        refreshSuccessDismissTimer()
+
+        Task { [weak self] in
+            guard let self else { return }
+            let didSave = await self.saveNoteIfPossible(content: noteContent)
+            guard case .success = self.state else { return }
+
+            self.successNoteSaveState = didSave ? .saved : .available
+            if didSave {
+                self.refreshSuccessDismissTimer()
+                self.playNoteSavedSoundIfNeeded()
+            }
+        }
     }
 
     func dismissCurrentSuccess() {
@@ -346,6 +416,8 @@ final class ActivationStore: ObservableObject {
         dismissTask?.cancel()
         dismissTask = nil
         clearSuccessDismissTiming()
+        successNoteSaveState = nil
+        currentSuccessNoteContent = nil
         recoveryFeedback = nil
         state = .idle
         scheduleWhisperModelIdleUnload()
@@ -372,10 +444,7 @@ final class ActivationStore: ObservableObject {
         state = .processing
         let task = Task { [weak self] in
             guard let self else { return }
-            // Let state observers stop audio capture before we snapshot and
-            // convert the accumulated buffers for Whisper.
-            await Task.yield()
-            try? await Task.sleep(nanoseconds: Self.audioCaptureStopSettleDelay)
+            await self.finalizeAudioCaptureBeforeTranscription()
             await self.finalizeSession(sessionID: sessionID)
         }
         transcriptionTask = task
@@ -416,6 +485,8 @@ final class ActivationStore: ObservableObject {
         if state.isTerminal {
             invalidateScheduledWork()
             clearSuccessDismissTiming()
+            successNoteSaveState = nil
+            currentSuccessNoteContent = nil
             state = .idle
         }
 
@@ -442,11 +513,13 @@ final class ActivationStore: ObservableObject {
         invalidateScheduledWork()
         recoveryFeedback = nil
         activeSessionID = UUID()
+        successNoteSaveState = nil
+        currentSuccessNoteContent = nil
         sessionClipboardSnapshot = clipboardService.snapshotCurrentClipboard()
-        initialSelectedText = nil
-        finalSelectedText = nil
-        initialSelectedTextCaptureTask?.cancel()
-        initialSelectedTextCaptureTask = nil
+        initialSelectedCapture = nil
+        finalSelectedCapture = nil
+        initialSelectedCaptureTask?.cancel()
+        initialSelectedCaptureTask = nil
         activeActivationOrigin = origin
         bufferAccumulator.reset()
         state = .recording
@@ -468,11 +541,11 @@ final class ActivationStore: ObservableObject {
     private func finalizeSession(sessionID: UUID) async {
         do {
             guard isCurrentSession(sessionID) else { return }
-            if let initialSelectedTextCaptureTask, initialSelectedText == nil {
-                initialSelectedText = await initialSelectedTextCaptureTask.value
+            if let initialSelectedCaptureTask, initialSelectedCapture == nil {
+                initialSelectedCapture = await initialSelectedCaptureTask.value
             }
             guard isCurrentSession(sessionID) else { return }
-            finalSelectedText = await captureSelectedText()
+            finalSelectedCapture = await captureSelectedContent()
 
             let selectedModel = preferences.whisperModel
             do {
@@ -500,7 +573,7 @@ final class ActivationStore: ObservableObject {
                 trailingSilenceDuration: Self.appendedTrailingSilenceDuration
             )
             let text = try await runWithTimeout(
-                nanoseconds: Self.whisperTranscriptionTimeout,
+                nanoseconds: Self.whisperTranscriptionTimeout(forSampleCount: samples.count),
                 step: "Whisper transcription"
             ) { [whisperService] in
                 try await whisperService.transcribe(samples: samples)
@@ -520,32 +593,39 @@ final class ActivationStore: ObservableObject {
             let detection = TriggerTranscriptParser.detect(transcript: processed, triggerNames: triggerNames)
             let clipboardSnapshot = sessionClipboardSnapshot
             let shouldConvert: Bool
-            let matchedAssistantAlias: String?
             switch detection {
             case .noTrigger:
                 shouldConvert = false
-                matchedAssistantAlias = nil
-            case .triggered(_, let alias):
+            case .triggered:
                 shouldConvert = true
-                matchedAssistantAlias = alias
             }
 
             if !shouldConvert {
                 let didPaste = shouldPasteOnSuccessfulFinish
                 requestsPasteOnCompletion = false
                 recordLastTranscription(processed)
+                currentSuccessNoteContent = noteCaptureContent(
+                    rawTranscription: processed,
+                    assistantOutput: nil
+                )
                 var syntheticPasteSucceeded = false
                 if didPaste {
                     syntheticPasteSucceeded = await pasteWithClipboardProtection(text: processed)
                 } else {
                     clipboardService.writeToClipboard(processed)
                 }
-                lastSuccessWasConverted = false
+                successNoteSaveState = configuredSuccessNoteSaveState(noteWasSaved: false)
                 state = .success(
                     text: processed,
                     pasted: syntheticPasteSucceeded,
                     converted: false,
                     noMatchPassthrough: false
+                )
+                persistHistoryIfEnabled(
+                    HistoryCaptureContent(
+                        rawTranscription: processed,
+                        assistantOutput: nil
+                    )
                 )
                 playSuccessSoundIfNeeded()
                 beginSuccessDismissTiming(sessionID: sessionID)
@@ -561,52 +641,47 @@ final class ActivationStore: ObservableObject {
                     promptTemplate: preferences.rewriteSystemPromptPrefix,
                     assistantName: assistantName
                 )
+                let noteIntent = AssistantNoteIntentClassifier.classify(
+                    message: processed,
+                    matchedAlias: assistantName
+                )
+                let dictatedAssistantPrompt = noteIntent.sanitizedPrompt
 
                 // Route external text context into the rewrite prompt when requested.
                 let externalTextInputs = validatedExternalTextInputs(
                     selectedText: await preferredSelectedText(),
                     clipboardText: clipboardSnapshot?.plainText,
-                    lastTranscription: freshLastTranscriptionForRouting()
+                    lastTranscription: freshLastTranscriptionForRouting(),
+                    selectedImageContent: await preferredSelectedImageContent(),
+                    clipboardImageContent: clipboardSnapshot?.imageContent
                 )
                 let routingContext = ExternalTextSourceContext(
-                    selectedText: externalTextInputs.selectedText,
-                    clipboardText: externalTextInputs.clipboardText,
-                    lastTranscription: externalTextInputs.lastTranscription,
-                    priorConvertedResultAvailable: freshLastConvertedInteractionForRouting() != nil
+                    selectedTextAvailable: externalTextInputs.selectedText != nil
+                        || externalTextInputs.selectedImageContent != nil,
+                    clipboardTextAvailable: externalTextInputs.clipboardText != nil
+                        || externalTextInputs.clipboardImageContent != nil,
+                    lastTranscriptionAvailable: externalTextInputs.lastTranscription != nil
                 )
-                let routingDecision: AssistantContextRoutingDecision
-
-                if routingContext.hasAvailableSource {
-                    routingDecision = try await runWithTimeout(
-                        nanoseconds: Self.clipboardIntentTimeout,
-                        step: "External text source routing"
-                    ) { [llmRewriteService] in
-                        await ExternalTextSourceClassifier.classify(
-                            message: processed,
-                            availableSources: routingContext,
-                            mostRecentSuccessWasConverted: self.lastSuccessWasConverted,
-                            using: llmRewriteService
-                        )
-                    }
-
-                    guard isCurrentSession(sessionID) else { return }
-                } else {
-                    routingDecision = AssistantContextRoutingDecision(
-                        targetMode: .none,
-                        decisionSource: .noAvailableContext
-                    )
-                }
+                let routingDecision = ExternalTextSourceClassifier.classify(
+                    message: dictatedAssistantPrompt,
+                    availableSources: routingContext
+                )
 
                 let promptConfiguration = buildRewritePromptBody(
-                    dictatedContent: processed,
+                    dictatedContent: dictatedAssistantPrompt,
                     inputs: externalTextInputs,
                     decision: routingDecision
                 )
                 let routingDecisionForPrompt = promptConfiguration.decisionUsed
                 let externalTextWasInjected = promptConfiguration.externalTextInjected
-                var effectiveBody = prependPriorConversation(
-                    to: promptConfiguration.body,
-                    decision: routingDecisionForPrompt
+                let effectiveBody = promptConfiguration.body
+                let referencedNoteContexts = noteReferencedContexts(
+                    from: routingDecisionForPrompt.matchedSources,
+                    inputs: externalTextInputs
+                )
+                let assistantImages = assistantInputImages(
+                    from: routingDecisionForPrompt.matchedSources,
+                    inputs: externalTextInputs
                 )
 
                 // Direct assistant prompts keep the historical 1500-word floor,
@@ -634,13 +709,17 @@ final class ActivationStore: ObservableObject {
                 let rewritten: String
                 do {
                     let promptBody = effectiveBody
+                    if !preferences.cloudLLMConfig.isEnabled {
+                        await configureLocalRewriteServiceSelection()
+                    }
                     rewritten = try await runWithTimeout(
                         nanoseconds: Self.rewriteTimeout,
                         step: "Assistant rewrite"
                     ) { [activeRewriteService] in
                         try await activeRewriteService.generate(
                             prompt: promptBody,
-                            systemPrompt: systemPrompt
+                            systemPrompt: systemPrompt,
+                            images: assistantImages
                         )
                     }
                 } catch {
@@ -670,6 +749,16 @@ final class ActivationStore: ObservableObject {
                 }
 
                 guard isCurrentSession(sessionID) else { return }
+                let noteContent = noteCaptureContent(
+                    rawTranscription: processed,
+                    referencedContexts: referencedNoteContexts,
+                    assistantOutput: rewritten
+                )
+                let automaticNoteWasSaved = shouldAutomaticallySaveAssistantNote(
+                    classification: noteIntent
+                )
+                    ? await saveNoteIfPossible(content: noteContent)
+                    : false
                 var syntheticPasteSucceeded = false
                 if didPaste {
                     syntheticPasteSucceeded = await pasteWithClipboardProtection(text: rewritten)
@@ -678,20 +767,27 @@ final class ActivationStore: ObservableObject {
                 }
                 recordLastTranscription(processed)
                 lastConvertedTranscription = rewritten
-                lastConvertedInteraction = ConvertedInteraction(
-                    instruction: processed,
-                    output: rewritten,
-                    matchedAssistantAlias: matchedAssistantAlias,
-                    capturedAt: dateProvider()
+                currentSuccessNoteContent = noteContent
+                successNoteSaveState = configuredSuccessNoteSaveState(
+                    noteWasSaved: automaticNoteWasSaved
                 )
-                lastSuccessWasConverted = true
                 state = .success(
                     text: rewritten,
                     pasted: syntheticPasteSucceeded,
                     converted: true,
                     externalTextInjected: externalTextWasInjected
                 )
-                playSuccessSoundIfNeeded()
+                persistHistoryIfEnabled(
+                    HistoryCaptureContent(
+                        rawTranscription: processed,
+                        assistantOutput: rewritten
+                    )
+                )
+                if automaticNoteWasSaved {
+                    playSuccessThenNoteSavedSoundIfNeeded()
+                } else {
+                    playSuccessSoundIfNeeded()
+                }
                 beginSuccessDismissTiming(sessionID: sessionID)
             }
         } catch TranscriptionError.noSpeechDetected {
@@ -728,10 +824,12 @@ final class ActivationStore: ObservableObject {
     private func invalidateActiveSession() {
         requestsPasteOnCompletion = false
         sessionClipboardSnapshot = nil
-        initialSelectedText = nil
-        finalSelectedText = nil
-        initialSelectedTextCaptureTask?.cancel()
-        initialSelectedTextCaptureTask = nil
+        successNoteSaveState = nil
+        currentSuccessNoteContent = nil
+        initialSelectedCapture = nil
+        finalSelectedCapture = nil
+        initialSelectedCaptureTask?.cancel()
+        initialSelectedCaptureTask = nil
         clearSuccessDismissTiming()
         activeSessionID = UUID()
         activeActivationOrigin = nil
@@ -751,6 +849,12 @@ final class ActivationStore: ObservableObject {
 
     private func playStartSoundIfNeeded() {
         guard !shouldMuteSoundEffects else { return }
+        let now = dateProvider()
+        if let lastStartSoundAt,
+           now.timeIntervalSince(lastStartSoundAt) < Self.minimumStartSoundInterval {
+            return
+        }
+        lastStartSoundAt = now
         soundPlayer.play()
     }
 
@@ -762,6 +866,16 @@ final class ActivationStore: ObservableObject {
     private func playFailureSoundIfNeeded() {
         guard !shouldMuteSoundEffects else { return }
         soundPlayer.playFailure()
+    }
+
+    private func playNoteSavedSoundIfNeeded() {
+        guard !shouldMuteSoundEffects else { return }
+        soundPlayer.playNoteSaved()
+    }
+
+    private func playSuccessThenNoteSavedSoundIfNeeded() {
+        guard !shouldMuteSoundEffects else { return }
+        soundPlayer.playSuccessThenNoteSaved()
     }
 
     private func pasteWithClipboardProtection(text: String) async -> Bool {
@@ -788,41 +902,61 @@ final class ActivationStore: ObservableObject {
     private func beginInitialSelectedTextCapture(sessionID: UUID) {
         guard isPostEventPermissionGranted else { return }
 
-        initialSelectedTextCaptureTask = Task { @MainActor [weak self] in
-            guard let self else { return nil }
-            let capturedText = await self.captureSelectedText()
-            guard self.isCurrentSession(sessionID) else { return capturedText }
-            self.initialSelectedText = capturedText
-            return capturedText
+        initialSelectedCaptureTask = Task { @MainActor [weak self] in
+            guard let self else { return .empty }
+            let capturedContent = await self.captureSelectedContent()
+            guard self.isCurrentSession(sessionID) else { return capturedContent }
+            self.initialSelectedCapture = capturedContent
+            return capturedContent
         }
     }
 
     private func preferredSelectedText() async -> String? {
-        if let finalSelectedText {
-            return finalSelectedText
+        if let capture = finalSelectedCapture, let text = capture.text {
+            return text
         }
 
-        if let initialSelectedText {
-            return initialSelectedText
+        if let capture = initialSelectedCapture, let text = capture.text {
+            return text
         }
 
-        guard let initialSelectedTextCaptureTask else {
+        guard let initialSelectedCaptureTask else {
             return nil
         }
 
-        let capturedText = await initialSelectedTextCaptureTask.value
-        if let capturedText, capturedText != initialSelectedText {
-            initialSelectedText = capturedText
+        let capturedContent = await initialSelectedCaptureTask.value
+        if capturedContent != initialSelectedCapture {
+            initialSelectedCapture = capturedContent
         }
-        return capturedText
+        return capturedContent.text
     }
 
-    private func captureSelectedText() async -> String? {
-        guard isPostEventPermissionGranted else { return nil }
+    private func preferredSelectedImageContent() async -> ClipboardImageContent? {
+        if let capture = finalSelectedCapture, let imageContent = capture.imageContent {
+            return imageContent
+        }
+
+        if let capture = initialSelectedCapture, let imageContent = capture.imageContent {
+            return imageContent
+        }
+
+        guard let initialSelectedCaptureTask else {
+            return nil
+        }
+
+        let capturedContent = await initialSelectedCaptureTask.value
+        if capturedContent != initialSelectedCapture {
+            initialSelectedCapture = capturedContent
+        }
+        return capturedContent.imageContent
+    }
+
+    private func captureSelectedContent() async -> SelectedClipboardCapture {
+        guard isPostEventPermissionGranted else { return .empty }
 
         let originalClipboard = clipboardService.snapshotCurrentClipboard()
         guard pasteService.copySelectedTextToClipboard() == .dispatched else {
-            return nil
+            return .empty
         }
 
         let deadline = DispatchTime.now().uptimeNanoseconds + Self.selectedTextCaptureTimeout
@@ -836,16 +970,17 @@ final class ActivationStore: ObservableObject {
                     from: originalClipboard,
                     ifUnchangedSince: receipt
                 )
-                if let copiedText, !copiedText.isEmpty {
-                    return copiedText
-                }
-                return nil
+                let normalizedText = copiedText.flatMap { $0.isEmpty ? nil : $0 }
+                return SelectedClipboardCapture(
+                    text: normalizedText,
+                    imageContent: currentClipboard.imageContent
+                )
             }
 
             try? await Task.sleep(nanoseconds: Self.selectedTextCapturePollInterval)
         }
 
-        return nil
+        return .empty
     }
 
     private var currentSuccessText: String? {
@@ -870,6 +1005,169 @@ final class ActivationStore: ObservableObject {
         lastTranscriptionCapturedAt = dateProvider()
     }
 
+    private func noteCaptureContent(
+        rawTranscription: String,
+        referencedContexts: [NoteCaptureReferencedContext] = [],
+        assistantOutput: String?
+    ) -> NoteCaptureContent {
+        NoteCaptureContent(
+            title: nil,
+            rawTranscription: rawTranscription,
+            referencedContexts: referencedContexts,
+            assistantOutput: assistantOutput
+        )
+    }
+
+    private func configuredSuccessNoteSaveState(noteWasSaved: Bool) -> SuccessNoteSaveState {
+        if noteWasSaved {
+            return .saved
+        }
+
+        return preferences.assistantNoteConfiguration.isConfigured
+            ? .available
+            : .disabledMissingConfiguration
+    }
+
+    private func shouldAutomaticallySaveAssistantNote(
+        classification: AssistantNoteIntentClassification
+    ) -> Bool {
+        classification.requestsAutomaticNoteSave
+            && preferences.assistantNoteConfiguration.isConfigured
+    }
+
+    @discardableResult
+    private func saveNoteIfPossible(content: NoteCaptureContent) async -> Bool {
+        let configuration = preferences.assistantNoteConfiguration
+        guard configuration.isConfigured else {
+            return false
+        }
+
+        do {
+            let titledContent = await noteCaptureContentWithGeneratedTitle(from: content)
+            _ = try noteCaptureService.saveNote(content: titledContent, configuration: configuration)
+            return true
+        } catch {
+            NSLog("TypeLessBuddy: failed to save note: \(error.localizedDescription)")
+            return false
+        }
+    }
+
+    private func persistHistoryIfEnabled(_ content: HistoryCaptureContent) {
+        let configuration = preferences.historyConfiguration
+        guard configuration.isEnabled else {
+            return
+        }
+
+        let historyCaptureService = self.historyCaptureService
+        DispatchQueue.global(qos: .utility).async {
+            do {
+                _ = try historyCaptureService.saveEntry(content: content, configuration: configuration)
+            } catch {
+                NSLog("TypeLessBuddy: failed to save history entry: \(error.localizedDescription)")
+            }
+        }
+    }
+
+    private func noteCaptureContentWithGeneratedTitle(
+        from content: NoteCaptureContent
+    ) async -> NoteCaptureContent {
+        guard content.resolvedTitle == nil else {
+            return content
+        }
+
+        guard let generatedTitle = await generateNoteTitle(for: content) else {
+            return content
+        }
+
+        return NoteCaptureContent(
+            title: generatedTitle,
+            rawTranscription: content.rawTranscription,
+            referencedContexts: content.referencedContexts,
+            assistantOutput: content.assistantOutput
+        )
+    }
+
+    private func generateNoteTitle(for content: NoteCaptureContent) async -> String? {
+        let prompt = noteTitlePrompt(for: content)
+        guard !prompt.isEmpty else {
+            return nil
+        }
+
+        await llmRewriteService.cancelScheduledUnload()
+        await configureLocalRewriteServiceSelection()
+        defer {
+            Task { [llmRewriteService] in
+                await llmRewriteService.scheduleIdleUnload(
+                    afterNanoseconds: Self.rewriteModelIdleUnloadDelay
+                )
+            }
+        }
+
+        do {
+            let generatedTitle = try await runWithTimeout(
+                nanoseconds: Self.noteTitleGenerationTimeout,
+                step: "Note title generation"
+            ) { [llmRewriteService] in
+                try await llmRewriteService.generate(
+                    prompt: prompt,
+                    systemPrompt: Self.noteTitleSystemPrompt
+                )
+            }
+            return normalizedGeneratedNoteTitle(generatedTitle)
+        } catch {
+            NSLog("TypeLessBuddy: note title generation failed — \(error.localizedDescription)")
+            return nil
+        }
+    }
+
+    private func noteTitlePrompt(for content: NoteCaptureContent) -> String {
+        var parts: [String] = []
+
+        let rawTranscription = content.resolvedRawTranscription
+        if !rawTranscription.isEmpty {
+            parts.append("Raw transcription:\n\(rawTranscription)")
+        }
+
+        for referencedContext in content.resolvedReferencedContexts {
+            parts.append("\(referencedContext.title):\n\(referencedContext.content)")
+        }
+
+        if let assistantOutput = content.resolvedAssistantOutput {
+            parts.append("Assistant output:\n\(assistantOutput)")
+        }
+
+        return parts.joined(separator: "\n\n")
+    }
+
+    private func normalizedGeneratedNoteTitle(_ title: String) -> String? {
+        let singleLine = title
+            .components(separatedBy: .newlines)
+            .joined(separator: " ")
+            .replacingOccurrences(of: "\\s+", with: " ", options: .regularExpression)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+
+        guard !singleLine.isEmpty else {
+            return nil
+        }
+
+        let strippedLabel: String
+        if singleLine.lowercased().hasPrefix("title:") {
+            strippedLabel = String(singleLine.dropFirst("title:".count))
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+        } else {
+            strippedLabel = singleLine
+        }
+
+        let trimmedPunctuation = strippedLabel.trimmingCharacters(
+            in: CharacterSet(charactersIn: "\"'`#*:-. ")
+        )
+        guard !trimmedPunctuation.isEmpty else {
+            return nil
+        }
+
+        return String(trimmedPunctuation.prefix(80))
+    }
+
     private func freshLastTranscriptionForRouting() -> String? {
         guard let lastTranscription else { return nil }
         guard let lastTranscriptionCapturedAt else {
@@ -884,22 +1182,11 @@ final class ActivationStore: ObservableObject {
         return lastTranscription
     }
 
-    private func freshLastConvertedInteractionForRouting() -> ConvertedInteraction? {
-        guard let lastConvertedInteraction else { return nil }
-
-        let age = dateProvider().timeIntervalSince(lastConvertedInteraction.capturedAt)
-        guard age <= Self.lastTranscriptionContextMaxAge else {
-            return nil
-        }
-
-        return lastConvertedInteraction
-    }
-
     private func rewritePromptWordLimit(
-        for decision: AssistantContextRoutingDecision,
+        for _: AssistantContextRoutingDecision,
         externalTextInjected: Bool
     ) -> Int {
-        guard !externalTextInjected, !decision.usesPriorConversationTarget else {
+        guard !externalTextInjected else {
             return effectivePromptWordLimit
         }
 
@@ -913,12 +1200,16 @@ final class ActivationStore: ObservableObject {
         let selectedText: String?
         let clipboardText: String?
         let lastTranscription: String?
+        let selectedImageContent: ClipboardImageContent?
+        let clipboardImageContent: ClipboardImageContent?
     }
 
     private func validatedExternalTextInputs(
         selectedText: String?,
         clipboardText: String?,
-        lastTranscription: String?
+        lastTranscription: String?,
+        selectedImageContent: ClipboardImageContent?,
+        clipboardImageContent: ClipboardImageContent?
     ) -> ExternalTextInputs {
         let normalizedSelectedText = normalizedExternalText(selectedText)
         let normalizedLastTranscription = normalizedExternalText(lastTranscription)
@@ -927,7 +1218,9 @@ final class ActivationStore: ObservableObject {
         return ExternalTextInputs(
             selectedText: validatedSizedContext(normalizedSelectedText),
             clipboardText: validatedSizedContext(normalizedClipboardText),
-            lastTranscription: normalizedLastTranscription
+            lastTranscription: normalizedLastTranscription,
+            selectedImageContent: selectedImageContent,
+            clipboardImageContent: clipboardImageContent
         )
     }
 
@@ -944,14 +1237,19 @@ final class ActivationStore: ObservableObject {
         inputs: ExternalTextInputs,
         decision: AssistantContextRoutingDecision
     ) -> (body: String, externalTextInjected: Bool, decisionUsed: AssistantContextRoutingDecision) {
-        let targetMode = adjustedTargetMode(for: decision.targetMode, inputs: inputs)
+        let matchedSources = adjustedMatchedSources(for: decision.matchedSources, inputs: inputs)
         let decisionUsed = AssistantContextRoutingDecision(
-            targetMode: targetMode,
-            decisionSource: decision.decisionSource
+            matchedSources: matchedSources,
+            decisionSource: matchedSources.isEmpty
+                ? (decision.decisionSource == .noAvailableContext ? .noAvailableContext : .noDeterministicMatch)
+                : decision.decisionSource
         )
 
         guard decisionUsed.injectsExternalText else {
-            return (dictatedContent, false, decisionUsed)
+            let directBody = ExternalTextPromptBuilder.buildDirectBody(
+                dictatedContent: dictatedContent
+            )
+            return (directBody, false, decisionUsed)
         }
 
         let body = ExternalTextPromptBuilder.buildBody(
@@ -961,43 +1259,122 @@ final class ActivationStore: ObservableObject {
             lastTranscription: inputs.lastTranscription,
             routingDecision: decisionUsed
         )
-        let injected = decisionUsed.injectsExternalText && body != dictatedContent
+        let injected = decisionUsed.injectsExternalText
         return (body, injected, decisionUsed)
     }
 
-    private func adjustedTargetMode(
-        for targetMode: AssistantContextTargetMode,
+    private func adjustedMatchedSources(
+        for matchedSources: [AssistantContextMatchedSource],
         inputs: ExternalTextInputs
-    ) -> AssistantContextTargetMode {
-        switch targetMode {
-        case .selectedText where inputs.selectedText == nil:
-            return .none
-        case .clipboard where inputs.clipboardText == nil:
-            return .none
-        case .lastTranscription where inputs.lastTranscription == nil:
-            return .none
-        case .priorConvertedResult where freshLastConvertedInteractionForRouting() == nil:
-            return .none
-        default:
-            return targetMode
+    ) -> [AssistantContextMatchedSource] {
+        matchedSources.filter { matchedSource in
+            switch matchedSource.targetMode {
+            case .selectedText:
+                return inputs.selectedText != nil || inputs.selectedImageContent != nil
+            case .clipboard:
+                return inputs.clipboardText != nil || inputs.clipboardImageContent != nil
+            case .lastTranscription:
+                return inputs.lastTranscription != nil
+            case .none:
+                return false
+            }
         }
     }
 
-    private func prependPriorConversation(
-        to body: String,
-        decision: AssistantContextRoutingDecision
-    ) -> String {
-        let turns: String?
-
-        if decision.usesPriorConversationTarget,
-           let lastConvertedInteraction = freshLastConvertedInteractionForRouting() {
-            turns = "<user>\(lastConvertedInteraction.instruction)</user>\n<assistant>\(lastConvertedInteraction.output)</assistant>"
-        } else {
-            turns = nil
+    private func assistantInputImages(
+        from matchedSources: [AssistantContextMatchedSource],
+        inputs: ExternalTextInputs
+    ) -> [UserInput.Image] {
+        guard shouldAttachAssistantImages else {
+            return []
         }
 
-        guard let turns else { return body }
-        return "<prior_conversation>\n\(turns)\n</prior_conversation>\n\n\(body)"
+        for matchedSource in matchedSources {
+            let content: ClipboardImageContent?
+            switch matchedSource.targetMode {
+            case .selectedText:
+                content = inputs.selectedImageContent
+            case .clipboard:
+                content = inputs.clipboardImageContent
+            case .lastTranscription, .none:
+                content = nil
+            }
+
+            if let image = makeUserInputImage(from: content) {
+                return [image]
+            }
+        }
+
+        // Image-only clipboard/selection context still needs to reach image-capable
+        // models even when there is no companion text to inject into the prompt body.
+        let fallbackContents: [ClipboardImageContent?] = [
+            inputs.selectedText == nil ? inputs.selectedImageContent : nil,
+            inputs.clipboardText == nil ? inputs.clipboardImageContent : nil,
+        ]
+        for content in fallbackContents {
+            if let image = makeUserInputImage(from: content) {
+                return [image]
+            }
+        }
+
+        return []
+    }
+
+    private var shouldAttachAssistantImages: Bool {
+        false
+    }
+
+    private func makeUserInputImage(from content: ClipboardImageContent?) -> UserInput.Image? {
+        guard let content else { return nil }
+
+        switch content.source {
+        case .fileURL(let url):
+            return .url(url)
+        case .data(let data):
+            if let ciImage = CIImage(data: data) {
+                return .ciImage(ciImage)
+            }
+
+            guard let image = NSImage(data: data),
+                  let tiffData = image.tiffRepresentation,
+                  let ciImage = CIImage(data: tiffData) else {
+                return nil
+            }
+            return .ciImage(ciImage)
+        }
+    }
+
+    private func noteReferencedContexts(
+        from matchedSources: [AssistantContextMatchedSource],
+        inputs: ExternalTextInputs
+    ) -> [NoteCaptureReferencedContext] {
+        matchedSources.compactMap { matchedSource in
+            let content: String?
+            let title: String
+
+            switch matchedSource.targetMode {
+            case .selectedText:
+                title = "Selected text"
+                content = inputs.selectedText
+            case .clipboard:
+                title = "Clipboard text"
+                content = inputs.clipboardText
+            case .lastTranscription:
+                title = "Last transcription"
+                content = inputs.lastTranscription
+            case .none:
+                return nil
+            }
+
+            guard let content else {
+                return nil
+            }
+
+            return NoteCaptureReferencedContext(
+                title: title,
+                content: content
+            )
+        }
     }
 
     var isHoldSessionActive: Bool {
@@ -1046,6 +1423,7 @@ final class ActivationStore: ObservableObject {
             switch self.state {
             case .success, .failure:
                 self.clearSuccessDismissTiming()
+                self.successNoteSaveState = nil
                 self.state = .idle
                 self.scheduleWhisperModelIdleUnload()
                 self.scheduleRewriteModelIdleUnload()
@@ -1058,6 +1436,12 @@ final class ActivationStore: ObservableObject {
 
     private func isCurrentSession(_ sessionID: UUID) -> Bool {
         !Task.isCancelled && sessionID == activeSessionID
+    }
+
+    private static func whisperTranscriptionTimeout(forSampleCount sampleCount: Int) -> UInt64 {
+        let audioSeconds = Double(max(0, sampleCount)) / whisperSampleRate
+        return whisperTranscriptionBaseTimeout
+            + UInt64(audioSeconds) * whisperTranscriptionTimeoutPerAudioSecond
     }
 
     private func runWithTimeout<T>(
@@ -1192,7 +1576,7 @@ final class ActivationStore: ObservableObject {
         Task { [weak self] in
             guard let self else { return }
             await self.llmRewriteService.cancelScheduledUnload()
-            await self.llmRewriteService.setTier(self.preferences.rewriteModelTier)
+            await self.configureLocalRewriteServiceSelection()
             try? await self.llmRewriteService.prewarm()
         }
     }

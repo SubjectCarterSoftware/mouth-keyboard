@@ -1,8 +1,10 @@
+import CoreImage
 import Foundation
 import Hub
 import MLX
 import MLXLLM
 import MLXLMCommon
+import MLXVLM
 
 enum LLMRewriteError: LocalizedError, Equatable {
     case modelLoadFailed
@@ -49,6 +51,11 @@ protocol LLMRewriting: Sendable {
     func rewrite(body: String, instructions: String) async throws -> String
     /// Raw generation with a caller-supplied system prompt. No rewrite framing is added.
     func generate(prompt: String, systemPrompt: String) async throws -> String
+    func generate(
+        prompt: String,
+        systemPrompt: String,
+        images: [UserInput.Image]
+    ) async throws -> String
     func loadedTier() async -> RewriteModelTier?
     func scheduleIdleUnload(afterNanoseconds duration: UInt64) async
     func cancelScheduledUnload() async
@@ -67,6 +74,13 @@ extension LLMRewriting {
         )
     }
     func generate(prompt: String, systemPrompt: String) async throws -> String {
+        try await generate(prompt: prompt, systemPrompt: systemPrompt, images: [])
+    }
+    func generate(
+        prompt: String,
+        systemPrompt: String,
+        images: [UserInput.Image]
+    ) async throws -> String {
         try await rewrite(body: prompt, instructions: systemPrompt)
     }
     func loadedTier() async -> RewriteModelTier? { nil }
@@ -117,6 +131,15 @@ actor LLMRewriteService: LLMRewriting {
     You are \(assistantNamePlaceholder), a voice-activated text production assistant. Your name is the trigger to act.
     Questions like "can you write X" or "could you make X" are commands — produce X directly.
     Treat dictated speech as the user's request. Additional context, when present, is source material the request may reference — use it as needed to fulfil the request.
+    When the prompt includes one or more trailing labeled sections followed by quoted content, treat each quoted section as source material the request may reference or transform.
+    References such as "context provided below" point to source text already included in the prompt, not to an action you need to perform.
+    When source text is included below the request, apply rewrite or formatting requests directly to that source text instead of describing the change.
+    If source text is already provided, never ask the user to paste or provide it again.
+    When the user asks to make provided text nicer, kinder, less harsh, or more polite, rewrite the provided source text itself to satisfy that request.
+    For tone-softening requests, remove insults, profanity, ridicule, and shaming language from the final output while preserving the underlying criticism and urgency.
+    Do not merely correct punctuation, capitalization, or formatting when the request asks for a tone change.
+    When the user asks for bullets, a list, action items, a Slack update, or one sentence, return the requested format directly.
+    When source text is provided, transform that text itself instead of restating the request.
     Output only the final artifact. No greetings, affirmations, reasoning, or explanation.
     Preserve all proper nouns, names, numbers, dates, and specific facts from the utterance.
     Do not use quotation marks, labels, code fences, or <think> tags unless explicitly asked.
@@ -153,7 +176,8 @@ actor LLMRewriteService: LLMRewriting {
             _ model: RewriteModel,
             _ body: String,
             _ instructions: String,
-            _ parameters: GenerateParameters
+            _ parameters: GenerateParameters,
+            _ images: [UserInput.Image]
         ) throws -> AsyncThrowingStream<RewriteEvent, Error>
 
     static let shared = LLMRewriteService()
@@ -173,10 +197,6 @@ actor LLMRewriteService: LLMRewriting {
     private var fileDownloadProgressObservers: [RewriteModelTier: [UUID: @Sendable (Progress) -> Void]] = [:]
     private var loadProgressObservers: [UUID: @Sendable (Progress) -> Void] = [:]
     private var idleUnloadTask: Task<Void, Never>?
-
-    private var generationParameters: GenerateParameters {
-        GenerateParameters(maxTokens: tier.recommendedMaxTokens, temperature: 0, topP: 1.0)
-    }
 
     init(
         tier: RewriteModelTier = .standard2B,
@@ -207,6 +227,10 @@ actor LLMRewriteService: LLMRewriting {
         if !hasCustomLoader {
             tierLoader = LLMRewriteService.makeDefaultLoader(tier: newTier)
         }
+        resetLoadedModelState()
+    }
+
+    private func resetLoadedModelState() {
         idleUnloadTask?.cancel()
         idleUnloadTask = nil
         loadTask?.cancel()
@@ -217,7 +241,7 @@ actor LLMRewriteService: LLMRewriting {
     }
 
     func prewarm() async throws {
-        _ = try await resolveModel()
+        _ = try await resolveLoadedModel()
     }
 
     func rewrite(body: String, instructions: String) async throws -> String {
@@ -233,7 +257,15 @@ actor LLMRewriteService: LLMRewriting {
     }
 
     func generate(prompt: String, systemPrompt: String) async throws -> String {
-        try await generateCore(prompt: prompt, systemPrompt: systemPrompt)
+        try await generate(prompt: prompt, systemPrompt: systemPrompt, images: [])
+    }
+
+    func generate(
+        prompt: String,
+        systemPrompt: String,
+        images: [UserInput.Image]
+    ) async throws -> String {
+        try await generateCore(prompt: prompt, systemPrompt: systemPrompt, images: images)
     }
 
     func loadedTier() async -> RewriteModelTier? {
@@ -241,13 +273,22 @@ actor LLMRewriteService: LLMRewriting {
     }
 
     private func rewriteCore(body: String, instructions: String, promptPrefix: String) async throws -> String {
+        try await rewriteCore(body: body, instructions: instructions, promptPrefix: promptPrefix, images: [])
+    }
+
+    private func rewriteCore(
+        body: String,
+        instructions: String,
+        promptPrefix: String,
+        images: [UserInput.Image]
+    ) async throws -> String {
         if Task.isCancelled {
             throw LLMRewriteError.cancelled
         }
 
         let model: RewriteModel
         do {
-            model = try await resolveModel()
+            model = try await resolveLoadedModel()
         } catch is CancellationError {
             throw LLMRewriteError.cancelled
         } catch let rewriteError as LLMRewriteError {
@@ -263,7 +304,8 @@ actor LLMRewriteService: LLMRewriting {
                 model,
                 body,
                 Self.makeRewriteInstructions(promptPrefix: promptPrefix, instructions: instructions),
-                generationParameters
+                generationParameters(for: tier),
+                images
             )
 
             var output = ""
@@ -313,14 +355,18 @@ actor LLMRewriteService: LLMRewriting {
         }
     }
 
-    private func generateCore(prompt: String, systemPrompt: String) async throws -> String {
+    private func generateCore(
+        prompt: String,
+        systemPrompt: String,
+        images: [UserInput.Image]
+    ) async throws -> String {
         if Task.isCancelled {
             throw LLMRewriteError.cancelled
         }
 
         let model: RewriteModel
         do {
-            model = try await resolveModel()
+            model = try await resolveLoadedModel()
         } catch is CancellationError {
             throw LLMRewriteError.cancelled
         } catch let rewriteError as LLMRewriteError {
@@ -332,11 +378,12 @@ actor LLMRewriteService: LLMRewriting {
         await rewriteExecutionGate.acquire()
 
         do {
-            let stream = try Self.rawStreamFactory(
-                model: model,
-                prompt: prompt,
-                systemPrompt: systemPrompt,
-                parameters: generationParameters
+            let stream = try streamFactory(
+                model,
+                prompt,
+                systemPrompt,
+                generationParameters(for: tier),
+                images
             )
 
             var output = ""
@@ -386,7 +433,7 @@ actor LLMRewriteService: LLMRewriting {
         }
     }
 
-    private func resolveModel() async throws -> RewriteModel {
+    private func resolveLoadedModel() async throws -> RewriteModel {
         idleUnloadTask?.cancel()
         idleUnloadTask = nil
 
@@ -398,8 +445,13 @@ actor LLMRewriteService: LLMRewriting {
             return try await loadTask.value
         }
 
+        return try await resolveBuiltInModel(for: tier)
+    }
+
+    private func resolveBuiltInModel(
+        for tier: RewriteModelTier
+    ) async throws -> RewriteModel {
         let loader = currentLoader()
-        let tier = self.tier
         let loadProgressHandler = currentLoadProgressHandler()
         let task = Task { [loader, hubFactory, hasCustomLoader, hasCustomFileDownloader, tier, loadProgressHandler, self] in
             if hasCustomLoader && !hasCustomFileDownloader {
@@ -456,6 +508,10 @@ actor LLMRewriteService: LLMRewriting {
         }
     }
 
+    private func generationParameters(for tier: RewriteModelTier) -> GenerateParameters {
+        GenerateParameters(maxTokens: tier.recommendedMaxTokens, temperature: 0, topP: 1.0)
+    }
+
     private func isMemoryPressureError(_ error: Error) -> Bool {
         let description = error.localizedDescription.lowercased()
         return description.contains("out of memory") || description.contains("memory") && description.contains("alloc")
@@ -474,7 +530,7 @@ actor LLMRewriteService: LLMRewriting {
             loadProgressObservers.removeValue(forKey: observerID)
         }
 
-        _ = try await resolveModel()
+        _ = try await resolveLoadedModel()
         let done = Progress(totalUnitCount: 1)
         done.completedUnitCount = 1
         progressHandler(done)
@@ -616,7 +672,8 @@ actor LLMRewriteService: LLMRewriting {
         model: RewriteModel,
         body: String,
         instructions: String,
-        parameters: GenerateParameters
+        parameters: GenerateParameters,
+        images: [UserInput.Image]
     ) throws -> AsyncThrowingStream<RewriteEvent, Error> {
         guard let container = model.container else {
             throw LLMRewriteError.generationFailed
@@ -637,7 +694,11 @@ actor LLMRewriteService: LLMRewriting {
             let task = Task {
                 do {
                     var stripper = ThinkStripper()
-                    for try await generation in session.streamDetails(to: rewriteBody, images: [], videos: []) {
+                    for try await generation in session.streamDetails(
+                        to: rewriteBody,
+                        images: images,
+                        videos: []
+                    ) {
                         switch generation {
                         case .chunk(let text):
                             let visible = stripper.process(text)
@@ -675,7 +736,8 @@ actor LLMRewriteService: LLMRewriting {
         model: RewriteModel,
         prompt: String,
         systemPrompt: String,
-        parameters: GenerateParameters
+        parameters: GenerateParameters,
+        images: [UserInput.Image] = []
     ) throws -> AsyncThrowingStream<RewriteEvent, Error> {
         guard let container = model.container else {
             throw LLMRewriteError.generationFailed
@@ -694,7 +756,11 @@ actor LLMRewriteService: LLMRewriting {
             let task = Task {
                 do {
                     var stripper = ThinkStripper()
-                    for try await generation in session.streamDetails(to: trimmedPrompt, images: [], videos: []) {
+                    for try await generation in session.streamDetails(
+                        to: trimmedPrompt,
+                        images: images,
+                        videos: []
+                    ) {
                         switch generation {
                         case .chunk(let text):
                             let visible = stripper.process(text)
@@ -1030,6 +1096,10 @@ actor LLMRewriteService: LLMRewriting {
         let directory = try downloadedModelDirectory(for: tier, fileManager: fileManager)
         guard fileManager.fileExists(atPath: directory.path) else { return }
 
+        try markModelPrepared(at: directory, fileManager: fileManager)
+    }
+
+    private static func markModelPrepared(at directory: URL, fileManager: FileManager) throws {
         let markerURL = preparedMarkerURL(for: directory)
         if !fileManager.fileExists(atPath: markerURL.path) {
             fileManager.createFile(atPath: markerURL.path, contents: Data(), attributes: nil)
@@ -1059,7 +1129,7 @@ actor LLMRewriteService: LLMRewriting {
             return [
                 "chat_template.jinja",
                 "config.json",
-                "optiq_metadata.json",
+                "processor_config.json",
                 "tokenizer.json",
                 "tokenizer_config.json"
             ]

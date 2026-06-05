@@ -70,11 +70,12 @@ struct SuccessPillCountdownStyle {
         return max(0, min(1, elapsed / colorRampDuration))
     }
 
-    static func label(elapsed: TimeInterval?) -> String {
-        guard let elapsed else { return "Done" }
+    static func label(elapsed: TimeInterval?, wasSavedToNote: Bool = false) -> String {
+        let initialLabel = wasSavedToNote ? "Noted" : "Done"
+        guard let elapsed else { return initialLabel }
 
         switch elapsed {
-        case ..<2.5: return "Done"
+        case ..<2.5: return initialLabel
         case 2.5..<5: return "Closing"
         case 5..<6: return "5"
         case 6..<7: return "4"
@@ -139,8 +140,8 @@ struct PillCopyControlConfiguration: Equatable {
     static let symbolName = "square.on.square"
     static let slotWidth: CGFloat = 34
     static let slotHeight: CGFloat = 34
-    static let controlDiameter: CGFloat = 24
-    static let iconSymbolSize: CGFloat = 12
+    static let controlDiameter: CGFloat = 22
+    static let iconSymbolSize: CGFloat = 11
     static let disabledAccessibilityIdentifier = "pill.copyDisabled"
     static let successAccessibilityIdentifier = "pill.successCopy"
 
@@ -174,6 +175,8 @@ struct PillCopyControlConfiguration: Equatable {
 struct RecordingPillView: View {
     private static let actionButtonFrame: CGFloat = 34
     private static let actionButtonSymbolSize: CGFloat = 20
+    private static let filledActionCircleSize: CGFloat = 22
+    private static let overlayActionSymbolSize: CGFloat = 13
     private enum ActivityMeterMode: Equatable {
         case recording
         case processing
@@ -185,6 +188,7 @@ struct RecordingPillView: View {
     let recoveryFeedback: RecordingState.RecoveryFeedback?
     let successDismissStartedAt: Date?
     let successDismissDeadline: Date?
+    let successNoteSaveState: SuccessNoteSaveState?
     var silenceWarningActive: Bool = false
     var onFinish: (() -> Void)?
     var onCancel: (() -> Void)?
@@ -192,8 +196,10 @@ struct RecordingPillView: View {
     var onSuccessClose: (() -> Void)?
     var onSuccessCopy: (() -> Void)?
     var onSuccessAppend: (() -> Void)?
+    var onSuccessSaveNote: (() -> Void)?
 
     private static let pillBackground = Color(red: 0.11, green: 0.11, blue: 0.13)
+    private static let noteActionPurple = Color(red: 0.55, green: 0.18, blue: 0.79)
 
     private let barScales: [CGFloat]
 
@@ -204,19 +210,22 @@ struct RecordingPillView: View {
         recoveryFeedback: RecordingState.RecoveryFeedback? = nil,
         successDismissStartedAt: Date? = nil,
         successDismissDeadline: Date? = nil,
+        successNoteSaveState: SuccessNoteSaveState? = nil,
         silenceWarningActive: Bool = false,
         onFinish: (() -> Void)? = nil,
         onCancel: (() -> Void)? = nil,
         onRestart: (() -> Void)? = nil,
         onSuccessClose: (() -> Void)? = nil,
         onSuccessCopy: (() -> Void)? = nil,
-        onSuccessAppend: (() -> Void)? = nil
+        onSuccessAppend: (() -> Void)? = nil,
+        onSuccessSaveNote: (() -> Void)? = nil
     ) {
         self.levelMonitor = levelMonitor
         self.recordingState = recordingState
         self.recoveryFeedback = recoveryFeedback
         self.successDismissStartedAt = successDismissStartedAt
         self.successDismissDeadline = successDismissDeadline
+        self.successNoteSaveState = successNoteSaveState
         self.silenceWarningActive = silenceWarningActive
         self.onFinish = onFinish
         self.onCancel = onCancel
@@ -224,6 +233,7 @@ struct RecordingPillView: View {
         self.onSuccessClose = onSuccessClose
         self.onSuccessCopy = onSuccessCopy
         self.onSuccessAppend = onSuccessAppend
+        self.onSuccessSaveNote = onSuccessSaveNote
         barScales = (0..<7).map { _ in CGFloat.random(in: 0.55...1.0) }
     }
 
@@ -564,7 +574,7 @@ struct RecordingPillView: View {
                         .frame(maxWidth: .infinity, alignment: .center)
 
                     HStack(spacing: sideButtonGap) {
-                        successRestartButton
+                        successNoteButton
                         successCopyButton
                     }
                     .frame(width: laneWidth, alignment: .trailing)
@@ -582,7 +592,8 @@ struct RecordingPillView: View {
 
     private func successLabel(startedAt: Date?, now: Date) -> String {
         SuccessPillCountdownStyle.label(
-            elapsed: startedAt.map { now.timeIntervalSince($0) }
+            elapsed: startedAt.map { now.timeIntervalSince($0) },
+            wasSavedToNote: successNoteSaveState?.isSaved ?? false
         )
     }
 
@@ -634,10 +645,15 @@ struct RecordingPillView: View {
 
     private var successAppendButton: some View {
         Button(action: { onSuccessAppend?() }) {
-            Image(systemName: "plus.circle.fill")
-                .font(.system(size: Self.actionButtonSymbolSize, weight: .bold))
-                .symbolRenderingMode(.palette)
-                .foregroundStyle(Color(white: 0.9), Color.blue)
+            ZStack {
+                Image(systemName: "circle.fill")
+                    .font(.system(size: Self.filledActionCircleSize, weight: .bold))
+                    .foregroundStyle(Color.blue)
+
+                Image(systemName: "plus")
+                    .font(.system(size: Self.overlayActionSymbolSize, weight: .bold))
+                    .foregroundStyle(Color(white: 0.95))
+            }
                 .frame(width: Self.actionButtonFrame, height: Self.actionButtonFrame)
                 .contentShape(Circle())
         }
@@ -645,18 +661,19 @@ struct RecordingPillView: View {
         .accessibilityIdentifier("pill.successAppend")
     }
 
-    private var successRestartButton: some View {
-        Button(action: {}) {
-            Image(systemName: "arrow.counterclockwise.circle.fill")
-                .font(.system(size: Self.actionButtonSymbolSize, weight: .bold))
-                .symbolRenderingMode(.palette)
-                .foregroundStyle(Color(white: 0.72), Color(white: 0.42))
+    private var successNoteButton: some View {
+        let effectiveState = successNoteSaveState ?? .disabledMissingConfiguration
+        let configuration = successNoteButtonConfiguration(for: effectiveState)
+
+        return Button(action: { onSuccessSaveNote?() }) {
+            successNoteButtonLabel(configuration: configuration)
                 .frame(width: Self.actionButtonFrame, height: Self.actionButtonFrame)
                 .contentShape(Circle())
         }
         .buttonStyle(.plain)
-        .disabled(true)
-        .accessibilityIdentifier("pill.successRestart")
+        .disabled(!configuration.isEnabled)
+        .help(configuration.helpText)
+        .accessibilityIdentifier(configuration.accessibilityIdentifier)
     }
 
     private var restartButton: some View {
@@ -695,6 +712,116 @@ struct RecordingPillView: View {
         .disabled(!configuration.isEnabled)
         .accessibilityIdentifier(configuration.accessibilityIdentifier)
         .frame(width: PillCopyControlConfiguration.slotWidth, height: PillCopyControlConfiguration.slotHeight)
+    }
+
+    private func successNoteButtonConfiguration(
+        for state: SuccessNoteSaveState
+    ) -> (
+        primarySymbolName: String,
+        secondarySymbolName: String?,
+        primarySymbolSize: CGFloat,
+        primarySymbolWeight: Font.Weight,
+        secondarySymbolSize: CGFloat,
+        secondarySymbolWeight: Font.Weight,
+        primaryColor: Color,
+        secondaryColor: Color,
+        isEnabled: Bool,
+        helpText: String,
+        accessibilityIdentifier: String
+    ) {
+        switch state {
+        case .available:
+            return (
+                primarySymbolName: "circle.fill",
+                secondarySymbolName: "document.fill",
+                primarySymbolSize: Self.filledActionCircleSize,
+                primarySymbolWeight: .bold,
+                secondarySymbolSize: 10,
+                secondarySymbolWeight: .semibold,
+                primaryColor: Self.noteActionPurple,
+                secondaryColor: Color(white: 0.95),
+                isEnabled: true,
+                helpText: "Save this result as a note.",
+                accessibilityIdentifier: "pill.successSaveNote"
+            )
+        case .saving:
+            return (
+                primarySymbolName: "ellipsis.circle.fill",
+                secondarySymbolName: nil,
+                primarySymbolSize: Self.actionButtonSymbolSize,
+                primarySymbolWeight: .bold,
+                secondarySymbolSize: 0,
+                secondarySymbolWeight: .regular,
+                primaryColor: Self.noteActionPurple,
+                secondaryColor: Color(white: 0.9),
+                isEnabled: false,
+                helpText: "Saving note…",
+                accessibilityIdentifier: "pill.successSaveNoteSaving"
+            )
+        case .saved:
+            return (
+                primarySymbolName: "circle.fill",
+                secondarySymbolName: "document.fill",
+                primarySymbolSize: Self.filledActionCircleSize,
+                primarySymbolWeight: .bold,
+                secondarySymbolSize: 10,
+                secondarySymbolWeight: .semibold,
+                primaryColor: Color(white: 0.36),
+                secondaryColor: Color(white: 0.82),
+                isEnabled: false,
+                helpText: "This result has already been saved as a note.",
+                accessibilityIdentifier: "pill.successSaveNoteSaved"
+            )
+        case .disabledMissingConfiguration:
+            return (
+                primarySymbolName: "circle.fill",
+                secondarySymbolName: "document.fill",
+                primarySymbolSize: Self.filledActionCircleSize,
+                primarySymbolWeight: .bold,
+                secondarySymbolSize: 10,
+                secondarySymbolWeight: .semibold,
+                primaryColor: Color(white: 0.36),
+                secondaryColor: Color(white: 0.82),
+                isEnabled: false,
+                helpText: "Configure a note destination in Settings to enable note saving.",
+                accessibilityIdentifier: "pill.successSaveNoteDisabled"
+            )
+        }
+    }
+
+    @ViewBuilder
+    private func successNoteButtonLabel(
+        configuration: (
+            primarySymbolName: String,
+            secondarySymbolName: String?,
+            primarySymbolSize: CGFloat,
+            primarySymbolWeight: Font.Weight,
+            secondarySymbolSize: CGFloat,
+            secondarySymbolWeight: Font.Weight,
+            primaryColor: Color,
+            secondaryColor: Color,
+            isEnabled: Bool,
+            helpText: String,
+            accessibilityIdentifier: String
+        )
+    ) -> some View {
+        if let secondarySymbolName = configuration.secondarySymbolName {
+            ZStack {
+                Image(systemName: configuration.primarySymbolName)
+                    .font(.system(size: configuration.primarySymbolSize, weight: configuration.primarySymbolWeight))
+                    .foregroundStyle(configuration.primaryColor)
+
+                Image(systemName: secondarySymbolName)
+                    .font(.system(size: configuration.secondarySymbolSize, weight: configuration.secondarySymbolWeight))
+                    .foregroundStyle(configuration.secondaryColor)
+                    .offset(y: 0.5)
+            }
+        } else {
+            Image(systemName: configuration.primarySymbolName)
+                .font(.system(size: configuration.primarySymbolSize, weight: configuration.primarySymbolWeight))
+                .symbolRenderingMode(.palette)
+                .foregroundStyle(Color(white: 0.9), configuration.primaryColor)
+        }
     }
 
     private func recoveryContent(feedback _: RecordingState.RecoveryFeedback) -> some View {

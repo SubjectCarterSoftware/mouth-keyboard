@@ -344,13 +344,15 @@ private struct RecordingPillViewWrapper: View {
             recoveryFeedback: activationStore.recoveryFeedback,
             successDismissStartedAt: activationStore.successDismissStartedAt,
             successDismissDeadline: activationStore.successDismissDeadline,
+            successNoteSaveState: activationStore.successNoteSaveState,
             silenceWarningActive: levelMonitor.silenceWarningActive,
             onFinish: { activationStore.finish() },
             onCancel: { activationStore.cancelCurrentSession() },
             onRestart: { activationStore.restartCurrentSession() },
             onSuccessClose: { activationStore.dismissCurrentSuccess() },
             onSuccessCopy: { activationStore.copyCurrentSuccessResult() },
-            onSuccessAppend: { activationStore.appendFromSuccess() }
+            onSuccessAppend: { activationStore.appendFromSuccess() },
+            onSuccessSaveNote: { activationStore.saveCurrentSuccessResultAsNote() }
         )
     }
 }

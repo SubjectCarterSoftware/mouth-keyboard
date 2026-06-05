@@ -65,11 +65,11 @@ enum PermissionKind: String, CaseIterable, Identifiable {
         case (.microphone, .denied):
             return "Microphone access is denied. Re-enable it in System Settings to move past the blocked state."
         case (.postEvent, .authorized):
-            return "Accessibility enables copying and pasting across apps."
+            return "Accessibility enables copying and pasting across apps, and global keyboard or mouse triggers may also rely on macOS input event access."
         case (.postEvent, .notDetermined):
-            return "Allow Accessibility access for copying and pasting across apps."
+            return "Allow Accessibility access for copying and pasting across apps. Global keyboard or mouse triggers may also depend on macOS input event access."
         case (.postEvent, .denied):
-            return "Accessibility access is blocked. Re-enable it in System Settings for copying and pasting across apps."
+            return "Accessibility access is blocked. Re-enable it in System Settings for copying and pasting across apps. Global keyboard or mouse triggers may also be unavailable without macOS input event access."
         }
     }
 }

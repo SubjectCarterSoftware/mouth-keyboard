@@ -1,7 +1,7 @@
 import XCTest
 @testable import TypeLessBuddy
 
-/// Opt-in benchmark suite for the rewrite pipeline under realistic single-target
+/// Opt-in benchmark suite for the rewrite pipeline under realistic deterministic
 /// external-context loads.
 ///
 /// Gate: set RUN_REWRITE_BENCHMARK_TESTS=1 to run. Never runs in CI or normal development.
@@ -113,7 +113,7 @@ extension RewritePipelineBenchmarkTests {
             clipboardText: clipboardText,
             routingDecision: AssistantContextRoutingDecision(
                 targetMode: targetMode,
-                decisionSource: .modelStructured
+                decisionSource: .explicitFastPath
             )
         )
         let promptWordCount = wordCount(body)

@@ -40,6 +40,7 @@ struct AudioCaptureServiceDebugState {
 
 final class AudioCaptureService {
     @MainActor static let shared = AudioCaptureService()
+    private static let minimumFinalizationDrainDuration: TimeInterval = 0.08
 
     private var engine: AVAudioEngine?
     private let engineFactory: () -> AVAudioEngine
@@ -205,6 +206,15 @@ final class AudioCaptureService {
     }
 
     @MainActor
+    func stopForFinalization() async {
+        let drainDelayNanoseconds = finalizationDrainDelayNanoseconds()
+        if drainDelayNanoseconds > 0 {
+            try? await Task.sleep(nanoseconds: drainDelayNanoseconds)
+        }
+        stop()
+    }
+
+    @MainActor
     private func cancelProbe() {
         probeTask?.cancel()
         probeTask = nil
@@ -323,5 +333,24 @@ final class AudioCaptureService {
         preferences.micDeviceUIDs.compactMap { uid in
             audioDeviceService.device(forUID: uid)
         }
+    }
+
+    @MainActor
+    private func finalizationDrainDelayNanoseconds() -> UInt64 {
+        guard hasInstalledTap, let engine else {
+            return 0
+        }
+
+        let sampleRate = engine.inputNode.outputFormat(forBus: 0).sampleRate
+        guard sampleRate > 0 else {
+            return UInt64(Self.minimumFinalizationDrainDuration * 1_000_000_000)
+        }
+
+        // Keep capture alive for roughly two tap buffers so audio that was
+        // already spoken at button-up can still reach the installed tap before
+        // we remove it and snapshot the accumulator.
+        let tapDuration = Double(tapBufferSize) / sampleRate
+        let drainDuration = max(tapDuration * 2, Self.minimumFinalizationDrainDuration)
+        return UInt64(drainDuration * 1_000_000_000)
     }
 }

@@ -130,8 +130,9 @@ final class AudioBufferAccumulatorTests: XCTestCase {
             trailingSilenceDuration: 0
         )
 
-        XCTAssertEqual(prepared.count, windowSampleCount)
-        XCTAssertTrue(prepared.allSatisfy { $0 == 0.02 })
+        XCTAssertEqual(prepared.count, windowSampleCount * 3)
+        XCTAssertTrue(Array(prepared.prefix(windowSampleCount)).allSatisfy { $0 == 0.02 })
+        XCTAssertTrue(prepared.dropFirst(windowSampleCount).allSatisfy { $0 == 0 })
     }
 
     func testPrepareForTranscriptionPreservesMiddleSilence() {
@@ -145,10 +146,11 @@ final class AudioBufferAccumulatorTests: XCTestCase {
             trailingSilenceDuration: 0
         )
 
-        XCTAssertEqual(prepared.count, windowSampleCount * 9)
+        XCTAssertEqual(prepared.count, windowSampleCount * 11)
         XCTAssertTrue(Array(prepared.prefix(windowSampleCount * 3)).allSatisfy { $0 == 0 })
         XCTAssertTrue(Array(prepared[(windowSampleCount * 4)..<(windowSampleCount * 8)]).allSatisfy { $0 == 0 })
-        XCTAssertTrue(Array(prepared.suffix(windowSampleCount)).allSatisfy { $0 == 0.02 })
+        XCTAssertTrue(Array(prepared[(windowSampleCount * 8)..<(windowSampleCount * 9)]).allSatisfy { $0 == 0.02 })
+        XCTAssertTrue(Array(prepared.suffix(windowSampleCount * 2)).allSatisfy { $0 == 0 })
     }
 
     func testPrepareForTranscriptionLeavesFullySilentInputUnchangedBeforePadding() {
@@ -184,6 +186,20 @@ final class AudioBufferAccumulatorTests: XCTestCase {
 
         XCTAssertEqual(prepared.count, windowSampleCount * 4)
         XCTAssertEqual(prepared, original)
+    }
+
+    func testPrepareForTranscriptionKeepsQuietTrailingTailViaPostRoll() {
+        let prepared = AudioBufferAccumulator.prepareForTranscription(
+            repeating(0.02, count: 1)
+                + repeating(0.003, count: 1)
+                + repeating(0, count: 3),
+            minimumDuration: 0,
+            trailingSilenceDuration: 0
+        )
+
+        XCTAssertEqual(prepared.count, windowSampleCount * 3)
+        XCTAssertTrue(Array(prepared.prefix(windowSampleCount)).allSatisfy { $0 == 0.02 })
+        XCTAssertTrue(Array(prepared[windowSampleCount..<(windowSampleCount * 2)]).allSatisfy { $0 == 0.003 })
     }
 
     private func repeating(_ sample: Float, count windows: Int) -> [Float] {

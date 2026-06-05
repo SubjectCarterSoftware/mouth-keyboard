@@ -2,8 +2,29 @@ import Foundation
 
 struct DictionaryData: Codable, Equatable, Sendable {
     var replacements: [WordReplacement]
+    /// IDs of vocabulary packs the user has enabled. Source of truth for rendering
+    /// pack toggles (a pack can be "on" even when all its rules also exist as
+    /// user-authored entries).
+    var enabledPackIDs: [String]
+
+    init(replacements: [WordReplacement], enabledPackIDs: [String] = []) {
+        self.replacements = replacements
+        self.enabledPackIDs = enabledPackIDs
+    }
 
     static let empty = DictionaryData(replacements: [])
+
+    private enum CodingKeys: String, CodingKey {
+        case replacements, enabledPackIDs
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        let replacements = try container.decode([WordReplacement].self, forKey: .replacements)
+        // Backward compatibility: stores written before vocabulary packs lack this key.
+        let enabledPackIDs = try container.decodeIfPresent([String].self, forKey: .enabledPackIDs) ?? []
+        self.init(replacements: replacements, enabledPackIDs: enabledPackIDs)
+    }
 }
 
 actor DictionaryStore {

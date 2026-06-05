@@ -22,4 +22,8 @@ enum StoreURLResolver {
             return fileManager.temporaryDirectory.appendingPathComponent(fileName)
         }
     }
+
+    static func directoryURL(named directoryName: String) -> URL {
+        url(for: directoryName)
+    }
 }

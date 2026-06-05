@@ -153,8 +153,10 @@ final class HotkeyService {
     var onCancel: () -> Void
     var onBeginHold: () -> Bool
     var onFinishHold: () -> Void
+    var currentMouseBindings: @MainActor () -> (start: MouseButtonBinding?, stop: MouseButtonBinding?, hold: MouseButtonBinding?)
 
     private let holdMonitor: HoldToTranscribeMonitor
+    private let mouseMonitor: MouseButtonShortcutMonitor
 
     private var isListening = false
     private var lastActivationTime: CFAbsoluteTime?
@@ -171,8 +173,12 @@ final class HotkeyService {
         onCancel: @escaping () -> Void = {},
         onBeginHold: @escaping () -> Bool = { false },
         onFinishHold: @escaping () -> Void = {},
+        currentMouseBindings: @escaping @MainActor () -> (start: MouseButtonBinding?, stop: MouseButtonBinding?, hold: MouseButtonBinding?) = {
+            ShortcutBindingPolicy.sanitizedMouseBindings(preferences: .shared)
+        },
         now: @escaping () -> CFAbsoluteTime = CFAbsoluteTimeGetCurrent,
-        holdMonitor: HoldToTranscribeMonitor = HoldToTranscribeMonitor()
+        holdMonitor: HoldToTranscribeMonitor = HoldToTranscribeMonitor(),
+        mouseMonitor: MouseButtonShortcutMonitor = MouseButtonShortcutMonitor()
     ) {
         self.minimumActivationInterval = minimumActivationInterval
         self.currentState = currentState
@@ -182,8 +188,10 @@ final class HotkeyService {
         self.onCancel = onCancel
         self.onBeginHold = onBeginHold
         self.onFinishHold = onFinishHold
+        self.currentMouseBindings = currentMouseBindings
         self.now = now
         self.holdMonitor = holdMonitor
+        self.mouseMonitor = mouseMonitor
         self.holdMonitor.onHoldKeyPressed = { [weak self] in
             Task { @MainActor [weak self] in
                 self?.handleHoldKeyStateChange(isPressed: true)
@@ -192,6 +200,16 @@ final class HotkeyService {
         self.holdMonitor.onHoldKeyReleased = { [weak self] in
             Task { @MainActor [weak self] in
                 self?.handleHoldKeyStateChange(isPressed: false)
+            }
+        }
+        self.mouseMonitor.onMouseButtonPressed = { [weak self] buttonNumber in
+            Task { @MainActor [weak self] in
+                self?.handleMouseButtonDown(buttonNumber: buttonNumber)
+            }
+        }
+        self.mouseMonitor.onMouseButtonReleased = { [weak self] buttonNumber in
+            Task { @MainActor [weak self] in
+                self?.handleMouseButtonUp(buttonNumber: buttonNumber)
             }
         }
     }
@@ -225,6 +243,7 @@ final class HotkeyService {
 
             isHoldKeyDown = true
             hasActiveHoldSession = false
+            lastHandledKeypressTime = now()
 
             if onBeginHold() {
                 hasActiveHoldSession = true
@@ -238,6 +257,51 @@ final class HotkeyService {
         guard hasActiveHoldSession else { return }
 
         onFinishHold()
+    }
+
+    @discardableResult
+    func handleMouseButtonDown(buttonNumber: Int) -> Bool {
+        let currentTime = now()
+        let bindings = currentMouseBindings()
+        let isStartButton = bindings.start?.buttonNumber == buttonNumber
+        let isStopButton = bindings.stop?.buttonNumber == buttonNumber
+        let state = currentState()
+
+        if bindings.hold?.buttonNumber == buttonNumber {
+            lastHandledKeypressTime = currentTime
+            handleHoldKeyStateChange(isPressed: true)
+            return true
+        }
+
+        if isStopButton && state == .recording {
+            lastHandledKeypressTime = currentTime
+            onStop()
+            return true
+        }
+
+        if isStartButton && (state == .idle || state.isTerminal) {
+            if let lastActivationTime,
+               currentTime - lastActivationTime < minimumActivationInterval {
+                return true
+            }
+
+            lastActivationTime = currentTime
+            onArm()
+            return true
+        }
+
+        return isStartButton || isStopButton
+    }
+
+    @discardableResult
+    func handleMouseButtonUp(buttonNumber: Int) -> Bool {
+        let bindings = currentMouseBindings()
+        guard bindings.hold?.buttonNumber == buttonNumber else {
+            return false
+        }
+
+        handleHoldKeyStateChange(isPressed: false)
+        return true
     }
 
     /// Register with KeyboardShortcuts using the Carbon hot key API.
@@ -296,7 +360,9 @@ final class HotkeyService {
         }
 
         configureHoldTarget()
+        configureMouseBindings()
         _ = holdMonitor.start()
+        _ = mouseMonitor.start()
     }
 
     func configureHoldTarget() {
@@ -318,11 +384,26 @@ final class HotkeyService {
         holdMonitor.updateTarget(keyCode: keyCode, modifiers: modifiers)
     }
 
+    func configureMouseBindings() {
+        let prefs = ShellPreferences.shared
+        let sanitizedBindings = ShortcutBindingPolicy.sanitizedMouseBindings(preferences: prefs)
+        mouseMonitor.updateBindings(
+            start: sanitizedBindings.start,
+            stop: sanitizedBindings.stop,
+            hold: sanitizedBindings.hold
+        )
+    }
+
+    func setMouseBindingsEnabled(_ isEnabled: Bool) {
+        mouseMonitor.setEnabled(isEnabled)
+    }
+
     func stop() {
         KeyboardShortcuts.disable(.activate, .activateAlt)
         KeyboardShortcuts.disable(.stopSession, .stopSessionAlt)
         KeyboardShortcuts.disable(.cancelSession)
         holdMonitor.stop()
+        mouseMonitor.stop()
         clearHoldInteractionState()
         lastActivationTime = nil
         isListening = false
@@ -331,6 +412,131 @@ final class HotkeyService {
     private func clearHoldInteractionState() {
         isHoldKeyDown = false
         hasActiveHoldSession = false
+    }
+}
+
+final class MouseButtonShortcutMonitor {
+    var onMouseButtonPressed: ((Int) -> Void)?
+    var onMouseButtonReleased: ((Int) -> Void)?
+
+    private var eventTap: CFMachPort?
+    private var runLoopSource: CFRunLoopSource?
+    private var startBinding: MouseButtonBinding?
+    private var stopBinding: MouseButtonBinding?
+    private var holdBinding: MouseButtonBinding?
+    private var isEnabled = true
+
+    func updateBindings(start: MouseButtonBinding?, stop: MouseButtonBinding?, hold: MouseButtonBinding?) {
+        startBinding = start
+        stopBinding = stop
+        holdBinding = hold
+    }
+
+    func setEnabled(_ isEnabled: Bool) {
+        self.isEnabled = isEnabled
+    }
+
+    deinit {
+        stop()
+    }
+
+    @discardableResult
+    func start() -> Bool {
+        guard eventTap == nil else { return true }
+
+        let eventsOfInterest =
+            Self.mask(for: .otherMouseDown)
+            | Self.mask(for: .otherMouseUp)
+            | Self.mask(for: .tapDisabledByTimeout)
+            | Self.mask(for: .tapDisabledByUserInput)
+
+        guard let tap = CGEvent.tapCreate(
+            tap: .cghidEventTap,
+            place: .headInsertEventTap,
+            options: CGEventTapOptions(rawValue: 0)!,
+            eventsOfInterest: eventsOfInterest,
+            callback: { _, type, event, userInfo in
+                guard let userInfo else {
+                    return Unmanaged.passUnretained(event)
+                }
+
+                let monitor = Unmanaged<MouseButtonShortcutMonitor>.fromOpaque(userInfo).takeUnretainedValue()
+                return monitor.handleEvent(type: type, event: event)
+            },
+            userInfo: Unmanaged.passUnretained(self).toOpaque()
+        ) else {
+            return false
+        }
+
+        guard let runLoopSource = CFMachPortCreateRunLoopSource(kCFAllocatorDefault, tap, 0) else {
+            CFMachPortInvalidate(tap)
+            return false
+        }
+
+        eventTap = tap
+        self.runLoopSource = runLoopSource
+        CFRunLoopAddSource(CFRunLoopGetMain(), runLoopSource, .commonModes)
+        CGEvent.tapEnable(tap: tap, enable: true)
+        return true
+    }
+
+    func stop() {
+        if let runLoopSource {
+            CFRunLoopRemoveSource(CFRunLoopGetMain(), runLoopSource, .commonModes)
+            self.runLoopSource = nil
+        }
+
+        if let eventTap {
+            CFMachPortInvalidate(eventTap)
+            self.eventTap = nil
+        }
+
+        isEnabled = true
+    }
+
+    private func handleEvent(type: CGEventType, event: CGEvent) -> Unmanaged<CGEvent>? {
+        switch type {
+        case .tapDisabledByTimeout, .tapDisabledByUserInput:
+            if let eventTap {
+                CGEvent.tapEnable(tap: eventTap, enable: true)
+            }
+            return Unmanaged.passUnretained(event)
+
+        case .otherMouseDown:
+            let buttonNumber = Int(event.getIntegerValueField(.mouseEventButtonNumber))
+            guard shouldHandle(buttonNumber: buttonNumber) else {
+                return Unmanaged.passUnretained(event)
+            }
+
+            onMouseButtonPressed?(buttonNumber)
+            return nil
+
+        case .otherMouseUp:
+            let buttonNumber = Int(event.getIntegerValueField(.mouseEventButtonNumber))
+            guard shouldHandle(buttonNumber: buttonNumber) else {
+                return Unmanaged.passUnretained(event)
+            }
+
+            onMouseButtonReleased?(buttonNumber)
+            return nil
+
+        default:
+            return Unmanaged.passUnretained(event)
+        }
+    }
+
+    private func shouldHandle(buttonNumber: Int) -> Bool {
+        guard isEnabled else {
+            return false
+        }
+
+        return startBinding?.buttonNumber == buttonNumber
+            || stopBinding?.buttonNumber == buttonNumber
+            || holdBinding?.buttonNumber == buttonNumber
+    }
+
+    private static func mask(for type: CGEventType) -> CGEventMask {
+        1 << type.rawValue
     }
 }
 

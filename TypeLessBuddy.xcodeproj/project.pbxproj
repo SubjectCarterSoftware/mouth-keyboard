@@ -7,6 +7,18 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		A0000001000000000000010A /* AssistantNoteIntentClassifier.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0000002000000000000010A /* AssistantNoteIntentClassifier.swift */; };
+		A0000001000000000000010B /* ReplacementPackCatalog.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0000002000000000000010B /* ReplacementPackCatalog.swift */; };
+		A0000001000000000000010C /* ReplacementPackService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0000002000000000000010C /* ReplacementPackService.swift */; };
+		A0000001000000000000010D /* HistoryCaptureService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0000002000000000000010D /* HistoryCaptureService.swift */; };
+		A0000001000000000000010E /* NoteCaptureService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0000002000000000000010E /* NoteCaptureService.swift */; };
+		A0000001000000000000010F /* AssistantNoteIntentClassifierTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0000002000000000000010F /* AssistantNoteIntentClassifierTests.swift */; };
+		A00000010000000000000110 /* ExternalTextPromptBuilderTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000020000000000000110 /* ExternalTextPromptBuilderTests.swift */; };
+		A00000010000000000000111 /* ExternalTextSourceClassifierTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000020000000000000111 /* ExternalTextSourceClassifierTests.swift */; };
+		A00000010000000000000112 /* HistoryCaptureServiceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000020000000000000112 /* HistoryCaptureServiceTests.swift */; };
+		A00000010000000000000113 /* NoteCaptureServiceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000020000000000000113 /* NoteCaptureServiceTests.swift */; };
+		A00000010000000000000114 /* ReplacementPackCatalogTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000020000000000000114 /* ReplacementPackCatalogTests.swift */; };
+		A00000010000000000000115 /* ReplacementPackServiceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000020000000000000115 /* ReplacementPackServiceTests.swift */; };
 		933C00412F6C862500B5BB12 /* WhisperModelChoice.swift in Frameworks */ = {isa = PBXBuildFile; fileRef = A0000002000000000000002F /* WhisperModelChoice.swift */; };
 		933C00422F6C862500B5BB12 /* MLXLLM in Frameworks */ = {isa = PBXBuildFile; productRef = A00000130000000000000003 /* MLXLLM */; };
 		933C00432F6C862500B5BB12 /* MLXLMCommon in Frameworks */ = {isa = PBXBuildFile; productRef = A00000130000000000000004 /* MLXLMCommon */; };
@@ -21,7 +33,6 @@
 		A00000010000000000000009 /* ReadinessStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0000002000000000000000B /* ReadinessStore.swift */; };
 		A0000001000000000000000A /* PermissionChecklistView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0000002000000000000000C /* PermissionChecklistView.swift */; };
 		A0000001000000000000000B /* RecoveryActions.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0000002000000000000000D /* RecoveryActions.swift */; };
-		A0000001000000000000000C /* StatusCardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0000002000000000000000E /* StatusCardView.swift */; };
 		A0000001000000000000000D /* PermissionServiceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0000002000000000000000F /* PermissionServiceTests.swift */; };
 		A0000001000000000000000E /* ReadinessStateTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000020000000000000010 /* ReadinessStateTests.swift */; };
 		A0000001000000000000000F /* MenuBarShellSmokeTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000020000000000000011 /* MenuBarShellSmokeTests.swift */; };
@@ -59,8 +70,6 @@
 		A0000001000000000000003C /* LLMRewriteService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0000002000000000000003C /* LLMRewriteService.swift */; };
 		A0000001000000000000003D /* LLMRewriteServiceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0000002000000000000003D /* LLMRewriteServiceTests.swift */; };
 		A0000001000000000000003E /* LLMRewriteServiceIntegrationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0000002000000000000003E /* LLMRewriteServiceIntegrationTests.swift */; };
-		A00000010000000000000041 /* StringSimilarity.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000020000000000000041 /* StringSimilarity.swift */; };
-		A00000010000000000000042 /* StringSimilarityTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000020000000000000042 /* StringSimilarityTests.swift */; };
 		A00000010000000000000049 /* TriggerProfile.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000020000000000000049 /* TriggerProfile.swift */; };
 		A00000010000000000000100 /* WordReplacement.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000020000000000000100 /* WordReplacement.swift */; };
 		A00000010000000000000102 /* TextReplacementEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000020000000000000102 /* TextReplacementEngine.swift */; };
@@ -88,8 +97,8 @@
 		A00000010000000000000076 /* CloudModelListService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000020000000000000072 /* CloudModelListService.swift */; };
 		A00000010000000000000077 /* CloudLLMKeychain.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000020000000000000073 /* CloudLLMKeychain.swift */; };
 		A00000010000000000000078 /* CloudLLMTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000020000000000000078 /* CloudLLMTests.swift */; };
-		A00000010000000000000079 /* ClipboardIntentClassifier.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000020000000000000079 /* ClipboardIntentClassifier.swift */; };
-		A00000010000000000000080 /* ClipboardAwarePromptBuilder.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000020000000000000080 /* ClipboardAwarePromptBuilder.swift */; };
+		A00000010000000000000079 /* ExternalTextSourceClassifier.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000020000000000000079 /* ExternalTextSourceClassifier.swift */; };
+		A00000010000000000000080 /* ExternalTextPromptBuilder.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000020000000000000080 /* ExternalTextPromptBuilder.swift */; };
 		A00000010000000000000081 /* StatusMenuController.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000020000000000000081 /* StatusMenuController.swift */; };
 		A00000010000000000000082 /* ShortcutBindingPolicy.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000020000000000000082 /* ShortcutBindingPolicy.swift */; };
 		A00000010000000000000083 /* ShortcutBindingPolicyTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000020000000000000083 /* ShortcutBindingPolicyTests.swift */; };
@@ -120,6 +129,18 @@
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
+		A0000002000000000000010A /* AssistantNoteIntentClassifier.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AssistantNoteIntentClassifier.swift; sourceTree = "<group>"; };
+		A0000002000000000000010B /* ReplacementPackCatalog.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReplacementPackCatalog.swift; sourceTree = "<group>"; };
+		A0000002000000000000010C /* ReplacementPackService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReplacementPackService.swift; sourceTree = "<group>"; };
+		A0000002000000000000010D /* HistoryCaptureService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HistoryCaptureService.swift; sourceTree = "<group>"; };
+		A0000002000000000000010E /* NoteCaptureService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NoteCaptureService.swift; sourceTree = "<group>"; };
+		A0000002000000000000010F /* AssistantNoteIntentClassifierTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AssistantNoteIntentClassifierTests.swift; sourceTree = "<group>"; };
+		A00000020000000000000110 /* ExternalTextPromptBuilderTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExternalTextPromptBuilderTests.swift; sourceTree = "<group>"; };
+		A00000020000000000000111 /* ExternalTextSourceClassifierTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExternalTextSourceClassifierTests.swift; sourceTree = "<group>"; };
+		A00000020000000000000112 /* HistoryCaptureServiceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HistoryCaptureServiceTests.swift; sourceTree = "<group>"; };
+		A00000020000000000000113 /* NoteCaptureServiceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NoteCaptureServiceTests.swift; sourceTree = "<group>"; };
+		A00000020000000000000114 /* ReplacementPackCatalogTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReplacementPackCatalogTests.swift; sourceTree = "<group>"; };
+		A00000020000000000000115 /* ReplacementPackServiceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReplacementPackServiceTests.swift; sourceTree = "<group>"; };
 		A00000020000000000000001 /* TypeLessBuddyApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TypeLessBuddyApp.swift; sourceTree = "<group>"; };
 		A00000020000000000000002 /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
 		A00000020000000000000003 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
@@ -132,7 +153,6 @@
 		A0000002000000000000000B /* ReadinessStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReadinessStore.swift; sourceTree = "<group>"; };
 		A0000002000000000000000C /* PermissionChecklistView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PermissionChecklistView.swift; sourceTree = "<group>"; };
 		A0000002000000000000000D /* RecoveryActions.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecoveryActions.swift; sourceTree = "<group>"; };
-		A0000002000000000000000E /* StatusCardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StatusCardView.swift; sourceTree = "<group>"; };
 		A0000002000000000000000F /* PermissionServiceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PermissionServiceTests.swift; sourceTree = "<group>"; };
 		A00000020000000000000010 /* ReadinessStateTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReadinessStateTests.swift; sourceTree = "<group>"; };
 		A00000020000000000000011 /* MenuBarShellSmokeTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MenuBarShellSmokeTests.swift; sourceTree = "<group>"; };
@@ -172,8 +192,6 @@
 		A0000002000000000000003C /* LLMRewriteService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LLMRewriteService.swift; sourceTree = "<group>"; };
 		A0000002000000000000003D /* LLMRewriteServiceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LLMRewriteServiceTests.swift; sourceTree = "<group>"; };
 		A0000002000000000000003E /* LLMRewriteServiceIntegrationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LLMRewriteServiceIntegrationTests.swift; sourceTree = "<group>"; };
-		A00000020000000000000041 /* StringSimilarity.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StringSimilarity.swift; sourceTree = "<group>"; };
-		A00000020000000000000042 /* StringSimilarityTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StringSimilarityTests.swift; sourceTree = "<group>"; };
 		A00000020000000000000049 /* TriggerProfile.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TriggerProfile.swift; sourceTree = "<group>"; };
 		A00000020000000000000100 /* WordReplacement.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WordReplacement.swift; sourceTree = "<group>"; };
 		A00000020000000000000102 /* TextReplacementEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TextReplacementEngine.swift; sourceTree = "<group>"; };
@@ -201,8 +219,8 @@
 		A00000020000000000000072 /* CloudModelListService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CloudModelListService.swift; sourceTree = "<group>"; };
 		A00000020000000000000073 /* CloudLLMKeychain.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CloudLLMKeychain.swift; sourceTree = "<group>"; };
 		A00000020000000000000078 /* CloudLLMTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CloudLLMTests.swift; sourceTree = "<group>"; };
-		A00000020000000000000079 /* ClipboardIntentClassifier.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClipboardIntentClassifier.swift; sourceTree = "<group>"; };
-		A00000020000000000000080 /* ClipboardAwarePromptBuilder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClipboardAwarePromptBuilder.swift; sourceTree = "<group>"; };
+		A00000020000000000000079 /* ExternalTextSourceClassifier.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExternalTextSourceClassifier.swift; sourceTree = "<group>"; };
+		A00000020000000000000080 /* ExternalTextPromptBuilder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExternalTextPromptBuilder.swift; sourceTree = "<group>"; };
 		A00000020000000000000081 /* StatusMenuController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StatusMenuController.swift; sourceTree = "<group>"; };
 		A00000020000000000000082 /* ShortcutBindingPolicy.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShortcutBindingPolicy.swift; sourceTree = "<group>"; };
 		A00000020000000000000083 /* ShortcutBindingPolicyTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShortcutBindingPolicyTests.swift; sourceTree = "<group>"; };
@@ -311,7 +329,6 @@
 				A00000020000000000000020 /* RecordingPillView.swift */,
 				A0000002000000000000000D /* RecoveryActions.swift */,
 				A00000020000000000000006 /* SetupWindowView.swift */,
-				A0000002000000000000000E /* StatusCardView.swift */,
 				A00000020000000000000055 /* AIAssistantSettingsView.swift */,
 			);
 			path = Shell;
@@ -325,6 +342,8 @@
 				A00000020000000000000061 /* StoreURLResolver.swift */,
 				A00000020000000000000062 /* StoreQuarantine.swift */,
 				A00000020000000000000073 /* CloudLLMKeychain.swift */,
+				A0000002000000000000010D /* HistoryCaptureService.swift */,
+				A0000002000000000000010E /* NoteCaptureService.swift */,
 			);
 			path = Persistence;
 			sourceTree = "<group>";
@@ -361,7 +380,6 @@
 				A0000002000000000000001E /* AudioDeviceServiceTests.swift */,
 				A0000002000000000000002C /* ClipboardServiceTests.swift */,
 				A00000020000000000000019 /* HotkeyServiceTests.swift */,
-				A00000020000000000000042 /* StringSimilarityTests.swift */,
 				A0000002000000000000003D /* LLMRewriteServiceTests.swift */,
 				A0000002000000000000003E /* LLMRewriteServiceIntegrationTests.swift */,
 				A0000002000000000000000F /* PermissionServiceTests.swift */,
@@ -375,6 +393,13 @@
 				A00000020000000000000078 /* CloudLLMTests.swift */,
 				A00000020000000000000083 /* ShortcutBindingPolicyTests.swift */,
 				A00000020000000000000085 /* RewritePipelineBenchmarkTests.swift */,
+				A0000002000000000000010F /* AssistantNoteIntentClassifierTests.swift */,
+				A00000020000000000000110 /* ExternalTextPromptBuilderTests.swift */,
+				A00000020000000000000111 /* ExternalTextSourceClassifierTests.swift */,
+				A00000020000000000000112 /* HistoryCaptureServiceTests.swift */,
+				A00000020000000000000113 /* NoteCaptureServiceTests.swift */,
+				A00000020000000000000114 /* ReplacementPackCatalogTests.swift */,
+				A00000020000000000000115 /* ReplacementPackServiceTests.swift */,
 			);
 			path = TypeLessBuddyTests;
 			sourceTree = "<group>";
@@ -447,12 +472,14 @@
 				A0000002000000000000003C /* LLMRewriteService.swift */,
 				A00000020000000000000059 /* RewriteModelTier.swift */,
 				A00000020000000000000060 /* RewriteModelLoadState.swift */,
-				A00000020000000000000041 /* StringSimilarity.swift */,
 				A00000020000000000000070 /* CloudLLMProvider.swift */,
 				A00000020000000000000071 /* CloudLLMRewriteService.swift */,
 				A00000020000000000000072 /* CloudModelListService.swift */,
-				A00000020000000000000079 /* ClipboardIntentClassifier.swift */,
-				A00000020000000000000080 /* ClipboardAwarePromptBuilder.swift */,
+				A00000020000000000000079 /* ExternalTextSourceClassifier.swift */,
+				A00000020000000000000080 /* ExternalTextPromptBuilder.swift */,
+				A0000002000000000000010A /* AssistantNoteIntentClassifier.swift */,
+				A0000002000000000000010B /* ReplacementPackCatalog.swift */,
+				A0000002000000000000010C /* ReplacementPackService.swift */,
 			);
 			path = Conversion;
 			sourceTree = "<group>";
@@ -610,7 +637,6 @@
 				A0000001000000000000001C /* AudioDeviceService.swift in Sources */,
 				A0000001000000000000001A /* AudioLevelMonitor.swift in Sources */,
 				A00000010000000000000023 /* ClipboardService.swift in Sources */,
-				A00000010000000000000041 /* StringSimilarity.swift in Sources */,
 				A0000001000000000000003C /* LLMRewriteService.swift in Sources */,
 				A00000010000000000000059 /* RewriteModelTier.swift in Sources */,
 				A00000010000000000000060 /* RewriteModelLoadState.swift in Sources */,
@@ -647,7 +673,6 @@
 				A00000010000000000000067 /* HoldKeyDisplayFormatter.swift in Sources */,
 				A00000010000000000000004 /* SetupWindowView.swift in Sources */,
 				A00000010000000000000001 /* TypeLessBuddyApp.swift in Sources */,
-				A0000001000000000000000C /* StatusCardView.swift in Sources */,
 				A00000010000000000000020 /* TranscriptionResult.swift in Sources */,
 				A00000010000000000000021 /* WhisperService.swift in Sources */,
 				A0000001000000000000002B /* WhisperModelChoice.swift in Sources */,
@@ -655,8 +680,13 @@
 				A00000010000000000000075 /* CloudLLMRewriteService.swift in Sources */,
 				A00000010000000000000076 /* CloudModelListService.swift in Sources */,
 				A00000010000000000000077 /* CloudLLMKeychain.swift in Sources */,
-				A00000010000000000000079 /* ClipboardIntentClassifier.swift in Sources */,
-				A00000010000000000000080 /* ClipboardAwarePromptBuilder.swift in Sources */,
+				A00000010000000000000079 /* ExternalTextSourceClassifier.swift in Sources */,
+				A00000010000000000000080 /* ExternalTextPromptBuilder.swift in Sources */,
+				A0000001000000000000010A /* AssistantNoteIntentClassifier.swift in Sources */,
+				A0000001000000000000010B /* ReplacementPackCatalog.swift in Sources */,
+				A0000001000000000000010C /* ReplacementPackService.swift in Sources */,
+				A0000001000000000000010D /* HistoryCaptureService.swift in Sources */,
+				A0000001000000000000010E /* NoteCaptureService.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -674,7 +704,6 @@
 				A00000010000000000000027 /* ClipboardServiceTests.swift in Sources */,
 				A00000010000000000000015 /* HotkeyServiceTests.swift in Sources */,
 				A00000010000000000000068 /* HoldKeyDisplayFormatterTests.swift in Sources */,
-				A00000010000000000000042 /* StringSimilarityTests.swift in Sources */,
 				A0000001000000000000003D /* LLMRewriteServiceTests.swift in Sources */,
 				A0000001000000000000003E /* LLMRewriteServiceIntegrationTests.swift in Sources */,
 				A0000001000000000000000D /* PermissionServiceTests.swift in Sources */,
@@ -688,6 +717,13 @@
 				A00000010000000000000078 /* CloudLLMTests.swift in Sources */,
 				A00000010000000000000083 /* ShortcutBindingPolicyTests.swift in Sources */,
 				A00000010000000000000085 /* RewritePipelineBenchmarkTests.swift in Sources */,
+				A0000001000000000000010F /* AssistantNoteIntentClassifierTests.swift in Sources */,
+				A00000010000000000000110 /* ExternalTextPromptBuilderTests.swift in Sources */,
+				A00000010000000000000111 /* ExternalTextSourceClassifierTests.swift in Sources */,
+				A00000010000000000000112 /* HistoryCaptureServiceTests.swift in Sources */,
+				A00000010000000000000113 /* NoteCaptureServiceTests.swift in Sources */,
+				A00000010000000000000114 /* ReplacementPackCatalogTests.swift in Sources */,
+				A00000010000000000000115 /* ReplacementPackServiceTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

@@ -44,6 +44,16 @@ That produces:
 - `dist/TypeLessBuddy.app`
 - `dist/TypeLessBuddy.dmg`
 
+For a stable local debug app build path, run:
+
+```bash
+./scripts/build-app.sh
+```
+
+That always builds to:
+
+- `build/DerivedData-app/Build/Products/Debug/TypeLessBuddy.app`
+
 If you want to distribute the app publicly on the internet, you should also sign and notarize the DMG. The release steps are documented in [docs/RELEASING.md](docs/RELEASING.md).
 
 Do not commit the generated `.app` or `.dmg` into the repository. Keep source, docs, screenshots, and release scripts in Git, then upload the built DMG to GitHub Releases for each version.

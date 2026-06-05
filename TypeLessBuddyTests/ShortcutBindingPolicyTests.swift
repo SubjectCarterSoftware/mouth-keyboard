@@ -34,7 +34,10 @@ final class ShortcutBindingPolicyTests: XCTestCase {
         let snapshot = ShortcutBindingSnapshot(
             tapShortcuts: [candidate],
             primaryHoldShortcut: nil,
-            secondaryHoldShortcut: nil
+            secondaryHoldShortcut: nil,
+            startMouseButton: nil,
+            stopMouseButton: nil,
+            holdMouseButton: nil
         )
 
         XCTAssertFalse(ShortcutBindingPolicy.tapShortcutConflictsWithHold(candidate, snapshot: snapshot))
@@ -45,7 +48,10 @@ final class ShortcutBindingPolicyTests: XCTestCase {
         let snapshot = ShortcutBindingSnapshot(
             tapShortcuts: [],
             primaryHoldShortcut: candidate,
-            secondaryHoldShortcut: nil
+            secondaryHoldShortcut: nil,
+            startMouseButton: nil,
+            stopMouseButton: nil,
+            holdMouseButton: nil
         )
 
         XCTAssertTrue(ShortcutBindingPolicy.tapShortcutConflictsWithHold(candidate, snapshot: snapshot))
@@ -56,7 +62,10 @@ final class ShortcutBindingPolicyTests: XCTestCase {
         let snapshot = ShortcutBindingSnapshot(
             tapShortcuts: [candidate],
             primaryHoldShortcut: nil,
-            secondaryHoldShortcut: nil
+            secondaryHoldShortcut: nil,
+            startMouseButton: nil,
+            stopMouseButton: nil,
+            holdMouseButton: nil
         )
 
         XCTAssertTrue(
@@ -73,7 +82,10 @@ final class ShortcutBindingPolicyTests: XCTestCase {
         let snapshot = ShortcutBindingSnapshot(
             tapShortcuts: [],
             primaryHoldShortcut: candidate,
-            secondaryHoldShortcut: nil
+            secondaryHoldShortcut: nil,
+            startMouseButton: nil,
+            stopMouseButton: nil,
+            holdMouseButton: nil
         )
 
         XCTAssertTrue(
@@ -124,6 +136,39 @@ final class ShortcutBindingPolicyTests: XCTestCase {
             )
         )
         XCTAssertNil(sanitized.secondary)
+    }
+
+    func testMouseButtonConflictsOnlyWithHoldBinding() {
+        let candidate = MouseButtonBinding(buttonNumber: 4)
+        let snapshot = ShortcutBindingSnapshot(
+            tapShortcuts: [],
+            primaryHoldShortcut: nil,
+            secondaryHoldShortcut: nil,
+            startMouseButton: nil,
+            stopMouseButton: nil,
+            holdMouseButton: candidate
+        )
+
+        XCTAssertTrue(
+            ShortcutBindingPolicy.mouseButtonConflicts(
+                candidate,
+                action: .startRecording,
+                snapshot: snapshot
+            )
+        )
+    }
+
+    func testSanitizedMouseBindingsKeepsSharedStartStopAndDropsConflictingHold() {
+        let (_, preferences) = makePreferences()
+        preferences.startMouseButtonBinding = MouseButtonBinding(buttonNumber: 4)
+        preferences.stopMouseButtonBinding = MouseButtonBinding(buttonNumber: 4)
+        preferences.holdMouseButtonBinding = MouseButtonBinding(buttonNumber: 4)
+
+        let sanitized = ShortcutBindingPolicy.sanitizedMouseBindings(preferences: preferences)
+
+        XCTAssertEqual(sanitized.start, MouseButtonBinding(buttonNumber: 4))
+        XCTAssertEqual(sanitized.stop, MouseButtonBinding(buttonNumber: 4))
+        XCTAssertNil(sanitized.hold)
     }
 
     private func makePreferences(

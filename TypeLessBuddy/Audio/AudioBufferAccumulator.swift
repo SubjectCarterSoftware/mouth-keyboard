@@ -8,9 +8,10 @@ enum AudioBufferAccumulatorError: Error {
 }
 
 private let whisperSampleRate: Double = 16_000.0
-private let defaultAccumulatorMaxDuration: TimeInterval = 5 * 60
+private let defaultAccumulatorMaxDuration: TimeInterval = 15 * 60
 private let trimmingWindowDuration: TimeInterval = 0.1
 private let trimmingPreRollDuration: TimeInterval = 0.3
+private let trimmingPostRollDuration: TimeInterval = 0.2
 private let speechThresholdRMS: Float = 0.0056
 
 class AudioBufferAccumulator: AudioBufferReceiving {
@@ -108,6 +109,7 @@ class AudioBufferAccumulator: AudioBufferReceiving {
     private static func trimBoundarySilence(from samples: [Float]) -> [Float] {
         let windowSampleCount = max(1, Int(ceil(trimmingWindowDuration * whisperSampleRate)))
         let preRollSampleCount = max(0, Int(ceil(trimmingPreRollDuration * whisperSampleRate)))
+        let postRollSampleCount = max(0, Int(ceil(trimmingPostRollDuration * whisperSampleRate)))
 
         guard let firstSpeechRange = firstSpeechWindow(in: samples, windowSampleCount: windowSampleCount),
               let lastSpeechRange = lastSpeechWindow(in: samples, windowSampleCount: windowSampleCount) else {
@@ -115,7 +117,7 @@ class AudioBufferAccumulator: AudioBufferReceiving {
         }
 
         let startIndex = max(0, firstSpeechRange.lowerBound - preRollSampleCount)
-        let endIndex = max(startIndex, lastSpeechRange.upperBound)
+        let endIndex = min(samples.count, max(startIndex, lastSpeechRange.upperBound + postRollSampleCount))
         return Array(samples[startIndex..<endIndex])
     }
 

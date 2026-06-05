@@ -117,7 +117,7 @@ enum CloudModelListService {
 
     // MARK: - Helpers
 
-    private static func validateHTTPResponse(_ response: URLResponse, data: Data) throws {
+    static func validateHTTPResponse(_ response: URLResponse, data: Data) throws {
         guard let httpResponse = response as? HTTPURLResponse else { return }
         switch httpResponse.statusCode {
         case 200...299:

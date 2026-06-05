@@ -1,8 +1,9 @@
 import Combine
 import SwiftUI
 
-private enum AssistantNameControlMetrics {
-    static let recordControlWidth: CGFloat = 164
+enum AssistantNameControlMetrics {
+    static let trailingActionWidth: CGFloat = 164
+    static let recordControlWidth: CGFloat = trailingActionWidth
 }
 
 @MainActor

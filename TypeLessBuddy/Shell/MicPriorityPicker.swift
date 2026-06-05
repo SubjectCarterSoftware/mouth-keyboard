@@ -1,5 +1,15 @@
 import SwiftUI
 
+private enum MicPriorityPickerMetrics {
+    static let controlCornerRadius: CGFloat = 5
+    static let menuWidth: CGFloat = 300
+    static let menuOffset: CGFloat = 4
+    static let menuShadowRadius: CGFloat = 22
+    static let menuShadowY: CGFloat = 10
+    static let selectedFillOpacity: Double = 0.22
+    static let hoverFillOpacity: Double = 0.06
+}
+
 struct MicPriorityPicker: View {
     @ObservedObject var preferences: ShellPreferences
     @ObservedObject var audioDeviceService: AudioDeviceService
@@ -31,11 +41,11 @@ struct MicPriorityPicker: View {
     }
 
     private var prioritizedRows: [Row] {
-        preferences.micDeviceUIDs.enumerated().compactMap { index, uid in
+        preferences.micDeviceUIDs.enumerated().map { index, uid in
             let connected = audioDeviceService.availableDevices.contains { $0.uid == uid }
             let name = audioDeviceService.availableDevices.first(where: { $0.uid == uid })?.name
                 ?? rememberedName(for: uid)
-            guard let name else { return nil }
+                ?? uid
             return Row(uid: uid, name: name, rank: index + 1, isConnected: connected)
         }
     }
@@ -52,18 +62,28 @@ struct MicPriorityPicker: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            triggerButton
-                .popover(isPresented: $isOpen, arrowEdge: .bottom) {
+        triggerButton
+            .overlay(alignment: .topLeading) {
+                if isOpen {
                     menuContent
-                        .frame(width: 300)
+                        .frame(width: MicPriorityPickerMetrics.menuWidth)
+                        .offset(y: triggerHeight + MicPriorityPickerMetrics.menuOffset)
+                        .transition(.opacity.combined(with: .move(edge: .top)))
+                        .zIndex(1000)
                 }
-        }
+            }
+            .zIndex(isOpen ? 1000 : 0)
+    }
+
+    private var triggerHeight: CGFloat {
+        31
     }
 
     private var triggerButton: some View {
         Button {
-            isOpen.toggle()
+            withAnimation(.easeInOut(duration: 0.12)) {
+                isOpen.toggle()
+            }
         } label: {
             HStack(spacing: 6) {
                 Text(triggerLabel)
@@ -77,13 +97,24 @@ struct MicPriorityPicker: View {
             }
             .padding(.horizontal, 8)
             .padding(.vertical, 5)
-            .background(Color(nsColor: .controlBackgroundColor), in: RoundedRectangle(cornerRadius: 6, style: .continuous))
+            .background(
+                SetupColorPalette.raisedControlBackground,
+                in: RoundedRectangle(
+                    cornerRadius: MicPriorityPickerMetrics.controlCornerRadius,
+                    style: .continuous
+                )
+            )
             .overlay(
-                RoundedRectangle(cornerRadius: 6, style: .continuous)
-                    .stroke(Color(nsColor: .separatorColor), lineWidth: 0.5)
+                RoundedRectangle(
+                    cornerRadius: MicPriorityPickerMetrics.controlCornerRadius,
+                    style: .continuous
+                )
+                .stroke(SetupColorPalette.controlBorder, lineWidth: 0.75)
             )
         }
         .buttonStyle(.plain)
+        .focusable(false)
+        .focusEffectDisabled()
         .accessibilityIdentifier("micPriorityPicker.trigger")
     }
 
@@ -101,7 +132,9 @@ struct MicPriorityPicker: View {
                         isSelected: row.uid == effectiveDeviceUID,
                         onSelect: {
                             preferences.promoteMicDevice(row.uid)
-                            isOpen = false
+                            withAnimation(.easeInOut(duration: 0.12)) {
+                                isOpen = false
+                            }
                         },
                         onRemove: {
                             preferences.removeMicDevice(row.uid)
@@ -120,7 +153,9 @@ struct MicPriorityPicker: View {
                         isSelected: false,
                         onSelect: {
                             preferences.promoteMicDevice(row.uid)
-                            isOpen = false
+                            withAnimation(.easeInOut(duration: 0.12)) {
+                                isOpen = false
+                            }
                         },
                         onRemove: nil
                     )
@@ -128,12 +163,29 @@ struct MicPriorityPicker: View {
             }
         }
         .padding(8)
+        .background(
+            RoundedRectangle(
+                cornerRadius: MicPriorityPickerMetrics.controlCornerRadius,
+                style: .continuous
+            )
+            .fill(SetupColorPalette.raisedControlBackground)
+        )
+        .overlay(
+            RoundedRectangle(
+                cornerRadius: MicPriorityPickerMetrics.controlCornerRadius,
+                style: .continuous
+            )
+            .stroke(Color.white.opacity(0.18), lineWidth: 0.9)
+        )
+        .shadow(color: Color.black.opacity(0.42), radius: MicPriorityPickerMetrics.menuShadowRadius, y: MicPriorityPickerMetrics.menuShadowY)
     }
 
     private var systemDefaultRow: some View {
         Button {
             preferences.micDeviceUIDs = []
-            isOpen = false
+            withAnimation(.easeInOut(duration: 0.12)) {
+                isOpen = false
+            }
         } label: {
             HStack(spacing: 8) {
                 Text("System Default")
@@ -149,12 +201,17 @@ struct MicPriorityPicker: View {
             .padding(.horizontal, 8)
             .padding(.vertical, 6)
             .background(
-                RoundedRectangle(cornerRadius: 6, style: .continuous)
-                    .fill(preferences.micDeviceUIDs.isEmpty ? Color.accentColor.opacity(0.12) : Color.clear)
+                RoundedRectangle(
+                    cornerRadius: MicPriorityPickerMetrics.controlCornerRadius,
+                    style: .continuous
+                )
+                    .fill(preferences.micDeviceUIDs.isEmpty ? Color.accentColor.opacity(MicPriorityPickerMetrics.selectedFillOpacity) : Color.clear)
             )
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
+        .focusable(false)
+        .focusEffectDisabled()
         .accessibilityIdentifier("micPriorityPicker.systemDefault")
     }
 }
@@ -208,12 +265,17 @@ private struct MicPriorityRow: View {
             .padding(.horizontal, 8)
             .padding(.vertical, 6)
             .background(
-                RoundedRectangle(cornerRadius: 6, style: .continuous)
+                RoundedRectangle(
+                    cornerRadius: MicPriorityPickerMetrics.controlCornerRadius,
+                    style: .continuous
+                )
                     .fill(rowBackground)
             )
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
+        .focusable(false)
+        .focusEffectDisabled()
         .disabled(!row.isConnected && onRemove == nil)
         .onHover { isHovering = $0 }
         .accessibilityIdentifier("micPriorityPicker.row.\(row.uid)")
@@ -221,10 +283,10 @@ private struct MicPriorityRow: View {
 
     private var rowBackground: Color {
         if isSelected {
-            return Color.accentColor.opacity(0.12)
+            return Color.accentColor.opacity(MicPriorityPickerMetrics.selectedFillOpacity)
         }
         if isHovering && row.isConnected {
-            return Color.white.opacity(0.04)
+            return Color.white.opacity(MicPriorityPickerMetrics.hoverFillOpacity)
         }
         return .clear
     }
@@ -242,6 +304,8 @@ private struct MicPriorityRow: View {
                         .frame(width: 20, height: 20)
                 }
                 .buttonStyle(.plain)
+                .focusable(false)
+                .focusEffectDisabled()
                 .onHover { isHoveringRemove = $0 }
                 .help("Remove from priority list")
                 .accessibilityIdentifier("micPriorityPicker.remove.\(row.uid)")

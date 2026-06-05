@@ -1,7 +1,7 @@
 import Foundation
 import MLXLMCommon
 
-enum RewriteModelTier: String, CaseIterable, Identifiable, Hashable {
+enum RewriteModelTier: String, CaseIterable, Identifiable, Hashable, Codable {
     // Raw values are persisted in user defaults, so keep them stable even if the
     // backing hub model changes.
     case standard2B = "qwen3.5-2b"
@@ -20,9 +20,9 @@ enum RewriteModelTier: String, CaseIterable, Identifiable, Hashable {
 
     var hubSlug: String {
         switch self {
-        case .standard2B: return "mlx-community/Qwen3.5-2B-OptiQ-4bit"
-        case .standard4B: return "mlx-community/Qwen3.5-4B-OptiQ-4bit"
-        case .high9B:     return "mlx-community/Qwen3.5-9B-OptiQ-4bit"
+        case .standard2B: return "mlx-community/Qwen3.5-2B-4bit"
+        case .standard4B: return "mlx-community/Qwen3.5-4B-4bit"
+        case .high9B:     return "mlx-community/Qwen3.5-9B-4bit"
         }
     }
 
@@ -42,9 +42,8 @@ enum RewriteModelTier: String, CaseIterable, Identifiable, Hashable {
         }
     }
 
-    /// Maximum word count allowed in the rewrite prompt body for this tier.
+    /// Maximum word count allowed in the rewrite prompt body for built-in local tiers.
     /// Benchmark on 2B confirmed failure at ~1380w and quality degradation above ~700w.
-    /// Cloud overrides this entirely via ActivationStore.cloudRewritePromptWordLimit.
     var rewritePromptWordLimit: Int {
         switch self {
         case .standard2B: return 1_000

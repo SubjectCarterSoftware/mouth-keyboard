@@ -78,9 +78,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             WhisperModelLoadState.shared.startDownload(for: preferences.whisperModel)
         }
 
-        // Keep the selected rewrite tier ready for first use. On a fresh install
-        // this is the default 2B tier; on later launches this only runs if the
-        // selected tier isn't already downloaded.
+        // Keep the selected local assistant tier ready for first use.
         if !LLMRewriteService.isModelPrepared(preferences.rewriteModelTier) {
             RewriteModelLoadState.shared.startDownload(
                 for: preferences.rewriteModelTier,
@@ -97,6 +95,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
                 NotificationCenter.default.post(name: .postEventGuideRequested, object: nil)
             }
+        }
+        activationStore.finalizeAudioCaptureBeforeTranscription = { [weak self] in
+            await self?.finalizeAudioCaptureBeforeTranscription()
         }
 
 
@@ -271,8 +272,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     }
 
     private func onProcessingStarted(state: RecordingState) {
-        // Audio capture is stopped now — all samples are in the accumulator.
-        audioCaptureService.stop()
+        // Capture finalization is coordinated by ActivationStore.finish() so
+        // transcription starts only after the audio pipeline has drained.
         levelMonitor.onSilenceTimeout = nil
 
         // Pill panel stays visible during processing (RecordingPillPanel handles this).
@@ -299,6 +300,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         levelMonitor.onSilenceTimeout = nil
         // Pill panel hides itself (RecordingPillPanel handles this).
         updateMenuBarIcon(state: .idle)
+    }
+
+    private func finalizeAudioCaptureBeforeTranscription() async {
+        levelMonitor.onSilenceTimeout = nil
+        await audioCaptureService.stopForFinalization()
     }
 
 
@@ -492,13 +498,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             recordPrompt()
             return await requestAccess() == .authorized
         }
-    }
-
-    static func shouldPresentSetupWindowOnLaunch(
-        readinessState: ReadinessState,
-        forcePresentSetupOnLaunch: Bool
-    ) -> Bool {
-        forcePresentSetupOnLaunch || readinessState != .ready
     }
 
     static func launchSetupWindowMode(

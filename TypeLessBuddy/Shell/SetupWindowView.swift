@@ -2,6 +2,7 @@ import AppKit
 import Combine
 import KeyboardShortcuts
 import SwiftUI
+import UniformTypeIdentifiers
 
 enum SetupWindowMetrics {
     static let width: CGFloat = 920
@@ -9,19 +10,22 @@ enum SetupWindowMetrics {
 }
 
 enum CloudConnectionTestResult: Equatable {
-    case success
+    case success(String)
     case failed(String)
 }
 
-private enum RewriteSystemPromptSectionMetrics {
-    static let editorHeight: CGFloat = 150
+enum CloudSettingsSaveResult: Equatable {
+    case success(String)
+    case failed(String)
 }
 
 private enum SettingsSection: String, CaseIterable, Identifiable {
     case general
+    case shortcuts
     case assistant
     case replacements
-    case shortcuts
+    case notes
+    case history
     case permissions
     case advanced
 
@@ -35,12 +39,16 @@ private enum SettingsSection: String, CaseIterable, Identifiable {
             return "General"
         case .assistant:
             return "Assistant"
+        case .notes:
+            return "Note Saving"
         case .replacements:
             return "Word Replacements"
         case .shortcuts:
-            return "Keyboard Shortcuts"
+            return "Hotkeys"
+        case .history:
+            return "Historical Transcripts"
         case .permissions:
-            return "Permissions"
+            return "System Permissions"
         case .advanced:
             return "Advanced"
         }
@@ -49,11 +57,15 @@ private enum SettingsSection: String, CaseIterable, Identifiable {
     var sidebarTitle: String {
         switch self {
         case .replacements:
-            return "Replacements"
+            return "Word Replacements"
+        case .notes:
+            return "Note Saving"
         case .shortcuts:
-            return "Keyboard"
+            return "Hotkeys"
+        case .history:
+            return "Historical Transcripts"
         case .permissions:
-            return "Permissions"
+            return "System Permissions"
         default:
             return title
         }
@@ -70,6 +82,7 @@ private enum OnboardingStep: String, CaseIterable, Identifiable {
     case shortcuts
     case pillPosition
     case accessibility
+    case vocabularyPacks
     case speechEngine
 
     var id: String {
@@ -86,6 +99,8 @@ private enum OnboardingStep: String, CaseIterable, Identifiable {
             return "Pill Position"
         case .accessibility:
             return "Accessibility Permission"
+        case .vocabularyPacks:
+            return "Tailor Your Vocabulary"
         case .speechEngine:
             return "Preparing Local Models"
         }
@@ -100,7 +115,9 @@ private enum OnboardingStep: String, CaseIterable, Identifiable {
         case .pillPosition:
             return "Pick where the recording pill should appear on screen."
         case .accessibility:
-            return "Accessibility is required for full cross-app control and unlocks auto-paste when you want it."
+            return "Accessibility is required for full cross-app control and unlocks auto-paste when you want it. Global keyboard and mouse triggers may also depend on macOS input event access."
+        case .vocabularyPacks:
+            return "Pick the roles that fit you. We'll auto-correct the jargon, tools, and brand names you say most — like \"TypeScript\" or \"Figma\"."
         case .speechEngine:
             return "The speech transcription model and local assistant model are being prepared in the background. Once both are ready, setup can finish."
         }
@@ -125,6 +142,8 @@ private enum OnboardingStep: String, CaseIterable, Identifiable {
             return "rectangle.inset.filled.and.person.filled"
         case .accessibility:
             return "figure.wave"
+        case .vocabularyPacks:
+            return "text.book.closed"
         case .speechEngine:
             return "cpu"
         }
@@ -139,7 +158,9 @@ private enum OnboardingStep: String, CaseIterable, Identifiable {
         case .pillPosition:
             return "Choose a position that stays visible without covering the apps you use most."
         case .accessibility:
-            return "Accessibility is required for the full control flow and underpins auto-paste when you want it."
+            return "Accessibility is required for the full control flow and underpins auto-paste when you want it. Global keyboard and mouse triggers may also depend on macOS input event access."
+        case .vocabularyPacks:
+            return "Optional — you can change these any time in Word Replacements."
         case .speechEngine:
             return "This step waits for the first-time preparation of the speech transcription model and the local assistant model."
         }
@@ -150,6 +171,64 @@ private enum SettingsLayoutMetrics {
     static let sidebarWidth: CGFloat = 172
     static let contentSpacing: CGFloat = 18
     static let cardCornerRadius: CGFloat = 18
+    static let shortcutRecorderWidth: CGFloat = 145
+}
+
+enum SetupColorPalette {
+    static let appBackground = Color(red: 0.07, green: 0.07, blue: 0.08)
+    static let cardBackground = Color(red: 0.15, green: 0.16, blue: 0.18)
+    static let raisedControlBackground = Color(red: 0.20, green: 0.21, blue: 0.23)
+    static let cardBorder = Color.white.opacity(0.10)
+    static let controlBorder = Color.white.opacity(0.14)
+}
+
+private struct AssistantSystemPromptSheet: View {
+    @Binding var prompt: String
+    let onLoadFromFile: () -> Void
+    let onDismiss: () -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            Text("Assistant System Prompt")
+                .font(.title3.weight(.semibold))
+
+            TextEditor(text: $prompt)
+                .font(.system(.body, design: .monospaced))
+                .scrollContentBackground(.hidden)
+                .padding(10)
+                .frame(minHeight: 320)
+                .background(
+                    RoundedRectangle(cornerRadius: 10)
+                        .fill(SetupColorPalette.raisedControlBackground)
+                )
+                .overlay(
+                    RoundedRectangle(cornerRadius: 10)
+                        .stroke(SetupColorPalette.controlBorder, lineWidth: 0.75)
+                )
+                .accessibilityIdentifier("setupWindow.rewriteSystemPrompt.editor")
+
+            HStack(spacing: 10) {
+                Button("Load from File…") {
+                    onLoadFromFile()
+                }
+
+                Button("Reset") {
+                    prompt = LLMRewriteService.defaultAssistantSystemPromptTemplate
+                }
+                .disabled(prompt == LLMRewriteService.defaultAssistantSystemPromptTemplate)
+                .accessibilityIdentifier("setupWindow.rewriteSystemPrompt.reset")
+
+                Spacer()
+
+                Button("Done") {
+                    onDismiss()
+                }
+                .keyboardShortcut(.defaultAction)
+            }
+        }
+        .padding(20)
+        .frame(minWidth: 640, minHeight: 430)
+    }
 }
 
 private struct SectionOffsetPreferenceKey: PreferenceKey {
@@ -168,16 +247,28 @@ private struct ShortcutRecorderField: View {
     let isNonDefault: Bool
     let isEmpty: Bool
     let accessibilityID: String
+    let recordingPrompt: String
     let onClear: () -> Void
     let onStartRecording: () -> Void
     var onReset: (() -> Void)? = nil
 
-    init(displayText: String, isRecording: Bool, isNonDefault: Bool, isEmpty: Bool = false, accessibilityID: String, onClear: @escaping () -> Void, onStartRecording: @escaping () -> Void, onReset: (() -> Void)? = nil) {
+    init(
+        displayText: String,
+        isRecording: Bool,
+        isNonDefault: Bool,
+        isEmpty: Bool = false,
+        accessibilityID: String,
+        recordingPrompt: String = "Press key",
+        onClear: @escaping () -> Void,
+        onStartRecording: @escaping () -> Void,
+        onReset: (() -> Void)? = nil
+    ) {
         self.displayText = displayText
         self.isRecording = isRecording
         self.isNonDefault = isNonDefault
         self.isEmpty = isEmpty
         self.accessibilityID = accessibilityID
+        self.recordingPrompt = recordingPrompt
         self.onClear = onClear
         self.onStartRecording = onStartRecording
         self.onReset = onReset
@@ -185,18 +276,16 @@ private struct ShortcutRecorderField: View {
 
     var body: some View {
         HStack(spacing: 4) {
-            Text(isRecording ? "Record Shortcut" : displayText)
+            Text(isRecording ? recordingPrompt : displayText)
                 .font(.body)
                 .foregroundStyle(isRecording ? .secondary : (isEmpty ? .secondary : .primary))
-                .frame(minWidth: 60)
+                .frame(
+                    maxWidth: .infinity,
+                    minHeight: 22,
+                    alignment: isEmpty && !isRecording ? .center : .leading
+                )
                 .padding(.horizontal, 6)
                 .padding(.vertical, 3)
-                .contentShape(Rectangle())
-                .onTapGesture {
-                    if isEmpty && !isRecording {
-                        onStartRecording()
-                    }
-                }
                 .accessibilityIdentifier(accessibilityID)
                 .accessibilityLabel(displayText)
 
@@ -229,14 +318,20 @@ private struct ShortcutRecorderField: View {
         }
         .padding(.horizontal, 4)
         .padding(.vertical, 1)
-        .frame(width: 170)
+        .frame(width: SettingsLayoutMetrics.shortcutRecorderWidth)
         .background(
             RoundedRectangle(cornerRadius: 5)
-                .fill(Color(nsColor: .controlBackgroundColor))
+                .fill(SetupColorPalette.raisedControlBackground)
         )
+        .contentShape(RoundedRectangle(cornerRadius: 5))
+        .onTapGesture {
+            if isEmpty && !isRecording {
+                onStartRecording()
+            }
+        }
         .overlay(
             RoundedRectangle(cornerRadius: 5)
-                .stroke(Color(nsColor: .separatorColor), lineWidth: 0.5)
+                .stroke(SetupColorPalette.controlBorder, lineWidth: 0.75)
         )
     }
 }
@@ -254,8 +349,10 @@ private struct KeyComboRecorder: View {
     @State private var shortcutBeforeRecording: KeyboardShortcuts.Shortcut?
     @State private var lastCancelTime: Date = .distantPast
 
+    private let emptyShortcutText = "Click to set Key"
+
     private var displayText: String {
-        currentShortcut?.description ?? "Click to set"
+        currentShortcut?.description ?? emptyShortcutText
     }
 
     private var isNonDefault: Bool {
@@ -294,6 +391,7 @@ private struct KeyComboRecorder: View {
         shortcutBeforeRecording = currentShortcut
         isRecording = true
         KeyboardShortcuts.disable(.activate, .activateAlt, .stopSession, .stopSessionAlt, .cancelSession)
+        HotkeyService.shared.setMouseBindingsEnabled(false)
         eventMonitor = NSEvent.addLocalMonitorForEvents(matching: [.keyDown]) { event in
             if event.keyCode == 53 { // Escape — restore previous
                 cancelRecording()
@@ -351,6 +449,7 @@ private struct KeyComboRecorder: View {
         shortcutBeforeRecording = nil
         isRecording = false
         KeyboardShortcuts.enable(.activate, .activateAlt, .stopSession, .stopSessionAlt, .cancelSession)
+        HotkeyService.shared.setMouseBindingsEnabled(true)
     }
 }
 
@@ -400,8 +499,10 @@ private struct HoldShortcutRecorder: View {
         return keyCode != defaultKeyCode || modifiers != defaultModifiers
     }
 
+    private let emptyShortcutText = "Click to set Key"
+
     private var displayText: String {
-        guard keyCode >= 0 else { return "Not Set" }
+        guard keyCode >= 0 else { return emptyShortcutText }
         return Self.displayName(keyCode: keyCode, modifiers: modifiers)
     }
 
@@ -431,6 +532,7 @@ private struct HoldShortcutRecorder: View {
         modifiersBeforeRecording = modifiers
         isRecording = true
         KeyboardShortcuts.disable(.activate, .activateAlt, .stopSession, .stopSessionAlt, .cancelSession)
+        HotkeyService.shared.setMouseBindingsEnabled(false)
         pendingModifierKeyCode = nil
         eventMonitor = NSEvent.addLocalMonitorForEvents(matching: [.keyDown, .flagsChanged]) { [self] event in
             if event.type == .keyDown {
@@ -512,12 +614,102 @@ private struct HoldShortcutRecorder: View {
         modifiersBeforeRecording = nil
         isRecording = false
         KeyboardShortcuts.enable(.activate, .activateAlt, .stopSession, .stopSessionAlt, .cancelSession)
+        HotkeyService.shared.setMouseBindingsEnabled(true)
+    }
+}
+
+private struct MouseButtonRecorder: View {
+    let action: MouseButtonShortcutAction
+    let preferences: ShellPreferences
+    let binding: MouseButtonBinding?
+    let accessibilityID: String
+    let onRecord: (MouseButtonBinding) -> Void
+    let onClear: () -> Void
+
+    @State private var isRecording = false
+    @State private var mouseMonitor: Any?
+    @State private var cancelMonitor: Any?
+    @State private var previousBinding: MouseButtonBinding?
+    @State private var lastCancelTime: Date = .distantPast
+
+    private let emptyShortcutText = "Click to set Key"
+
+    private var displayText: String {
+        binding?.displayName ?? emptyShortcutText
+    }
+
+    var body: some View {
+        ShortcutRecorderField(
+            displayText: displayText,
+            isRecording: isRecording,
+            isNonDefault: binding != nil,
+            isEmpty: binding == nil,
+            accessibilityID: accessibilityID,
+            recordingPrompt: "Click button",
+            onClear: onClear,
+            onStartRecording: {
+                guard Date().timeIntervalSince(lastCancelTime) > 0.3 else { return }
+                startRecording()
+            }
+        )
+        .onDisappear { cancelRecording() }
+    }
+
+    private func startRecording() {
+        previousBinding = binding
+        isRecording = true
+        KeyboardShortcuts.disable(.activate, .activateAlt, .stopSession, .stopSessionAlt, .cancelSession)
+        HotkeyService.shared.setMouseBindingsEnabled(false)
+        mouseMonitor = NSEvent.addLocalMonitorForEvents(matching: [.otherMouseDown]) { event in
+            let candidate = MouseButtonBinding(buttonNumber: Int(event.buttonNumber))
+            let snapshot = ShortcutBindingSnapshot.current(preferences: preferences)
+            if ShortcutBindingPolicy.mouseButtonConflicts(candidate, action: action, snapshot: snapshot) {
+                NSSound.beep()
+            } else {
+                onRecord(candidate)
+                finishRecording()
+            }
+            return nil
+        }
+        cancelMonitor = NSEvent.addLocalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown]) { event in
+            cancelRecording()
+            return event
+        }
+    }
+
+    private func cancelRecording() {
+        guard isRecording else { return }
+        if let previousBinding {
+            onRecord(previousBinding)
+        }
+        lastCancelTime = Date()
+        finishRecording()
+    }
+
+    private func finishRecording() {
+        if let mouseMonitor {
+            NSEvent.removeMonitor(mouseMonitor)
+        }
+        if let cancelMonitor {
+            NSEvent.removeMonitor(cancelMonitor)
+        }
+        mouseMonitor = nil
+        cancelMonitor = nil
+        previousBinding = nil
+        isRecording = false
+        KeyboardShortcuts.enable(.activate, .activateAlt, .stopSession, .stopSessionAlt, .cancelSession)
+        HotkeyService.shared.setMouseBindingsEnabled(true)
     }
 }
 
 private enum SetupSectionMetrics {
     static let rowLabelWidth: CGFloat = 150
     static let rowIndent: CGFloat = 4
+}
+
+private enum SettingsSectionHeaderAccessoryPlacement {
+    case inline
+    case trailing
 }
 
 private struct SetupFieldRow<Content: View>: View {
@@ -552,6 +744,7 @@ private struct SetupFieldRow<Content: View>: View {
 private struct SettingsSectionCard<Content: View, HeaderAccessory: View>: View {
     let section: SettingsSection
     let flashTrigger: Int
+    let headerAccessoryPlacement: SettingsSectionHeaderAccessoryPlacement
     let headerAccessory: HeaderAccessory
     let content: Content
 
@@ -559,6 +752,7 @@ private struct SettingsSectionCard<Content: View, HeaderAccessory: View>: View {
     where HeaderAccessory == EmptyView {
         self.section = section
         self.flashTrigger = flashTrigger
+        self.headerAccessoryPlacement = .trailing
         self.headerAccessory = EmptyView()
         self.content = content()
     }
@@ -566,11 +760,13 @@ private struct SettingsSectionCard<Content: View, HeaderAccessory: View>: View {
     init(
         section: SettingsSection,
         flashTrigger: Int = 0,
+        headerAccessoryPlacement: SettingsSectionHeaderAccessoryPlacement = .trailing,
         @ViewBuilder headerAccessory: () -> HeaderAccessory,
         @ViewBuilder content: () -> Content
     ) {
         self.section = section
         self.flashTrigger = flashTrigger
+        self.headerAccessoryPlacement = headerAccessoryPlacement
         self.headerAccessory = headerAccessory()
         self.content = content()
     }
@@ -582,9 +778,15 @@ private struct SettingsSectionCard<Content: View, HeaderAccessory: View>: View {
                     .font(.title3.weight(.semibold))
                     .accessibilityIdentifier("setupWindow.section.\(section.rawValue).title")
 
+                if headerAccessoryPlacement == .inline {
+                    headerAccessory
+                }
+
                 Spacer(minLength: 12)
 
-                headerAccessory
+                if headerAccessoryPlacement == .trailing {
+                    headerAccessory
+                }
             }
 
             content
@@ -593,11 +795,11 @@ private struct SettingsSectionCard<Content: View, HeaderAccessory: View>: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(
             RoundedRectangle(cornerRadius: SettingsLayoutMetrics.cardCornerRadius, style: .continuous)
-                .fill(Color(white: 0.14))
+                .fill(SetupColorPalette.cardBackground)
         )
         .overlay(
             RoundedRectangle(cornerRadius: SettingsLayoutMetrics.cardCornerRadius, style: .continuous)
-                .strokeBorder(Color.white.opacity(0.06), lineWidth: 1)
+                .strokeBorder(SetupColorPalette.cardBorder, lineWidth: 1)
         )
         .modifier(
             SettingsCardFlashModifier(
@@ -637,11 +839,11 @@ private struct OnboardingCard<Content: View>: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(
             RoundedRectangle(cornerRadius: SettingsLayoutMetrics.cardCornerRadius, style: .continuous)
-                .fill(Color(white: 0.14))
+                .fill(SetupColorPalette.cardBackground)
         )
         .overlay(
             RoundedRectangle(cornerRadius: SettingsLayoutMetrics.cardCornerRadius, style: .continuous)
-                .strokeBorder(Color.white.opacity(0.06), lineWidth: 1)
+                .strokeBorder(SetupColorPalette.cardBorder, lineWidth: 1)
         )
     }
 }
@@ -1080,6 +1282,21 @@ private struct KeyboardShortcutsRow: View {
                         HotkeyService.shared.configureHoldTarget()
                     }
                 )
+
+                MouseButtonRecorder(
+                    action: .holdToRecord,
+                    preferences: preferences,
+                    binding: preferences.holdMouseButtonBinding,
+                    accessibilityID: "setupWindow.holdShortcut.mouseRecorder",
+                    onRecord: { binding in
+                        preferences.holdMouseButtonBinding = binding
+                        HotkeyService.shared.configureMouseBindings()
+                    },
+                    onClear: {
+                        preferences.holdMouseButtonBinding = nil
+                        HotkeyService.shared.configureMouseBindings()
+                    }
+                )
             }
             .frame(maxWidth: .infinity, alignment: .leading)
         }
@@ -1162,6 +1379,492 @@ private struct PlaySoundEffectsRow: View {
         }
         .frame(height: 22, alignment: .leading)
         .frame(maxWidth: .infinity, alignment: .leading)
+    }
+}
+
+private struct NoteCaptureModeRow: View {
+    @Binding var mode: AssistantNoteMode
+
+    var body: some View {
+        HStack(alignment: .center, spacing: 20) {
+            NoteCaptureModeOption(
+                title: "New note file every time",
+                isSelected: mode == .newFile,
+                accessibilityIdentifier: "setupWindow.notes.mode.newFile"
+            ) {
+                mode = .newFile
+            }
+
+            NoteCaptureModeOption(
+                title: "Append to a single file",
+                isSelected: mode == .appendToFile,
+                accessibilityIdentifier: "setupWindow.notes.mode.appendToFile"
+            ) {
+                mode = .appendToFile
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier("setupWindow.notes.mode")
+    }
+}
+
+private struct NoteCaptureModeOption: View {
+    let title: String
+    let isSelected: Bool
+    let accessibilityIdentifier: String
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            HStack(alignment: .center, spacing: 10) {
+                ZStack {
+                    Circle()
+                        .stroke(
+                            isSelected ? Color.accentColor.opacity(0.65) : SetupColorPalette.controlBorder,
+                            lineWidth: 1
+                        )
+                        .frame(width: 16, height: 16)
+
+                    if isSelected {
+                        Circle()
+                            .fill(Color.accentColor)
+                            .frame(width: 8, height: 8)
+                    }
+                }
+
+                Text(title)
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(.primary)
+
+                Spacer(minLength: 0)
+            }
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityIdentifier(accessibilityIdentifier)
+    }
+}
+
+private struct AssistantNoteDestinationRow: View {
+    enum DestinationKind {
+        case folder
+        case file
+    }
+
+    private enum Metrics {
+        static let rowSpacing: CGFloat = 8
+        static let fieldSpacing: CGFloat = 2
+        static let fieldHorizontalPadding: CGFloat = 10
+        static let fieldVerticalPadding: CGFloat = 8
+        static let fieldMinWidth: CGFloat = 280
+        static let fieldIdealWidth: CGFloat = 360
+        static let fieldMaxWidth: CGFloat = 420
+    }
+
+    let path: String
+    let placeholder: String
+    let destinationKind: DestinationKind
+    let pathAccessibilityIdentifier: String
+    let browseAccessibilityIdentifier: String
+    let clearAccessibilityIdentifier: String
+    let browseAction: () -> Void
+    let clearAction: () -> Void
+    var helperText: String? = nil
+    var isClearDisabled: Bool? = nil
+
+    private var displayPath: String {
+        guard !path.isEmpty else { return placeholder }
+        return (path as NSString).abbreviatingWithTildeInPath
+    }
+
+    private var symbolName: String {
+        switch destinationKind {
+        case .folder:
+            return "folder.fill"
+        case .file:
+            return "doc.text.fill"
+        }
+    }
+
+    var body: some View {
+        HStack(alignment: .center, spacing: Metrics.rowSpacing) {
+            HStack(alignment: .center, spacing: 8) {
+                Image(systemName: symbolName)
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundStyle(path.isEmpty ? .secondary : Color.accentColor)
+
+                Text(displayPath)
+                    .font(.callout)
+                    .foregroundStyle(path.isEmpty ? .secondary : .primary)
+                    .lineLimit(1)
+                    .truncationMode(.middle)
+
+                Spacer(minLength: 0)
+            }
+                .padding(.horizontal, Metrics.fieldHorizontalPadding)
+                .padding(.vertical, 6)
+                .frame(
+                    minWidth: Metrics.fieldMinWidth,
+                    idealWidth: Metrics.fieldIdealWidth,
+                    maxWidth: Metrics.fieldMaxWidth,
+                    alignment: .leading
+                )
+                .background(
+                    RoundedRectangle(cornerRadius: 6, style: .continuous)
+                        .fill(SetupColorPalette.raisedControlBackground)
+                )
+                .overlay(
+                    RoundedRectangle(cornerRadius: 6, style: .continuous)
+                        .stroke(SetupColorPalette.controlBorder, lineWidth: 0.75)
+                )
+                .help(path.isEmpty ? placeholder : path)
+                .accessibilityIdentifier(pathAccessibilityIdentifier)
+
+            Button("Browse…", action: browseAction)
+                .buttonStyle(.bordered)
+                .controlSize(.small)
+                .accessibilityIdentifier(browseAccessibilityIdentifier)
+
+            Button("Clear", action: clearAction)
+                .buttonStyle(.bordered)
+                .controlSize(.small)
+                .disabled(isClearDisabled ?? path.isEmpty)
+                .accessibilityIdentifier(clearAccessibilityIdentifier)
+
+            if let helperText {
+                ImmediateHelpIcon(text: helperText)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+}
+
+private struct HistoryStorageLimitRow: View {
+    @Binding var storageLimitMB: Int
+    var usageText: String?
+
+    var body: some View {
+        HStack(alignment: .center, spacing: 8) {
+            TextField("", value: Binding(
+                get: { storageLimitMB },
+                set: { storageLimitMB = max(1, $0) }
+            ), format: .number)
+            .textFieldStyle(.roundedBorder)
+            .frame(width: 90)
+            .accessibilityIdentifier("setupWindow.history.storageLimit")
+
+            Stepper("", value: Binding(
+                get: { storageLimitMB },
+                set: { storageLimitMB = max(1, $0) }
+            ), in: 1...10_000, step: 50)
+            .labelsHidden()
+
+            Text("MB")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+
+            Spacer(minLength: 0)
+
+            if let usageText {
+                Text(usageText)
+                    .font(.caption)
+                    .foregroundStyle(.tertiary)
+                    .accessibilityIdentifier("setupWindow.history.usage")
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+}
+
+/// Humane date/time formatting shared by the history list and detail pane.
+enum HistoryFormat {
+    static func dayLabel(for date: Date) -> String {
+        let calendar = Calendar.current
+        if calendar.isDateInToday(date) { return "Today" }
+        if calendar.isDateInYesterday(date) { return "Yesterday" }
+        let formatter = DateFormatter()
+        formatter.locale = .current
+        formatter.timeZone = .current
+        formatter.setLocalizedDateFormatFromTemplate(
+            calendar.isDate(date, equalTo: Date(), toGranularity: .year) ? "MMMd" : "MMMd yyyy"
+        )
+        return formatter.string(from: date)
+    }
+
+    static func time(for date: Date) -> String {
+        let formatter = DateFormatter()
+        formatter.locale = .current
+        formatter.timeZone = .current
+        formatter.setLocalizedDateFormatFromTemplate("jmm")
+        return formatter.string(from: date)
+    }
+
+    static func meta(for date: Date?) -> String {
+        guard let date else { return "Unknown date" }
+        return "\(dayLabel(for: date)) at \(time(for: date))"
+    }
+
+    static func wordCount(_ text: String) -> Int {
+        text.split { $0 == " " || $0 == "\n" || $0 == "\t" }.count
+    }
+}
+
+private struct HistoryModeBadge: View {
+    let mode: HistoryEntryMode
+    var selected: Bool = false
+
+    private var palette: (bg: Color, fg: Color) {
+        if selected { return (Color.white.opacity(0.22), .white) }
+        switch mode {
+        case .raw: return (Color.white.opacity(0.09), .secondary)
+        case .assistant: return (Color.accentColor.opacity(0.18), Color.accentColor)
+        }
+    }
+
+    var body: some View {
+        Text(mode.rawValue.uppercased())
+            .font(.system(size: 9, weight: .bold))
+            .tracking(0.3)
+            .padding(.horizontal, 6)
+            .padding(.vertical, 2)
+            .background(Capsule().fill(palette.bg))
+            .foregroundStyle(palette.fg)
+    }
+}
+
+private struct HistoryEntryRow: View {
+    let entry: HistoryEntry
+    let isSelected: Bool
+    let onSelect: () -> Void
+    let onDelete: () -> Void
+
+    @State private var isHovering = false
+
+    var body: some View {
+        Button(action: onSelect) {
+            VStack(alignment: .leading, spacing: 6) {
+                Text(entry.previewText.isEmpty ? "(empty transcription)" : entry.previewText)
+                    .font(.caption)
+                    .foregroundStyle(isSelected ? .white : .primary)
+                    .lineLimit(2)
+                    .multilineTextAlignment(.leading)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+
+                HStack(spacing: 6) {
+                    HistoryModeBadge(mode: entry.mode, selected: isSelected)
+                    Text(HistoryFormat.time(for: entry.createdAt))
+                        .font(.caption2)
+                        .foregroundStyle(isSelected ? .white.opacity(0.8) : .secondary)
+                }
+            }
+            .padding(.horizontal, 10)
+            .padding(.vertical, 8)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    .fill(
+                        isSelected
+                            ? Color.accentColor.opacity(0.55)
+                            : SetupColorPalette.raisedControlBackground
+                    )
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    .stroke(
+                        isSelected ? Color.accentColor : SetupColorPalette.controlBorder,
+                        lineWidth: isSelected ? 1 : 0.75
+                    )
+            )
+            .overlay(alignment: .topTrailing) {
+                if isHovering {
+                    Button(action: onDelete) {
+                        Image(systemName: "trash")
+                            .font(.caption2)
+                            .foregroundStyle(isSelected ? .white : .secondary)
+                    }
+                    .buttonStyle(.borderless)
+                    .padding(6)
+                    .help("Delete entry")
+                }
+            }
+        }
+        .buttonStyle(.plain)
+        .onHover { isHovering = $0 }
+    }
+}
+
+private struct HistoryFolderRow: View {
+    let path: String
+    let placeholder: String
+    let showsResetAction: Bool
+    let browseAction: () -> Void
+    let resetAction: () -> Void
+
+    private var displayPath: String {
+        guard !path.isEmpty else { return placeholder }
+        return (path as NSString).abbreviatingWithTildeInPath
+    }
+
+    var body: some View {
+        HStack(alignment: .center, spacing: 8) {
+            Button(action: browseAction) {
+                HStack(alignment: .center, spacing: 8) {
+                    Image(systemName: "folder.fill")
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundStyle(path.isEmpty ? .secondary : Color.accentColor)
+
+                    Text(displayPath)
+                        .font(.callout)
+                        .foregroundStyle(path.isEmpty ? .secondary : .primary)
+                        .lineLimit(1)
+                        .truncationMode(.middle)
+
+                    Spacer(minLength: 0)
+                }
+                .padding(.horizontal, 10)
+                .padding(.vertical, 6)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(
+                    RoundedRectangle(cornerRadius: 6, style: .continuous)
+                        .fill(SetupColorPalette.raisedControlBackground)
+                )
+                .overlay(
+                    RoundedRectangle(cornerRadius: 6, style: .continuous)
+                        .stroke(SetupColorPalette.controlBorder, lineWidth: 0.75)
+                )
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .help(path.isEmpty ? placeholder : path)
+            .accessibilityIdentifier("setupWindow.history.path")
+
+            if showsResetAction {
+                Button("Reset", action: resetAction)
+                    .buttonStyle(.bordered)
+                    .controlSize(.small)
+                    .accessibilityIdentifier("setupWindow.history.clear")
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+}
+
+private struct HistoryDetailPane: View {
+    let detail: HistoryEntryDetail?
+    let copyLabel: String
+    let copyAction: () -> Void
+    let revealAction: () -> Void
+    let deleteAction: () -> Void
+
+    var body: some View {
+        Group {
+            if let detail {
+                VStack(alignment: .leading, spacing: 0) {
+                    header(detail)
+                    Divider().opacity(0.5)
+                    ScrollView {
+                        body(detail)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .padding(14)
+                    }
+                }
+            } else {
+                Text("Select a transcription to preview it.")
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+            }
+        }
+        .frame(maxWidth: .infinity, minHeight: 280, maxHeight: 280, alignment: .topLeading)
+        .background(
+            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                .fill(SetupColorPalette.raisedControlBackground)
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                .stroke(SetupColorPalette.controlBorder, lineWidth: 0.75)
+        )
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .accessibilityIdentifier("setupWindow.history.preview")
+    }
+
+    private func header(_ detail: HistoryEntryDetail) -> some View {
+        HStack(spacing: 8) {
+            HistoryModeBadge(mode: detail.mode)
+            Text(HistoryFormat.meta(for: detail.createdAt))
+                .font(.caption)
+                .foregroundStyle(.secondary)
+            Text("· \(HistoryFormat.wordCount(detail.primaryText)) words")
+                .font(.caption2)
+                .foregroundStyle(.tertiary)
+
+            Spacer(minLength: 8)
+
+            Button(copyLabel, action: copyAction)
+                .buttonStyle(.bordered)
+                .controlSize(.small)
+                .accessibilityIdentifier("setupWindow.history.copy")
+
+            Button(action: revealAction) {
+                Image(systemName: "arrow.up.forward.app")
+            }
+            .buttonStyle(.borderless)
+            .help("Reveal in Finder")
+
+            Button(action: deleteAction) {
+                Image(systemName: "trash")
+            }
+            .buttonStyle(.borderless)
+            .help("Delete this entry")
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 10)
+    }
+
+    @ViewBuilder
+    private func body(_ detail: HistoryEntryDetail) -> some View {
+        if let assistant = detail.assistantOutput, !detail.rawTranscription.isEmpty {
+            VStack(alignment: .leading, spacing: 14) {
+                section(label: "Original", text: detail.rawTranscription, secondary: true)
+                section(label: "Result", text: assistant, secondary: false)
+            }
+        } else {
+            Text(detail.primaryText)
+                .font(.callout)
+                .foregroundStyle(.primary)
+                .textSelection(.enabled)
+                .frame(maxWidth: .infinity, alignment: .leading)
+        }
+    }
+
+    @ViewBuilder
+    private func section(label: String, text: String, secondary: Bool) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text(label.uppercased())
+                .font(.system(size: 10, weight: .bold))
+                .tracking(0.4)
+                .foregroundStyle(.tertiary)
+
+            if secondary {
+                Text(text)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .textSelection(.enabled)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(10)
+                    .background(
+                        RoundedRectangle(cornerRadius: 8, style: .continuous)
+                            .fill(Color.white.opacity(0.03))
+                    )
+            } else {
+                Text(text)
+                    .font(.callout)
+                    .foregroundStyle(.primary)
+                    .textSelection(.enabled)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
+        }
     }
 }
 
@@ -1275,39 +1978,39 @@ private struct PillPositionPickerRow: View {
 
 private struct ImmediateHelpIcon: View {
     let text: String
-    @State private var isHovering = false
-    private let tooltipWidth: CGFloat = 240
+    @State private var isPopoverPresented = false
+    private let tooltipWidth: CGFloat = 260
 
     var body: some View {
         Image(systemName: "info.circle")
             .font(.system(size: 13, weight: .medium))
             .foregroundStyle(.secondary)
+            .contentShape(Rectangle())
             .onHover { hovering in
-                withAnimation(.easeOut(duration: 0.08)) {
-                    isHovering = hovering
+                if isPopoverPresented != hovering {
+                    isPopoverPresented = hovering
                 }
             }
-            .overlay(alignment: .topLeading) {
-                if isHovering {
-                    Text(text)
-                        .font(.caption)
-                        .foregroundStyle(.primary)
-                        .fixedSize(horizontal: false, vertical: true)
-                        .frame(width: tooltipWidth, alignment: .leading)
-                        .padding(.horizontal, 10)
-                        .padding(.vertical, 8)
-                        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 8))
-                        .overlay {
-                            RoundedRectangle(cornerRadius: 8)
-                                .stroke(Color(nsColor: .separatorColor), lineWidth: 0.5)
-                        }
-                        .shadow(color: Color.black.opacity(0.12), radius: 10, y: 4)
-                        .offset(x: 16, y: -12)
-                        .allowsHitTesting(false)
-                }
+            .popover(isPresented: $isPopoverPresented, arrowEdge: .bottom) {
+                Text(text)
+                    .font(.caption)
+                    .foregroundStyle(.primary)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .frame(width: tooltipWidth, alignment: .leading)
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 10)
+                    .background(
+                        RoundedRectangle(cornerRadius: 10, style: .continuous)
+                            .fill(SetupColorPalette.raisedControlBackground)
+                    )
+                    .overlay {
+                        RoundedRectangle(cornerRadius: 10, style: .continuous)
+                            .stroke(SetupColorPalette.controlBorder, lineWidth: 0.75)
+                    }
+                    .shadow(color: Color.black.opacity(0.18), radius: 12, y: 6)
+                    .padding(2)
             }
             .accessibilityLabel(text)
-            .zIndex(isHovering ? 1 : 0)
     }
 }
 
@@ -1425,6 +2128,7 @@ struct SetupWindowView: View {
     @ObservedObject var preferences: ShellPreferences
     @ObservedObject var readinessStore: ReadinessStore
     let mode: SetupWindowMode
+    private let historyCaptureService: any HistoryCapturing
     @ObservedObject private var modelLoadState = RewriteModelLoadState.shared
     @ObservedObject private var whisperModelLoadState = WhisperModelLoadState.shared
     @ObservedObject private var activationStore = ActivationStore.shared
@@ -1437,15 +2141,26 @@ struct SetupWindowView: View {
     @State private var isLoadingCloudModels = false
     @State private var cloudModelFetchError: String?
     @State private var cloudConnectionTestResult: CloudConnectionTestResult?
+    @State private var cloudSaveResult: CloudSettingsSaveResult?
     @State private var activeSection: SettingsSection = .general
     @State private var flashedSection: SettingsSection?
     @State private var flashNonce: Int = 0
     @State private var keyboardShortcutChangeNonce: Int = 0
+    @State private var isShowingAssistantSystemPromptEditor = false
     @State private var isShowingClearAllReplacementsConfirmation = false
     @State private var scheduledFlashTask: Task<Void, Never>?
     @State private var isProgrammaticScroll = false
     @State private var onboardingStep: OnboardingStep = .microphone
     @State private var hasInitializedOnboardingStep = false
+    @State private var historyEntries: [HistoryEntry] = []
+    @State private var selectedHistoryEntryURL: URL?
+    @State private var selectedHistoryDetail: HistoryEntryDetail?
+    @State private var historySearchQuery = ""
+    @State private var historyUsage: HistoryUsage?
+    @State private var isShowingClearHistoryConfirmation = false
+    @State private var historyLoadError: String?
+    @State private var historyCopyConfirmationVisible = false
+    @State private var historyCopyConfirmationTask: Task<Void, Never>?
     let updatePillPositionPreview: (RecordingPillPosition?) -> Void
     let dismissWindow: () -> Void
     let openGuide: () -> Void
@@ -1499,12 +2214,16 @@ struct SetupWindowView: View {
             || preferences.holdShortcutModifiers != ShellPreferences.defaultHoldShortcutModifiers
             || preferences.holdShortcutKeyCodeAlt != ShellPreferences.defaultHoldShortcutKeyCodeAlt
             || preferences.holdShortcutModifiersAlt != ShellPreferences.defaultHoldShortcutModifiersAlt
+        let hasCustomizedMouseShortcut =
+            preferences.startMouseButtonBinding != nil
+            || preferences.stopMouseButtonBinding != nil
+            || preferences.holdMouseButtonBinding != nil
 
-        return hasCustomizedTapShortcut || hasCustomizedHoldShortcut
+        return hasCustomizedTapShortcut || hasCustomizedHoldShortcut || hasCustomizedMouseShortcut
     }
 
     private var hasWordReplacements: Bool {
-        !preferences.activeDictionaryData.replacements.isEmpty
+        preferences.activeDictionaryData.replacements.contains { $0.sourcePackIDs.isEmpty }
     }
 
     private var alwaysAutoPasteBinding: Binding<Bool> {
@@ -1536,6 +2255,17 @@ struct SetupWindowView: View {
             },
             set: { newValue in
                 preferences.muteSoundEffects = !newValue
+            }
+        )
+    }
+
+    private var assistantNoteModeBinding: Binding<AssistantNoteMode> {
+        Binding(
+            get: {
+                preferences.assistantNoteMode
+            },
+            set: { newValue in
+                preferences.assistantNoteMode = newValue
             }
         )
     }
@@ -1576,8 +2306,16 @@ struct SetupWindowView: View {
         return status.isDownloaded && !status.isDownloading && !status.isPrewarming && !status.isLoading && !status.isDeleting
     }
 
-    private var localAssistantModelStatus: RewriteModelLoadState.TierStatus {
-        modelLoadState.status(for: preferences.rewriteModelTier)
+    private var selectedBuiltInAssistantTier: RewriteModelTier {
+        preferences.rewriteModelTier
+    }
+
+    private var selectedBuiltInAssistantStatus: RewriteModelLoadState.TierStatus {
+        modelLoadState.status(for: selectedBuiltInAssistantTier)
+    }
+
+    private var selectedAssistantModelDisplayName: String {
+        selectedBuiltInAssistantTier.displayName
     }
 
     private var usesLocalAssistantModel: Bool {
@@ -1586,7 +2324,7 @@ struct SetupWindowView: View {
 
     private var isLocalAssistantModelReady: Bool {
         guard usesLocalAssistantModel else { return true }
-        let status = localAssistantModelStatus
+        let status = selectedBuiltInAssistantStatus
         return status.isDownloaded && status.isPrepared && !status.isDownloading && !status.isPrewarming && !status.isDeleting
     }
 
@@ -1888,6 +2626,7 @@ struct SetupWindowView: View {
         preferences: ShellPreferences,
         readinessStore: ReadinessStore,
         mode: SetupWindowMode,
+        historyCaptureService: any HistoryCapturing = HistoryCaptureService(),
         updatePillPositionPreview: @escaping (RecordingPillPosition?) -> Void,
         dismissWindow: @escaping () -> Void,
         openGuide: @escaping () -> Void,
@@ -1896,6 +2635,7 @@ struct SetupWindowView: View {
         self.preferences = preferences
         self.readinessStore = readinessStore
         self.mode = mode
+        self.historyCaptureService = historyCaptureService
         self.updatePillPositionPreview = updatePillPositionPreview
         self.dismissWindow = dismissWindow
         self.openGuide = openGuide
@@ -1949,6 +2689,7 @@ struct SetupWindowView: View {
                                 cloudModels = []
                                 cloudModelFetchError = nil
                                 cloudConnectionTestResult = nil
+                                cloudSaveResult = nil
                             }
                         )) {
                             ForEach(CloudLLMProvider.allCases) { provider in
@@ -1969,7 +2710,11 @@ struct SetupWindowView: View {
                             "https://api.example.com/v1",
                             text: Binding(
                                 get: { preferences.cloudLLMConfig.baseURL },
-                                set: { preferences.cloudLLMConfig.baseURL = $0 }
+                                set: {
+                                    preferences.cloudLLMConfig.baseURL = $0
+                                    cloudConnectionTestResult = nil
+                                    cloudSaveResult = nil
+                                }
                             )
                         )
                         .textFieldStyle(.roundedBorder)
@@ -2000,9 +2745,8 @@ struct SetupWindowView: View {
                             .textFieldStyle(.roundedBorder)
                             .font(.system(.body, design: .monospaced))
                             .onChange(of: cloudAPIKey) { _, newValue in
-                                let provider = preferences.cloudLLMConfig.provider
-                                _ = CloudLLMKeychain.saveAPIKey(newValue, for: provider)
                                 cloudConnectionTestResult = nil
+                                cloudSaveResult = nil
                             }
                             .accessibilityIdentifier("cloudLLM.apiKey")
 
@@ -2024,7 +2768,11 @@ struct SetupWindowView: View {
                                 "Model ID (e.g. gpt-4o)",
                                 text: Binding(
                                     get: { preferences.cloudLLMConfig.modelID },
-                                    set: { preferences.cloudLLMConfig.modelID = $0 }
+                                    set: {
+                                        preferences.cloudLLMConfig.modelID = $0
+                                        cloudConnectionTestResult = nil
+                                        cloudSaveResult = nil
+                                    }
                                 )
                             )
                             .textFieldStyle(.roundedBorder)
@@ -2033,7 +2781,11 @@ struct SetupWindowView: View {
                         } else {
                             Picker("", selection: Binding(
                                 get: { preferences.cloudLLMConfig.modelID },
-                                set: { preferences.cloudLLMConfig.modelID = $0 }
+                                set: {
+                                    preferences.cloudLLMConfig.modelID = $0
+                                    cloudConnectionTestResult = nil
+                                    cloudSaveResult = nil
+                                }
                             )) {
                                 Text("Select a model").tag("")
                                 ForEach(cloudModels) { model in
@@ -2047,7 +2799,7 @@ struct SetupWindowView: View {
                         if isLoadingCloudModels {
                             ProgressView()
                                 .controlSize(.small)
-                        } else if !cloudAPIKey.isEmpty {
+                        } else if !preferences.cloudLLMConfig.baseURL.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                             Button("Fetch Models") {
                                 fetchCloudModels()
                             }
@@ -2070,7 +2822,11 @@ struct SetupWindowView: View {
 
                         TextField("", value: Binding(
                             get: { preferences.cloudLLMConfig.maxTokens },
-                            set: { preferences.cloudLLMConfig.maxTokens = max(256, min(8192, $0)) }
+                            set: {
+                                preferences.cloudLLMConfig.maxTokens = max(256, min(8192, $0))
+                                cloudConnectionTestResult = nil
+                                cloudSaveResult = nil
+                            }
                         ), format: .number)
                         .textFieldStyle(.roundedBorder)
                         .frame(width: 80)
@@ -2078,7 +2834,11 @@ struct SetupWindowView: View {
 
                         Stepper("", value: Binding(
                             get: { preferences.cloudLLMConfig.maxTokens },
-                            set: { preferences.cloudLLMConfig.maxTokens = max(256, min(8192, $0)) }
+                            set: {
+                                preferences.cloudLLMConfig.maxTokens = max(256, min(8192, $0))
+                                cloudConnectionTestResult = nil
+                                cloudSaveResult = nil
+                            }
                         ), in: 256...8192, step: 256)
                         .labelsHidden()
 
@@ -2090,20 +2850,44 @@ struct SetupWindowView: View {
                         Spacer()
                             .frame(width: 70)
 
+                        Button("Save") {
+                            saveCloudSettings()
+                        }
+                        .controlSize(.small)
+                        .accessibilityIdentifier("cloudLLM.save")
+
                         Button("Test Connection") {
                             testCloudConnection()
                         }
                         .controlSize(.small)
-                        .disabled(cloudAPIKey.isEmpty || preferences.cloudLLMConfig.modelID.isEmpty)
+                        .disabled(preferences.cloudLLMConfig.baseURL.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
                         .accessibilityIdentifier("cloudLLM.testConnection")
 
-                        if let result = cloudConnectionTestResult {
-                            switch result {
-                            case .success:
+                        if let saveResult = cloudSaveResult {
+                            switch saveResult {
+                            case .success(let message):
                                 HStack(spacing: 4) {
                                     Image(systemName: "checkmark.circle.fill")
                                         .foregroundStyle(.green)
-                                    Text("Connected")
+                                    Text(message)
+                                        .font(.caption)
+                                        .foregroundStyle(.green)
+                                }
+                            case .failed(let message):
+                                Text(message)
+                                    .font(.caption)
+                                    .foregroundStyle(.red)
+                                    .lineLimit(2)
+                            }
+                        }
+
+                        if let result = cloudConnectionTestResult {
+                            switch result {
+                            case .success(let message):
+                                HStack(spacing: 4) {
+                                    Image(systemName: "checkmark.circle.fill")
+                                        .foregroundStyle(.green)
+                                    Text(message)
                                         .font(.caption)
                                         .foregroundStyle(.green)
                                 }
@@ -2123,55 +2907,6 @@ struct SetupWindowView: View {
         }
     }
 
-    @ViewBuilder
-    private var rewriteSystemPromptSection: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            HStack(alignment: .firstTextBaseline, spacing: 12) {
-                Text("Assistant System Prompt")
-                    .font(.body)
-
-                Spacer()
-
-                Text("Applies to both on-device and cloud assistant generation")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .multilineTextAlignment(.trailing)
-            }
-
-            Text("This is the assistant system prompt for full-transcript requests. Use `{{assistant_name}}` to insert the active assistant name.")
-                .font(.caption)
-                .foregroundStyle(.secondary)
-
-            TextEditor(text: rewriteSystemPromptBinding)
-                .font(.system(.body, design: .monospaced))
-                .scrollContentBackground(.hidden)
-                .padding(8)
-                .frame(minHeight: RewriteSystemPromptSectionMetrics.editorHeight)
-                .background(
-                    RoundedRectangle(cornerRadius: 8)
-                        .fill(Color(nsColor: .textBackgroundColor))
-                )
-                .overlay(
-                    RoundedRectangle(cornerRadius: 8)
-                        .stroke(Color(nsColor: .separatorColor), lineWidth: 0.5)
-                )
-                .accessibilityIdentifier("setupWindow.rewriteSystemPrompt.editor")
-
-            HStack {
-                Spacer()
-
-                Button("Reset Prompt") {
-                    preferences.rewriteSystemPromptPrefix = LLMRewriteService.defaultAssistantSystemPromptTemplate
-                }
-                .controlSize(.small)
-                .disabled(
-                    preferences.rewriteSystemPromptPrefix == LLMRewriteService.defaultAssistantSystemPromptTemplate
-                )
-                .accessibilityIdentifier("setupWindow.rewriteSystemPrompt.reset")
-            }
-        }
-    }
-
     private func loadCloudAPIKeyIfNeeded() {
         guard !cloudAPIKeyLoaded else { return }
         cloudAPIKeyLoaded = true
@@ -2181,7 +2916,7 @@ struct SetupWindowView: View {
 
     private func fetchCloudModels() {
         let config = preferences.cloudLLMConfig
-        let apiKey = cloudAPIKey
+        let apiKey = resolvedCloudRequestAPIKey(for: config.provider)
         isLoadingCloudModels = true
         cloudModelFetchError = nil
 
@@ -2201,27 +2936,280 @@ struct SetupWindowView: View {
         }
     }
 
+    private func saveCloudSettings() {
+        let provider = preferences.cloudLLMConfig.provider
+        let didSave = CloudLLMKeychain.saveAPIKey(cloudAPIKey, for: provider)
+        cloudSaveResult = didSave
+            ? .success("Saved")
+            : .failed("Could not save API key")
+    }
+
+    private func resolvedCloudRequestAPIKey(for provider: CloudLLMProvider) -> String {
+        let trimmed = cloudAPIKey.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !trimmed.isEmpty {
+            return trimmed
+        }
+
+        switch provider {
+        case .custom:
+            return "lm-studio"
+        case .openAI, .anthropic, .google:
+            return ""
+        }
+    }
+
     private func testCloudConnection() {
         let config = preferences.cloudLLMConfig
-        let apiKey = cloudAPIKey
+        let apiKey = resolvedCloudRequestAPIKey(for: config.provider)
         cloudConnectionTestResult = nil
 
         Task {
-            let service = CloudLLMRewriteService(config: config, apiKey: apiKey)
             do {
-                _ = try await service.generate(
-                    prompt: "Hello",
-                    systemPrompt: LLMRewriteService.resolveAssistantSystemPrompt(
-                        promptTemplate: preferences.rewriteSystemPromptPrefix,
-                        assistantName: preferences.activeTriggerProfile.activePrimary
+                if config.modelID.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                    let models = try await CloudModelListService.fetchModels(
+                        provider: config.provider,
+                        baseURL: config.baseURL,
+                        apiKey: apiKey
                     )
-                )
-                cloudConnectionTestResult = .success
+                    cloudModels = models
+                    if models.isEmpty {
+                        cloudConnectionTestResult = .success("Connected")
+                    } else {
+                        cloudConnectionTestResult = .success("Connected (\(models.count) models)")
+                    }
+                } else {
+                    let service = CloudLLMRewriteService(config: config, apiKey: apiKey)
+                    _ = try await service.generate(
+                        prompt: "Hello",
+                        systemPrompt: LLMRewriteService.resolveAssistantSystemPrompt(
+                            promptTemplate: preferences.rewriteSystemPromptPrefix,
+                            assistantName: preferences.activeTriggerProfile.activePrimary
+                        )
+                    )
+                    cloudConnectionTestResult = .success("Connected")
+                }
             } catch {
                 let message = (error as? LLMRewriteError)?.errorDescription ?? error.localizedDescription
                 cloudConnectionTestResult = .failed(message)
             }
         }
+    }
+
+    private func chooseAssistantNoteFolder() {
+        let panel = NSOpenPanel()
+        panel.title = "Choose Note Folder"
+        panel.prompt = "Choose Folder"
+        panel.canChooseFiles = false
+        panel.canChooseDirectories = true
+        panel.canCreateDirectories = true
+        panel.allowsMultipleSelection = false
+        if !preferences.assistantNoteFolderPath.isEmpty {
+            panel.directoryURL = URL(fileURLWithPath: preferences.assistantNoteFolderPath, isDirectory: true)
+        }
+
+        guard panel.runModal() == .OK, let url = panel.url else {
+            return
+        }
+
+        preferences.assistantNoteFolderPath = url.path
+    }
+
+    private func chooseAssistantNoteAppendFile() {
+        let panel = NSSavePanel()
+        panel.title = "Choose Append File"
+        panel.prompt = "Choose File"
+        panel.canCreateDirectories = true
+        panel.allowedFileTypes = ["md", "markdown", "txt"]
+        if !preferences.assistantNoteAppendFilePath.isEmpty {
+            panel.directoryURL = URL(fileURLWithPath: preferences.assistantNoteAppendFilePath)
+                .deletingLastPathComponent()
+            panel.nameFieldStringValue = URL(fileURLWithPath: preferences.assistantNoteAppendFilePath)
+                .lastPathComponent
+        } else {
+            panel.nameFieldStringValue = "notes.md"
+        }
+
+        guard panel.runModal() == .OK, let url = panel.url else {
+            return
+        }
+
+        preferences.assistantNoteAppendFilePath = url.path
+    }
+
+    private func loadAssistantSystemPromptFromFile() {
+        let panel = NSOpenPanel()
+        panel.title = "Load Assistant System Prompt"
+        panel.prompt = "Load Prompt"
+        panel.canChooseFiles = true
+        panel.canChooseDirectories = false
+        panel.allowsMultipleSelection = false
+        panel.allowedContentTypes = [
+            .plainText,
+            .utf8PlainText,
+            UTType(filenameExtension: "md") ?? .plainText,
+            UTType(filenameExtension: "markdown") ?? .plainText
+        ]
+
+        guard panel.runModal() == .OK, let url = panel.url else {
+            return
+        }
+
+        guard let data = try? Data(contentsOf: url) else {
+            return
+        }
+
+        preferences.rewriteSystemPromptPrefix = String(decoding: data, as: UTF8.self)
+    }
+
+    private func chooseHistoryFolder() {
+        let panel = NSOpenPanel()
+        panel.title = "Choose History Folder"
+        panel.prompt = "Choose Folder"
+        panel.canChooseFiles = false
+        panel.canChooseDirectories = true
+        panel.canCreateDirectories = true
+        panel.allowsMultipleSelection = false
+        panel.directoryURL = URL(
+            fileURLWithPath: preferences.historyConfiguration.resolvedFolderPath,
+            isDirectory: true
+        )
+
+        guard panel.runModal() == .OK, let url = panel.url else {
+            return
+        }
+
+        preferences.historyFolderPath = url.path
+        reloadHistoryEntries()
+    }
+
+    private func reloadHistoryEntries() {
+        historyCopyConfirmationTask?.cancel()
+        historyCopyConfirmationVisible = false
+
+        do {
+            let entries = try historyCaptureService.listEntries(configuration: preferences.historyConfiguration)
+            historyEntries = entries
+            historyUsage = try? historyCaptureService.storageUsage(configuration: preferences.historyConfiguration)
+            historyLoadError = nil
+
+            if let selectedHistoryEntryURL,
+               entries.contains(where: { $0.fileURL == selectedHistoryEntryURL }) {
+                loadHistoryEntryDetail(for: selectedHistoryEntryURL)
+                return
+            }
+
+            if let firstEntry = entries.first {
+                selectedHistoryEntryURL = firstEntry.fileURL
+                loadHistoryEntryDetail(for: firstEntry.fileURL)
+            } else {
+                selectedHistoryEntryURL = nil
+                selectedHistoryDetail = nil
+            }
+        } catch {
+            historyEntries = []
+            historyUsage = nil
+            selectedHistoryEntryURL = nil
+            selectedHistoryDetail = nil
+            historyLoadError = error.localizedDescription
+        }
+    }
+
+    private func selectHistoryEntry(_ fileURL: URL) {
+        selectedHistoryEntryURL = fileURL
+        historyCopyConfirmationTask?.cancel()
+        historyCopyConfirmationVisible = false
+        loadHistoryEntryDetail(for: fileURL)
+    }
+
+    private func loadHistoryEntryDetail(for fileURL: URL) {
+        do {
+            selectedHistoryDetail = try historyCaptureService.loadEntryDetail(at: fileURL)
+            historyLoadError = nil
+            historyCopyConfirmationVisible = false
+        } catch {
+            selectedHistoryDetail = nil
+            historyLoadError = error.localizedDescription
+            historyCopyConfirmationVisible = false
+        }
+    }
+
+    private func copySelectedHistoryEntry() {
+        guard let text = selectedHistoryDetail?.primaryText, !text.isEmpty else {
+            return
+        }
+
+        guard ClipboardService().writeToClipboard(text) else {
+            return
+        }
+
+        historyCopyConfirmationTask?.cancel()
+        historyCopyConfirmationVisible = true
+        historyCopyConfirmationTask = Task { @MainActor in
+            try? await Task.sleep(nanoseconds: 900_000_000)
+            guard !Task.isCancelled else { return }
+            historyCopyConfirmationVisible = false
+        }
+    }
+
+    private func deleteHistoryEntry(_ fileURL: URL) {
+        do {
+            try historyCaptureService.deleteEntry(at: fileURL)
+            if selectedHistoryEntryURL == fileURL {
+                selectedHistoryEntryURL = nil
+                selectedHistoryDetail = nil
+            }
+            reloadHistoryEntries()
+        } catch {
+            historyLoadError = error.localizedDescription
+        }
+    }
+
+    private func clearAllHistory() {
+        do {
+            try historyCaptureService.deleteAllEntries(configuration: preferences.historyConfiguration)
+            selectedHistoryEntryURL = nil
+            selectedHistoryDetail = nil
+            reloadHistoryEntries()
+        } catch {
+            historyLoadError = error.localizedDescription
+        }
+    }
+
+    private func revealHistoryFolder() {
+        let url = URL(fileURLWithPath: preferences.historyConfiguration.resolvedFolderPath, isDirectory: true)
+        NSWorkspace.shared.activateFileViewerSelecting([url])
+    }
+
+    private func revealHistoryEntry(_ fileURL: URL) {
+        NSWorkspace.shared.activateFileViewerSelecting([fileURL])
+    }
+
+    /// Entries filtered by the search query (matched against the preview snippet).
+    private var filteredHistoryEntries: [HistoryEntry] {
+        let query = historySearchQuery.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        guard !query.isEmpty else { return historyEntries }
+        return historyEntries.filter { $0.previewText.lowercased().contains(query) }
+    }
+
+    /// Filtered entries bucketed into day groups (Today / Yesterday / date), newest first.
+    private var groupedHistoryEntries: [(label: String, entries: [HistoryEntry])] {
+        var order: [String] = []
+        var buckets: [String: [HistoryEntry]] = [:]
+        for entry in filteredHistoryEntries {
+            let label = HistoryFormat.dayLabel(for: entry.createdAt)
+            if buckets[label] == nil {
+                buckets[label] = []
+                order.append(label)
+            }
+            buckets[label]?.append(entry)
+        }
+        return order.map { ($0, buckets[$0] ?? []) }
+    }
+
+    private var historyUsageDescription: String? {
+        guard let historyUsage else { return nil }
+        let used = ByteCountFormatter.string(fromByteCount: historyUsage.totalBytes, countStyle: .file)
+        return "\(used) used"
     }
 
     private func restoreDefaultGeneralSettings() {
@@ -2233,6 +3221,7 @@ struct SetupWindowView: View {
         KeyboardShortcuts.reset(.activate, .activateAlt, .stopSession, .stopSessionAlt)
         preferences.restoreDefaultHoldShortcuts()
         HotkeyService.shared.configureHoldTarget()
+        HotkeyService.shared.configureMouseBindings()
         keyboardShortcutChangeNonce &+= 1
     }
 
@@ -2314,7 +3303,7 @@ struct SetupWindowView: View {
         switch step {
         case .microphone:
             return isMicrophoneAuthorized
-        case .shortcuts, .pillPosition:
+        case .shortcuts, .pillPosition, .vocabularyPacks:
             return true
         case .accessibility:
             return isAccessibilityAuthorized
@@ -2393,7 +3382,7 @@ struct SetupWindowView: View {
         switch onboardingStep {
         case .microphone:
             return isMicrophoneAuthorized
-        case .shortcuts, .pillPosition:
+        case .shortcuts, .pillPosition, .vocabularyPacks:
             return true
         case .accessibility:
             return isAccessibilityAuthorized
@@ -2413,9 +3402,28 @@ struct SetupWindowView: View {
             onboardingPillPositionStep
         case .accessibility:
             onboardingAccessibilityStep
+        case .vocabularyPacks:
+            onboardingVocabularyPacksStep
         case .speechEngine:
             onboardingSpeechEngineStep
         }
+    }
+
+    private var onboardingVocabularyPacksStep: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            FlowLayout(spacing: 8) {
+                ForEach(ReplacementPackCatalog.roles) { pack in
+                    VocabularyPackPill(
+                        pack: pack,
+                        isOn: preferences.isPackEnabled(pack.id),
+                        onToggle: {
+                            preferences.setPack(pack, enabled: !preferences.isPackEnabled(pack.id))
+                        }
+                    )
+                }
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     private var onboardingMicrophoneStep: some View {
@@ -2447,6 +3455,7 @@ struct SetupWindowView: View {
                         audioDeviceService: audioDeviceService
                     )
                     .frame(maxWidth: 280, alignment: .leading)
+                    .zIndex(10)
                 } else {
                     Text("Approve microphone access first. As soon as macOS grants it, this card unlocks so you can choose the specific input device.")
                         .font(.callout)
@@ -2472,6 +3481,20 @@ struct SetupWindowView: View {
                         HStack(spacing: 12) {
                             KeyComboRecorder(name: .activate, preferences: preferences)
                             KeyComboRecorder(name: .activateAlt, preferences: preferences)
+                            MouseButtonRecorder(
+                                action: .startRecording,
+                                preferences: preferences,
+                                binding: preferences.startMouseButtonBinding,
+                                accessibilityID: "setupWindow.activate.mouseRecorder",
+                                onRecord: { binding in
+                                    preferences.startMouseButtonBinding = binding
+                                    HotkeyService.shared.configureMouseBindings()
+                                },
+                                onClear: {
+                                    preferences.startMouseButtonBinding = nil
+                                    HotkeyService.shared.configureMouseBindings()
+                                }
+                            )
                         }
                     }
 
@@ -2479,6 +3502,20 @@ struct SetupWindowView: View {
                         HStack(spacing: 12) {
                             KeyComboRecorder(name: .stopSession, preferences: preferences)
                             KeyComboRecorder(name: .stopSessionAlt, preferences: preferences)
+                            MouseButtonRecorder(
+                                action: .stopRecording,
+                                preferences: preferences,
+                                binding: preferences.stopMouseButtonBinding,
+                                accessibilityID: "setupWindow.stopSession.mouseRecorder",
+                                onRecord: { binding in
+                                    preferences.stopMouseButtonBinding = binding
+                                    HotkeyService.shared.configureMouseBindings()
+                                },
+                                onClear: {
+                                    preferences.stopMouseButtonBinding = nil
+                                    HotkeyService.shared.configureMouseBindings()
+                                }
+                            )
                         }
                     }
 
@@ -2521,7 +3558,7 @@ struct SetupWindowView: View {
                 OnboardingPermissionCard(
                     item: accessibilityPermissionItem,
                     headline: "Accessibility Permission",
-                    message: "Accessibility is required for TypeLessBuddy’s full cross-app control behavior. It also unlocks auto-paste whenever you want to use it.",
+                    message: "Accessibility is required for TypeLessBuddy’s full cross-app control behavior. It also unlocks auto-paste whenever you want to use it, while global keyboard and mouse triggers may also depend on macOS input event access.",
                     actionTitle: accessibilityActionTitle(for: accessibilityPermissionItem.status),
                     requestPermission: requestPermission,
                     openRecovery: openPermissionRecovery
@@ -2555,7 +3592,7 @@ struct SetupWindowView: View {
 
             if areOnboardingModelsReady {
                 Label(
-                    "\(preferences.whisperModel.displayName) and \(preferences.rewriteModelTier.displayName) are downloaded and prepared for first use.",
+                    "\(preferences.whisperModel.displayName) and \(selectedAssistantModelDisplayName) are downloaded and prepared for first use.",
                     systemImage: "checkmark.circle.fill"
                 )
                 .font(.callout.weight(.medium))
@@ -2650,7 +3687,7 @@ struct SetupWindowView: View {
             }
             .padding(.horizontal, 28)
             .padding(.vertical, 16)
-            .background(Color(red: 0.07, green: 0.07, blue: 0.08))
+            .background(SetupColorPalette.appBackground)
         }
     }
 
@@ -2711,7 +3748,7 @@ struct SetupWindowView: View {
             .frame(maxWidth: .infinity, alignment: .leading)
             .background(Color.green.opacity(0.12), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
         } else if case .downloading(let tier, let progress) = modelLoadState.phase,
-                  tier == preferences.rewriteModelTier {
+                  tier == selectedBuiltInAssistantTier {
             ModelDownloadStatusRow(
                 title: "Local assistant model",
                 message: "\(tier.displayName) is downloading in the background and will be ready for assistant requests when complete.",
@@ -2719,19 +3756,19 @@ struct SetupWindowView: View {
             )
             .accessibilityIdentifier("setupWindow.setupStatus.rewriteDownload")
         } else if case .prewarming(let tier) = modelLoadState.phase,
-                  tier == preferences.rewriteModelTier {
+                  tier == selectedBuiltInAssistantTier {
             ModelDownloadStatusRow(
                 title: "Local assistant model",
                 message: "\(tier.displayName) is being loaded and cached for first use. This only happens once.",
                 progress: nil
             )
             .accessibilityIdentifier("setupWindow.setupStatus.rewritePrewarm")
-        } else if !localAssistantModelStatus.isPrepared && !modelLoadState.phase.isTransferInFlight {
+        } else if !selectedBuiltInAssistantStatus.isPrepared && !modelLoadState.phase.isTransferInFlight {
             ModelDownloadStatusRow(
                 title: "Local assistant model",
-                message: localAssistantModelStatus.isDownloaded
-                    ? "\(preferences.rewriteModelTier.displayName) is queued for first-time setup."
-                    : "\(preferences.rewriteModelTier.displayName) is queued for download.",
+                message: selectedBuiltInAssistantStatus.isDownloaded
+                    ? "\(selectedAssistantModelDisplayName) is queued for first-time setup."
+                    : "\(selectedAssistantModelDisplayName) is queued for download.",
                 progress: nil
             )
             .accessibilityIdentifier("setupWindow.setupStatus.rewriteQueued")
@@ -2743,7 +3780,7 @@ struct SetupWindowView: View {
         speechModelStatusContent
 
         if case .downloading(let tier, let progress) = modelLoadState.phase,
-           tier == preferences.rewriteModelTier {
+           tier == selectedBuiltInAssistantTier {
             ModelDownloadStatusRow(
                 title: "Preparing local assistant model",
                 message: "\(tier.displayName) is downloading in the background and will be ready for rewrites when complete.",
@@ -2751,7 +3788,7 @@ struct SetupWindowView: View {
             )
             .accessibilityIdentifier("setupWindow.setupStatus.rewriteDownload")
         } else if case .prewarming(let tier) = modelLoadState.phase,
-                  tier == preferences.rewriteModelTier {
+                  tier == selectedBuiltInAssistantTier {
             ModelDownloadStatusRow(
                 title: "Preparing local assistant model",
                 message: "\(tier.displayName) is being loaded and cached for first use. This only happens once.",
@@ -2783,6 +3820,7 @@ struct SetupWindowView: View {
                         )
                         .frame(maxWidth: 240, alignment: .leading)
                     }
+                    .zIndex(10)
 
                     SetupFieldRow(title: "Auto Paste") {
                         AlwaysAutoPasteRow(isOn: alwaysAutoPasteBinding)
@@ -2819,26 +3857,256 @@ struct SetupWindowView: View {
 
     private var assistantSectionContent: some View {
         SettingsSectionCard(section: .assistant, flashTrigger: flashTrigger(for: .assistant)) {
-            SetupFieldRow(title: "Assistant name") {
-                HStack(alignment: .center, spacing: 12) {
-                    AssistantDisplayedNameChip(
-                        name: assistantSettingsViewModel.displayedName,
-                        isPreviewing: assistantSettingsViewModel.isPreviewingRecordedName
-                    )
-                    .accessibilityIdentifier("assistantRow.activeName")
+            VStack(alignment: .leading, spacing: 14) {
+                SetupFieldRow(title: "Assistant name") {
+                    HStack(alignment: .center, spacing: 12) {
+                        AssistantDisplayedNameChip(
+                            name: assistantSettingsViewModel.displayedName,
+                            isPreviewing: assistantSettingsViewModel.isPreviewingRecordedName
+                        )
+                        .accessibilityIdentifier("assistantRow.activeName")
 
-                    Spacer(minLength: 12)
+                        Spacer(minLength: 12)
 
-                    AIAssistantInlineRowView(
-                        viewModel: assistantSettingsViewModel,
-                        showsActiveName: false,
-                        showsResetButton: false,
-                        idleRecordButtonTitle: "Record Name"
+                        AIAssistantInlineRowView(
+                            viewModel: assistantSettingsViewModel,
+                            showsActiveName: false,
+                            showsResetButton: false,
+                            idleRecordButtonTitle: "Record Name"
+                        )
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                }
+
+                SetupFieldRow(title: "Assistant system prompt") {
+                    HStack(alignment: .center, spacing: 12) {
+                        Text("Assistant prompt used every time assistant is invoked")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                            .lineLimit(1)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+
+                        Button("Edit…") {
+                            isShowingAssistantSystemPromptEditor = true
+                        }
+                        .frame(maxWidth: .infinity)
+                        .frame(width: AssistantNameControlMetrics.recordControlWidth, alignment: .trailing)
+                        .accessibilityIdentifier("setupWindow.rewriteSystemPrompt.open")
+                    }
+                }
+            }
+        }
+    }
+
+    private var notesSectionContent: some View {
+        SettingsSectionCard(section: .notes, flashTrigger: flashTrigger(for: .notes)) {
+            VStack(alignment: .leading, spacing: 14) {
+                SetupFieldRow(title: "Saving mode") {
+                    NoteCaptureModeRow(mode: assistantNoteModeBinding)
+                }
+
+                SetupFieldRow(title: "Destination") {
+                    if preferences.assistantNoteMode == .newFile {
+                        AssistantNoteDestinationRow(
+                            path: preferences.assistantNoteFolderPath,
+                            placeholder: "No note folder selected",
+                            destinationKind: .folder,
+                            pathAccessibilityIdentifier: "setupWindow.notes.destination.path",
+                            browseAccessibilityIdentifier: "setupWindow.notes.destination.browse",
+                            clearAccessibilityIdentifier: "setupWindow.notes.destination.clear",
+                            browseAction: chooseAssistantNoteFolder,
+                            clearAction: { preferences.assistantNoteFolderPath = "" }
+                        )
+                    } else {
+                        AssistantNoteDestinationRow(
+                            path: preferences.assistantNoteAppendFilePath,
+                            placeholder: "No append file selected",
+                            destinationKind: .file,
+                            pathAccessibilityIdentifier: "setupWindow.notes.destination.path",
+                            browseAccessibilityIdentifier: "setupWindow.notes.destination.browse",
+                            clearAccessibilityIdentifier: "setupWindow.notes.destination.clear",
+                            browseAction: chooseAssistantNoteAppendFile,
+                            clearAction: { preferences.assistantNoteAppendFilePath = "" }
+                        )
+                    }
+                }
+            }
+        }
+    }
+
+    private var historySectionContent: some View {
+        SettingsSectionCard(
+            section: .history,
+            flashTrigger: flashTrigger(for: .history)
+        ) {
+            Toggle("Save history", isOn: Binding(
+                get: { preferences.historyEnabled },
+                set: { newValue in
+                    withAnimation(.easeInOut(duration: 0.18)) {
+                        preferences.historyEnabled = newValue
+                    }
+                }
+            ))
+            .labelsHidden()
+            .toggleStyle(.switch)
+            .scaleEffect(0.8, anchor: .trailing)
+            .fixedSize()
+            .accessibilityLabel("Save history")
+            .accessibilityIdentifier("setupWindow.history.enabled")
+        } content: {
+            if preferences.historyEnabled {
+                VStack(alignment: .leading, spacing: 14) {
+                    SetupFieldRow(title: "History folder") {
+                        HStack(alignment: .center, spacing: 8) {
+                            HistoryFolderRow(
+                                path: preferences.historyConfiguration.resolvedFolderPath,
+                                placeholder: "No history folder selected",
+                                showsResetAction: !preferences.historyFolderPath.isEmpty,
+                                browseAction: chooseHistoryFolder,
+                                resetAction: { preferences.historyFolderPath = "" }
+                            )
+
+                            Button(action: revealHistoryFolder) {
+                                Image(systemName: "arrow.up.forward.app")
+                                    .font(.body)
+                            }
+                            .buttonStyle(.borderless)
+                            .help("Reveal in Finder")
+                            .accessibilityIdentifier("setupWindow.history.reveal")
+                        }
+                    }
+
+                    SetupFieldRow(title: "History storage limit", alignment: .top) {
+                        HistoryStorageLimitRow(
+                            storageLimitMB: Binding(
+                                get: { preferences.historyStorageLimitMB },
+                                set: { preferences.historyStorageLimitMB = $0 }
+                            ),
+                            usageText: historyUsageDescription
+                        )
+                    }
+
+                    savedEntriesZone
+                        .padding(.leading, SetupSectionMetrics.rowIndent)
+                }
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var savedEntriesZone: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack {
+                Text("Saved entries")
+                    .font(.caption.weight(.bold))
+                    .tracking(0.5)
+                    .textCase(.uppercase)
+                    .foregroundStyle(.secondary)
+                Spacer()
+                Button {
+                    isShowingClearHistoryConfirmation = true
+                } label: {
+                    Label("Clear history…", systemImage: "trash")
+                        .font(.caption)
+                }
+                .buttonStyle(.borderless)
+                .disabled(historyEntries.isEmpty)
+                .accessibilityIdentifier("setupWindow.history.clearAll")
+            }
+
+            if let historyLoadError {
+                Text(historyLoadError)
+                    .font(.caption)
+                    .foregroundStyle(.red)
+            } else if historyEntries.isEmpty {
+                Text("No saved history entries in the current folder yet.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .frame(maxWidth: .infinity, alignment: .center)
+                    .padding(.vertical, 18)
+            } else {
+                HStack(spacing: 8) {
+                    Image(systemName: "magnifyingglass")
+                        .font(.caption)
+                        .foregroundStyle(.tertiary)
+                    TextField("Search transcriptions…", text: $historySearchQuery)
+                        .textFieldStyle(.plain)
+                        .accessibilityIdentifier("setupWindow.history.search")
+                }
+                .padding(.horizontal, 10)
+                .padding(.vertical, 7)
+                .background(
+                    RoundedRectangle(cornerRadius: 8, style: .continuous)
+                        .fill(Color.black.opacity(0.2))
+                )
+                .overlay(
+                    RoundedRectangle(cornerRadius: 8, style: .continuous)
+                        .strokeBorder(SetupColorPalette.controlBorder, lineWidth: 0.75)
+                )
+
+                HStack(alignment: .top, spacing: 12) {
+                    historyList
+                    HistoryDetailPane(
+                        detail: filteredSelectionDetail,
+                        copyLabel: historyCopyConfirmationVisible ? "Copied" : "Copy",
+                        copyAction: copySelectedHistoryEntry,
+                        revealAction: { if let url = selectedHistoryEntryURL { revealHistoryEntry(url) } },
+                        deleteAction: { if let url = selectedHistoryEntryURL { deleteHistoryEntry(url) } }
                     )
+                    .layoutPriority(1)
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
             }
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private var historyList: some View {
+        ScrollView {
+            LazyVStack(alignment: .leading, spacing: 6, pinnedViews: [.sectionHeaders]) {
+                ForEach(groupedHistoryEntries, id: \.label) { group in
+                    Section {
+                        ForEach(group.entries) { entry in
+                            HistoryEntryRow(
+                                entry: entry,
+                                isSelected: selectedHistoryEntryURL == entry.fileURL,
+                                onSelect: { selectHistoryEntry(entry.fileURL) },
+                                onDelete: { deleteHistoryEntry(entry.fileURL) }
+                            )
+                        }
+                    } header: {
+                        Text(group.label)
+                            .font(.caption2.weight(.bold))
+                            .tracking(0.4)
+                            .textCase(.uppercase)
+                            .foregroundStyle(.tertiary)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .padding(.vertical, 4)
+                            .background(SetupColorPalette.cardBackground)
+                    }
+                }
+
+                if filteredHistoryEntries.isEmpty {
+                    Text("No transcriptions match your search.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .frame(maxWidth: .infinity, alignment: .center)
+                        .padding(.vertical, 18)
+                }
+            }
+            .padding(.trailing, 4)
+        }
+        .frame(width: 220)
+        .frame(minHeight: 230, maxHeight: 280)
+        .accessibilityIdentifier("setupWindow.history.list")
+    }
+
+    private var filteredSelectionDetail: HistoryEntryDetail? {
+        guard let url = selectedHistoryEntryURL,
+              filteredHistoryEntries.contains(where: { $0.fileURL == url }) else {
+            return nil
+        }
+        return selectedHistoryDetail
     }
 
     private var replacementsSectionContent: some View {
@@ -2847,7 +4115,7 @@ struct SetupWindowView: View {
             flashTrigger: flashTrigger(for: .replacements)
         ) {
             SettingsSectionActionButton(
-                title: "Clear All…",
+                title: "Clear Mine…",
                 accessibilityIdentifier: "setupWindow.section.replacements.clearAll"
             ) {
                 isShowingClearAllReplacementsConfirmation = true
@@ -2876,6 +4144,22 @@ struct SetupWindowView: View {
                     HStack(spacing: 12) {
                         KeyComboRecorder(name: .activate, preferences: preferences, onShortcutChanged: onTapShortcutChanged)
                         KeyComboRecorder(name: .activateAlt, preferences: preferences, onShortcutChanged: onTapShortcutChanged)
+                        MouseButtonRecorder(
+                            action: .startRecording,
+                            preferences: preferences,
+                            binding: preferences.startMouseButtonBinding,
+                            accessibilityID: "setupWindow.activate.mouseRecorder",
+                            onRecord: { binding in
+                                preferences.startMouseButtonBinding = binding
+                                HotkeyService.shared.configureMouseBindings()
+                                onTapShortcutChanged()
+                            },
+                            onClear: {
+                                preferences.startMouseButtonBinding = nil
+                                HotkeyService.shared.configureMouseBindings()
+                                onTapShortcutChanged()
+                            }
+                        )
                     }
                 }
 
@@ -2883,6 +4167,22 @@ struct SetupWindowView: View {
                     HStack(spacing: 12) {
                         KeyComboRecorder(name: .stopSession, preferences: preferences, onShortcutChanged: onTapShortcutChanged)
                         KeyComboRecorder(name: .stopSessionAlt, preferences: preferences, onShortcutChanged: onTapShortcutChanged)
+                        MouseButtonRecorder(
+                            action: .stopRecording,
+                            preferences: preferences,
+                            binding: preferences.stopMouseButtonBinding,
+                            accessibilityID: "setupWindow.stopSession.mouseRecorder",
+                            onRecord: { binding in
+                                preferences.stopMouseButtonBinding = binding
+                                HotkeyService.shared.configureMouseBindings()
+                                onTapShortcutChanged()
+                            },
+                            onClear: {
+                                preferences.stopMouseButtonBinding = nil
+                                HotkeyService.shared.configureMouseBindings()
+                                onTapShortcutChanged()
+                            }
+                        )
                     }
                 }
 
@@ -2952,12 +4252,12 @@ struct SetupWindowView: View {
 
                     VStack(alignment: .leading, spacing: 8) {
                         HStack(alignment: .firstTextBaseline, spacing: 12) {
-                            Text("Conversion Model")
+                            Text("Assistant Model")
                                 .font(.body)
 
                             Spacer()
 
-                            Text("Select a downloaded model. Use the icon to download it or remove its files.")
+                            Text("Select a downloaded built-in local model, or use the cloud / localhost provider below.")
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
                                 .multilineTextAlignment(.trailing)
@@ -2974,18 +4274,13 @@ struct SetupWindowView: View {
                         }
 
                         if !canManageConversionModels {
-                            Text("Wait for the current recording or transcription to finish before downloading, deleting, or switching conversion models.")
+                            Text("Wait for the current recording or transcription to finish before downloading, deleting, or switching assistant models.")
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
                         }
                     }
                     .opacity(preferences.cloudLLMConfig.isEnabled ? 0.5 : 1.0)
                     .disabled(preferences.cloudLLMConfig.isEnabled)
-
-                    Divider()
-                        .overlay(Color.white.opacity(0.08))
-
-                    rewriteSystemPromptSection
 
                     Divider()
                         .overlay(Color.white.opacity(0.08))
@@ -2999,11 +4294,11 @@ struct SetupWindowView: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(
             RoundedRectangle(cornerRadius: SettingsLayoutMetrics.cardCornerRadius, style: .continuous)
-                .fill(Color(white: 0.14))
+                .fill(SetupColorPalette.cardBackground)
         )
         .overlay(
             RoundedRectangle(cornerRadius: SettingsLayoutMetrics.cardCornerRadius, style: .continuous)
-                .strokeBorder(Color.white.opacity(0.06), lineWidth: 1)
+                .strokeBorder(SetupColorPalette.cardBorder, lineWidth: 1)
         )
         .modifier(
             SettingsCardFlashModifier(
@@ -3052,6 +4347,10 @@ struct SetupWindowView: View {
                                     generalSectionContent
                                 }
 
+                                trackedSection(.shortcuts) {
+                                    shortcutsSectionContent
+                                }
+
                                 trackedSection(.assistant) {
                                     assistantSectionContent
                                 }
@@ -3060,8 +4359,12 @@ struct SetupWindowView: View {
                                     replacementsSectionContent
                                 }
 
-                                trackedSection(.shortcuts) {
-                                    shortcutsSectionContent
+                                trackedSection(.notes) {
+                                    notesSectionContent
+                                }
+
+                                trackedSection(.history) {
+                                    historySectionContent
                                 }
 
                                 trackedSection(.permissions) {
@@ -3101,24 +4404,42 @@ struct SetupWindowView: View {
                 Button("Close") {
                     dismissWindow()
                 }
-                .keyboardShortcut(.defaultAction)
                 .accessibilityIdentifier("setupWindow.primaryAction")
             }
             .padding(.horizontal, 24)
             .padding(.vertical, 16)
-            .background(Color(red: 0.07, green: 0.07, blue: 0.08))
+            .background(SetupColorPalette.appBackground)
         }
         .confirmationDialog(
-            "Clear all word replacements?",
+            "Clear your word replacements?",
             isPresented: $isShowingClearAllReplacementsConfirmation,
             titleVisibility: .visible
         ) {
-            Button("Clear All", role: .destructive) {
+            Button("Clear Mine", role: .destructive) {
                 clearAllWordReplacements()
             }
             Button("Cancel", role: .cancel) {}
         } message: {
-            Text("This removes every replacement in this section.")
+            Text("This removes the replacements you added yourself. Vocabulary packs stay on.")
+        }
+        .confirmationDialog(
+            "Clear all saved history?",
+            isPresented: $isShowingClearHistoryConfirmation,
+            titleVisibility: .visible
+        ) {
+            Button("Clear History", role: .destructive) {
+                clearAllHistory()
+            }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("This permanently deletes every saved transcription in the current history folder.")
+        }
+        .sheet(isPresented: $isShowingAssistantSystemPromptEditor) {
+            AssistantSystemPromptSheet(
+                prompt: rewriteSystemPromptBinding,
+                onLoadFromFile: loadAssistantSystemPromptFromFile,
+                onDismiss: { isShowingAssistantSystemPromptEditor = false }
+            )
         }
     }
 
@@ -3136,7 +4457,7 @@ struct SetupWindowView: View {
             maxWidth: SetupWindowMetrics.width,
             minHeight: SetupWindowMetrics.collapsedHeight
         )
-        .background(Color(red: 0.07, green: 0.07, blue: 0.08))
+        .background(SetupColorPalette.appBackground)
         .preferredColorScheme(.dark)
         .onAppear {
             audioDeviceService.refresh()
@@ -3147,6 +4468,7 @@ struct SetupWindowView: View {
             loadCloudAPIKeyIfNeeded()
             synchronizeOnboardingStepIfNeeded()
             persistOnboardingProgress()
+            reloadHistoryEntries()
             if mode == .onboarding && !preferences.launchAtLogin {
                 preferences.setLaunchAtLogin(true)
             }
@@ -3160,12 +4482,18 @@ struct SetupWindowView: View {
             readinessStore.refresh()
             modelLoadState.refreshStatus()
             whisperModelLoadState.refreshStatus()
+            if mode != .onboarding {
+                reloadHistoryEntries()
+            }
         }
         .onChange(of: preferences.rewriteModelTier) { _ in
             modelLoadState.refreshStatus()
         }
         .onChange(of: preferences.whisperModel) { _ in
             whisperModelLoadState.refreshStatus()
+        }
+        .onChange(of: preferences.historyFolderPath) { _, _ in
+            reloadHistoryEntries()
         }
         .onChange(of: onboardingStep) { _, _ in
             persistOnboardingProgress()
@@ -3176,6 +4504,7 @@ struct SetupWindowView: View {
             cloudModels = []
             cloudModelFetchError = nil
             cloudConnectionTestResult = nil
+            cloudSaveResult = nil
         }
     }
 }

@@ -209,42 +209,6 @@ final class PermissionServiceTests: XCTestCase {
         XCTAssertFalse(shouldPrompt)
     }
 
-    func testLaunchSetupWindowGatePresentsWhenReadinessNeedsSetup() {
-        let shouldPresent = AppDelegate.shouldPresentSetupWindowOnLaunch(
-            readinessState: .needsSetup,
-            forcePresentSetupOnLaunch: false
-        )
-
-        XCTAssertTrue(shouldPresent)
-    }
-
-    func testLaunchSetupWindowGatePresentsWhenReadinessIsBlocked() {
-        let shouldPresent = AppDelegate.shouldPresentSetupWindowOnLaunch(
-            readinessState: .blocked,
-            forcePresentSetupOnLaunch: false
-        )
-
-        XCTAssertTrue(shouldPresent)
-    }
-
-    func testLaunchSetupWindowGateStaysQuietWhenReadyAndNotForced() {
-        let shouldPresent = AppDelegate.shouldPresentSetupWindowOnLaunch(
-            readinessState: .ready,
-            forcePresentSetupOnLaunch: false
-        )
-
-        XCTAssertFalse(shouldPresent)
-    }
-
-    func testLaunchSetupWindowGateHonorsForceFlag() {
-        let shouldPresent = AppDelegate.shouldPresentSetupWindowOnLaunch(
-            readinessState: .ready,
-            forcePresentSetupOnLaunch: true
-        )
-
-        XCTAssertTrue(shouldPresent)
-    }
-
     func testLaunchSetupWindowModeUsesOnboardingWhenBuildNeedsAcknowledgement() {
         let mode = AppDelegate.launchSetupWindowMode(
             readinessState: .ready,

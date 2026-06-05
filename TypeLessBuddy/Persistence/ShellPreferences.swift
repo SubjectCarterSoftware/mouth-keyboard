@@ -36,6 +36,14 @@ enum RecordingPillPosition: String, CaseIterable, Codable {
     }
 }
 
+struct MouseButtonBinding: Codable, Equatable {
+    let buttonNumber: Int
+
+    var displayName: String {
+        "Mouse Button \(buttonNumber)"
+    }
+}
+
 @MainActor
 final class ShellPreferences: ObservableObject {
     enum Keys {
@@ -58,10 +66,19 @@ final class ShellPreferences: ObservableObject {
         static let holdShortcutModifiers = "holdShortcutModifiers"
         static let holdShortcutKeyCodeAlt = "holdShortcutKeyCodeAlt"
         static let holdShortcutModifiersAlt = "holdShortcutModifiersAlt"
+        static let startMouseButtonBinding = "startMouseButtonBinding"
+        static let stopMouseButtonBinding = "stopMouseButtonBinding"
+        static let holdMouseButtonBinding = "holdMouseButtonBinding"
         static let cloudLLMConfig = "cloudLLMConfig"
         static let legacyAllowClipboardAccess = "allowClipboardAccess"
         static let rewriteSystemPromptPrefix = "rewriteSystemPromptPrefix"
         static let recordingPillPosition = "recordingPillPosition"
+        static let assistantNoteMode = "assistantNoteMode"
+        static let assistantNoteFolderPath = "assistantNoteFolderPath"
+        static let assistantNoteAppendFilePath = "assistantNoteAppendFilePath"
+        static let historyEnabled = "historyEnabled"
+        static let historyFolderPath = "historyFolderPath"
+        static let historyStorageLimitMB = "historyStorageLimitMB"
     }
 
     static let shared = makeShared()
@@ -205,6 +222,78 @@ final class ShellPreferences: ObservableObject {
         }
     }
 
+    @Published var assistantNoteMode: AssistantNoteMode {
+        didSet {
+            persistIfNeeded {
+                defaults.set(assistantNoteMode.rawValue, forKey: Keys.assistantNoteMode)
+            }
+        }
+    }
+
+    @Published var assistantNoteFolderPath: String {
+        didSet {
+            let normalized = Self.normalizedOptionalPath(assistantNoteFolderPath)
+            if assistantNoteFolderPath != normalized {
+                assistantNoteFolderPath = normalized
+                return
+            }
+
+            persistIfNeeded {
+                defaults.set(assistantNoteFolderPath, forKey: Keys.assistantNoteFolderPath)
+            }
+        }
+    }
+
+    @Published var assistantNoteAppendFilePath: String {
+        didSet {
+            let normalized = Self.normalizedOptionalPath(assistantNoteAppendFilePath)
+            if assistantNoteAppendFilePath != normalized {
+                assistantNoteAppendFilePath = normalized
+                return
+            }
+
+            persistIfNeeded {
+                defaults.set(assistantNoteAppendFilePath, forKey: Keys.assistantNoteAppendFilePath)
+            }
+        }
+    }
+
+    @Published var historyEnabled: Bool {
+        didSet {
+            persistIfNeeded {
+                defaults.set(historyEnabled, forKey: Keys.historyEnabled)
+            }
+        }
+    }
+
+    @Published var historyFolderPath: String {
+        didSet {
+            let normalized = Self.normalizedOptionalPath(historyFolderPath)
+            if historyFolderPath != normalized {
+                historyFolderPath = normalized
+                return
+            }
+
+            persistIfNeeded {
+                defaults.set(historyFolderPath, forKey: Keys.historyFolderPath)
+            }
+        }
+    }
+
+    @Published var historyStorageLimitMB: Int {
+        didSet {
+            let normalized = max(1, historyStorageLimitMB)
+            if historyStorageLimitMB != normalized {
+                historyStorageLimitMB = normalized
+                return
+            }
+
+            persistIfNeeded {
+                defaults.set(historyStorageLimitMB, forKey: Keys.historyStorageLimitMB)
+            }
+        }
+    }
+
     @Published var holdShortcutKeyCode: Int {
         didSet {
             persistIfNeeded {
@@ -235,6 +324,24 @@ final class ShellPreferences: ObservableObject {
             persistIfNeeded {
                 defaults.set(Int(holdShortcutModifiersAlt), forKey: Keys.holdShortcutModifiersAlt)
             }
+        }
+    }
+
+    @Published var startMouseButtonBinding: MouseButtonBinding? {
+        didSet {
+            persistBinding(startMouseButtonBinding, forKey: Keys.startMouseButtonBinding)
+        }
+    }
+
+    @Published var stopMouseButtonBinding: MouseButtonBinding? {
+        didSet {
+            persistBinding(stopMouseButtonBinding, forKey: Keys.stopMouseButtonBinding)
+        }
+    }
+
+    @Published var holdMouseButtonBinding: MouseButtonBinding? {
+        didSet {
+            persistBinding(holdMouseButtonBinding, forKey: Keys.holdMouseButtonBinding)
         }
     }
 
@@ -325,12 +432,17 @@ final class ShellPreferences: ObservableObject {
             launchAtLogin = SMAppService.mainApp.status == .enabled
         }
 
+        let resolvedRewriteModelTier: RewriteModelTier
         if let storedTier = userDefaults.string(forKey: Keys.rewriteModelTier),
            let tier = RewriteModelTier(rawValue: storedTier) {
-            rewriteModelTier = tier
+            resolvedRewriteModelTier = tier
         } else {
-            rewriteModelTier = .standard2B
+            resolvedRewriteModelTier = .standard2B
         }
+        rewriteModelTier = resolvedRewriteModelTier
+
+        userDefaults.removeObject(forKey: "customAssistantModels")
+        userDefaults.removeObject(forKey: "assistantModelSelection")
 
         if userDefaults.object(forKey: Keys.alwaysAutoPaste) == nil {
             alwaysAutoPaste = true
@@ -359,6 +471,36 @@ final class ShellPreferences: ObservableObject {
             recordingPillPosition = .default
         }
 
+        if let storedAssistantNoteMode = userDefaults.string(forKey: Keys.assistantNoteMode),
+           let resolvedAssistantNoteMode = AssistantNoteMode(rawValue: storedAssistantNoteMode) {
+            assistantNoteMode = resolvedAssistantNoteMode
+        } else {
+            assistantNoteMode = .newFile
+        }
+
+        assistantNoteFolderPath = Self.normalizedOptionalPath(
+            userDefaults.string(forKey: Keys.assistantNoteFolderPath) ?? ""
+        )
+        assistantNoteAppendFilePath = Self.normalizedOptionalPath(
+            userDefaults.string(forKey: Keys.assistantNoteAppendFilePath) ?? ""
+        )
+
+        if userDefaults.object(forKey: Keys.historyEnabled) == nil {
+            historyEnabled = false
+        } else {
+            historyEnabled = userDefaults.bool(forKey: Keys.historyEnabled)
+        }
+
+        historyFolderPath = Self.normalizedOptionalPath(
+            userDefaults.string(forKey: Keys.historyFolderPath) ?? ""
+        )
+
+        if userDefaults.object(forKey: Keys.historyStorageLimitMB) == nil {
+            historyStorageLimitMB = 500
+        } else {
+            historyStorageLimitMB = max(1, userDefaults.integer(forKey: Keys.historyStorageLimitMB))
+        }
+
         if userDefaults.object(forKey: Keys.holdShortcutKeyCode) == nil {
             holdShortcutKeyCode = Self.defaultHoldShortcutKeyCode
         } else {
@@ -374,6 +516,18 @@ final class ShellPreferences: ObservableObject {
         }
 
         holdShortcutModifiersAlt = UInt(max(0, userDefaults.integer(forKey: Keys.holdShortcutModifiersAlt)))
+        startMouseButtonBinding = Self.decodeMouseButtonBinding(
+            from: userDefaults,
+            key: Keys.startMouseButtonBinding
+        )
+        stopMouseButtonBinding = Self.decodeMouseButtonBinding(
+            from: userDefaults,
+            key: Keys.stopMouseButtonBinding
+        )
+        holdMouseButtonBinding = Self.decodeMouseButtonBinding(
+            from: userDefaults,
+            key: Keys.holdMouseButtonBinding
+        )
 
         if let configData = userDefaults.data(forKey: Keys.cloudLLMConfig),
            let decoded = try? JSONDecoder().decode(CloudLLMConfig.self, from: configData) {
@@ -466,6 +620,21 @@ final class ShellPreferences: ObservableObject {
         }
     }
 
+    func isPackEnabled(_ id: String) -> Bool {
+        activeDictionaryData.enabledPackIDs.contains(id)
+    }
+
+    func setPack(_ pack: ReplacementPack, enabled: Bool) {
+        let updated = enabled
+            ? ReplacementPackService.enabling(pack, in: activeDictionaryData)
+            : ReplacementPackService.disabling(pack, in: activeDictionaryData)
+        guard updated != activeDictionaryData else { return }
+        // Update the published value immediately so the UI reflects the toggle without
+        // waiting on the async persist round-trip.
+        activeDictionaryData = updated
+        updateDictionaryData(updated)
+    }
+
     @discardableResult
     func persistDictionaryData(_ data: DictionaryData) async -> Bool {
         do {
@@ -491,15 +660,20 @@ final class ShellPreferences: ObservableObject {
         holdShortcutModifiers = Self.defaultHoldShortcutModifiers
         holdShortcutKeyCodeAlt = Self.defaultHoldShortcutKeyCodeAlt
         holdShortcutModifiersAlt = Self.defaultHoldShortcutModifiersAlt
+        startMouseButtonBinding = nil
+        stopMouseButtonBinding = nil
+        holdMouseButtonBinding = nil
     }
 
+    /// Removes only user-authored replacements (those not contributed by a vocabulary
+    /// pack). Pack-contributed entries are managed by toggling the pack itself.
     func clearWordReplacements() {
-        guard !activeDictionaryData.replacements.isEmpty else {
+        guard activeDictionaryData.replacements.contains(where: { $0.sourcePackIDs.isEmpty }) else {
             return
         }
 
         var data = activeDictionaryData
-        data.replacements.removeAll()
+        data.replacements.removeAll { $0.sourcePackIDs.isEmpty }
         updateDictionaryData(data)
     }
 
@@ -533,6 +707,31 @@ final class ShellPreferences: ObservableObject {
 
     private static func normalizedRewritePromptPrefix(_ value: String) -> String {
         LLMRewriteService.normalizeAssistantSystemPromptTemplate(value)
+    }
+
+    private static func normalizedOptionalPath(_ value: String) -> String {
+        value.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    private func persistBinding(_ binding: MouseButtonBinding?, forKey key: String) {
+        persistIfNeeded {
+            guard let binding else {
+                defaults.removeObject(forKey: key)
+                return
+            }
+
+            if let data = try? JSONEncoder().encode(binding) {
+                defaults.set(data, forKey: key)
+            }
+        }
+    }
+
+    private static func decodeMouseButtonBinding(from defaults: UserDefaults, key: String) -> MouseButtonBinding? {
+        guard let data = defaults.data(forKey: key) else {
+            return nil
+        }
+
+        return try? JSONDecoder().decode(MouseButtonBinding.self, from: data)
     }
 
     private static func resolveCurrentBuildIdentifier(bundle: Bundle = .main) -> String {
@@ -634,5 +833,21 @@ final class ShellPreferences: ObservableObject {
 
     private func persistIfNeeded(_ operation: () -> Void) {
         operation()
+    }
+
+    var assistantNoteConfiguration: AssistantNoteConfiguration {
+        AssistantNoteConfiguration(
+            mode: assistantNoteMode,
+            folderPath: assistantNoteFolderPath,
+            appendFilePath: assistantNoteAppendFilePath
+        )
+    }
+
+    var historyConfiguration: HistoryConfiguration {
+        HistoryConfiguration(
+            isEnabled: historyEnabled,
+            folderPath: historyFolderPath,
+            storageLimitMB: historyStorageLimitMB
+        )
     }
 }

@@ -1,4 +1,6 @@
+import AppKit
 import Combine
+import MLXLMCommon
 import XCTest
 @testable import TypeLessBuddy
 
@@ -53,6 +55,31 @@ final class ActivationStoreTests: XCTestCase {
         let didStart = store.beginHoldSession()
 
         XCTAssertTrue(didStart)
+        XCTAssertEqual(store.state, .recording)
+    }
+
+    func testStartSoundIsDebouncedForNearSimultaneousActivations() {
+        var currentTime = Date(timeIntervalSinceReferenceDate: 1_000)
+        let store = makeStore(
+            permissionsAuthorized: true,
+            dateProvider: { currentTime }
+        )
+        var playCount = 0
+        store.soundPlayer = ActivationSoundPlayer(
+            playStart: { playCount += 1 }
+        )
+
+        store.arm()
+        store.stop()
+
+        currentTime = currentTime.addingTimeInterval(0.05)
+        store.arm()
+        store.stop()
+
+        currentTime = currentTime.addingTimeInterval(0.20)
+        store.arm()
+
+        XCTAssertEqual(playCount, 2)
         XCTAssertEqual(store.state, .recording)
     }
 
@@ -264,18 +291,53 @@ final class ActivationStoreTests: XCTestCase {
         XCTAssertEqual(deadline.timeIntervalSince(startedAt), 10, accuracy: 0.05)
     }
 
+    func testFinishWaitsForAudioCaptureFinalizationBeforeTranscribing() async throws {
+        let transcriber = FinalizationAwareWhisperTranscriber(resultText: "tail kept")
+        let store = makeStore(
+            permissionsAuthorized: true,
+            transcriber: transcriber,
+            bufferAccumulator: FixedWhisperSamplesAccumulator(samples: [0.2, 0.1, -0.1, 0.0])
+        )
+        var finalized = false
+        transcriber.didFinalizeAudioCapture = { finalized }
+        store.finalizeAudioCaptureBeforeTranscription = {
+            try? await Task.sleep(nanoseconds: 100_000_000)
+            finalized = true
+        }
+
+        store.arm()
+        store.finish()
+
+        try await Task.sleep(nanoseconds: 250_000_000)
+
+        XCTAssertTrue(finalized)
+        let didObserveFinalization = await transcriber.didObserveFinalization()
+        XCTAssertTrue(didObserveFinalization)
+        if case .success(let text, _, _, _, _) = store.state {
+            XCTAssertEqual(text, "tail kept")
+        } else {
+            XCTFail("Expected .success state after finalization-aware transcription, got \(store.state)")
+        }
+    }
+
     func testPasteFallbackReportsCopiedOnly() async throws {
         let pasteStub = StubCopyOnlyPasteService()
         let mockClipboard = ActivationStoreMockClipboard()
+        let suiteName = "ActivationStoreTests.PasteFallback.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suiteName) ?? .standard
+        defaults.removePersistentDomain(forName: suiteName)
+        let preferences = ShellPreferences(userDefaults: defaults)
+        preferences.alwaysAutoPaste = true
         let store = makeStore(
             permissionsAuthorized: true,
             postEventAuthorized: true,
             transcriber: ActivationStoreMockTranscriber(result: .success("Fallback text")),
             clipboard: mockClipboard,
-            pasteService: pasteStub
+            pasteService: pasteStub,
+            preferences: preferences
         )
 
-        store.armAndPaste()
+        store.arm()
         store.finish()
 
         try await Task.sleep(nanoseconds: 350_000_000)
@@ -826,72 +888,6 @@ final class ActivationStoreTests: XCTestCase {
         XCTAssertEqual(mockClipboard.writeCount, 1)
     }
 
-    func test_pasteCurrentSuccessResult_usesTapTimeClipboardSnapshot() async throws {
-        let preferences = makePreferencesWithTriggerStore()
-        preferences.alwaysAutoPaste = false
-
-        let pasteStub = StubSuccessfulPasteService()
-        let mockClipboard = ActivationStoreMockClipboard()
-        let store = makeStore(
-            permissionsAuthorized: true,
-            postEventAuthorized: true,
-            transcriber: ActivationStoreMockTranscriber(result: .success("Target text")),
-            clipboard: mockClipboard,
-            pasteService: pasteStub,
-            preferences: preferences
-        )
-
-        store.arm()
-        store.finish()
-        try await Task.sleep(nanoseconds: 200_000_000)
-
-        mockClipboard.clearWriteCount()
-        mockClipboard.stubbedClipboardContent = "user changed clipboard"
-
-        store.pasteCurrentSuccessResult()
-        try await Task.sleep(nanoseconds: 250_000_000)
-
-        XCTAssertEqual(mockClipboard.temporaryWriteTexts, ["Target text"])
-        XCTAssertEqual(mockClipboard.lastRestoredSnapshot?.plainText, "user changed clipboard")
-        XCTAssertTrue(mockClipboard.didRestoreOriginalClipboard)
-        XCTAssertEqual(pasteStub.pasteCount, 1)
-    }
-
-    func test_pasteCurrentSuccessResult_withoutPostEventPermission_requestsGuidance() async throws {
-        let preferences = makePreferencesWithTriggerStore()
-        preferences.alwaysAutoPaste = false
-
-        let pasteStub = StubSuccessfulPasteService()
-        let mockClipboard = ActivationStoreMockClipboard()
-        let store = makeStore(
-            permissionsAuthorized: true,
-            transcriber: ActivationStoreMockTranscriber(result: .success("Target text")),
-            clipboard: mockClipboard,
-            pasteService: pasteStub,
-            preferences: preferences
-        )
-
-        var permissionPromptCount = 0
-        store.onPastePermissionNeeded = {
-            permissionPromptCount += 1
-        }
-
-        store.arm()
-        store.finish()
-        try await Task.sleep(nanoseconds: 200_000_000)
-
-        mockClipboard.clearWriteCount()
-
-        store.pasteCurrentSuccessResult()
-        try await Task.sleep(nanoseconds: 50_000_000)
-
-        XCTAssertEqual(permissionPromptCount, 1)
-        XCTAssertEqual(pasteStub.pasteCount, 0)
-        XCTAssertTrue(mockClipboard.temporaryWriteTexts.isEmpty)
-        XCTAssertEqual(mockClipboard.restoreCallCount, 0)
-        XCTAssertTrue(store.state.isSuccess)
-    }
-
     func test_copyCurrentSuccessResult_usesConvertedText() async throws {
         let preferences = makePreferencesWithTriggerStore()
         preferences.alwaysAutoPaste = false
@@ -1117,6 +1113,13 @@ final class ActivationStoreTests: XCTestCase {
         XCTAssertEqual(SuccessPillCountdownStyle.label(elapsed: 10), "1")
     }
 
+    func test_successCountdownStyle_usesNotedLabelWhenResultWasSavedToNote() {
+        XCTAssertEqual(SuccessPillCountdownStyle.label(elapsed: nil, wasSavedToNote: true), "Noted")
+        XCTAssertEqual(SuccessPillCountdownStyle.label(elapsed: 0, wasSavedToNote: true), "Noted")
+        XCTAssertEqual(SuccessPillCountdownStyle.label(elapsed: 2.49, wasSavedToNote: true), "Noted")
+        XCTAssertEqual(SuccessPillCountdownStyle.label(elapsed: 2.5, wasSavedToNote: true), "Closing")
+    }
+
     func test_arm_while_recording_is_ignored() async throws {
         let mockTranscriber = ActivationStoreMockTranscriber(result: .success("toggled"))
         let store = makeStore(
@@ -1309,7 +1312,7 @@ final class ActivationStoreTests: XCTestCase {
 
         XCTAssertEqual(rewriter.generateCallCount, 1)
         XCTAssertEqual(rewriter.lastGeneratePrompt, assistantTranscript)
-        XCTAssertFalse(rewriter.lastGeneratePrompt?.contains("Previous text:") ?? false)
+        XCTAssertFalse(rewriter.lastGeneratePrompt?.contains("transcript context provided below:") ?? false)
     }
 
     func testConfiguredRewriteSystemPromptPrefixIsPassedToAssistantGenerate() async throws {
@@ -1562,7 +1565,7 @@ final class ActivationStoreTests: XCTestCase {
         try await Task.sleep(nanoseconds: 300_000_000)
 
         XCTAssertEqual(mockRewriter.lastCalledOverload, .generateOverload)
-        XCTAssertEqual(mockRewriter.lastGeneratePrompt, transcript)
+        XCTAssertEqual(mockRewriter.lastGeneratePrompt?.hasPrefix(transcript), true)
     }
 
     func test_finalize_alias_at_start_routes_full_transcript() async throws {
@@ -1587,7 +1590,7 @@ final class ActivationStoreTests: XCTestCase {
         try await Task.sleep(nanoseconds: 300_000_000)
 
         XCTAssertEqual(mockRewriter.lastCalledOverload, .generateOverload)
-        XCTAssertEqual(mockRewriter.lastGeneratePrompt, transcript)
+        XCTAssertEqual(mockRewriter.lastGeneratePrompt?.hasPrefix(transcript), true)
         XCTAssertEqual(mockClipboard.lastWrittenText, "Assistant output")
         if case .success(let text, _, let converted, _, _) = store.state {
             XCTAssertEqual(text, "Assistant output")
@@ -1619,7 +1622,7 @@ final class ActivationStoreTests: XCTestCase {
         try await Task.sleep(nanoseconds: 300_000_000)
 
         XCTAssertEqual(mockRewriter.lastCalledOverload, .generateOverload)
-        XCTAssertEqual(mockRewriter.lastGeneratePrompt, transcript)
+        XCTAssertEqual(mockRewriter.lastGeneratePrompt?.hasPrefix(transcript), true)
         XCTAssertEqual(mockClipboard.lastWrittenText, "Assistant output")
     }
 
@@ -1647,7 +1650,7 @@ final class ActivationStoreTests: XCTestCase {
 
         XCTAssertTrue(reachedSuccess)
         XCTAssertEqual(mockRewriter.generateCallCount, 1)
-        XCTAssertEqual(mockRewriter.lastGeneratePrompt, transcript)
+        XCTAssertEqual(mockRewriter.lastGeneratePrompt?.hasPrefix(transcript), true)
         XCTAssertEqual(mockClipboard.lastWrittenText, "Assistant output")
     }
 
@@ -1766,7 +1769,7 @@ final class ActivationStoreTests: XCTestCase {
         try await Task.sleep(nanoseconds: 300_000_000)
 
         XCTAssertEqual(mockRewriter.lastCalledOverload, .generateOverload)
-        XCTAssertEqual(mockRewriter.lastGeneratePrompt, transcript)
+        XCTAssertEqual(mockRewriter.lastGeneratePrompt?.hasPrefix(transcript), true)
         XCTAssertEqual(mockClipboard.lastWrittenText, transcript)
         if case .failure(let reason) = store.state {
             if case .modelError(let message) = reason {
@@ -1813,7 +1816,7 @@ final class ActivationStoreTests: XCTestCase {
 
         XCTAssertEqual(mockRewriter.lastCalledOverload, .generateOverload,
                        "Default trigger must activate trigger parsing after resetAssistantNameToDefault without restart")
-        XCTAssertEqual(mockRewriter.lastGeneratePrompt, transcript)
+        XCTAssertEqual(mockRewriter.lastGeneratePrompt?.hasPrefix(transcript), true)
     }
 
     /// After setCustomTrigger, the new custom primary activates trigger parsing
@@ -1847,7 +1850,7 @@ final class ActivationStoreTests: XCTestCase {
 
         XCTAssertEqual(mockRewriter.lastCalledOverload, .generateOverload,
                        "Custom trigger 'helios' must activate parsing after setCustomTrigger without restart")
-        XCTAssertEqual(mockRewriter.lastGeneratePrompt, transcript)
+        XCTAssertEqual(mockRewriter.lastGeneratePrompt?.hasPrefix(transcript), true)
     }
 
     func test_finalize_customTriggerNotMentioned_doesNotEnterAssistantRouting() async throws {
@@ -1903,8 +1906,8 @@ final class ActivationStoreTests: XCTestCase {
         XCTAssertEqual(successConfiguration, .enabled)
         XCTAssertEqual(PillCopyControlConfiguration.slotWidth, 34)
         XCTAssertEqual(PillCopyControlConfiguration.slotHeight, 34)
-        XCTAssertEqual(PillCopyControlConfiguration.controlDiameter, 24)
-        XCTAssertEqual(PillCopyControlConfiguration.iconSymbolSize, 12)
+        XCTAssertEqual(PillCopyControlConfiguration.controlDiameter, 22)
+        XCTAssertEqual(PillCopyControlConfiguration.iconSymbolSize, 11)
         XCTAssertEqual(
             successConfiguration.accessibilityIdentifier,
             PillCopyControlConfiguration.successAccessibilityIdentifier
@@ -1928,7 +1931,6 @@ final class ActivationStoreTests: XCTestCase {
         let mockRewriter = MockLLMRewriter(result: .success("Slack output"))
         mockRewriter.queuedGenerateResults = [
             .success("Slack output"),
-            .success("NONE"),
             .success("Email output"),
         ]
         let store = makeStore(
@@ -1954,8 +1956,8 @@ final class ActivationStoreTests: XCTestCase {
         store.finish()
         try await Task.sleep(nanoseconds: 300_000_000)
 
-        // 3 calls: session 1 rewrite + session 2 external-text routing + session 2 rewrite
-        XCTAssertEqual(mockRewriter.generateCallCount, 3)
+        // 2 calls: session 1 rewrite + session 2 rewrite
+        XCTAssertEqual(mockRewriter.generateCallCount, 2)
 
         let secondPrompt = try XCTUnwrap(mockRewriter.generatePrompts.last)
         XCTAssertFalse(
@@ -1981,7 +1983,6 @@ final class ActivationStoreTests: XCTestCase {
         let mockRewriter = MockLLMRewriter(result: .success("Email output"))
         mockRewriter.queuedGenerateResults = [
             .success("Email output"),
-            .success("NONE"),
             .success("Slack output"),
         ]
         let store = makeStore(
@@ -2006,8 +2007,8 @@ final class ActivationStoreTests: XCTestCase {
         store.finish()
         try await Task.sleep(nanoseconds: 300_000_000)
 
-        // 3 calls: session 1 rewrite + session 2 external-text routing + session 2 rewrite
-        XCTAssertEqual(mockRewriter.generateCallCount, 3)
+        // 2 calls: session 1 rewrite + session 2 rewrite
+        XCTAssertEqual(mockRewriter.generateCallCount, 2)
 
         let secondPrompt = try XCTUnwrap(mockRewriter.generatePrompts.last)
         XCTAssertFalse(
@@ -2045,6 +2046,341 @@ final class ActivationStoreTests: XCTestCase {
         XCTAssertFalse(stored.contains("<"), "lastConvertedTranscription must not contain XML markup")
     }
 
+    func test_assistantNotePhrase_savesRewrittenOutput() async throws {
+        let preferences = makePreferencesWithConfiguredNoteDestination()
+        let noteCaptureService = StubNoteCaptureService()
+        let llmRewriter = MockLLMRewriter(result: .success("- first\n- second"))
+        llmRewriter.queuedGenerateResults = [
+            .success("- first\n- second"),
+            .success("Bullet summary")
+        ]
+        let store = makeStore(
+            permissionsAuthorized: true,
+            transcriber: ActivationStoreMockTranscriber(
+                result: .success("Buddy make a note of this turn this into bullet points")
+            ),
+            llmRewriter: llmRewriter,
+            noteCaptureService: noteCaptureService,
+            preferences: preferences
+        )
+
+        store.arm()
+        store.finish()
+
+        let didSucceed = try await waitForSuccess(of: store)
+        XCTAssertTrue(didSucceed)
+        XCTAssertEqual(
+            noteCaptureService.savedContents,
+            [
+                NoteCaptureContent(
+                    title: "Bullet summary",
+                    rawTranscription: "Buddy make a note of this turn this into bullet points",
+                    assistantOutput: "- first\n- second"
+                )
+            ]
+        )
+        XCTAssertEqual(store.successNoteSaveState, .saved)
+        XCTAssertEqual(noteCaptureService.savedConfigurations.first, preferences.assistantNoteConfiguration)
+    }
+
+    func test_assistantNotePhrase_savesReferencedSelectedTextInNote() async throws {
+        let preferences = makePreferencesWithConfiguredNoteDestination()
+        let noteCaptureService = StubNoteCaptureService()
+        let clipboard = ActivationStoreMockClipboard()
+        let pasteService = StubSelectionAwarePasteService(
+            clipboard: clipboard,
+            queuedCopyResults: [
+                .dispatched("hey thanks for the quick reply"),
+                .dispatched("hey thanks for the quick reply"),
+            ]
+        )
+        let llmRewriter = MockLLMRewriter(result: .success("Thank you for the quick reply."))
+        llmRewriter.queuedGenerateResults = [
+            .success("Thank you for the quick reply."),
+            .success("Selected text cleanup")
+        ]
+        let store = makeStore(
+            permissionsAuthorized: true,
+            postEventAuthorized: true,
+            transcriber: ActivationStoreMockTranscriber(
+                result: .success("Buddy make a note of this make the selected text more professional")
+            ),
+            llmRewriter: llmRewriter,
+            noteCaptureService: noteCaptureService,
+            clipboard: clipboard,
+            pasteService: pasteService,
+            preferences: preferences
+        )
+
+        store.arm()
+        store.finish()
+
+        let didSucceed = try await waitForSuccess(of: store)
+        XCTAssertTrue(didSucceed)
+        XCTAssertEqual(
+            noteCaptureService.savedContents,
+            [
+                NoteCaptureContent(
+                    title: "Selected text cleanup",
+                    rawTranscription: "Buddy make a note of this make the selected text more professional",
+                    referencedContexts: [
+                        NoteCaptureReferencedContext(
+                            title: "Selected text",
+                            content: "hey thanks for the quick reply"
+                        )
+                    ],
+                    assistantOutput: "Thank you for the quick reply."
+                )
+            ]
+        )
+        XCTAssertEqual(store.successNoteSaveState, .saved)
+    }
+
+    func test_manualSaveCurrentSuccessResultAsNote_savesPassthroughOutput() async throws {
+        let preferences = makePreferencesWithConfiguredNoteDestination()
+        let noteCaptureService = StubNoteCaptureService()
+        let store = makeStore(
+            permissionsAuthorized: true,
+            transcriber: ActivationStoreMockTranscriber(result: .success("plain transcript")),
+            noteCaptureService: noteCaptureService,
+            preferences: preferences
+        )
+
+        store.arm()
+        store.finish()
+
+        let didSucceed = try await waitForSuccess(of: store)
+        XCTAssertTrue(didSucceed)
+        XCTAssertEqual(store.successNoteSaveState, .available)
+
+        store.saveCurrentSuccessResultAsNote()
+
+        let didSave = try await waitUntil(timeoutNanoseconds: 2_000_000_000) {
+            await MainActor.run { store.successNoteSaveState == .saved }
+        }
+
+        XCTAssertTrue(didSave)
+        XCTAssertEqual(
+            noteCaptureService.savedContents,
+            [
+                NoteCaptureContent(
+                    title: nil,
+                    rawTranscription: "plain transcript",
+                    assistantOutput: nil
+                )
+            ]
+        )
+    }
+
+    func test_manualSaveCurrentSuccessResultAsNote_savesAssistantOutputWithoutAutomaticNotePhrase() async throws {
+        let preferences = makePreferencesWithConfiguredNoteDestination()
+        let noteCaptureService = StubNoteCaptureService()
+        let llmRewriter = MockLLMRewriter(result: .success("Here is the cleaned status update."))
+        llmRewriter.queuedGenerateResults = [
+            .success("Here is the cleaned status update."),
+            .success("Quick status update")
+        ]
+        let store = makeStore(
+            permissionsAuthorized: true,
+            transcriber: ActivationStoreMockTranscriber(result: .success("Buddy draft a quick status update")),
+            llmRewriter: llmRewriter,
+            noteCaptureService: noteCaptureService,
+            preferences: preferences
+        )
+
+        store.arm()
+        store.finish()
+
+        let didSucceed = try await waitForSuccess(of: store)
+        XCTAssertTrue(didSucceed)
+        XCTAssertEqual(store.successNoteSaveState, .available)
+
+        store.saveCurrentSuccessResultAsNote()
+
+        let didSave = try await waitUntil(timeoutNanoseconds: 2_000_000_000) {
+            await MainActor.run { store.successNoteSaveState == .saved }
+        }
+
+        XCTAssertTrue(didSave)
+        XCTAssertEqual(
+            noteCaptureService.savedContents,
+            [
+                NoteCaptureContent(
+                    title: "Quick status update",
+                    rawTranscription: "Buddy draft a quick status update",
+                    assistantOutput: "Here is the cleaned status update."
+                )
+            ]
+        )
+    }
+
+    func test_manualSaveCurrentSuccessResultAsNote_preventsDuplicateWrites() async throws {
+        let preferences = makePreferencesWithConfiguredNoteDestination()
+        let noteCaptureService = StubNoteCaptureService()
+        let store = makeStore(
+            permissionsAuthorized: true,
+            transcriber: ActivationStoreMockTranscriber(result: .success("plain transcript")),
+            noteCaptureService: noteCaptureService,
+            preferences: preferences
+        )
+
+        store.arm()
+        store.finish()
+
+        let didSucceed = try await waitForSuccess(of: store)
+        XCTAssertTrue(didSucceed)
+
+        store.saveCurrentSuccessResultAsNote()
+        let didSave = try await waitUntil(timeoutNanoseconds: 2_000_000_000) {
+            await MainActor.run { store.successNoteSaveState == .saved }
+        }
+        XCTAssertTrue(didSave)
+
+        store.saveCurrentSuccessResultAsNote()
+        XCTAssertEqual(noteCaptureService.savedContents.count, 1)
+    }
+
+    func test_successWithoutConfiguredNoteDestination_disablesManualNoteSave() async throws {
+        let preferences = makePreferencesWithTriggerStore()
+        let noteCaptureService = StubNoteCaptureService()
+        let store = makeStore(
+            permissionsAuthorized: true,
+            transcriber: ActivationStoreMockTranscriber(result: .success("plain transcript")),
+            noteCaptureService: noteCaptureService,
+            preferences: preferences
+        )
+
+        store.arm()
+        store.finish()
+
+        let didSucceed = try await waitForSuccess(of: store)
+        XCTAssertTrue(didSucceed)
+        XCTAssertEqual(store.successNoteSaveState, .disabledMissingConfiguration)
+
+        store.saveCurrentSuccessResultAsNote()
+        XCTAssertTrue(noteCaptureService.savedContents.isEmpty)
+    }
+
+    func test_assistantNotePhrase_doesNotSaveWhenRewriteFails() async throws {
+        let preferences = makePreferencesWithConfiguredNoteDestination()
+        let noteCaptureService = StubNoteCaptureService()
+        let store = makeStore(
+            permissionsAuthorized: true,
+            transcriber: ActivationStoreMockTranscriber(
+                result: .success("Buddy make a note of this summarize the update")
+            ),
+            llmRewriter: MockLLMRewriter(result: .failure(LLMRewriteError.modelLoadFailed)),
+            noteCaptureService: noteCaptureService,
+            preferences: preferences
+        )
+
+        store.arm()
+        store.finish()
+
+        let didFail = try await waitUntil(timeoutNanoseconds: 2_000_000_000) {
+            await MainActor.run {
+                if case .failure = store.state {
+                    return true
+                }
+                return false
+            }
+        }
+
+        XCTAssertTrue(didFail)
+        XCTAssertTrue(noteCaptureService.savedContents.isEmpty)
+    }
+
+    func test_rawSuccess_savesHistoryWhenEnabled() async throws {
+        let preferences = makePreferencesWithTriggerStore()
+        preferences.historyEnabled = true
+        preferences.historyFolderPath = FileManager.default.temporaryDirectory
+            .appendingPathComponent("ActivationStoreTests.History")
+            .appendingPathComponent(UUID().uuidString)
+            .path
+        let historyCaptureService = StubHistoryCaptureService()
+        let store = makeStore(
+            permissionsAuthorized: true,
+            transcriber: ActivationStoreMockTranscriber(result: .success("plain transcript")),
+            historyCaptureService: historyCaptureService,
+            preferences: preferences
+        )
+
+        store.arm()
+        store.finish()
+
+        let didSucceed = try await waitForSuccess(of: store)
+        XCTAssertTrue(didSucceed)
+
+        let didPersist = try await waitUntil(timeoutNanoseconds: 2_000_000_000) {
+            historyCaptureService.savedContents.count == 1
+        }
+
+        XCTAssertTrue(didPersist)
+        XCTAssertEqual(
+            historyCaptureService.savedContents,
+            [HistoryCaptureContent(rawTranscription: "plain transcript", assistantOutput: nil)]
+        )
+        XCTAssertEqual(historyCaptureService.savedConfigurations.first, preferences.historyConfiguration)
+    }
+
+    func test_assistantSuccess_savesHistoryWhenEnabled() async throws {
+        let preferences = makePreferencesWithTriggerStore()
+        preferences.historyEnabled = true
+        preferences.historyFolderPath = FileManager.default.temporaryDirectory
+            .appendingPathComponent("ActivationStoreTests.History")
+            .appendingPathComponent(UUID().uuidString)
+            .path
+        let historyCaptureService = StubHistoryCaptureService()
+        let store = makeStore(
+            permissionsAuthorized: true,
+            transcriber: ActivationStoreMockTranscriber(
+                result: .success("Buddy rewrite this professionally")
+            ),
+            llmRewriter: MockLLMRewriter(result: .success("Professional rewrite")),
+            historyCaptureService: historyCaptureService,
+            preferences: preferences
+        )
+
+        store.arm()
+        store.finish()
+
+        let didSucceed = try await waitForSuccess(of: store)
+        XCTAssertTrue(didSucceed)
+
+        let didPersist = try await waitUntil(timeoutNanoseconds: 2_000_000_000) {
+            historyCaptureService.savedContents.count == 1
+        }
+
+        XCTAssertTrue(didPersist)
+        XCTAssertEqual(
+            historyCaptureService.savedContents,
+            [
+                HistoryCaptureContent(
+                    rawTranscription: "Buddy rewrite this professionally",
+                    assistantOutput: "Professional rewrite"
+                )
+            ]
+        )
+    }
+
+    func test_historyDisabled_skipsHistoryWrite() async throws {
+        let preferences = makePreferencesWithTriggerStore()
+        let historyCaptureService = StubHistoryCaptureService()
+        let store = makeStore(
+            permissionsAuthorized: true,
+            transcriber: ActivationStoreMockTranscriber(result: .success("plain transcript")),
+            historyCaptureService: historyCaptureService,
+            preferences: preferences
+        )
+
+        store.arm()
+        store.finish()
+
+        let didSucceed = try await waitForSuccess(of: store)
+        XCTAssertTrue(didSucceed)
+        XCTAssertTrue(historyCaptureService.savedContents.isEmpty)
+    }
+
     // MARK: - Helpers
 
     private func makeStore(
@@ -2053,6 +2389,8 @@ final class ActivationStoreTests: XCTestCase {
         transcriber: (any WhisperTranscribing)? = nil,
         llmRewriter: (any LLMRewriting)? = nil,
         whisperModelLoadState: (any WhisperModelLoadStateProviding)? = nil,
+        noteCaptureService: (any NoteCapturing)? = nil,
+        historyCaptureService: (any HistoryCapturing)? = nil,
         clipboard: ClipboardService? = nil,
         pasteService: (any PasteServicing)? = nil,
         bufferAccumulator: AudioBufferAccumulator? = nil,
@@ -2074,12 +2412,47 @@ final class ActivationStoreTests: XCTestCase {
             whisperModelLoadState: whisperModelLoadState ?? StubWhisperModelLoadState(),
             whisperService: transcriber ?? ActivationStoreMockTranscriber(result: .success("")),
             llmRewriteService: llmRewriter ?? MockLLMRewriter(result: .failure(LLMRewriteError.cancelled)),
+            noteCaptureService: noteCaptureService ?? StubNoteCaptureService(),
+            historyCaptureService: historyCaptureService ?? StubHistoryCaptureService(),
             clipboardService: clipboard ?? ActivationStoreMockClipboard(),
             pasteService: pasteService ?? PasteService(),
             bufferAccumulator: bufferAccumulator ?? StubBufferAccumulator(),
             dateProvider: dateProvider ?? { Date() },
             resetSessionMonitoring: resetSessionMonitoring ?? {}
         )
+    }
+
+    private func makeTestImageData() -> Data {
+        let size = NSSize(width: 4, height: 4)
+        let image = NSImage(size: size)
+        image.lockFocus()
+        NSColor.systemRed.setFill()
+        NSBezierPath(rect: NSRect(origin: .zero, size: size)).fill()
+        image.unlockFocus()
+        return image.tiffRepresentation ?? Data()
+    }
+
+    private func makePreferencesWithConfiguredNoteDestination(
+        mode: AssistantNoteMode = .newFile
+    ) -> ShellPreferences {
+        let preferences = makePreferencesWithTriggerStore()
+        preferences.assistantNoteMode = mode
+
+        switch mode {
+        case .newFile:
+            preferences.assistantNoteFolderPath = FileManager.default.temporaryDirectory
+                .appendingPathComponent("TypeLessBuddyNotes")
+                .appendingPathComponent(UUID().uuidString)
+                .path
+        case .appendToFile:
+            preferences.assistantNoteAppendFilePath = FileManager.default.temporaryDirectory
+                .appendingPathComponent("TypeLessBuddyNotes")
+                .appendingPathComponent(UUID().uuidString)
+                .appendingPathExtension("md")
+                .path
+        }
+
+        return preferences
     }
 
     private func makePreferencesWithTriggerStore() -> ShellPreferences {
@@ -2143,177 +2516,150 @@ final class ActivationStoreTests: XCTestCase {
 }
 
 extension ActivationStoreTests {
-    func test_externalTextSourceClassifier_explicitSelectedTextBypassesModel() async {
-        let rewriter = MockLLMRewriter(result: .success("NONE"))
+    func test_externalTextSourceClassifier_explicitSelectedTextReturnsSingleDeterministicMatch() {
         let context = ExternalTextSourceContext(
             selectedTextAvailable: true,
             clipboardTextAvailable: true,
-            lastTranscriptionAvailable: true,
-            priorConvertedResultAvailable: false
+            lastTranscriptionAvailable: true
         )
 
-        let decision = await ExternalTextSourceClassifier.classify(
+        let decision = ExternalTextSourceClassifier.classify(
             message: "Buddy, make what's selected more concise and professional",
-            availableSources: context,
-            mostRecentSuccessWasConverted: false,
-            using: rewriter
+            availableSources: context
         )
 
         XCTAssertEqual(decision.targetMode, .selectedText)
         XCTAssertEqual(decision.decisionSource, .explicitFastPath)
-        XCTAssertEqual(rewriter.generateCallCount, 0)
+        XCTAssertEqual(decision.promptLabel, "what's selected")
+        XCTAssertEqual(
+            decision.matchedSources,
+            [
+                AssistantContextMatchedSource(
+                    targetMode: .selectedText,
+                    promptLabel: "what's selected"
+                )
+            ]
+        )
     }
 
-    func test_externalTextSourceClassifier_explicitClipboardBypassesModel() async {
-        let rewriter = MockLLMRewriter(result: .success("NONE"))
+    func test_externalTextSourceClassifier_explicitClipboardReturnsSingleDeterministicMatch() {
         let context = ExternalTextSourceContext(
             selectedTextAvailable: true,
             clipboardTextAvailable: true,
-            lastTranscriptionAvailable: true,
-            priorConvertedResultAvailable: false
+            lastTranscriptionAvailable: true
         )
 
-        let decision = await ExternalTextSourceClassifier.classify(
+        let decision = ExternalTextSourceClassifier.classify(
             message: "Buddy, turn what I copied into a polished Slack update",
-            availableSources: context,
-            mostRecentSuccessWasConverted: false,
-            using: rewriter
+            availableSources: context
         )
 
         XCTAssertEqual(decision.targetMode, .clipboard)
         XCTAssertEqual(decision.decisionSource, .explicitFastPath)
-        XCTAssertEqual(rewriter.generateCallCount, 0)
+        XCTAssertEqual(decision.promptLabel, "what i copied")
+        XCTAssertEqual(
+            decision.matchedSources,
+            [
+                AssistantContextMatchedSource(
+                    targetMode: .clipboard,
+                    promptLabel: "what i copied"
+                )
+            ]
+        )
     }
 
-    func test_externalTextSourceClassifier_explicitLastTranscriptionBypassesModel() async {
-        let rewriter = MockLLMRewriter(result: .success("NONE"))
+    func test_externalTextSourceClassifier_explicitLastTranscriptionReturnsSingleDeterministicMatch() {
         let context = ExternalTextSourceContext(
             selectedTextAvailable: true,
             clipboardTextAvailable: true,
-            lastTranscriptionAvailable: true,
-            priorConvertedResultAvailable: false
+            lastTranscriptionAvailable: true
         )
 
-        let decision = await ExternalTextSourceClassifier.classify(
+        let decision = ExternalTextSourceClassifier.classify(
             message: "Buddy, clean up my last transcription and make it easier to read",
-            availableSources: context,
-            mostRecentSuccessWasConverted: false,
-            using: rewriter
+            availableSources: context
         )
 
         XCTAssertEqual(decision.targetMode, .lastTranscription)
         XCTAssertEqual(decision.decisionSource, .explicitFastPath)
-        XCTAssertEqual(rewriter.generateCallCount, 0)
+        XCTAssertEqual(decision.promptLabel, "my last transcription")
+        XCTAssertEqual(
+            decision.matchedSources,
+            [
+                AssistantContextMatchedSource(
+                    targetMode: .lastTranscription,
+                    promptLabel: "my last transcription"
+                )
+            ]
+        )
     }
 
-    func test_externalTextSourceClassifier_retryUsesPriorConvertedResultWhenNoExplicitSource() async {
-        let rewriter = MockLLMRewriter(result: .success("NONE"))
+    func test_externalTextSourceClassifier_multipleExplicitSourcesReturnsAllMatchedSourcesInStableOrder() {
         let context = ExternalTextSourceContext(
             selectedTextAvailable: true,
             clipboardTextAvailable: true,
-            lastTranscriptionAvailable: true,
-            priorConvertedResultAvailable: true
+            lastTranscriptionAvailable: true
         )
 
-        let decision = await ExternalTextSourceClassifier.classify(
-            message: "Jack, try that again but cleaner",
-            availableSources: context,
-            mostRecentSuccessWasConverted: true,
-            using: rewriter
-        )
-
-        XCTAssertEqual(decision.targetMode, .priorConvertedResult)
-        XCTAssertEqual(decision.decisionSource, .explicitFastPath)
-        XCTAssertEqual(rewriter.generateCallCount, 0)
-    }
-
-    func test_externalTextSourceClassifier_retryFallsBackToLastTranscriptionWhenPriorOutputUnavailable() async {
-        let rewriter = MockLLMRewriter(result: .success("NONE"))
-        let context = ExternalTextSourceContext(
-            selectedTextAvailable: false,
-            clipboardTextAvailable: false,
-            lastTranscriptionAvailable: true,
-            priorConvertedResultAvailable: false
-        )
-
-        let decision = await ExternalTextSourceClassifier.classify(
-            message: "Atlas, do that again",
-            availableSources: context,
-            mostRecentSuccessWasConverted: false,
-            using: rewriter
-        )
-
-        XCTAssertEqual(decision.targetMode, .lastTranscription)
-        XCTAssertEqual(decision.decisionSource, .explicitFastPath)
-        XCTAssertEqual(rewriter.generateCallCount, 0)
-    }
-
-    func test_externalTextSourceClassifier_multipleExplicitSourcesUsesFallbackPromptWithActualCandidatesOnly() async {
-        let rewriter = MockLLMRewriter(result: .success("CLIPBOARD"))
-        let context = ExternalTextSourceContext(
-            selectedTextAvailable: true,
-            clipboardTextAvailable: true,
-            lastTranscriptionAvailable: false,
-            priorConvertedResultAvailable: false
-        )
-
-        let decision = await ExternalTextSourceClassifier.classify(
-            message: "Buddy, use my clipboard and selected text to fix this",
-            availableSources: context,
-            mostRecentSuccessWasConverted: false,
-            using: rewriter
-        )
-
-        XCTAssertEqual(decision.targetMode, .clipboard)
-        XCTAssertEqual(decision.decisionSource, .modelStructured)
-        XCTAssertEqual(rewriter.generateCallCount, 1)
-        XCTAssertTrue(rewriter.lastGeneratePrompt?.contains("- SELECTED_TEXT: text the user currently has highlighted or selected in another app") ?? false)
-        XCTAssertTrue(rewriter.lastGeneratePrompt?.contains("- CLIPBOARD: text the user recently copied from somewhere — a website, document, email, etc.") ?? false)
-        XCTAssertTrue(rewriter.lastGeneratePrompt?.contains("- NONE: the request clearly does not involve transforming or rewriting any text") ?? false)
-        XCTAssertFalse(rewriter.lastGeneratePrompt?.contains("LAST_TRANSCRIPTION") ?? true)
-        XCTAssertFalse(rewriter.lastGeneratePrompt?.contains("PRIOR_CONVERTED_RESULT") ?? true)
-    }
-
-    func test_externalTextSourceClassifier_invalidOutputReturnsNone() async {
-        let rewriter = MockLLMRewriter(result: .success("BOTH"))
-        let context = ExternalTextSourceContext(
-            selectedTextAvailable: true,
-            clipboardTextAvailable: true,
-            lastTranscriptionAvailable: false,
-            priorConvertedResultAvailable: false
-        )
-
-        let decision = await ExternalTextSourceClassifier.classify(
-            message: "Buddy, make this more professional",
-            availableSources: context,
-            mostRecentSuccessWasConverted: false,
-            using: rewriter
+        let decision = ExternalTextSourceClassifier.classify(
+            message: "Buddy, compare what's selected with what I copied and my last transcription",
+            availableSources: context
         )
 
         XCTAssertEqual(decision.targetMode, .none)
-        XCTAssertEqual(decision.decisionSource, .fallbackParseFailure)
-        XCTAssertEqual(rewriter.generateCallCount, 1)
+        XCTAssertEqual(decision.promptLabel, nil)
+        XCTAssertEqual(decision.decisionSource, .explicitFastPath)
+        XCTAssertEqual(
+            decision.matchedSources,
+            [
+                AssistantContextMatchedSource(
+                    targetMode: .lastTranscription,
+                    promptLabel: "my last transcription"
+                ),
+                AssistantContextMatchedSource(
+                    targetMode: .clipboard,
+                    promptLabel: "what i copied"
+                ),
+                AssistantContextMatchedSource(
+                    targetMode: .selectedText,
+                    promptLabel: "what's selected"
+                ),
+            ]
+        )
     }
 
-    func test_externalTextSourceClassifier_vagueThisCanUseModelResolution() async {
-        let rewriter = MockLLMRewriter(result: .success("SELECTED_TEXT"))
+    func test_externalTextSourceClassifier_vagueRequestReturnsNoDeterministicMatch() {
         let context = ExternalTextSourceContext(
             selectedTextAvailable: true,
             clipboardTextAvailable: true,
-            lastTranscriptionAvailable: false,
-            priorConvertedResultAvailable: false
+            lastTranscriptionAvailable: true
         )
 
-        let decision = await ExternalTextSourceClassifier.classify(
+        let decision = ExternalTextSourceClassifier.classify(
             message: "Buddy, make this more professional",
-            availableSources: context,
-            mostRecentSuccessWasConverted: false,
-            using: rewriter
+            availableSources: context
         )
 
-        XCTAssertEqual(decision.targetMode, .selectedText)
-        XCTAssertEqual(decision.decisionSource, .modelStructured)
-        XCTAssertEqual(rewriter.generateCallCount, 1)
+        XCTAssertEqual(decision.targetMode, .none)
+        XCTAssertEqual(decision.decisionSource, .noDeterministicMatch)
+        XCTAssertTrue(decision.matchedSources.isEmpty)
+    }
+
+    func test_externalTextSourceClassifier_noAvailableContextReturnsNoAvailableContext() {
+        let context = ExternalTextSourceContext(
+            selectedTextAvailable: false,
+            clipboardTextAvailable: false,
+            lastTranscriptionAvailable: false
+        )
+
+        let decision = ExternalTextSourceClassifier.classify(
+            message: "Buddy, make this more professional",
+            availableSources: context
+        )
+
+        XCTAssertEqual(decision.targetMode, .none)
+        XCTAssertEqual(decision.decisionSource, .noAvailableContext)
+        XCTAssertTrue(decision.matchedSources.isEmpty)
     }
 
     func test_route_noneTarget_producesDirectAssistantPrompt() {
@@ -2323,52 +2669,71 @@ extension ActivationStoreTests {
             clipboardText: "Some clipboard text",
             routingDecision: AssistantContextRoutingDecision(
                 targetMode: .none,
-                decisionSource: .modelStructured
+                decisionSource: .noDeterministicMatch
             )
         )
 
         XCTAssertEqual(body, "Buddy, write me a thank-you note for the team dinner")
-        XCTAssertFalse(body.contains("App context:"))
-        XCTAssertFalse(body.contains("Selected text:"))
-        XCTAssertFalse(body.contains("Clipboard content:"))
+        XCTAssertFalse(body.contains("selected context provided below:"))
+        XCTAssertFalse(body.contains("copied context provided below:"))
+        XCTAssertFalse(body.contains("transcript context provided below:"))
     }
 
-    func test_route_selectedTextTarget_injectsSelectedTextWithPreamble() {
+    func test_route_selectedTextTarget_wrapsUserRequestAndSourceContext() {
         let body = ExternalTextPromptBuilder.buildBody(
-            dictatedContent: "Buddy, make this more professional",
+            dictatedContent: "Buddy, make what's selected more professional",
             selectedText: "hey thanks for the food it was rly good",
             clipboardText: "Some clipboard text",
             routingDecision: AssistantContextRoutingDecision(
                 targetMode: .selectedText,
-                decisionSource: .modelStructured
+                decisionSource: .explicitFastPath,
+                promptLabel: "what's selected"
             )
         )
 
-        XCTAssertTrue(body.contains("Additional context - selected text:"))
-        XCTAssertTrue(body.contains("Additional context - selected text:\nhey thanks for the food it was rly good"))
-        XCTAssertTrue(body.contains("Dictated speech:\nBuddy, make this more professional"))
-        XCTAssertFalse(body.contains("Clipboard content:"))
-        XCTAssertFalse(body.contains("Supporting context"))
+        XCTAssertEqual(
+            body,
+            """
+            User request:
+            Buddy, make the selected context provided below more professional
+
+            Use the selected context provided below as the exact text to transform.
+            Apply the user request directly to that text itself.
+            Rewrite it to sound more professional and polished.
+            Keep the original meaning and preserve concrete facts, names, numbers, dates, deadlines, owners, and next steps unless the user asks to change them.
+            Do not invent new information, describe the change, or return the source text unchanged.
+            Return only the transformed text.
+
+            selected context provided below:
+            "hey thanks for the food it was rly good"
+            """
+        )
+        XCTAssertFalse(body.contains("clipboard"))
     }
 
-    func test_route_clipboardTarget_injectsClipboardWithPreamble() {
+    func test_route_clipboardTarget_wrapsUserRequestAndSourceContext() {
         let body = ExternalTextPromptBuilder.buildBody(
             dictatedContent: "Buddy, format what I copied",
             selectedText: nil,
             clipboardText: "Meeting notes from tuesday: action items - follow up with design team, update roadmap",
             routingDecision: AssistantContextRoutingDecision(
                 targetMode: .clipboard,
-                decisionSource: .modelStructured
+                decisionSource: .explicitFastPath,
+                promptLabel: "what i copied"
             )
         )
 
-        XCTAssertTrue(body.contains("Additional context - clipboard content:"))
-        XCTAssertTrue(body.contains("Additional context - clipboard content:\nMeeting notes from tuesday"))
-        XCTAssertTrue(body.contains("Dictated speech:\nBuddy, format what I copied"))
-        XCTAssertFalse(body.contains("Selected text:"))
+        XCTAssertTrue(body.contains("User request:\nBuddy, format the copied context provided below"))
+        XCTAssertTrue(body.contains("Use the copied context provided below as the exact text to transform."))
+        XCTAssertTrue(body.contains("Apply the user request directly to that text itself."))
+        XCTAssertTrue(body.contains("Preserve concrete facts unless the user asks to change them."))
+        XCTAssertTrue(body.contains("Do not describe the change or return the source text unchanged."))
+        XCTAssertTrue(body.contains("Return only the transformed text."))
+        XCTAssertTrue(body.contains("copied context provided below:\n\"Meeting notes from tuesday: action items - follow up with design team, update roadmap\""))
+        XCTAssertFalse(body.contains("selected text"))
     }
 
-    func test_route_lastTranscriptionTarget_injectsLastTranscriptionWithPreamble() {
+    func test_route_lastTranscriptionTarget_wrapsUserRequestAndSourceContext() {
         let body = ExternalTextPromptBuilder.buildBody(
             dictatedContent: "Buddy, can you fix my last transcription",
             selectedText: nil,
@@ -2376,34 +2741,355 @@ extension ActivationStoreTests {
             lastTranscription: "i went too the store and buyed some groceries",
             routingDecision: AssistantContextRoutingDecision(
                 targetMode: .lastTranscription,
-                decisionSource: .modelStructured
+                decisionSource: .explicitFastPath,
+                promptLabel: "my last transcription"
             )
         )
 
-        XCTAssertTrue(body.contains("Additional context - previous text:"))
-        XCTAssertTrue(body.contains("Additional context - previous text:\ni went too the store and buyed some groceries"))
-        XCTAssertTrue(body.contains("Dictated speech:\nBuddy, can you fix my last transcription"))
-        XCTAssertFalse(body.contains("Selected text:"))
-        XCTAssertFalse(body.contains("Clipboard content:"))
+        XCTAssertTrue(body.contains("User request:\nBuddy, can you fix the transcript context provided below"))
+        XCTAssertTrue(body.contains("Use the transcript context provided below as the exact text to transform."))
+        XCTAssertTrue(body.contains("Apply the user request directly to that text itself."))
+        XCTAssertTrue(body.contains("Preserve concrete facts unless the user asks to change them."))
+        XCTAssertTrue(body.contains("Do not describe the change or return the source text unchanged."))
+        XCTAssertTrue(body.contains("Return only the transformed text."))
+        XCTAssertTrue(body.contains("transcript context provided below:\n\"i went too the store and buyed some groceries\""))
+        XCTAssertFalse(body.contains("selected text"))
+        XCTAssertFalse(body.contains("clipboard"))
     }
 
-    func test_route_priorConvertedResultTarget_usesPriorConversationPreamble() {
+    func test_route_selectedTextLanguageCleanup_usesDedicatedInstructionBlock() {
         let body = ExternalTextPromptBuilder.buildBody(
-            dictatedContent: "Atlas, can you do that a bit more cleanly",
-            selectedText: nil,
+            dictatedContent: "Buddy, check the grammar in what's selected",
+            selectedText: "i went too the store and buyed some groceries",
             clipboardText: nil,
             routingDecision: AssistantContextRoutingDecision(
-                targetMode: .priorConvertedResult,
-                decisionSource: .modelStructured
+                targetMode: .selectedText,
+                decisionSource: .explicitFastPath,
+                promptLabel: "what's selected"
             )
         )
 
-        XCTAssertTrue(body.contains("Dictated speech:\nAtlas, can you do that a bit more cleanly"))
-        XCTAssertFalse(body.contains("Supporting context"))
-        XCTAssertFalse(body.contains("Selected text:"))
+        XCTAssertEqual(
+            body,
+            """
+            User request:
+            Buddy, check the grammar in the selected context provided below
+
+            Use the selected context provided below as the exact text to transform.
+            Apply the user request directly to that text itself.
+            Correct grammar, spelling, punctuation, wording, and sentence clarity.
+            Keep the original meaning and preserve concrete facts, names, numbers, dates, deadlines, owners, and next steps unless the user asks to change them.
+            Do not invent new information, describe the change, or return the source text unchanged.
+            Return only the transformed text.
+
+            selected context provided below:
+            "i went too the store and buyed some groceries"
+            """
+        )
     }
 
-    func test_externalTextRouter_tryThatAgainUsesPriorConvertedResultContext() async throws {
+    func test_route_selectedTextLanguageCleanupAndProfessionalRewrite_composeInstructions() {
+        let body = ExternalTextPromptBuilder.buildBody(
+            dictatedContent: "Buddy, check the grammar in what's selected and make it more professional",
+            selectedText: "i went too the store and buyed some groceries",
+            clipboardText: nil,
+            routingDecision: AssistantContextRoutingDecision(
+                targetMode: .selectedText,
+                decisionSource: .explicitFastPath,
+                promptLabel: "what's selected"
+            )
+        )
+
+        XCTAssertEqual(
+            body,
+            """
+            User request:
+            Buddy, check the grammar in the selected context provided below and make it more professional
+
+            Use the selected context provided below as the exact text to transform.
+            Apply the user request directly to that text itself.
+            Correct grammar, spelling, punctuation, wording, and sentence clarity.
+            Rewrite it to sound more professional and polished.
+            Keep the original meaning and preserve concrete facts, names, numbers, dates, deadlines, owners, and next steps unless the user asks to change them.
+            Do not invent new information, describe the change, or return the source text unchanged.
+            Return only the transformed text.
+
+            selected context provided below:
+            "i went too the store and buyed some groceries"
+            """
+        )
+    }
+
+    func test_route_lastTranscriptionToneSofteningAndShorterDirect_composeInstructions() {
+        let body = ExternalTextPromptBuilder.buildBody(
+            dictatedContent: "Buddy, make my last transcription nicer and shorter",
+            selectedText: nil,
+            clipboardText: nil,
+            lastTranscription: "this deck is a mess and we need to talk right now",
+            routingDecision: AssistantContextRoutingDecision(
+                targetMode: .lastTranscription,
+                decisionSource: .explicitFastPath,
+                promptLabel: "my last transcription"
+            )
+        )
+
+        XCTAssertEqual(
+            body,
+            """
+            User request:
+            Buddy, make the transcript context provided below nicer and shorter
+
+            Use the transcript context provided below as the exact text to transform.
+            Apply the user request directly to that text itself.
+            Rewrite it so it becomes much kinder and more professional while still communicating the same point.
+            Keep the same core point, criticism, and urgency unless the user asks to change them.
+            Remove insults, profanity, mockery, and personal attacks.
+            Do not reverse the sentiment or turn criticism into praise.
+            Rewrite it into a shorter, more direct version.
+            Cut filler and redundancy while preserving the key point.
+            Keep the original meaning and preserve concrete facts, names, numbers, dates, deadlines, owners, and next steps unless the user asks to change them.
+            Do not invent new information, describe the change, or return the source text unchanged.
+            Return only the transformed text.
+
+            transcript context provided below:
+            "this deck is a mess and we need to talk right now"
+            """
+        )
+    }
+
+    func test_route_selectedTextFormatConflict_lastMentionWins() {
+        let body = ExternalTextPromptBuilder.buildBody(
+            dictatedContent: "Buddy, turn what's selected into bullets and then make it one sentence",
+            selectedText: "We need analytics validation, support notification, and product sign-off.",
+            clipboardText: nil,
+            routingDecision: AssistantContextRoutingDecision(
+                targetMode: .selectedText,
+                decisionSource: .explicitFastPath,
+                promptLabel: "what's selected"
+            )
+        )
+
+        XCTAssertEqual(
+            body,
+            """
+            User request:
+            Buddy, turn the selected context provided below into bullets and then make it one sentence
+
+            Use the selected context provided below as the exact text to transform.
+            Apply the user request directly to that text itself.
+            Condense it into one direct sentence.
+            Keep the original meaning and preserve concrete facts, names, numbers, dates, deadlines, owners, and next steps unless the user asks to change them.
+            Do not invent new information, describe the change, or return the source text unchanged.
+            Return exactly one sentence.
+
+            selected context provided below:
+            "We need analytics validation, support notification, and product sign-off."
+            """
+        )
+    }
+
+    func test_route_selectedTextFormatConflict_reverseOrderPrefersTrailingBullets() {
+        let body = ExternalTextPromptBuilder.buildBody(
+            dictatedContent: "Buddy, make what's selected one sentence and then turn it into three bullets",
+            selectedText: "We need analytics validation, support notification, and product sign-off.",
+            clipboardText: nil,
+            routingDecision: AssistantContextRoutingDecision(
+                targetMode: .selectedText,
+                decisionSource: .explicitFastPath,
+                promptLabel: "what's selected"
+            )
+        )
+
+        XCTAssertEqual(
+            body,
+            """
+            User request:
+            Buddy, make the selected context provided below one sentence and then turn it into three bullets
+
+            Use the selected context provided below as the exact text to transform.
+            Apply the user request directly to that text itself.
+            Rewrite it as 3 short bullet points.
+            Each bullet should contain one concrete point from the source text.
+            Keep the original meaning and preserve concrete facts, names, numbers, dates, deadlines, owners, and next steps unless the user asks to change them.
+            Do not invent new information, describe the change, or return the source text unchanged.
+            Return only the bullet list.
+
+            selected context provided below:
+            "We need analytics validation, support notification, and product sign-off."
+            """
+        )
+    }
+
+    func test_route_multipleDeterministicTargets_appendsAllMatchedSourcesInStableOrder() {
+        let body = ExternalTextPromptBuilder.buildBody(
+            dictatedContent: "Buddy, compare what's selected with what I copied and my last transcription",
+            selectedText: "selected text content",
+            clipboardText: "clipboard content",
+            lastTranscription: "last transcription content",
+            routingDecision: AssistantContextRoutingDecision(
+                matchedSources: [
+                    AssistantContextMatchedSource(
+                        targetMode: .lastTranscription,
+                        promptLabel: "my last transcription"
+                    ),
+                    AssistantContextMatchedSource(
+                        targetMode: .clipboard,
+                        promptLabel: "what i copied"
+                    ),
+                    AssistantContextMatchedSource(
+                        targetMode: .selectedText,
+                        promptLabel: "what's selected"
+                    ),
+                ],
+                decisionSource: .explicitFastPath
+            )
+        )
+
+        XCTAssertEqual(
+            body,
+            """
+            User request:
+            Buddy, compare the selected context provided below with the copied context provided below and the transcript context provided below
+
+            Use the provided sections below as the source text for the user request above.
+            Apply the request directly to that source material.
+            Preserve concrete facts from each section unless the user asks to change them.
+            Rewrite, compare, merge, summarize, or combine the provided sections as needed.
+            Return only the final transformed result.
+
+            transcript context provided below:
+            "last transcription content"
+
+            copied context provided below:
+            "clipboard content"
+
+            selected context provided below:
+            "selected text content"
+            """
+        )
+    }
+
+    func test_externalTextRouter_explicitLastTranscriptionInjectsStoredTranscript() async throws {
+        let preferences = makePreferencesWithTriggerStore()
+        preferences.setCustomTrigger(primary: "Buddy")
+        try await Task.sleep(nanoseconds: 80_000_000)
+
+        let firstTranscript = "Hey Sarah, these mock-ups are horrific. Did you even try?"
+        let secondTranscript = "buddy make my last transcription sound much more polite"
+        let transcriber = SequentialMockTranscriber(results: [
+            .success(firstTranscript),
+            .success(secondTranscript),
+        ])
+        let mockRewriter = MockLLMRewriter(result: .success("Much more polite version"))
+        mockRewriter.queuedGenerateResults = [
+            .success("Much more polite version"),
+        ]
+        let store = makeStore(
+            permissionsAuthorized: true,
+            transcriber: transcriber,
+            llmRewriter: mockRewriter,
+            preferences: preferences
+        )
+
+        store.arm()
+        store.finish()
+        let firstSucceeded = try await waitForSuccess(of: store)
+        XCTAssertTrue(firstSucceeded)
+
+        store.arm()
+        store.finish()
+        let secondSucceeded = try await waitForSuccess(of: store)
+        XCTAssertTrue(secondSucceeded)
+
+        let finalPrompt = try XCTUnwrap(mockRewriter.generatePrompts.last)
+        XCTAssertTrue(
+            finalPrompt.contains(
+                "User request:\nbuddy make the transcript context provided below sound much more polite"
+            )
+        )
+        XCTAssertTrue(finalPrompt.contains("Use the transcript context provided below as the exact text to transform."))
+        XCTAssertTrue(finalPrompt.contains("Apply the user request directly to that text itself."))
+        XCTAssertTrue(finalPrompt.contains("Rewrite it so it becomes much kinder and more professional while still communicating the same point."))
+        XCTAssertTrue(finalPrompt.contains("Keep the same core point, criticism, and urgency unless the user asks to change them."))
+        XCTAssertTrue(finalPrompt.contains("Remove insults, profanity, mockery, and personal attacks."))
+        XCTAssertTrue(finalPrompt.contains("Do not reverse the sentiment or turn criticism into praise."))
+        XCTAssertTrue(finalPrompt.contains("Keep the original meaning and preserve concrete facts, names, numbers, dates, deadlines, owners, and next steps unless the user asks to change them."))
+        XCTAssertTrue(finalPrompt.contains("Do not invent new information, describe the change, or return the source text unchanged."))
+        XCTAssertTrue(finalPrompt.contains("Return only the transformed text."))
+        XCTAssertTrue(finalPrompt.contains("transcript context provided below:\n\"\(firstTranscript)\""))
+        XCTAssertEqual(mockRewriter.generateCallCount, 1)
+    }
+
+    func test_externalTextRouter_explicitMultiSourceInjectsAllMatchedSourcesInStableOrder() async throws {
+        let preferences = makePreferencesWithTriggerStore()
+        preferences.setCustomTrigger(primary: "Buddy")
+        try await Task.sleep(nanoseconds: 80_000_000)
+
+        let firstTranscript = "Please treat this as the prior transcription source."
+        let secondTranscript = "buddy combine my last transcription with what I copied and what's selected"
+        let transcriber = SequentialMockTranscriber(results: [
+            .success(firstTranscript),
+            .success(secondTranscript),
+        ])
+        let mockRewriter = MockLLMRewriter(result: .success("Combined output"))
+        let mockClipboard = ActivationStoreMockClipboard()
+        mockClipboard.stubbedClipboardContent = "clipboard context"
+        let pasteStub = StubSelectionAwarePasteService(
+            clipboard: mockClipboard,
+            queuedCopyResults: [
+                .unavailable,
+                .unavailable,
+                .dispatched("initial selection"),
+                .dispatched("selected text context"),
+            ]
+        )
+        let store = makeStore(
+            permissionsAuthorized: true,
+            postEventAuthorized: true,
+            transcriber: transcriber,
+            llmRewriter: mockRewriter,
+            clipboard: mockClipboard,
+            pasteService: pasteStub,
+            preferences: preferences
+        )
+
+        store.arm()
+        store.finish()
+        let firstSucceeded = try await waitForSuccess(of: store)
+        XCTAssertTrue(firstSucceeded)
+
+        store.arm()
+        store.finish()
+        let secondSucceeded = try await waitForSuccess(of: store)
+        XCTAssertTrue(secondSucceeded)
+
+        XCTAssertEqual(mockRewriter.generateCallCount, 1)
+        let finalPrompt = try XCTUnwrap(mockRewriter.generatePrompts.last)
+        XCTAssertEqual(
+            finalPrompt,
+            """
+            User request:
+            buddy combine the transcript context provided below with the copied context provided below and the selected context provided below
+
+            Use the provided sections below as the source text for the user request above.
+            Apply the request directly to that source material.
+            Preserve concrete facts from each section unless the user asks to change them.
+            Rewrite, compare, merge, summarize, or combine the provided sections as needed.
+            Return only the final transformed result.
+
+            transcript context provided below:
+            "\(firstTranscript)"
+
+            copied context provided below:
+            "clipboard context"
+
+            selected context provided below:
+            "selected text context"
+            """
+        )
+    }
+
+    func test_externalTextRouter_tryThatAgainDoesNotReusePriorAssistantOutput() async throws {
         let preferences = makePreferencesWithTriggerStore()
         preferences.setCustomTrigger(primary: "Jack")
         try await Task.sleep(nanoseconds: 80_000_000)
@@ -2436,15 +3122,16 @@ extension ActivationStoreTests {
         let secondSucceeded = try await waitForSuccess(of: store)
         XCTAssertTrue(secondSucceeded)
 
-        let retryPrompt = try XCTUnwrap(mockRewriter.generatePrompts.last)
-        XCTAssertTrue(retryPrompt.contains("<prior_conversation>"))
-        XCTAssertTrue(retryPrompt.contains("<user>\(firstTranscript)</user>"))
-        XCTAssertTrue(retryPrompt.contains("<assistant>Initial converted output</assistant>"))
-        XCTAssertFalse(retryPrompt.contains("Previous text:"))
         XCTAssertEqual(mockRewriter.generateCallCount, 2)
+        let retryPrompt = try XCTUnwrap(mockRewriter.generatePrompts.last)
+        XCTAssertEqual(retryPrompt, secondTranscript)
+        XCTAssertFalse(retryPrompt.contains("<prior_conversation>"))
+        XCTAssertFalse(retryPrompt.contains("transcript context provided below:"))
+        XCTAssertFalse(retryPrompt.contains("copied context provided below:"))
+        XCTAssertFalse(retryPrompt.contains("selected context provided below:"))
     }
 
-    func test_externalTextRouter_tryThatAgainFallsBackToRawLastTranscriptionAfterRawSuccess() async throws {
+    func test_externalTextRouter_tryThatAgainDoesNotReuseLastTranscriptionAfterRawSuccess() async throws {
         let preferences = makePreferencesWithTriggerStore()
         preferences.setCustomTrigger(primary: "Atlas")
         try await Task.sleep(nanoseconds: 80_000_000)
@@ -2476,10 +3163,12 @@ extension ActivationStoreTests {
         let secondSucceeded = try await waitForSuccess(of: store)
         XCTAssertTrue(secondSucceeded)
 
-        let retryPrompt = try XCTUnwrap(mockRewriter.generatePrompts.last)
-        XCTAssertFalse(retryPrompt.contains("<prior_conversation>"))
-        XCTAssertTrue(retryPrompt.contains("Additional context - previous text:\n\(firstTranscript)"))
         XCTAssertEqual(mockRewriter.generateCallCount, 1)
+        let retryPrompt = try XCTUnwrap(mockRewriter.generatePrompts.last)
+        XCTAssertEqual(retryPrompt, secondTranscript)
+        XCTAssertFalse(retryPrompt.contains("transcript context provided below:"))
+        XCTAssertFalse(retryPrompt.contains("copied context provided below:"))
+        XCTAssertFalse(retryPrompt.contains("selected context provided below:"))
     }
 
     func test_externalTextRouter_explicitClipboardBeatsThisAndInjectsClipboardOnly() async throws {
@@ -2516,8 +3205,14 @@ extension ActivationStoreTests {
 
         XCTAssertEqual(mockRewriter.generateCallCount, 1)
         let finalPrompt = try XCTUnwrap(mockRewriter.generatePrompts.last)
-        XCTAssertTrue(finalPrompt.contains("Additional context - clipboard content:\nclipboard context"))
-        XCTAssertFalse(finalPrompt.contains("Selected text:"))
+        XCTAssertTrue(finalPrompt.contains("User request:\nbuddy use the copied context provided below to improve this"))
+        XCTAssertTrue(finalPrompt.contains("Use the copied context provided below as the exact text to transform."))
+        XCTAssertTrue(finalPrompt.contains("Apply the user request directly to that text itself."))
+        XCTAssertTrue(finalPrompt.contains("Preserve concrete facts unless the user asks to change them."))
+        XCTAssertTrue(finalPrompt.contains("Do not describe the change or return the source text unchanged."))
+        XCTAssertTrue(finalPrompt.contains("Return only the transformed text."))
+        XCTAssertTrue(finalPrompt.contains("copied context provided below:\n\"clipboard context\""))
+        XCTAssertFalse(finalPrompt.contains("selected context provided below:"))
     }
 
     func test_externalTextRouter_oversizedSelectedTextIsExcludedFromRouting() async throws {
@@ -2554,48 +3249,1058 @@ extension ActivationStoreTests {
 
         XCTAssertEqual(mockRewriter.generateCallCount, 1)
         XCTAssertEqual(mockRewriter.lastGeneratePrompt, transcript)
-        XCTAssertFalse(mockRewriter.lastGeneratePrompt?.contains("Selected text:") ?? false)
+        XCTAssertFalse(mockRewriter.lastGeneratePrompt?.contains("selected context provided below:") ?? false)
     }
 
-    func test_stalePriorConvertedResultIsNotUsedAsAssistantContextAfterThirtyMinutes() async throws {
-        let firstTranscript = "buddy rewrite this as a concise executive update"
-        let secondTranscript = "buddy try that again"
-        let transcriber = SequentialMockTranscriber(results: [
-            .success(firstTranscript),
-            .success(secondTranscript)
-        ])
-        let rewriter = MockLLMRewriter(result: .success("Rewritten output"))
-        rewriter.queuedGenerateResults = [
-            .success("Initial converted output"),
-            .success("Retry output"),
+    func test_externalTextRouting_mockScenarioMatrix() async {
+        let scenarios: [ExternalTextRoutingScenario] = [
+            ExternalTextRoutingScenario(
+                name: "Explicit selected text fast path",
+                dictatedContent: "Buddy, make what's selected sound more professional",
+                selectedText: "hey thanks for the quick reply",
+                clipboardText: "clipboard fallback should stay unused",
+                lastTranscription: "previous transcription should stay unused",
+                expectedMatchedSources: [
+                    AssistantContextMatchedSource(
+                        targetMode: .selectedText,
+                        promptLabel: "what's selected"
+                    )
+                ],
+                expectedDecisionSource: .explicitFastPath,
+                expectedPromptBody: """
+                User request:
+                Buddy, make the selected context provided below sound more professional
+
+                Use the selected context provided below as the exact text to transform.
+                Apply the user request directly to that text itself.
+                Rewrite it to sound more professional and polished.
+                Keep the original meaning and preserve concrete facts, names, numbers, dates, deadlines, owners, and next steps unless the user asks to change them.
+                Do not invent new information, describe the change, or return the source text unchanged.
+                Return only the transformed text.
+
+                selected context provided below:
+                "hey thanks for the quick reply"
+                """
+            ),
+            ExternalTextRoutingScenario(
+                name: "Explicit clipboard fast path",
+                dictatedContent: "Buddy, turn what I copied into a tighter Slack update",
+                selectedText: "selected fallback should stay unused",
+                clipboardText: "Meeting slipped to Friday. Need design sign-off by noon.",
+                lastTranscription: nil,
+                expectedMatchedSources: [
+                    AssistantContextMatchedSource(
+                        targetMode: .clipboard,
+                        promptLabel: "what i copied"
+                    )
+                ],
+                expectedDecisionSource: .explicitFastPath,
+                expectedPromptBody: """
+                User request:
+                Buddy, turn the copied context provided below into a tighter Slack update
+
+                Use the copied context provided below as the exact text to transform.
+                Apply the user request directly to that text itself.
+                Rewrite it as a short Slack-ready update.
+                Keep it concise, natural, and professional.
+                Keep the original meaning and preserve concrete facts, names, numbers, dates, deadlines, owners, and next steps unless the user asks to change them.
+                Do not invent new information, describe the change, or return the source text unchanged.
+                Return only the Slack message.
+
+                copied context provided below:
+                "Meeting slipped to Friday. Need design sign-off by noon."
+                """
+            ),
+            ExternalTextRoutingScenario(
+                name: "Explicit last transcription fast path",
+                dictatedContent: "Buddy, fix my last transcription and make it polite",
+                selectedText: nil,
+                clipboardText: nil,
+                lastTranscription: "hey Sarah this deck is a mess",
+                expectedMatchedSources: [
+                    AssistantContextMatchedSource(
+                        targetMode: .lastTranscription,
+                        promptLabel: "my last transcription"
+                    )
+                ],
+                expectedDecisionSource: .explicitFastPath,
+                expectedPromptBody: """
+                User request:
+                Buddy, fix the transcript context provided below and make it polite
+
+                Use the transcript context provided below as the exact text to transform.
+                Apply the user request directly to that text itself.
+                Rewrite it so it becomes much kinder and more professional while still communicating the same point.
+                Keep the same core point, criticism, and urgency unless the user asks to change them.
+                Remove insults, profanity, mockery, and personal attacks.
+                Do not reverse the sentiment or turn criticism into praise.
+                Keep the original meaning and preserve concrete facts, names, numbers, dates, deadlines, owners, and next steps unless the user asks to change them.
+                Do not invent new information, describe the change, or return the source text unchanged.
+                Return only the transformed text.
+
+                transcript context provided below:
+                "hey Sarah this deck is a mess"
+                """
+            ),
+            ExternalTextRoutingScenario(
+                name: "Explicit selected text language cleanup",
+                dictatedContent: "Buddy, check the grammar in what's selected",
+                selectedText: "i went too the store and buyed some groceries",
+                clipboardText: nil,
+                lastTranscription: nil,
+                expectedMatchedSources: [
+                    AssistantContextMatchedSource(
+                        targetMode: .selectedText,
+                        promptLabel: "what's selected"
+                    )
+                ],
+                expectedDecisionSource: .explicitFastPath,
+                expectedPromptBody: """
+                User request:
+                Buddy, check the grammar in the selected context provided below
+
+                Use the selected context provided below as the exact text to transform.
+                Apply the user request directly to that text itself.
+                Correct grammar, spelling, punctuation, wording, and sentence clarity.
+                Keep the original meaning and preserve concrete facts, names, numbers, dates, deadlines, owners, and next steps unless the user asks to change them.
+                Do not invent new information, describe the change, or return the source text unchanged.
+                Return only the transformed text.
+
+                selected context provided below:
+                "i went too the store and buyed some groceries"
+                """
+            ),
+            ExternalTextRoutingScenario(
+                name: "Selected text cleanup plus professional rewrite",
+                dictatedContent: "Buddy, check the grammar in what's selected and make it more professional",
+                selectedText: "i went too the store and buyed some groceries",
+                clipboardText: nil,
+                lastTranscription: nil,
+                expectedMatchedSources: [
+                    AssistantContextMatchedSource(
+                        targetMode: .selectedText,
+                        promptLabel: "what's selected"
+                    )
+                ],
+                expectedDecisionSource: .explicitFastPath,
+                expectedPromptBody: """
+                User request:
+                Buddy, check the grammar in the selected context provided below and make it more professional
+
+                Use the selected context provided below as the exact text to transform.
+                Apply the user request directly to that text itself.
+                Correct grammar, spelling, punctuation, wording, and sentence clarity.
+                Rewrite it to sound more professional and polished.
+                Keep the original meaning and preserve concrete facts, names, numbers, dates, deadlines, owners, and next steps unless the user asks to change them.
+                Do not invent new information, describe the change, or return the source text unchanged.
+                Return only the transformed text.
+
+                selected context provided below:
+                "i went too the store and buyed some groceries"
+                """
+            ),
+            ExternalTextRoutingScenario(
+                name: "Last transcription nicer and shorter",
+                dictatedContent: "Buddy, make my last transcription nicer and shorter",
+                selectedText: nil,
+                clipboardText: nil,
+                lastTranscription: "this deck is a mess and we need to talk right now",
+                expectedMatchedSources: [
+                    AssistantContextMatchedSource(
+                        targetMode: .lastTranscription,
+                        promptLabel: "my last transcription"
+                    )
+                ],
+                expectedDecisionSource: .explicitFastPath,
+                expectedPromptBody: """
+                User request:
+                Buddy, make the transcript context provided below nicer and shorter
+
+                Use the transcript context provided below as the exact text to transform.
+                Apply the user request directly to that text itself.
+                Rewrite it so it becomes much kinder and more professional while still communicating the same point.
+                Keep the same core point, criticism, and urgency unless the user asks to change them.
+                Remove insults, profanity, mockery, and personal attacks.
+                Do not reverse the sentiment or turn criticism into praise.
+                Rewrite it into a shorter, more direct version.
+                Cut filler and redundancy while preserving the key point.
+                Keep the original meaning and preserve concrete facts, names, numbers, dates, deadlines, owners, and next steps unless the user asks to change them.
+                Do not invent new information, describe the change, or return the source text unchanged.
+                Return only the transformed text.
+
+                transcript context provided below:
+                "this deck is a mess and we need to talk right now"
+                """
+            ),
+            ExternalTextRoutingScenario(
+                name: "Selected text cleanup plus three bullet output",
+                dictatedContent: "Buddy, fix wording in what's selected and turn it into three bullets",
+                selectedText: "We still need analytics validation, support notification by Thursday, and product sign-off before launch.",
+                clipboardText: nil,
+                lastTranscription: nil,
+                expectedMatchedSources: [
+                    AssistantContextMatchedSource(
+                        targetMode: .selectedText,
+                        promptLabel: "what's selected"
+                    )
+                ],
+                expectedDecisionSource: .explicitFastPath,
+                expectedPromptBody: """
+                User request:
+                Buddy, fix wording in the selected context provided below and turn it into three bullets
+
+                Use the selected context provided below as the exact text to transform.
+                Apply the user request directly to that text itself.
+                Correct grammar, spelling, punctuation, wording, and sentence clarity.
+                Rewrite it as 3 short bullet points.
+                Each bullet should contain one concrete point from the source text.
+                Keep the original meaning and preserve concrete facts, names, numbers, dates, deadlines, owners, and next steps unless the user asks to change them.
+                Do not invent new information, describe the change, or return the source text unchanged.
+                Return only the bullet list.
+
+                selected context provided below:
+                "We still need analytics validation, support notification by Thursday, and product sign-off before launch."
+                """
+            ),
+            ExternalTextRoutingScenario(
+                name: "Format conflict resolves to the last mention",
+                dictatedContent: "Buddy, turn what's selected into bullets and then make it one sentence",
+                selectedText: "We need analytics validation, support notification, and product sign-off.",
+                clipboardText: nil,
+                lastTranscription: nil,
+                expectedMatchedSources: [
+                    AssistantContextMatchedSource(
+                        targetMode: .selectedText,
+                        promptLabel: "what's selected"
+                    )
+                ],
+                expectedDecisionSource: .explicitFastPath,
+                expectedPromptBody: """
+                User request:
+                Buddy, turn the selected context provided below into bullets and then make it one sentence
+
+                Use the selected context provided below as the exact text to transform.
+                Apply the user request directly to that text itself.
+                Condense it into one direct sentence.
+                Keep the original meaning and preserve concrete facts, names, numbers, dates, deadlines, owners, and next steps unless the user asks to change them.
+                Do not invent new information, describe the change, or return the source text unchanged.
+                Return exactly one sentence.
+
+                selected context provided below:
+                "We need analytics validation, support notification, and product sign-off."
+                """
+            ),
+            ExternalTextRoutingScenario(
+                name: "Multiple explicit sources append every deterministic match",
+                dictatedContent: "Buddy, compare what's selected with what I copied and my last transcription",
+                selectedText: "Selected draft paragraph.",
+                clipboardText: "Clipboard outline bullet.",
+                lastTranscription: "Last transcription source.",
+                expectedMatchedSources: [
+                    AssistantContextMatchedSource(
+                        targetMode: .lastTranscription,
+                        promptLabel: "my last transcription"
+                    ),
+                    AssistantContextMatchedSource(
+                        targetMode: .clipboard,
+                        promptLabel: "what i copied"
+                    ),
+                    AssistantContextMatchedSource(
+                        targetMode: .selectedText,
+                        promptLabel: "what's selected"
+                    ),
+                ],
+                expectedDecisionSource: .explicitFastPath,
+                expectedPromptBody: """
+                User request:
+                Buddy, compare the selected context provided below with the copied context provided below and the transcript context provided below
+
+                Use the provided sections below as the source text for the user request above.
+                Apply the request directly to that source material.
+                Preserve concrete facts from each section unless the user asks to change them.
+                Rewrite, compare, merge, summarize, or combine the provided sections as needed.
+                Return only the final transformed result.
+
+                transcript context provided below:
+                "Last transcription source."
+
+                copied context provided below:
+                "Clipboard outline bullet."
+
+                selected context provided below:
+                "Selected draft paragraph."
+                """
+            ),
+            ExternalTextRoutingScenario(
+                name: "Vague request stays direct",
+                dictatedContent: "Buddy, make this cleaner and easier to read",
+                selectedText: "this is the selected sentence that needs cleanup",
+                clipboardText: "clipboard fallback",
+                lastTranscription: nil,
+                expectedMatchedSources: [],
+                expectedDecisionSource: .noDeterministicMatch,
+                expectedPromptBody: "Buddy, make this cleaner and easier to read"
+            ),
+            ExternalTextRoutingScenario(
+                name: "Standalone drafting request stays direct",
+                dictatedContent: "Buddy, draft a thank-you note for the team dinner",
+                selectedText: "selected text should not be injected",
+                clipboardText: "clipboard text should not be injected",
+                lastTranscription: "last transcription should not be injected",
+                expectedMatchedSources: [],
+                expectedDecisionSource: .noDeterministicMatch,
+                expectedPromptBody: "Buddy, draft a thank-you note for the team dinner"
+            ),
+            ExternalTextRoutingScenario(
+                name: "Retry phrasing no longer reuses context",
+                dictatedContent: "Buddy, try that again",
+                selectedText: nil,
+                clipboardText: "clipboard text should stay unused",
+                lastTranscription: "previous dictated text should stay unused",
+                expectedMatchedSources: [],
+                expectedDecisionSource: .noDeterministicMatch,
+                expectedPromptBody: "Buddy, try that again"
+            ),
         ]
-        var now = Date(timeIntervalSince1970: 1_700_000_000)
-        let preferences = makePreferencesWithTriggerStore()
-        preferences.setCustomTrigger(primary: "Buddy")
-        try await Task.sleep(nanoseconds: 80_000_000)
-        let store = makeStore(
-            permissionsAuthorized: true,
-            transcriber: transcriber,
-            llmRewriter: rewriter,
-            dateProvider: { now },
-            preferences: preferences
+
+        var reports: [String] = []
+
+        for scenario in scenarios {
+            let outcome = await runExternalTextRoutingScenario(scenario)
+            reports.append(outcome.report)
+
+            XCTAssertEqual(
+                outcome.decision.matchedSources,
+                scenario.expectedMatchedSources,
+                scenario.name
+            )
+            XCTAssertEqual(
+                outcome.decision.decisionSource,
+                scenario.expectedDecisionSource,
+                scenario.name
+            )
+            XCTAssertEqual(
+                outcome.promptBody,
+                scenario.expectedPromptBody,
+                scenario.name
+            )
+        }
+
+        let attachment = XCTAttachment(
+            string: reports.joined(separator: "\n\n---\n\n")
+        )
+        attachment.name = "ExternalTextRoutingScenarioMatrix"
+        attachment.lifetime = .keepAlways
+        add(attachment)
+    }
+
+    func test_externalTextRouting_realModelEvaluation() async throws {
+        let markerURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent("run_external_text_eval_tests")
+        try XCTSkipUnless(
+            ProcessInfo.processInfo.environment["RUN_EXTERNAL_TEXT_EVAL_TESTS"] == "1" ||
+                FileManager.default.fileExists(atPath: markerURL.path),
+            "External text routing real-model eval skipped. Set RUN_EXTERNAL_TEXT_EVAL_TESTS=1 or create \(markerURL.path) to run."
         )
 
-        store.arm()
-        store.finish()
-        _ = try await waitForSuccess(of: store)
+        let service = LLMRewriteService(tier: .standard2B)
+        defer {
+            Task {
+                await service.unload()
+            }
+        }
 
-        store.dismissCurrentSuccess()
-        now.addTimeInterval(31 * 60)
+        try await service.prewarm()
 
-        store.arm()
-        store.finish()
-        _ = try await waitForSuccess(of: store)
+        let scenarios: [RealModelRoutingEvalScenario] = [
+            RealModelRoutingEvalScenario(
+                name: "Selected text rewrite",
+                dictatedContent: "Buddy, make what's selected sound more professional",
+                selectedText: "hey thanks for the quick reply. i think we should probably wait until next week before we announce anything",
+                clipboardText: nil,
+                lastTranscription: nil,
+                expectedBehavior: "Should deterministically use selected text and return a more polished rewrite of that text."
+            ),
+            RealModelRoutingEvalScenario(
+                name: "Clipboard to Slack update",
+                dictatedContent: "Buddy, turn what I copied into a short Slack update",
+                selectedText: nil,
+                clipboardText: "Launch moved to Friday. Waiting on final analytics check. Need support heads-up by Thursday afternoon.",
+                lastTranscription: nil,
+                expectedBehavior: "Should deterministically use clipboard text and produce a concise Slack-style update."
+            ),
+            RealModelRoutingEvalScenario(
+                name: "Last transcription cleanup",
+                dictatedContent: "Buddy, fix my last transcription and make it polite",
+                selectedText: nil,
+                clipboardText: nil,
+                lastTranscription: "hey sarah this deck is kind of a mess and i need you to clean it up today",
+                expectedBehavior: "Should deterministically use last transcription and rewrite it into a more polite version."
+            ),
+            RealModelRoutingEvalScenario(
+                name: "Selected text to bullet list",
+                dictatedContent: "Buddy, turn what's selected into three short bullets",
+                selectedText: "We still need to validate analytics, notify support by Thursday afternoon, and confirm the Friday launch timing.",
+                clipboardText: nil,
+                lastTranscription: nil,
+                expectedBehavior: "Should deterministically use selected text and reshape it into a short bullet list."
+            ),
+            RealModelRoutingEvalScenario(
+                name: "Clipboard to action items",
+                dictatedContent: "Buddy, turn what I copied into a clean action-item list",
+                selectedText: nil,
+                clipboardText: "Need design sign-off by noon Friday. Follow up with support after analytics review. Confirm rollout timing with product.",
+                lastTranscription: nil,
+                expectedBehavior: "Should deterministically use clipboard text and convert it into a cleaner action-item style output."
+            ),
+            RealModelRoutingEvalScenario(
+                name: "Last transcription tightened",
+                dictatedContent: "Buddy, tighten my last transcription into one direct sentence",
+                selectedText: nil,
+                clipboardText: nil,
+                lastTranscription: "hey can you maybe take another look at the homepage copy because i think it is still too wordy and i want us to shorten it before launch",
+                expectedBehavior: "Should deterministically use last transcription and compress it into a more direct one-sentence rewrite."
+            ),
+            RealModelRoutingEvalScenario(
+                name: "Three deterministic sources in one request",
+                dictatedContent: "Buddy, merge my last transcription with what I copied and what's selected into one clean update",
+                selectedText: "Selected text says analytics still looks inconsistent.",
+                clipboardText: "Copied text says support should be notified by Thursday afternoon.",
+                lastTranscription: "last transcription says the rollout should move to Friday",
+                expectedBehavior: "Should append last transcription, clipboard, and selected text together in that order beneath the dictated request."
+            ),
+            RealModelRoutingEvalScenario(
+                name: "Selected text grammar plus professional rewrite",
+                dictatedContent: "Buddy, check the grammar in what's selected and make it more professional",
+                selectedText: "i went too the store and buyed some groceries before the client meeting",
+                clipboardText: nil,
+                lastTranscription: nil,
+                expectedBehavior: "Should deterministically use selected text and combine cleanup with a more professional rewrite."
+            ),
+            RealModelRoutingEvalScenario(
+                name: "Last transcription nicer and shorter",
+                dictatedContent: "Buddy, make my last transcription nicer and shorter",
+                selectedText: nil,
+                clipboardText: nil,
+                lastTranscription: "this deck is a mess and we need to talk right now about why it missed the requirements",
+                expectedBehavior: "Should deterministically use last transcription and combine tone softening with a shorter rewrite."
+            ),
+            RealModelRoutingEvalScenario(
+                name: "Selected text cleanup into three bullets",
+                dictatedContent: "Buddy, fix wording in what's selected and turn it into three bullets",
+                selectedText: "We still need analytics validation, support notification by Thursday, and product sign-off before launch.",
+                clipboardText: nil,
+                lastTranscription: nil,
+                expectedBehavior: "Should deterministically use selected text and combine cleanup with a three-bullet output."
+            ),
+            RealModelRoutingEvalScenario(
+                name: "Clipboard professional Slack update",
+                dictatedContent: "Buddy, make what I copied more professional and turn it into a short Slack update",
+                selectedText: nil,
+                clipboardText: "Launch moved to Friday. Waiting on final analytics check. Need support heads-up by Thursday afternoon.",
+                lastTranscription: nil,
+                expectedBehavior: "Should deterministically use clipboard text and combine professional rewrite with Slack formatting."
+            ),
+            RealModelRoutingEvalScenario(
+                name: "Format conflict resolves to last mention",
+                dictatedContent: "Buddy, turn what's selected into bullets and then make it one sentence",
+                selectedText: "We need analytics validation, support notification, and product sign-off before launch.",
+                clipboardText: nil,
+                lastTranscription: nil,
+                expectedBehavior: "Should deterministically use selected text and prefer the trailing one-sentence format over the earlier bullet request."
+            ),
+            RealModelRoutingEvalScenario(
+                name: "Format conflict reverse order prefers trailing bullets",
+                dictatedContent: "Buddy, make what's selected one sentence and then turn it into three bullets",
+                selectedText: "We need analytics validation, support notification, and product sign-off before launch.",
+                clipboardText: nil,
+                lastTranscription: nil,
+                expectedBehavior: "Should deterministically use selected text and prefer the trailing three-bullet format over the earlier one-sentence request."
+            ),
+            RealModelRoutingEvalScenario(
+                name: "Standalone drafting request",
+                dictatedContent: "Buddy, draft a thank-you note for the team dinner",
+                selectedText: "unused selected text",
+                clipboardText: "unused clipboard text",
+                lastTranscription: "unused prior dictation",
+                expectedBehavior: "Should stay as a direct assistant request because nothing deterministic matches."
+            ),
+            RealModelRoutingEvalScenario(
+                name: "Retry phrasing without context reuse",
+                dictatedContent: "Buddy, try that again",
+                selectedText: nil,
+                clipboardText: "clipboard text should not be injected",
+                lastTranscription: "previous dictated text should not be injected",
+                expectedBehavior: "Should stay as a direct request with no injected context because retry wording is no longer classified."
+            ),
+            RealModelRoutingEvalScenario(
+                name: "Two deterministic sources in one request",
+                dictatedContent: "Buddy, compare the selected text with what I copied and merge them",
+                selectedText: "The selected text says the launch is delayed because analytics still needs validation.",
+                clipboardText: "The copied text says support should be notified by Thursday afternoon.",
+                lastTranscription: nil,
+                expectedBehavior: "Should append both selected text and clipboard because both deterministic source buckets match."
+            ),
+        ]
 
-        XCTAssertEqual(rewriter.generateCallCount, 2)
-        XCTAssertEqual(rewriter.lastGeneratePrompt, secondTranscript)
-        XCTAssertFalse(rewriter.lastGeneratePrompt?.contains("<prior_conversation>") ?? false)
-        XCTAssertFalse(rewriter.lastGeneratePrompt?.contains("Previous text:") ?? false)
+        let recorder = RecordingRealModelRewriter(base: service)
+        var renderedReports: [String] = []
+
+        for scenario in scenarios {
+            await recorder.reset()
+
+            let context = ExternalTextSourceContext(
+                selectedText: scenario.selectedText,
+                clipboardText: scenario.clipboardText,
+                lastTranscription: scenario.lastTranscription
+            )
+
+            let decision = ExternalTextSourceClassifier.classify(
+                message: scenario.dictatedContent,
+                availableSources: context
+            )
+
+            let finalPrompt = ExternalTextPromptBuilder.buildBody(
+                dictatedContent: scenario.dictatedContent,
+                selectedText: scenario.selectedText,
+                clipboardText: scenario.clipboardText,
+                lastTranscription: scenario.lastTranscription,
+                routingDecision: decision
+            )
+
+            let finalOutput = try await recorder.generate(
+                prompt: finalPrompt,
+                systemPrompt: LLMRewriteService.resolveAssistantSystemPrompt(assistantName: "Buddy")
+            )
+
+            let trace = await recorder.trace()
+            let report = RealModelRoutingEvalReport(
+                scenario: scenario,
+                decision: decision,
+                finalPrompt: finalPrompt,
+                finalOutput: finalOutput,
+                trace: trace
+            )
+
+            renderedReports.append(report.rendered)
+            print(report.consoleBlock)
+
+            XCTAssertFalse(
+                finalOutput.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+                "Real model returned empty output for scenario: \(scenario.name)"
+            )
+        }
+
+        let reportBody = renderedReports.joined(separator: "\n\n===\n\n")
+        let attachment = XCTAttachment(string: reportBody)
+        attachment.name = "ExternalTextRoutingRealModelEval"
+        attachment.lifetime = .keepAlways
+        add(attachment)
+
+        let reportURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent("external-text-routing-real-model-eval.md")
+        try reportBody.write(to: reportURL, atomically: true, encoding: .utf8)
+        print("Saved external text routing eval report to: \(reportURL.path)")
+    }
+
+    func test_externalTextRouting_lastTranscriptionPromptVariants_realModelEvaluation() async throws {
+        let markerURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent("run_external_text_prompt_variant_eval_tests")
+        try XCTSkipUnless(
+            ProcessInfo.processInfo.environment["RUN_EXTERNAL_TEXT_PROMPT_VARIANT_EVAL_TESTS"] == "1" ||
+                FileManager.default.fileExists(atPath: markerURL.path),
+            "Prompt-variant real-model eval skipped. Set RUN_EXTERNAL_TEXT_PROMPT_VARIANT_EVAL_TESTS=1 or create \(markerURL.path) to run."
+        )
+
+        let assistantName = "Buddy"
+        let priorTranscript = "Sarah, these designs you've just sent me are like... ungodly. They're an absolute piece of shit and you should be completely ashamed of yourself. We need to meet immediately."
+        let dictatedRequest = "Buddy, that last transcription that I did was really mean. Can you make it a lot nicer but still communicate the point?"
+
+        let service = LLMRewriteService(tier: .standard2B)
+        defer {
+            Task {
+                await service.unload()
+            }
+        }
+
+        try await service.prewarm()
+
+        let context = ExternalTextSourceContext(
+            selectedText: nil,
+            clipboardText: nil,
+            lastTranscription: priorTranscript
+        )
+        let decision = ExternalTextSourceClassifier.classify(
+            message: dictatedRequest,
+            availableSources: context
+        )
+        let productionPrompt = ExternalTextPromptBuilder.buildBody(
+            dictatedContent: dictatedRequest,
+            selectedText: nil,
+            clipboardText: nil,
+            lastTranscription: priorTranscript,
+            routingDecision: decision
+        )
+        let productionSystemPrompt = LLMRewriteService.resolveAssistantSystemPrompt(
+            assistantName: assistantName
+        )
+
+        let strongerRewriteSystemPrompt = LLMRewriteService.resolveAssistantSystemPrompt(
+            promptTemplate: """
+            \(LLMRewriteService.defaultAssistantSystemPromptTemplate)
+            When the user asks to make provided text nicer, kinder, less harsh, or more polite, rewrite the provided source text itself to satisfy that request.
+            Do not merely correct punctuation, capitalization, or formatting when the request asks for a tone change.
+            """,
+            assistantName: assistantName
+        )
+
+        let variants: [RealModelPromptVariantEvalVariant] = [
+            RealModelPromptVariantEvalVariant(
+                name: "Current production prompt",
+                body: productionPrompt,
+                systemPrompt: productionSystemPrompt,
+                rationale: "Reproduces the exact body and system prompt currently used in production."
+            ),
+            RealModelPromptVariantEvalVariant(
+                name: "Current body with stronger rewrite system rule",
+                body: productionPrompt,
+                systemPrompt: strongerRewriteSystemPrompt,
+                rationale: "Keeps the production body but adds an explicit system rule that tone-change requests must rewrite the source text itself."
+            ),
+            RealModelPromptVariantEvalVariant(
+                name: "Cleaned inline request",
+                body: """
+                Buddy, the transcript context provided below was really mean. Can you make it a lot nicer while still communicating the point?
+
+                transcript context provided below:
+                "\(priorTranscript)"
+                """,
+                systemPrompt: productionSystemPrompt,
+                rationale: "Removes the awkward inline artifact from simple string replacement while preserving the current overall structure."
+            ),
+            RealModelPromptVariantEvalVariant(
+                name: "Explicit rewrite target wrapper",
+                body: """
+                User request:
+                \(dictatedRequest)
+
+                Rewrite the transcript context provided below so it satisfies the user request above.
+                Keep the same core point and overall intent, but make it substantially softer and more professional. Remove insults, profanity, and personal attacks. Do not reverse the sentiment or turn criticism into praise.
+
+                transcript context provided below:
+                "\(priorTranscript)"
+                """,
+                systemPrompt: productionSystemPrompt,
+                rationale: "Makes the provided transcript an explicit rewrite target instead of generic background context."
+            ),
+            RealModelPromptVariantEvalVariant(
+                name: "Direct rewrite task",
+                body: """
+                Rewrite the transcript context provided below so it is much kinder while still clearly communicating the same point.
+
+                transcript context provided below:
+                "\(priorTranscript)"
+                """,
+                systemPrompt: productionSystemPrompt,
+                rationale: "Drops the conversational request wrapper and gives the model a direct rewrite instruction."
+            ),
+        ]
+
+        let recorder = RecordingRealModelRewriter(base: service)
+        var renderedReports: [String] = []
+
+        for variant in variants {
+            await recorder.reset()
+
+            let finalOutput = try await recorder.generate(
+                prompt: variant.body,
+                systemPrompt: variant.systemPrompt
+            )
+            let trace = await recorder.trace()
+            let report = RealModelPromptVariantEvalReport(
+                dictatedRequest: dictatedRequest,
+                priorTranscript: priorTranscript,
+                routingDecision: decision,
+                variant: variant,
+                finalOutput: finalOutput,
+                trace: trace
+            )
+
+            renderedReports.append(report.rendered)
+            print(report.consoleBlock)
+
+            XCTAssertFalse(
+                finalOutput.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+                "Real model returned empty output for variant: \(variant.name)"
+            )
+        }
+
+        let reportBody = renderedReports.joined(separator: "\n\n===\n\n")
+        let attachment = XCTAttachment(string: reportBody)
+        attachment.name = "ExternalTextLastTranscriptionPromptVariants"
+        attachment.lifetime = .keepAlways
+        add(attachment)
+
+        let reportURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent("external-text-last-transcription-prompt-variants.md")
+        try reportBody.write(to: reportURL, atomically: true, encoding: .utf8)
+        print("Saved prompt-variant eval report to: \(reportURL.path)")
+    }
+
+    private func runExternalTextRoutingScenario(
+        _ scenario: ExternalTextRoutingScenario
+    ) async -> ExternalTextRoutingScenarioOutcome {
+        let availableSources = ExternalTextSourceContext(
+            selectedText: scenario.selectedText,
+            clipboardText: scenario.clipboardText,
+            lastTranscription: scenario.lastTranscription
+        )
+
+        let decision = ExternalTextSourceClassifier.classify(
+            message: scenario.dictatedContent,
+            availableSources: availableSources
+        )
+
+        let promptBody = ExternalTextPromptBuilder.buildBody(
+            dictatedContent: scenario.dictatedContent,
+            selectedText: scenario.selectedText,
+            clipboardText: scenario.clipboardText,
+            lastTranscription: scenario.lastTranscription,
+            routingDecision: decision
+        )
+
+        return ExternalTextRoutingScenarioOutcome(
+            scenario: scenario,
+            decision: decision,
+            promptBody: promptBody
+        )
+    }
+}
+
+private struct ExternalTextRoutingScenario {
+    let name: String
+    let dictatedContent: String
+    let selectedText: String?
+    let clipboardText: String?
+    let lastTranscription: String?
+    let expectedMatchedSources: [AssistantContextMatchedSource]
+    let expectedDecisionSource: RoutingDecisionSource
+    let expectedPromptBody: String
+}
+
+private struct ExternalTextRoutingScenarioOutcome {
+    let scenario: ExternalTextRoutingScenario
+    let decision: AssistantContextRoutingDecision
+    let promptBody: String
+
+    var report: String {
+        let selectedText = scenario.selectedText ?? "<nil>"
+        let clipboardText = scenario.clipboardText ?? "<nil>"
+        let lastTranscription = scenario.lastTranscription ?? "<nil>"
+        let matchedSourcesSection = decision.matchedSources.isEmpty
+            ? "  <none>"
+            : decision.matchedSources.map { matchedSource in
+                "  \(matchedSource.targetMode.rawValue): \(matchedSource.promptLabel ?? "<nil>")"
+            }.joined(separator: "\n")
+
+        return """
+        Scenario: \(scenario.name)
+        Dictated content:
+          \(scenario.dictatedContent)
+        Available sources:
+          selectedText: \(selectedText)
+          clipboardText: \(clipboardText)
+          lastTranscription: \(lastTranscription)
+        Decision:
+          decisionSource: \(String(describing: decision.decisionSource))
+        Matched sources:
+        \(matchedSourcesSection)
+        Final prompt body:
+        \(promptBody)
+        """
+    }
+}
+
+private struct RealModelRoutingEvalScenario {
+    let name: String
+    let dictatedContent: String
+    let selectedText: String?
+    let clipboardText: String?
+    let lastTranscription: String?
+    let expectedBehavior: String
+}
+
+private struct RealModelPromptVariantEvalVariant {
+    let name: String
+    let body: String
+    let systemPrompt: String
+    let rationale: String
+}
+
+private struct RealModelPromptVariantEvalReport {
+    let dictatedRequest: String
+    let priorTranscript: String
+    let routingDecision: AssistantContextRoutingDecision
+    let variant: RealModelPromptVariantEvalVariant
+    let finalOutput: String
+    let trace: [RealModelRoutingEvalTraceEntry]
+
+    private var matchedSourcesDescription: String {
+        if routingDecision.matchedSources.isEmpty {
+            return "  <none>"
+        }
+
+        return routingDecision.matchedSources.map { matchedSource in
+            "  \(matchedSource.targetMode.rawValue): \(matchedSource.promptLabel ?? "<nil>")"
+        }.joined(separator: "\n")
+    }
+
+    var consoleBlock: String {
+        """
+
+        >>> Prompt variant: \(variant.name)
+        Rationale:
+        \(variant.rationale)
+        Prompt:
+        \(variant.body)
+        Output:
+        \(finalOutput)
+        """
+    }
+
+    var rendered: String {
+        let traceSection: String
+        if trace.isEmpty {
+            traceSection = "Missing generation trace"
+        } else {
+            traceSection = trace.enumerated().map { index, entry in
+                """
+                Call \(index + 1) system prompt:
+                \(entry.systemPrompt)
+
+                Call \(index + 1) body:
+                \(entry.prompt)
+
+                Call \(index + 1) output:
+                \(entry.output)
+                """
+            }.joined(separator: "\n\n")
+        }
+
+        return """
+        # \(variant.name)
+
+        Rationale:
+        \(variant.rationale)
+
+        Dictated request:
+        \(dictatedRequest)
+
+        Prior transcript:
+        \(priorTranscript)
+
+        Routing decision:
+        - decisionSource: \(String(describing: routingDecision.decisionSource))
+        Matched sources:
+        \(matchedSourcesDescription)
+
+        Generation trace:
+        \(traceSection)
+        """
+    }
+}
+
+private struct RealModelRoutingEvalTraceEntry {
+    let prompt: String
+    let systemPrompt: String
+    let output: String
+}
+
+private struct RealModelRoutingEvalReport {
+    let scenario: RealModelRoutingEvalScenario
+    let decision: AssistantContextRoutingDecision
+    let finalPrompt: String
+    let finalOutput: String
+    let trace: [RealModelRoutingEvalTraceEntry]
+
+    private var classifierTrace: [RealModelRoutingEvalTraceEntry] {
+        Array(trace.dropLast())
+    }
+
+    private var finalGenerationTrace: RealModelRoutingEvalTraceEntry? {
+        trace.last
+    }
+
+    private var matchedSourcesDescription: String {
+        if decision.matchedSources.isEmpty {
+            return "  <none>"
+        }
+
+        return decision.matchedSources.map { matchedSource in
+            "  \(matchedSource.targetMode.rawValue): \(matchedSource.promptLabel ?? "<nil>")"
+        }.joined(separator: "\n")
+    }
+
+    var consoleBlock: String {
+        """
+
+        >>> Scenario: \(scenario.name)
+        Expected behavior:
+        \(scenario.expectedBehavior)
+        Decision:
+          decisionSource: \(String(describing: decision.decisionSource))
+        Matched sources:
+        \(matchedSourcesDescription)
+        Final prompt:
+        \(finalPrompt)
+        Final output:
+        \(finalOutput)
+        """
+    }
+
+    var rendered: String {
+        let selectedText = scenario.selectedText ?? "<nil>"
+        let clipboardText = scenario.clipboardText ?? "<nil>"
+        let lastTranscription = scenario.lastTranscription ?? "<nil>"
+        let classifierSection: String
+
+        if classifierTrace.isEmpty {
+            classifierSection = "None"
+        } else {
+            classifierSection = classifierTrace.enumerated().map { index, entry in
+                """
+                Call \(index + 1) prompt:
+                \(entry.prompt)
+
+                Call \(index + 1) output:
+                \(entry.output)
+                """
+            }.joined(separator: "\n\n")
+        }
+
+        let finalCallSection: String
+        if let finalGenerationTrace {
+            finalCallSection = """
+            Prompt:
+            \(finalGenerationTrace.prompt)
+
+            Output:
+            \(finalGenerationTrace.output)
+            """
+        } else {
+            finalCallSection = "Missing final generation call"
+        }
+
+        return """
+        # \(scenario.name)
+
+        Expected behavior:
+        \(scenario.expectedBehavior)
+
+        Dictated content:
+        \(scenario.dictatedContent)
+
+        Available context:
+        - selectedText: \(selectedText)
+        - clipboardText: \(clipboardText)
+        - lastTranscription: \(lastTranscription)
+
+        Routing decision:
+        - decisionSource: \(String(describing: decision.decisionSource))
+        Matched sources:
+        \(matchedSourcesDescription)
+
+        Classifier trace:
+        \(classifierSection)
+
+        Final generation:
+        \(finalCallSection)
+        """
+    }
+}
+
+private actor RecordingRealModelRewriter: LLMRewriting {
+    private let base: any LLMRewriting
+    private var entries: [RealModelRoutingEvalTraceEntry] = []
+
+    init(base: any LLMRewriting) {
+        self.base = base
+    }
+
+    func reset() {
+        entries.removeAll()
+    }
+
+    func trace() -> [RealModelRoutingEvalTraceEntry] {
+        entries
+    }
+
+    func setTier(_ newTier: RewriteModelTier) async {
+        await base.setTier(newTier)
+    }
+
+    func prewarm() async throws {
+        try await base.prewarm()
+    }
+
+    func rewrite(body: String, instructions: String, promptPrefix: String) async throws -> String {
+        try await base.rewrite(body: body, instructions: instructions, promptPrefix: promptPrefix)
+    }
+
+    func rewrite(body: String, instructions: String) async throws -> String {
+        try await base.rewrite(body: body, instructions: instructions)
+    }
+
+    func generate(prompt: String, systemPrompt: String) async throws -> String {
+        let output = try await base.generate(prompt: prompt, systemPrompt: systemPrompt)
+        entries.append(
+            RealModelRoutingEvalTraceEntry(
+                prompt: prompt,
+                systemPrompt: systemPrompt,
+                output: output
+            )
+        )
+        return output
+    }
+
+    func generate(
+        prompt: String,
+        systemPrompt: String,
+        images: [UserInput.Image]
+    ) async throws -> String {
+        let output = try await base.generate(
+            prompt: prompt,
+            systemPrompt: systemPrompt,
+            images: images
+        )
+        entries.append(
+            RealModelRoutingEvalTraceEntry(
+                prompt: prompt,
+                systemPrompt: systemPrompt,
+                output: output
+            )
+        )
+        return output
+    }
+
+    func loadedTier() async -> RewriteModelTier? {
+        await base.loadedTier()
+    }
+
+    func scheduleIdleUnload(afterNanoseconds duration: UInt64) async {
+        await base.scheduleIdleUnload(afterNanoseconds: duration)
+    }
+
+    func cancelScheduledUnload() async {
+        await base.cancelScheduledUnload()
+    }
+
+    func unload() async {
+        await base.unload()
+    }
+
+    func deleteDownloadedModel(for tier: RewriteModelTier) async throws {
+        try await base.deleteDownloadedModel(for: tier)
     }
 }
 
@@ -2723,6 +4428,97 @@ final class DelayedPrepareWhisperTranscriber: WhisperTranscribing, @unchecked Se
     }
 }
 
+actor FinalizationAwareWhisperTranscriber: WhisperTranscribing {
+    private let resultText: String
+    private var observedFinalization = false
+
+    init(resultText: String) {
+        self.resultText = resultText
+    }
+
+    @MainActor var didFinalizeAudioCapture: () -> Bool = { false }
+
+    func transcribe(samples: [Float]) async throws -> String {
+        observedFinalization = await MainActor.run { didFinalizeAudioCapture() }
+        return resultText
+    }
+
+    func didObserveFinalization() -> Bool {
+        observedFinalization
+    }
+}
+
+final class StubNoteCaptureService: NoteCapturing, @unchecked Sendable {
+    enum StubError: Error {
+        case failed
+    }
+
+    var result: Result<URL, Error> = .success(
+        FileManager.default.temporaryDirectory.appendingPathComponent("note.md")
+    )
+    private(set) var savedContents: [NoteCaptureContent] = []
+    private(set) var savedConfigurations: [AssistantNoteConfiguration] = []
+
+    func saveNote(content: NoteCaptureContent, configuration: AssistantNoteConfiguration) throws -> URL {
+        savedContents.append(content)
+        savedConfigurations.append(configuration)
+        return try result.get()
+    }
+}
+
+final class StubHistoryCaptureService: HistoryCapturing, @unchecked Sendable {
+    enum StubError: Error {
+        case failed
+    }
+
+    var result: Result<URL, Error> = .success(
+        FileManager.default.temporaryDirectory.appendingPathComponent("history.txt")
+    )
+    private let lock = NSLock()
+    private var recordedContents: [HistoryCaptureContent] = []
+    private var recordedConfigurations: [HistoryConfiguration] = []
+
+    var savedContents: [HistoryCaptureContent] {
+        lock.lock()
+        defer { lock.unlock() }
+        return recordedContents
+    }
+
+    var savedConfigurations: [HistoryConfiguration] {
+        lock.lock()
+        defer { lock.unlock() }
+        return recordedConfigurations
+    }
+
+    func saveEntry(content: HistoryCaptureContent, configuration: HistoryConfiguration) throws -> URL {
+        lock.lock()
+        recordedContents.append(content)
+        recordedConfigurations.append(configuration)
+        lock.unlock()
+        return try result.get()
+    }
+
+    func listEntries(configuration: HistoryConfiguration) throws -> [HistoryEntry] {
+        []
+    }
+
+    func loadEntryText(at fileURL: URL) throws -> String {
+        ""
+    }
+
+    func loadEntryDetail(at fileURL: URL) throws -> HistoryEntryDetail {
+        HistoryEntryDetail(createdAt: nil, mode: .raw, rawTranscription: "", assistantOutput: nil)
+    }
+
+    func deleteEntry(at fileURL: URL) throws {}
+
+    func deleteAllEntries(configuration: HistoryConfiguration) throws {}
+
+    func storageUsage(configuration: HistoryConfiguration) throws -> HistoryUsage {
+        HistoryUsage(totalBytes: 0, entryCount: 0)
+    }
+}
+
 /// Mock clipboard service — subclasses ClipboardService (must be non-final) for test interception
 class ActivationStoreMockClipboard: ClipboardService {
     private(set) var lastWrittenText: String?
@@ -2731,6 +4527,7 @@ class ActivationStoreMockClipboard: ClipboardService {
     private(set) var restoreCallCount = 0
     private(set) var lastRestoredSnapshot: ClipboardSnapshot?
     var stubbedClipboardContent: String?
+    var stubbedImageContent: ClipboardImageContent?
     var stubbedSnapshotChangeCount = 1
     var didRestoreOriginalClipboard = false
 
@@ -2748,7 +4545,11 @@ class ActivationStoreMockClipboard: ClipboardService {
     }
 
     override func snapshotCurrentClipboard() -> ClipboardSnapshot {
-        ClipboardSnapshot.empty(changeCount: stubbedSnapshotChangeCount, plainText: stubbedClipboardContent)
+        ClipboardSnapshot.empty(
+            changeCount: stubbedSnapshotChangeCount,
+            plainText: stubbedClipboardContent,
+            imageContent: stubbedImageContent
+        )
     }
 
     override func writeTemporaryText(_ text: String) -> ClipboardWriteReceipt? {
@@ -2762,6 +4563,7 @@ class ActivationStoreMockClipboard: ClipboardService {
         lastRestoredSnapshot = snapshot
         didRestoreOriginalClipboard = true
         stubbedClipboardContent = snapshot.plainText
+        stubbedImageContent = snapshot.imageContent
         stubbedSnapshotChangeCount += 1
         return true
     }
@@ -2777,6 +4579,7 @@ class ActivationStoreMockClipboard: ClipboardService {
         restoreCallCount = 0
         lastRestoredSnapshot = nil
         didRestoreOriginalClipboard = false
+        stubbedImageContent = nil
     }
 
     func simulateClipboardChange(to text: String?) {
@@ -2855,6 +4658,8 @@ final class MockLLMRewriter: LLMRewriting, @unchecked Sendable {
     private(set) var generateCallCount = 0
     private(set) var lastGeneratePrompt: String?
     private(set) var lastGenerateSystemPrompt: String?
+    private(set) var lastGenerateImageCount = 0
+    private(set) var generateImageCounts: [Int] = []
     private(set) var generatePrompts: [String] = []
     private(set) var generateSystemPrompts: [String] = []
     private(set) var setTierCalls: [RewriteModelTier] = []
@@ -2879,10 +4684,19 @@ final class MockLLMRewriter: LLMRewriting, @unchecked Sendable {
         }
     }
     func generate(prompt: String, systemPrompt: String) async throws -> String {
+        try await generate(prompt: prompt, systemPrompt: systemPrompt, images: [])
+    }
+    func generate(
+        prompt: String,
+        systemPrompt: String,
+        images: [UserInput.Image]
+    ) async throws -> String {
         generateCallCount += 1
         lastCalledOverload = .generateOverload
         lastGeneratePrompt = prompt
         lastGenerateSystemPrompt = systemPrompt
+        lastGenerateImageCount = images.count
+        generateImageCounts.append(images.count)
         generatePrompts.append(prompt)
         generateSystemPrompts.append(systemPrompt)
         let effectiveResult: MockResult
@@ -2938,6 +4752,14 @@ final class DelayedLLMRewriter: LLMRewriting, @unchecked Sendable {
     }
 
     func generate(prompt: String, systemPrompt: String) async throws -> String {
+        try await generate(prompt: prompt, systemPrompt: systemPrompt, images: [])
+    }
+
+    func generate(
+        prompt: String,
+        systemPrompt: String,
+        images _: [UserInput.Image]
+    ) async throws -> String {
         try await Task.sleep(nanoseconds: delayNanoseconds)
         let output = try complete()
         timingLock.lock()

@@ -20,13 +20,17 @@ final class RewriteModelLoadState: ObservableObject {
 
         var activeTier: RewriteModelTier? {
             switch self {
-            case .idle: return nil
-            case .downloading(let t, _), .prewarming(let t), .ready(let t), .failed(let t, _): return t
+            case .idle:
+                return nil
+            case .downloading(let tier, _), .prewarming(let tier), .ready(let tier), .failed(let tier, _):
+                return tier
             }
         }
 
         var downloadProgress: Double? {
-            if case .downloading(_, let p) = self { return p }
+            if case .downloading(_, let progress) = self {
+                return progress
+            }
             return nil
         }
 
@@ -83,7 +87,7 @@ final class RewriteModelLoadState: ObservableObject {
                 phase = .ready(tier: tier)
                 refreshStatus()
             } catch is CancellationError {
-                // A new startDownload call cancelled us — it sets the phase itself.
+                // A later download request replaced this one.
             } catch {
                 phase = .failed(tier: tier, message: error.localizedDescription)
                 refreshStatus()

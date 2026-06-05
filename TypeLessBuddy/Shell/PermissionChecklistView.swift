@@ -4,6 +4,11 @@ extension Notification.Name {
     static let postEventGuideRequested = Notification.Name("postEventGuideRequested")
 }
 
+private enum PermissionTileMetrics {
+    static let cornerRadius: CGFloat = 12
+    static let borderWidth: CGFloat = 0.75
+}
+
 struct PermissionChecklistView: View {
     let permissions: [PermissionChecklistItem]
     let requestPermission: (PermissionKind) -> Void
@@ -132,7 +137,14 @@ struct PermissionTile: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .padding(14)
-        .background(Color(white: 0.17), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+        .background(
+            RoundedRectangle(cornerRadius: PermissionTileMetrics.cornerRadius, style: .continuous)
+                .fill(SetupColorPalette.raisedControlBackground)
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: PermissionTileMetrics.cornerRadius, style: .continuous)
+                .stroke(SetupColorPalette.controlBorder, lineWidth: PermissionTileMetrics.borderWidth)
+        )
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("permission.\(item.kind.rawValue).row")
         .onReceive(NotificationCenter.default.publisher(for: .postEventGuideRequested)) { _ in
@@ -218,6 +230,13 @@ struct LaunchAtLoginTile: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .padding(14)
-        .background(Color(white: 0.17), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+        .background(
+            RoundedRectangle(cornerRadius: PermissionTileMetrics.cornerRadius, style: .continuous)
+                .fill(SetupColorPalette.raisedControlBackground)
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: PermissionTileMetrics.cornerRadius, style: .continuous)
+                .stroke(SetupColorPalette.controlBorder, lineWidth: PermissionTileMetrics.borderWidth)
+        )
     }
 }

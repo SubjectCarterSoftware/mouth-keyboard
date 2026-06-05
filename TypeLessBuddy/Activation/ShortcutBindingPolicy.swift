@@ -6,6 +6,12 @@ enum HoldShortcutSlot {
     case secondary
 }
 
+enum MouseButtonShortcutAction {
+    case startRecording
+    case stopRecording
+    case holdToRecord
+}
+
 struct HoldShortcutBinding: Equatable {
     let keyCode: Int
     let modifiers: UInt
@@ -16,6 +22,9 @@ struct ShortcutBindingSnapshot {
     let tapShortcuts: [KeyboardShortcuts.Shortcut]
     let primaryHoldShortcut: KeyboardShortcuts.Shortcut?
     let secondaryHoldShortcut: KeyboardShortcuts.Shortcut?
+    let startMouseButton: MouseButtonBinding?
+    let stopMouseButton: MouseButtonBinding?
+    let holdMouseButton: MouseButtonBinding?
 
     static func current(preferences: ShellPreferences) -> Self {
         Self(
@@ -31,7 +40,10 @@ struct ShortcutBindingSnapshot {
                     keyCode: preferences.holdShortcutKeyCodeAlt,
                     modifiers: preferences.holdShortcutModifiersAlt
                 )
-            )
+            ),
+            startMouseButton: preferences.startMouseButtonBinding,
+            stopMouseButton: preferences.stopMouseButtonBinding,
+            holdMouseButton: preferences.holdMouseButtonBinding
         )
     }
 
@@ -78,6 +90,21 @@ enum ShortcutBindingPolicy {
         }
     }
 
+    static func mouseButtonConflicts(
+        _ candidate: MouseButtonBinding,
+        action: MouseButtonShortcutAction,
+        snapshot: ShortcutBindingSnapshot
+    ) -> Bool {
+        switch action {
+        case .startRecording:
+            return snapshot.holdMouseButton == candidate
+        case .stopRecording:
+            return snapshot.holdMouseButton == candidate
+        case .holdToRecord:
+            return snapshot.startMouseButton == candidate || snapshot.stopMouseButton == candidate
+        }
+    }
+
     static func sanitizedHoldBindings(
         preferences: ShellPreferences
     ) -> (primary: HoldShortcutBinding?, secondary: HoldShortcutBinding?) {
@@ -111,5 +138,32 @@ enum ShortcutBindingPolicy {
         }
 
         return (sanitizedPrimary, sanitizedSecondary)
+    }
+
+    static func sanitizedMouseBindings(
+        preferences: ShellPreferences
+    ) -> (start: MouseButtonBinding?, stop: MouseButtonBinding?, hold: MouseButtonBinding?) {
+        let start = preferences.startMouseButtonBinding
+        let sanitizedStart = start
+
+        let stop = preferences.stopMouseButtonBinding
+        let sanitizedStop: MouseButtonBinding?
+        if let stop {
+            sanitizedStop = stop
+        } else {
+            sanitizedStop = nil
+        }
+
+        let hold = preferences.holdMouseButtonBinding
+        let sanitizedHold: MouseButtonBinding?
+        if let hold,
+           hold != sanitizedStart,
+           hold != sanitizedStop {
+            sanitizedHold = hold
+        } else {
+            sanitizedHold = nil
+        }
+
+        return (sanitizedStart, sanitizedStop, sanitizedHold)
     }
 }

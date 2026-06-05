@@ -1,12 +1,32 @@
 import AppKit
+import UniformTypeIdentifiers
+
+struct ClipboardImageContent: Equatable {
+    enum Source: Equatable {
+        case fileURL(URL)
+        case data(Data)
+    }
+
+    let source: Source
+}
 
 struct ClipboardSnapshot {
     fileprivate let items: [ClipboardSnapshotItem]
     let changeCount: Int
     let plainText: String?
+    let imageContent: ClipboardImageContent?
 
-    static func empty(changeCount: Int, plainText: String?) -> ClipboardSnapshot {
-        ClipboardSnapshot(items: [], changeCount: changeCount, plainText: plainText)
+    static func empty(
+        changeCount: Int,
+        plainText: String?,
+        imageContent: ClipboardImageContent? = nil
+    ) -> ClipboardSnapshot {
+        ClipboardSnapshot(
+            items: [],
+            changeCount: changeCount,
+            plainText: plainText,
+            imageContent: imageContent
+        )
     }
 
     var isEmpty: Bool {
@@ -29,6 +49,10 @@ struct ClipboardWriteReceipt {
 }
 
 class ClipboardService {
+    /// Marker password managers set so clipboard tools know the contents are
+    /// sensitive (a password, secret, etc.) and must not be read or persisted.
+    static let concealedType = NSPasteboard.PasteboardType("org.nspasteboard.ConcealedType")
+
     private let pasteboard: NSPasteboard
 
     init(pasteboard: NSPasteboard = .general) {
@@ -57,10 +81,16 @@ class ClipboardService {
             return ClipboardSnapshotItem(entries: entries)
         }
 
+        // Keep every item so restore stays faithful, but never expose the text of
+        // a concealed item (e.g. a password) for prompt/note/history injection.
+        let isConcealed = (pasteboard.types ?? []).contains(Self.concealedType)
+        let imageContent = Self.extractImageContent(from: pasteboard.pasteboardItems ?? [])
+
         return ClipboardSnapshot(
             items: items,
             changeCount: pasteboard.changeCount,
-            plainText: pasteboard.string(forType: .string)
+            plainText: isConcealed ? nil : pasteboard.string(forType: .string),
+            imageContent: imageContent
         )
     }
 
@@ -114,4 +144,43 @@ class ClipboardService {
     func readFromClipboard() -> String? {
         pasteboard.string(forType: .string)
     }
+
+    private static func extractImageContent(from items: [NSPasteboardItem]) -> ClipboardImageContent? {
+        for item in items {
+            if let fileURL = fileURL(from: item), isImageFileURL(fileURL) {
+                return ClipboardImageContent(source: .fileURL(fileURL))
+            }
+
+            for imageType in imagePasteboardTypes {
+                if let data = item.data(forType: imageType) {
+                    return ClipboardImageContent(source: .data(data))
+                }
+            }
+        }
+
+        return nil
+    }
+
+    private static func fileURL(from item: NSPasteboardItem) -> URL? {
+        if let urlString = item.string(forType: .fileURL),
+           let url = URL(string: urlString) {
+            return url
+        }
+
+        guard let urls = item.propertyList(forType: .fileURL) as? [String],
+              let first = urls.first else {
+            return nil
+        }
+        return URL(string: first)
+    }
+
+    private static func isImageFileURL(_ url: URL) -> Bool {
+        let contentType = UTType(filenameExtension: url.pathExtension)
+        return contentType?.conforms(to: .image) == true
+    }
+
+    private static let imagePasteboardTypes: [NSPasteboard.PasteboardType] = [
+        .png,
+        .tiff
+    ]
 }

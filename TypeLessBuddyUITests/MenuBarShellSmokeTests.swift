@@ -22,8 +22,13 @@ final class MenuBarShellSmokeTests: XCTestCase {
         XCTAssertTrue(app.buttons["setupWindow.sidebar.setup"].exists)
         XCTAssertTrue(app.buttons["setupWindow.sidebar.general"].exists)
         XCTAssertTrue(app.buttons["setupWindow.sidebar.assistant"].exists)
+        XCTAssertTrue(app.buttons["setupWindow.sidebar.notes"].exists)
         XCTAssertTrue(app.buttons["setupWindow.sidebar.shortcuts"].exists)
+        XCTAssertTrue(app.buttons["setupWindow.sidebar.history"].exists)
         XCTAssertTrue(app.buttons["setupWindow.sidebar.advanced"].exists)
+
+        let promptEditButton = app.buttons["setupWindow.rewriteSystemPrompt.open"]
+        XCTAssertTrue(promptEditButton.waitForExistence(timeout: 2))
 
         let promptEditor = app.descendants(matching: .any)
             .matching(identifier: "setupWindow.rewriteSystemPrompt.editor")
@@ -33,7 +38,7 @@ final class MenuBarShellSmokeTests: XCTestCase {
         XCTAssertTrue(app.staticTexts["Play sound effects"].exists)
     }
 
-    func testAdvancedSettingsExposeRewriteSystemPromptEditor() {
+    func testAssistantSettingsExposeRewriteSystemPromptEditor() {
         let app = XCUIApplication()
         app.launchArguments = [
             "-ui-testing",
@@ -45,7 +50,8 @@ final class MenuBarShellSmokeTests: XCTestCase {
         app.launch()
 
         XCTAssertTrue(app.staticTexts["setupWindow.title"].waitForExistence(timeout: 5))
-        app.buttons["setupWindow.advancedDisclosure"].click()
+        app.buttons["setupWindow.sidebar.assistant"].click()
+        app.buttons["setupWindow.rewriteSystemPrompt.open"].click()
 
         let editor = app.descendants(matching: .any)
             .matching(identifier: "setupWindow.rewriteSystemPrompt.editor")
@@ -75,6 +81,50 @@ final class MenuBarShellSmokeTests: XCTestCase {
         let setupButton = app.buttons["setupWindow.sidebar.setup"]
         setupButton.click()
         XCTAssertEqual(setupButton.value as? String, "Selected")
+    }
+
+    func testNotesSettingsExposeNoteCaptureControls() {
+        let app = XCUIApplication()
+        app.launchArguments = [
+            "-ui-testing",
+            "-reset-shell-preferences",
+            "-mock-microphone-status", "authorized",
+            "-mock-keyboard-status", "authorized",
+        ]
+
+        app.launch()
+
+        let notesButton = app.buttons["setupWindow.sidebar.notes"]
+        XCTAssertTrue(notesButton.waitForExistence(timeout: 5))
+        notesButton.click()
+
+        XCTAssertTrue(
+            app.descendants(matching: .any)
+                .matching(identifier: "setupWindow.notes.mode")
+                .firstMatch
+                .waitForExistence(timeout: 2)
+        )
+        XCTAssertTrue(
+            app.descendants(matching: .any)
+                .matching(identifier: "setupWindow.notes.destination.path")
+                .firstMatch
+                .exists
+        )
+        XCTAssertTrue(app.buttons["setupWindow.notes.destination.browse"].exists)
+        let historyButton = app.buttons["setupWindow.sidebar.history"]
+        XCTAssertTrue(historyButton.exists)
+        historyButton.click()
+
+        let historySwitch = app.switches["setupWindow.history.enabled"]
+        XCTAssertTrue(historySwitch.exists)
+        historySwitch.click()
+        XCTAssertTrue(
+            app.descendants(matching: .any)
+                .matching(identifier: "setupWindow.history.path")
+                .firstMatch
+                .waitForExistence(timeout: 2)
+        )
+        XCTAssertTrue(app.buttons["setupWindow.history.openFolder"].exists)
     }
 
     func testCompletedSetupSuppressesSetupWindowOnLaunch() {

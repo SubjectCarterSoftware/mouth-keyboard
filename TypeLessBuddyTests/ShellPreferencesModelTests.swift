@@ -25,6 +25,18 @@ final class ShellPreferencesModelTests: XCTestCase {
         XCTAssertEqual(preferences.rewriteModelTier, .standard2B)
     }
 
+    func testLegacyRewriteTierMigrationKeepsBuiltInSelection() {
+        let (defaults, _) = makePreferences()
+        defaults.set(RewriteModelTier.high9B.rawValue, forKey: ShellPreferences.Keys.rewriteModelTier)
+        defaults.set(Data("legacy-selection".utf8), forKey: "assistantModelSelection")
+        defaults.set(Data("legacy-models".utf8), forKey: "customAssistantModels")
+
+        let preferences = ShellPreferences(userDefaults: defaults)
+        XCTAssertEqual(preferences.rewriteModelTier, .high9B)
+        XCTAssertNil(defaults.object(forKey: "assistantModelSelection"))
+        XCTAssertNil(defaults.object(forKey: "customAssistantModels"))
+    }
+
     func testAlwaysAutoPasteDefaultsToTrue() {
         let (_, preferences) = makePreferences()
         XCTAssertTrue(preferences.alwaysAutoPaste)
@@ -77,12 +89,135 @@ final class ShellPreferencesModelTests: XCTestCase {
         XCTAssertEqual(preferences2.recordingPillPosition, .topRight)
     }
 
+    func testMouseButtonBindingsDefaultToUnset() {
+        let (_, preferences) = makePreferences()
+
+        XCTAssertNil(preferences.startMouseButtonBinding)
+        XCTAssertNil(preferences.stopMouseButtonBinding)
+        XCTAssertNil(preferences.holdMouseButtonBinding)
+    }
+
+    func testMouseButtonBindingsPersistRoundTrip() {
+        let (defaults, preferences) = makePreferences()
+        preferences.startMouseButtonBinding = MouseButtonBinding(buttonNumber: 4)
+        preferences.stopMouseButtonBinding = MouseButtonBinding(buttonNumber: 5)
+        preferences.holdMouseButtonBinding = MouseButtonBinding(buttonNumber: 3)
+
+        let preferences2 = ShellPreferences(userDefaults: defaults)
+        XCTAssertEqual(preferences2.startMouseButtonBinding, MouseButtonBinding(buttonNumber: 4))
+        XCTAssertEqual(preferences2.stopMouseButtonBinding, MouseButtonBinding(buttonNumber: 5))
+        XCTAssertEqual(preferences2.holdMouseButtonBinding, MouseButtonBinding(buttonNumber: 3))
+    }
+
     func testInvalidStoredRecordingPillPositionFallsBackToDefault() {
         let (defaults, _) = makePreferences()
         defaults.set("sideways", forKey: ShellPreferences.Keys.recordingPillPosition)
 
         let preferences = ShellPreferences(userDefaults: defaults)
         XCTAssertEqual(preferences.recordingPillPosition, .bottomCenter)
+    }
+
+    func testAssistantNoteModeDefaultsToNewFile() {
+        let (_, preferences) = makePreferences()
+        XCTAssertEqual(preferences.assistantNoteMode, .newFile)
+    }
+
+    func testAssistantNoteSettingsPersistRoundTrip() {
+        let (defaults, preferences) = makePreferences()
+        preferences.assistantNoteMode = .appendToFile
+        preferences.assistantNoteFolderPath = "/tmp/notes-folder"
+        preferences.assistantNoteAppendFilePath = "/tmp/notes.md"
+
+        let preferences2 = ShellPreferences(userDefaults: defaults)
+        XCTAssertEqual(preferences2.assistantNoteMode, .appendToFile)
+        XCTAssertEqual(preferences2.assistantNoteFolderPath, "/tmp/notes-folder")
+        XCTAssertEqual(preferences2.assistantNoteAppendFilePath, "/tmp/notes.md")
+    }
+
+    func testInvalidStoredAssistantNoteModeFallsBackToNewFile() {
+        let (defaults, _) = makePreferences()
+        defaults.set("sideways", forKey: ShellPreferences.Keys.assistantNoteMode)
+
+        let preferences = ShellPreferences(userDefaults: defaults)
+        XCTAssertEqual(preferences.assistantNoteMode, .newFile)
+    }
+
+    func testAssistantNotePathsAreTrimmedWhenSet() {
+        let (_, preferences) = makePreferences()
+        preferences.assistantNoteFolderPath = "  /tmp/notes-folder  "
+        preferences.assistantNoteAppendFilePath = "  /tmp/notes.md  "
+
+        XCTAssertEqual(preferences.assistantNoteFolderPath, "/tmp/notes-folder")
+        XCTAssertEqual(preferences.assistantNoteAppendFilePath, "/tmp/notes.md")
+    }
+
+    func testAssistantNoteConfigurationUsesActiveModeDestination() {
+        let (_, preferences) = makePreferences()
+        preferences.assistantNoteMode = .newFile
+        preferences.assistantNoteFolderPath = "/tmp/notes-folder"
+        preferences.assistantNoteAppendFilePath = "/tmp/notes.md"
+        XCTAssertEqual(
+            preferences.assistantNoteConfiguration,
+            AssistantNoteConfiguration(
+                mode: .newFile,
+                folderPath: "/tmp/notes-folder",
+                appendFilePath: "/tmp/notes.md"
+            )
+        )
+
+        preferences.assistantNoteMode = .appendToFile
+        XCTAssertEqual(
+            preferences.assistantNoteConfiguration,
+            AssistantNoteConfiguration(
+                mode: .appendToFile,
+                folderPath: "/tmp/notes-folder",
+                appendFilePath: "/tmp/notes.md"
+            )
+        )
+    }
+
+    func testHistoryDefaultsToDisabledWithDefaultCap() {
+        let (_, preferences) = makePreferences()
+
+        XCTAssertFalse(preferences.historyEnabled)
+        XCTAssertEqual(preferences.historyStorageLimitMB, 500)
+        XCTAssertEqual(preferences.historyFolderPath, "")
+    }
+
+    func testHistorySettingsPersistRoundTrip() {
+        let (defaults, preferences) = makePreferences()
+        preferences.historyEnabled = true
+        preferences.historyFolderPath = "/tmp/history-folder"
+        preferences.historyStorageLimitMB = 250
+
+        let preferences2 = ShellPreferences(userDefaults: defaults)
+        XCTAssertTrue(preferences2.historyEnabled)
+        XCTAssertEqual(preferences2.historyFolderPath, "/tmp/history-folder")
+        XCTAssertEqual(preferences2.historyStorageLimitMB, 250)
+    }
+
+    func testHistoryFolderPathIsTrimmedWhenSet() {
+        let (_, preferences) = makePreferences()
+        preferences.historyFolderPath = "  /tmp/history-folder  "
+
+        XCTAssertEqual(preferences.historyFolderPath, "/tmp/history-folder")
+    }
+
+    func testHistoryConfigurationResolvesDefaultFolderWhenUnset() {
+        let (_, preferences) = makePreferences()
+
+        XCTAssertEqual(
+            preferences.historyConfiguration,
+            HistoryConfiguration(
+                isEnabled: false,
+                folderPath: "",
+                storageLimitMB: 500
+            )
+        )
+        XCTAssertEqual(
+            preferences.historyConfiguration.resolvedFolderPath,
+            StoreURLResolver.directoryURL(named: "History").path
+        )
     }
 
     func testRecordingPillPanelPositioningReturnsExpectedOrigins() {
@@ -303,6 +438,33 @@ final class ShellPreferencesModelTests: XCTestCase {
         }
 
         XCTAssertTrue(preferences.activeDictionaryData.replacements.isEmpty)
+    }
+
+    func testClearWordReplacementsKeepsPackContributedEntries() async {
+        let (_, preferences) = makePreferences()
+        var data = DictionaryData.empty
+        data.replacements = [
+            WordReplacement(originals: ["gonna"], replacement: "going to"),
+            WordReplacement(
+                originals: ["type script"],
+                replacement: "TypeScript",
+                sourcePackIDs: ["role.software-developer"]
+            ),
+        ]
+        data.enabledPackIDs = ["role.software-developer"]
+        _ = await preferences.persistDictionaryData(data)
+
+        preferences.clearWordReplacements()
+
+        for _ in 0..<50 {
+            if preferences.activeDictionaryData.replacements.count == 1 {
+                break
+            }
+            try? await Task.sleep(nanoseconds: 10_000_000)
+        }
+
+        XCTAssertEqual(preferences.activeDictionaryData.replacements.map(\.replacement), ["TypeScript"])
+        XCTAssertEqual(preferences.activeDictionaryData.enabledPackIDs, ["role.software-developer"])
     }
 
     private func makePreferences(

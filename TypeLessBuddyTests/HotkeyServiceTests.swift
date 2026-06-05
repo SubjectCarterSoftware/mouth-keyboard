@@ -171,6 +171,39 @@ final class HotkeyServiceTests: XCTestCase {
         XCTAssertEqual(beginHoldCount, 1)
     }
 
+    func testHoldKeyPressSuppressesImmediateShortcutEcho() {
+        var armCount = 0
+        var stopCount = 0
+        var beginHoldCount = 0
+        var isRecording = false
+        var timestamps = [0.0, 0.01].makeIterator()
+        let service = HotkeyService(
+            currentState: { isRecording ? .recording : .idle },
+            isHoldRecordingActive: { isRecording },
+            onArm: {
+                armCount += 1
+            },
+            onStop: {
+                stopCount += 1
+            },
+            onBeginHold: {
+                beginHoldCount += 1
+                isRecording = true
+                return true
+            },
+            now: {
+                timestamps.next() ?? 0
+            }
+        )
+
+        service.handleHoldKeyStateChange(isPressed: true)
+        XCTAssertTrue(service.handleKeyDown())
+
+        XCTAssertEqual(beginHoldCount, 1)
+        XCTAssertEqual(armCount, 0)
+        XCTAssertEqual(stopCount, 0)
+    }
+
     func testHoldKeyReleaseStopsOnlyHoldOriginSession() {
         var finishHoldCount = 0
         let service = HotkeyService(
@@ -411,5 +444,96 @@ final class HotkeyServiceTests: XCTestCase {
         monitor.handleKeyUpEvent(keyCode: 12)
 
         XCTAssertEqual(releaseCount, 0)
+    }
+
+    func testStartMouseButtonArmsImmediately() {
+        var armCount = 0
+        let service = HotkeyService(
+            currentState: { .idle },
+            onArm: {
+                armCount += 1
+            },
+            currentMouseBindings: {
+                (start: MouseButtonBinding(buttonNumber: 4), stop: nil, hold: nil)
+            },
+            now: { 0 }
+        )
+
+        XCTAssertTrue(service.handleMouseButtonDown(buttonNumber: 4))
+        XCTAssertEqual(armCount, 1)
+    }
+
+    func testStopMouseButtonStopsActiveSession() {
+        var stopCount = 0
+        let service = HotkeyService(
+            currentState: { .recording },
+            onArm: {},
+            onStop: {
+                stopCount += 1
+            },
+            currentMouseBindings: {
+                (start: nil, stop: MouseButtonBinding(buttonNumber: 5), hold: nil)
+            }
+        )
+
+        XCTAssertTrue(service.handleMouseButtonDown(buttonNumber: 5))
+        XCTAssertEqual(stopCount, 1)
+    }
+
+    func testSharedStartStopMouseButtonTogglesByRecordingState() {
+        var armCount = 0
+        var stopCount = 0
+        var isRecording = false
+        var timestamps = [0.0, 1.0].makeIterator()
+        let binding = MouseButtonBinding(buttonNumber: 4)
+        let service = HotkeyService(
+            currentState: { isRecording ? .recording : .idle },
+            onArm: {
+                armCount += 1
+                isRecording = true
+            },
+            onStop: {
+                stopCount += 1
+                isRecording = false
+            },
+            currentMouseBindings: {
+                (start: binding, stop: binding, hold: nil)
+            },
+            now: {
+                timestamps.next() ?? 0
+            }
+        )
+
+        XCTAssertTrue(service.handleMouseButtonDown(buttonNumber: 4))
+        XCTAssertEqual(armCount, 1)
+        XCTAssertEqual(stopCount, 0)
+
+        XCTAssertTrue(service.handleMouseButtonDown(buttonNumber: 4))
+        XCTAssertEqual(armCount, 1)
+        XCTAssertEqual(stopCount, 1)
+    }
+
+    func testHoldMouseButtonStartsAndStopsHoldSession() {
+        var beginHoldCount = 0
+        var finishHoldCount = 0
+        let service = HotkeyService(
+            currentState: { .idle },
+            onArm: {},
+            onBeginHold: {
+                beginHoldCount += 1
+                return true
+            },
+            onFinishHold: {
+                finishHoldCount += 1
+            },
+            currentMouseBindings: {
+                (start: nil, stop: nil, hold: MouseButtonBinding(buttonNumber: 4))
+            }
+        )
+
+        XCTAssertTrue(service.handleMouseButtonDown(buttonNumber: 4))
+        XCTAssertTrue(service.handleMouseButtonUp(buttonNumber: 4))
+        XCTAssertEqual(beginHoldCount, 1)
+        XCTAssertEqual(finishHoldCount, 1)
     }
 }

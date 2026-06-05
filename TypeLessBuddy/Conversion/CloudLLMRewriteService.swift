@@ -1,4 +1,5 @@
 import Foundation
+import MLXLMCommon
 
 actor CloudLLMRewriteService: LLMRewriting {
     private let config: CloudLLMConfig
@@ -35,6 +36,14 @@ actor CloudLLMRewriteService: LLMRewriting {
             systemPrompt: systemPrompt,
             userMessage: prompt
         )
+    }
+
+    func generate(
+        prompt: String,
+        systemPrompt: String,
+        images _: [UserInput.Image]
+    ) async throws -> String {
+        try await generate(prompt: prompt, systemPrompt: systemPrompt)
     }
 
     // MARK: - Request building

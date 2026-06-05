@@ -1,3 +1,4 @@
+import CoreImage
 import XCTest
 import Hub
 import MLXLMCommon
@@ -59,12 +60,36 @@ private actor GenerationProbe {
 final class LLMRewriteServiceTests: XCTestCase {
 
     func testSuccessfulRewriteReturnsTrimmedNonEmptyText() async throws {
-        let service = makeService { _, _, _, _ in
+        let service = makeService { _, _, _, _, _ in
             stream(events: [.chunk("  rewritten text  "), .completion(.stop)])
         }
 
         let rewritten = try await service.rewrite(body: "raw", instructions: "")
         XCTAssertEqual(rewritten, "rewritten text")
+    }
+
+    func testGeneratePassesImagesToStreamFactory() async throws {
+        let imageCount = SyncCounter()
+        let service = makeService { _, _, _, _, images in
+            if images.count == 1 {
+                imageCount.increment()
+            }
+            return stream(events: [.chunk("ready"), .completion(.stop)])
+        }
+
+        let image = UserInput.Image.ciImage(
+            CIImage(color: CIColor(red: 1, green: 0, blue: 0, alpha: 1))
+                .cropped(to: CGRect(x: 0, y: 0, width: 4, height: 4))
+        )
+
+        let output = try await service.generate(
+            prompt: "hello",
+            systemPrompt: "reply ready",
+            images: [image]
+        )
+
+        XCTAssertEqual(output, "ready")
+        XCTAssertEqual(imageCount.count, 1)
     }
 
     func testSequentialRewritesReuseLoadedContainer() async throws {
@@ -74,7 +99,7 @@ final class LLMRewriteServiceTests: XCTestCase {
                 await loadCounter.increment()
                 return .init()
             },
-            streamFactory: { _, _, _, _ in
+            streamFactory: { _, _, _, _, _ in
                 stream(events: [.chunk("ok"), .completion(.stop)])
             }
         )
@@ -94,7 +119,7 @@ final class LLMRewriteServiceTests: XCTestCase {
                 try await Task.sleep(nanoseconds: 50_000_000)
                 return .init()
             },
-            streamFactory: { _, _, _, _ in
+            streamFactory: { _, _, _, _, _ in
                 stream(events: [.chunk("ok"), .completion(.stop)])
             }
         )
@@ -115,7 +140,7 @@ final class LLMRewriteServiceTests: XCTestCase {
                 try await Task.sleep(nanoseconds: 50_000_000)
                 return .init()
             },
-            streamFactory: { _, _, _, _ in
+            streamFactory: { _, _, _, _, _ in
                 stream(events: [.chunk("ok"), .completion(.stop)])
             }
         )
@@ -131,7 +156,7 @@ final class LLMRewriteServiceTests: XCTestCase {
 
     func testConcurrentRewritesDoNotOverlapGeneration() async throws {
         let probe = GenerationProbe()
-        let service = makeService { _, _, _, _ in
+        let service = makeService { _, _, _, _, _ in
             AsyncThrowingStream { continuation in
                 let task = Task {
                     let order = await probe.start()
@@ -165,7 +190,7 @@ final class LLMRewriteServiceTests: XCTestCase {
         let streamCounter = SyncCounter()
         let service = makeService(
             loader: { _ in .init() },
-            streamFactory: { _, _, _, _ in
+            streamFactory: { _, _, _, _, _ in
                 streamCounter.increment()
                 return stream(events: [.chunk("ok"), .completion(.stop)])
             }
@@ -180,7 +205,7 @@ final class LLMRewriteServiceTests: XCTestCase {
     func testLoaderFailureThrowsModelLoadFailed() async throws {
         let service = makeService(
             loader: { _ in throw StubError() },
-            streamFactory: { _, _, _, _ in
+            streamFactory: { _, _, _, _, _ in
                 XCTFail("Stream should not run when model loading fails")
                 return stream(events: [])
             }
@@ -192,7 +217,7 @@ final class LLMRewriteServiceTests: XCTestCase {
     }
 
     func testThrownStreamErrorThrowsGenerationFailed() async throws {
-        let service = makeService { _, _, _, _ in
+        let service = makeService { _, _, _, _, _ in
             stream(events: [.chunk("partial")], error: StubError())
         }
 
@@ -202,7 +227,7 @@ final class LLMRewriteServiceTests: XCTestCase {
     }
 
     func testCancelledCompletionThrowsCancelled() async throws {
-        let service = makeService { _, _, _, _ in
+        let service = makeService { _, _, _, _, _ in
             stream(events: [.chunk("partial"), .completion(.cancelled)])
         }
 
@@ -212,7 +237,7 @@ final class LLMRewriteServiceTests: XCTestCase {
     }
 
     func testTaskCancellationThrowsCancelled() async throws {
-        let service = makeService { _, _, _, _ in
+        let service = makeService { _, _, _, _, _ in
             AsyncThrowingStream { continuation in
                 let task = Task {
                     continuation.yield(.chunk("partial"))
@@ -236,7 +261,7 @@ final class LLMRewriteServiceTests: XCTestCase {
     }
 
     func testLengthCompletionThrowsOutputTruncated() async throws {
-        let service = makeService { _, _, _, _ in
+        let service = makeService { _, _, _, _, _ in
             stream(events: [.chunk("partial"), .completion(.length)])
         }
 
@@ -246,7 +271,7 @@ final class LLMRewriteServiceTests: XCTestCase {
     }
 
     func testWhitespaceOnlyOutputThrowsEmptyOutput() async throws {
-        let service = makeService { _, _, _, _ in
+        let service = makeService { _, _, _, _, _ in
             stream(events: [.chunk(" \n\t "), .completion(.stop)])
         }
 
@@ -256,7 +281,7 @@ final class LLMRewriteServiceTests: XCTestCase {
     }
 
     func testChunkedTextIsNotReturnedWhenFailureOccursLater() async throws {
-        let service = makeService { _, _, _, _ in
+        let service = makeService { _, _, _, _, _ in
             stream(events: [.chunk("keep me out")], error: StubError())
         }
 
@@ -270,7 +295,7 @@ final class LLMRewriteServiceTests: XCTestCase {
     func testRewriteWithInstructionsOverloadExists() async throws {
         // Verifies the overload compiles, is callable, and passes the built system prompt to the stream factory.
         var capturedInstructions: String?
-        let service = makeService { _, _, instructions, _ in
+        let service = makeService { _, _, instructions, _, _ in
             capturedInstructions = instructions
             return stream(events: [.chunk("rewritten"), .completion(.stop)])
         }
@@ -391,7 +416,7 @@ final class LLMRewriteServiceTests: XCTestCase {
                 await loadCounter.increment()
                 return .init()
             },
-            streamFactory: { _, _, _, _ in
+            streamFactory: { _, _, _, _, _ in
                 stream(events: [.chunk("ok"), .completion(.stop)])
             }
         )
@@ -415,7 +440,7 @@ final class LLMRewriteServiceTests: XCTestCase {
                 await loadCounter.increment()
                 return .init()
             },
-            streamFactory: { _, _, _, _ in
+            streamFactory: { _, _, _, _, _ in
                 stream(events: [.chunk("ok"), .completion(.stop)])
             }
         )
@@ -435,7 +460,7 @@ final class LLMRewriteServiceTests: XCTestCase {
                 await loadCounter.increment()
                 return .init()
             },
-            streamFactory: { _, _, _, _ in
+            streamFactory: { _, _, _, _, _ in
                 stream(events: [.chunk("ok"), .completion(.stop)])
             }
         )
@@ -455,7 +480,7 @@ final class LLMRewriteServiceTests: XCTestCase {
                 await loadCounter.increment()
                 return .init()
             },
-            streamFactory: { _, _, _, _ in
+            streamFactory: { _, _, _, _, _ in
                 stream(events: [.chunk("ok"), .completion(.stop)])
             }
         )
@@ -488,7 +513,7 @@ final class LLMRewriteServiceTests: XCTestCase {
                 progressHandler(progress)
                 return modelDirectory
             },
-            streamFactory: { _, _, _, _ in
+            streamFactory: { _, _, _, _, _ in
                 stream(events: [.chunk("ok"), .completion(.stop)])
             }
         )
@@ -504,7 +529,7 @@ final class LLMRewriteServiceTests: XCTestCase {
         XCTAssertEqual(loadCount, 1)
     }
 
-    func testDownloadedModelDetectionReturnsFalseWhenOptiQTierDirectoryLacksRequiredArtifacts() throws {
+    func testDownloadedModelDetectionReturnsFalseWhenBuiltInTierDirectoryLacksRequiredArtifacts() throws {
         let fileManager = FileManager.default
         let baseURL = fileManager.temporaryDirectory
             .appendingPathComponent("LLMRewriteServiceTests.Downloaded.\(UUID().uuidString)", isDirectory: true)
@@ -523,7 +548,7 @@ final class LLMRewriteServiceTests: XCTestCase {
         )
     }
 
-    func testDownloadedModelDetectionReturnsTrueWhenOptiQTierDirectoryHasCurrentArtifacts() throws {
+    func testDownloadedModelDetectionReturnsTrueWhenBuiltInTierDirectoryHasCurrentArtifacts() throws {
         let fileManager = FileManager.default
         let baseURL = fileManager.temporaryDirectory
             .appendingPathComponent("LLMRewriteServiceTests.CurrentArtifacts.\(UUID().uuidString)", isDirectory: true)
@@ -537,7 +562,7 @@ final class LLMRewriteServiceTests: XCTestCase {
         try Data("{}".utf8).write(to: modelDirectory.appendingPathComponent("tokenizer.json"))
         try Data("{}".utf8).write(to: modelDirectory.appendingPathComponent("tokenizer_config.json"))
         try Data("{% raw %}".utf8).write(to: modelDirectory.appendingPathComponent("chat_template.jinja"))
-        try Data("{}".utf8).write(to: modelDirectory.appendingPathComponent("optiq_metadata.json"))
+        try Data("{}".utf8).write(to: modelDirectory.appendingPathComponent("processor_config.json"))
         try Data("weights".utf8).write(to: modelDirectory.appendingPathComponent("model.safetensors"))
 
         XCTAssertTrue(
@@ -559,7 +584,7 @@ final class LLMRewriteServiceTests: XCTestCase {
         try Data("{}".utf8).write(to: modelDirectory.appendingPathComponent("tokenizer.json"))
         try Data("{}".utf8).write(to: modelDirectory.appendingPathComponent("tokenizer_config.json"))
         try Data("{% raw %}".utf8).write(to: modelDirectory.appendingPathComponent("chat_template.jinja"))
-        try Data("{}".utf8).write(to: modelDirectory.appendingPathComponent("optiq_metadata.json"))
+        try Data("{}".utf8).write(to: modelDirectory.appendingPathComponent("processor_config.json"))
         try Data("weights".utf8).write(to: modelDirectory.appendingPathComponent("model.safetensors"))
 
         XCTAssertFalse(
@@ -581,7 +606,7 @@ final class LLMRewriteServiceTests: XCTestCase {
         try Data("{}".utf8).write(to: modelDirectory.appendingPathComponent("tokenizer.json"))
         try Data("{}".utf8).write(to: modelDirectory.appendingPathComponent("tokenizer_config.json"))
         try Data("{% raw %}".utf8).write(to: modelDirectory.appendingPathComponent("chat_template.jinja"))
-        try Data("{}".utf8).write(to: modelDirectory.appendingPathComponent("optiq_metadata.json"))
+        try Data("{}".utf8).write(to: modelDirectory.appendingPathComponent("processor_config.json"))
         try Data("weights".utf8).write(to: modelDirectory.appendingPathComponent("model.safetensors"))
         fileManager.createFile(
             atPath: modelDirectory.appendingPathComponent(".typelessbuddy-prepared").path,
@@ -611,8 +636,8 @@ final class LLMRewriteServiceTests: XCTestCase {
         )
     }
 
-    func testRequiredDownloadPatternsCoverCurrentOptiQArtifacts() {
-        let requiredArtifacts = ["config.json", "tokenizer.json", "tokenizer_config.json", "optiq_metadata.json", "chat_template.jinja"]
+    func testRequiredDownloadPatternsCoverCurrentBuiltInArtifacts() {
+        let requiredArtifacts = ["config.json", "tokenizer.json", "tokenizer_config.json", "processor_config.json", "chat_template.jinja"]
         let patterns = LLMRewriteService.requiredDownloadPatterns(for: .standard4B)
 
         for artifact in requiredArtifacts {
@@ -646,7 +671,7 @@ final class LLMRewriteServiceTests: XCTestCase {
         try Data("{}".utf8).write(to: modelDirectory.appendingPathComponent("config.json"))
         try Data("{}".utf8).write(to: modelDirectory.appendingPathComponent("tokenizer.json"))
         try Data("{}".utf8).write(to: modelDirectory.appendingPathComponent("tokenizer_config.json"))
-        try Data("{}".utf8).write(to: modelDirectory.appendingPathComponent("optiq_metadata.json"))
+        try Data("{}".utf8).write(to: modelDirectory.appendingPathComponent("processor_config.json"))
         try Data("weights".utf8).write(to: modelDirectory.appendingPathComponent("model.safetensors"))
 
         try LLMRewriteService.deleteIncompleteDownloadedModelFilesIfNeeded(
@@ -672,7 +697,7 @@ final class LLMRewriteServiceTests: XCTestCase {
         try Data("{}".utf8).write(to: modelDirectory.appendingPathComponent("tokenizer.json"))
         try Data("{}".utf8).write(to: modelDirectory.appendingPathComponent("tokenizer_config.json"))
         try Data("{% raw %}".utf8).write(to: modelDirectory.appendingPathComponent("chat_template.jinja"))
-        try Data("{}".utf8).write(to: modelDirectory.appendingPathComponent("optiq_metadata.json"))
+        try Data("{}".utf8).write(to: modelDirectory.appendingPathComponent("processor_config.json"))
         try Data("weights".utf8).write(to: modelDirectory.appendingPathComponent("model.safetensors"))
 
         try LLMRewriteService.deleteIncompleteDownloadedModelFilesIfNeeded(
@@ -721,7 +746,7 @@ final class LLMRewriteServiceTests: XCTestCase {
 
         let service = makeService(
             loader: { _ in throw FakeOOMError() },
-            streamFactory: { _, _, _, _ in
+            streamFactory: { _, _, _, _, _ in
                 XCTFail("Stream should not run when model loading fails")
                 return stream(events: [])
             }
@@ -737,7 +762,7 @@ final class LLMRewriteServiceTests: XCTestCase {
 
         let service = makeService(
             loader: { _ in throw OtherError() },
-            streamFactory: { _, _, _, _ in
+            streamFactory: { _, _, _, _, _ in
                 XCTFail("Stream should not run when model loading fails")
                 return stream(events: [])
             }
