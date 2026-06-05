@@ -2,6 +2,13 @@ import XCTest
 
 final class PermissionRecoveryFlowTests: XCTestCase {
     override func setUpWithError() throws {
+        // These tests launch the real app, which can trigger microphone /
+        // accessibility OS prompts. They are opt-in so the standard suite never
+        // surfaces a permission prompt. Set RUN_UI_TESTS=1 to run them.
+        try XCTSkipUnless(
+            ProcessInfo.processInfo.environment["RUN_UI_TESTS"] == "1",
+            "Skipping app-launching UI tests. Set RUN_UI_TESTS=1 to enable."
+        )
         continueAfterFailure = false
     }
 
