@@ -26,3 +26,10 @@ one-time "enable automation mode" prompt, and potentially mic/accessibility.
 MLX models and are slow (minutes). They skip unless `RUN_MODEL_INTEGRATION_TESTS=1`.
 Run them when validating the actual model-loading / inference path, not in the
 default suite.
+
+## Build output
+
+The `build/` directory (gitignored) is the one fixed local location for build
+products and DerivedData — kept on purpose so builds don't scatter across
+default DerivedData paths. It can grow large and is safe to delete anytime; it
+regenerates on the next build.
