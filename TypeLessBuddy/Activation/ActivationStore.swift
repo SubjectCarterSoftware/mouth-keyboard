@@ -3,126 +3,11 @@ import Combine
 import Foundation
 import MLXLMCommon
 
-// MARK: - ActivationSoundPlayer
-
-struct ActivationSoundPlayer {
-    private let playStartImpl: () -> Void
-    private let playSuccessImpl: () -> Void
-    private let playFailureImpl: () -> Void
-    private let playNoteSavedImpl: () -> Void
-    private let playSuccessThenNoteSavedImpl: () -> Void
-
-    init(
-        playStart: @escaping () -> Void = { Self.playNamedSound("Tink") },
-        playSuccess: @escaping () -> Void = { Self.playNamedSound("Glass") },
-        playFailure: @escaping () -> Void = { Self.playNamedSound("Basso") },
-        playNoteSaved: @escaping () -> Void = { Self.playNamedSound("NoteSaved") },
-        playSuccessThenNoteSaved: @escaping () -> Void = { Self.playSuccessThenNoteSavedDefault() }
-    ) {
-        self.playStartImpl = playStart
-        self.playSuccessImpl = playSuccess
-        self.playFailureImpl = playFailure
-        self.playNoteSavedImpl = playNoteSaved
-        self.playSuccessThenNoteSavedImpl = playSuccessThenNoteSaved
-    }
-
-    /// A no-op player. Useful in tests so running the suite does not play real
-    /// system sounds for every simulated success/failure.
-    static let silent = ActivationSoundPlayer(
-        playStart: {},
-        playSuccess: {},
-        playFailure: {},
-        playNoteSaved: {},
-        playSuccessThenNoteSaved: {}
-    )
-
-    func play() {
-        playStartImpl()
-    }
-
-    func playSuccess() {
-        playSuccessImpl()
-    }
-
-    func playFailure() {
-        playFailureImpl()
-    }
-
-    func playNoteSaved() {
-        playNoteSavedImpl()
-    }
-
-    func playSuccessThenNoteSaved() {
-        playSuccessThenNoteSavedImpl()
-    }
-
-    private static func playSuccessThenNoteSavedDefault() {
-        let successSound = sound(named: "Glass")
-        guard let noteSound = sound(named: "NoteSaved") else {
-            successSound?.play()
-            return
-        }
-        guard let successSound else {
-            noteSound.play()
-            return
-        }
-
-        let delay = max(successSound.duration, 0.1)
-        successSound.play()
-        DispatchQueue.main.asyncAfter(deadline: .now() + delay) { [successSound, noteSound] in
-            _ = successSound
-            noteSound.play()
-        }
-    }
-
-    private static func playNamedSound(_ name: String) {
-        sound(named: name)?.play()
-    }
-
-    private static func sound(named name: String) -> NSSound? {
-        if let url = Bundle.main.url(forResource: name, withExtension: "aiff") {
-            return NSSound(contentsOf: url, byReference: false)
-        }
-        return NSSound(named: name)
-    }
-}
-
-// MARK: - ReadinessProviding
-
-@MainActor
-protocol ReadinessProviding {
-    var snapshot: ReadinessSnapshot { get }
-}
-
-extension ReadinessStore: ReadinessProviding {}
-
-@MainActor
-protocol WhisperModelLoadStateProviding: AnyObject {
-    var phase: WhisperModelLoadState.Phase { get }
-    var phasePublisher: AnyPublisher<WhisperModelLoadState.Phase, Never> { get }
-}
-
-extension WhisperModelLoadState: WhisperModelLoadStateProviding {
-    var phasePublisher: AnyPublisher<WhisperModelLoadState.Phase, Never> {
-        $phase.eraseToAnyPublisher()
-    }
-}
-
-// MARK: - Sleeping
-
-/// Abstraction over time-based suspension so background timers (e.g. the
-/// success-dismiss countdown) can be driven by virtual time in tests instead
-/// of real wall-clock sleeps. Production uses `SystemSleeper`, which is a thin
-/// wrapper over `Task.sleep` and preserves the previous behaviour exactly.
-protocol Sleeping: Sendable {
-    func sleep(nanoseconds: UInt64) async
-}
-
-struct SystemSleeper: Sleeping {
-    func sleep(nanoseconds: UInt64) async {
-        try? await Task.sleep(nanoseconds: nanoseconds)
-    }
-}
+// `ActivationSoundPlayer`, the `Sleeping`/`SystemSleeper` clock abstraction, and
+// the `ReadinessProviding`/`WhisperModelLoadStateProviding` adapter protocols
+// live in `ActivationSupport.swift`. The transcription/rewrite pipeline, model
+// warmup, and note/history capture are split into `ActivationStore+Pipeline`,
+// `ActivationStore+Models`, and `ActivationStore+Notes`.
 
 // MARK: - ActivationStore
 
@@ -165,13 +50,15 @@ final class ActivationStore: ObservableObject {
     @Published private(set) var successDismissDeadline: Date?
     @Published private(set) var successNoteSaveState: SuccessNoteSaveState?
 
-    private let preferences: ShellPreferences
+    // These dependencies are `internal` (not `private`) so the `+Pipeline`-style
+    // extensions in ActivationStore+Models / +Notes / +Rewrite can reach them.
+    let preferences: ShellPreferences
     private let readinessProvider: any ReadinessProviding
-    private let whisperModelLoadState: any WhisperModelLoadStateProviding
-    private let whisperService: any WhisperTranscribing
-    private let localRewriteService: any Rewriting
-    private let noteCaptureService: any NoteCapturing
-    private let historyCaptureService: any HistoryCapturing
+    let whisperModelLoadState: any WhisperModelLoadStateProviding
+    let whisperService: any WhisperTranscribing
+    let localRewriteService: any Rewriting
+    let noteCaptureService: any NoteCapturing
+    let historyCaptureService: any HistoryCapturing
     private let clipboardService: ClipboardService
     private let pasteService: any PasteServicing
     private let dateProvider: () -> Date
@@ -184,8 +71,8 @@ final class ActivationStore: ObservableObject {
     private static let minimumTranscriptionAudioDuration: TimeInterval = 1.0
     private static let appendedTrailingSilenceDuration: TimeInterval = 0.35
     private static let minimumRewritingDisplayDuration: UInt64 = 200_000_000
-    private static let whisperModelIdleUnloadDelay: UInt64 = WhisperService.idleUnloadDelayNanoseconds
-    private static let rewriteModelIdleUnloadDelay: UInt64 = LocalRewriteService.idleUnloadDelayNanoseconds
+    static let whisperModelIdleUnloadDelay: UInt64 = WhisperService.idleUnloadDelayNanoseconds
+    static let rewriteModelIdleUnloadDelay: UInt64 = LocalRewriteService.idleUnloadDelayNanoseconds
     private static let whisperPrepareTimeout: UInt64 = 20_000_000_000
     // Transcription time grows with audio length, so the timeout is a hang-guard
     // that scales with duration rather than a flat ceiling that long recordings
@@ -195,7 +82,7 @@ final class ActivationStore: ObservableObject {
     private static let whisperTranscriptionTimeoutPerAudioSecond: UInt64 = 4_000_000_000
     private static let whisperSampleRate: Double = 16_000
     private static let rewriteTimeout: UInt64 = 45_000_000_000
-    private static let minimumDirectAssistantPromptWordLimit = 1_500
+    static let minimumDirectAssistantPromptWordLimit = 1_500
     private static let lastTranscriptionContextMaxAge: TimeInterval = 30 * 60
     private static let clipboardRestoreDelay: UInt64 = 150_000_000
     private static let selectedTextCaptureTimeout: UInt64 = 120_000_000
@@ -203,8 +90,8 @@ final class ActivationStore: ObservableObject {
     private static let minimumStartSoundInterval: TimeInterval = 0.15
     private static let successDismissDelay: UInt64 = 10_000_000_000
     private static let successDismissDurationSeconds = TimeInterval(successDismissDelay) / 1_000_000_000
-    private static let noteTitleGenerationTimeout: UInt64 = 8_000_000_000
-    private static let noteTitleSystemPrompt = """
+    static let noteTitleGenerationTimeout: UInt64 = 8_000_000_000
+    static let noteTitleSystemPrompt = """
     You create concise note titles.
     Return only a short title of 2 to 6 words.
     Do not use quotes, markdown, labels, emojis, or trailing punctuation.
@@ -292,24 +179,6 @@ final class ActivationStore: ObservableObject {
             return localRewriteService
         }
         return CloudRewriteService(config: config, apiKey: apiKey)
-    }
-
-    /// Word-count ceiling for the rewrite prompt body, matched to the active service.
-    /// Built-in local tiers keep their guardrails; cloud models are allowed to
-    /// attempt full input without an app-side context cap.
-    private var effectivePromptWordLimit: Int {
-        let config = preferences.cloudLLMConfig
-        guard config.isEnabled, !config.modelID.isEmpty else {
-            return preferences.rewriteModelTier.rewritePromptWordLimit
-        }
-        guard let apiKey = CloudLLMKeychain.loadAPIKey(for: config.provider), !apiKey.isEmpty else {
-            return preferences.rewriteModelTier.rewritePromptWordLimit
-        }
-        return .max
-    }
-
-    private func configureLocalRewriteServiceSelection() async {
-        await localRewriteService.setTier(preferences.rewriteModelTier)
     }
 
     // MARK: - Public API
@@ -1060,182 +929,15 @@ final class ActivationStore: ObservableObject {
         return text
     }
 
-    private static func rewriteWordCount(for body: String) -> Int {
+    // Internal so the `ActivationStore+Rewrite` extension's word-limit checks can
+    // reuse it alongside the in-flow check in `rewriteAndDeliver`.
+    static func rewriteWordCount(for body: String) -> Int {
         body.split(whereSeparator: { $0.isWhitespace }).count
-    }
-
-    private func normalizedExternalText(_ text: String?) -> String? {
-        guard let text else { return nil }
-        let trimmedText = text.trimmingCharacters(in: .whitespacesAndNewlines)
-        return trimmedText.isEmpty ? nil : trimmedText
     }
 
     private func recordLastTranscription(_ text: String) {
         lastTranscription = text
         lastTranscriptionCapturedAt = dateProvider()
-    }
-
-    private func noteCaptureContent(
-        rawTranscription: String,
-        referencedContexts: [NoteCaptureReferencedContext] = [],
-        assistantOutput: String?
-    ) -> NoteCaptureContent {
-        NoteCaptureContent(
-            title: nil,
-            rawTranscription: rawTranscription,
-            referencedContexts: referencedContexts,
-            assistantOutput: assistantOutput
-        )
-    }
-
-    private func configuredSuccessNoteSaveState(noteWasSaved: Bool) -> SuccessNoteSaveState {
-        if noteWasSaved {
-            return .saved
-        }
-
-        return preferences.assistantNoteConfiguration.isConfigured
-            ? .available
-            : .disabledMissingConfiguration
-    }
-
-    private func shouldAutomaticallySaveAssistantNote(
-        classification: AssistantNoteIntentClassification
-    ) -> Bool {
-        classification.requestsAutomaticNoteSave
-            && preferences.assistantNoteConfiguration.isConfigured
-    }
-
-    @discardableResult
-    private func saveNoteIfPossible(content: NoteCaptureContent) async -> Bool {
-        let configuration = preferences.assistantNoteConfiguration
-        guard configuration.isConfigured else {
-            return false
-        }
-
-        do {
-            let titledContent = await noteCaptureContentWithGeneratedTitle(from: content)
-            _ = try noteCaptureService.saveNote(content: titledContent, configuration: configuration)
-            return true
-        } catch {
-            NSLog("TypeLessBuddy: failed to save note: \(error.localizedDescription)")
-            return false
-        }
-    }
-
-    private func persistHistoryIfEnabled(_ content: HistoryCaptureContent) {
-        let configuration = preferences.historyConfiguration
-        guard configuration.isEnabled else {
-            return
-        }
-
-        let historyCaptureService = self.historyCaptureService
-        DispatchQueue.global(qos: .utility).async {
-            do {
-                _ = try historyCaptureService.saveEntry(content: content, configuration: configuration)
-            } catch {
-                NSLog("TypeLessBuddy: failed to save history entry: \(error.localizedDescription)")
-            }
-        }
-    }
-
-    private func noteCaptureContentWithGeneratedTitle(
-        from content: NoteCaptureContent
-    ) async -> NoteCaptureContent {
-        guard content.resolvedTitle == nil else {
-            return content
-        }
-
-        guard let generatedTitle = await generateNoteTitle(for: content) else {
-            return content
-        }
-
-        return NoteCaptureContent(
-            title: generatedTitle,
-            rawTranscription: content.rawTranscription,
-            referencedContexts: content.referencedContexts,
-            assistantOutput: content.assistantOutput
-        )
-    }
-
-    private func generateNoteTitle(for content: NoteCaptureContent) async -> String? {
-        let prompt = noteTitlePrompt(for: content)
-        guard !prompt.isEmpty else {
-            return nil
-        }
-
-        await localRewriteService.cancelScheduledUnload()
-        await configureLocalRewriteServiceSelection()
-        defer {
-            Task { [localRewriteService] in
-                await localRewriteService.scheduleIdleUnload(
-                    afterNanoseconds: Self.rewriteModelIdleUnloadDelay
-                )
-            }
-        }
-
-        do {
-            let generatedTitle = try await runWithTimeout(
-                nanoseconds: Self.noteTitleGenerationTimeout,
-                step: "Note title generation"
-            ) { [localRewriteService] in
-                try await localRewriteService.generate(
-                    prompt: prompt,
-                    systemPrompt: Self.noteTitleSystemPrompt
-                )
-            }
-            return normalizedGeneratedNoteTitle(generatedTitle)
-        } catch {
-            NSLog("TypeLessBuddy: note title generation failed — \(error.localizedDescription)")
-            return nil
-        }
-    }
-
-    private func noteTitlePrompt(for content: NoteCaptureContent) -> String {
-        var parts: [String] = []
-
-        let rawTranscription = content.resolvedRawTranscription
-        if !rawTranscription.isEmpty {
-            parts.append("Raw transcription:\n\(rawTranscription)")
-        }
-
-        for referencedContext in content.resolvedReferencedContexts {
-            parts.append("\(referencedContext.title):\n\(referencedContext.content)")
-        }
-
-        if let assistantOutput = content.resolvedAssistantOutput {
-            parts.append("Assistant output:\n\(assistantOutput)")
-        }
-
-        return parts.joined(separator: "\n\n")
-    }
-
-    private func normalizedGeneratedNoteTitle(_ title: String) -> String? {
-        let singleLine = title
-            .components(separatedBy: .newlines)
-            .joined(separator: " ")
-            .replacingOccurrences(of: "\\s+", with: " ", options: .regularExpression)
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-
-        guard !singleLine.isEmpty else {
-            return nil
-        }
-
-        let strippedLabel: String
-        if singleLine.lowercased().hasPrefix("title:") {
-            strippedLabel = String(singleLine.dropFirst("title:".count))
-                .trimmingCharacters(in: .whitespacesAndNewlines)
-        } else {
-            strippedLabel = singleLine
-        }
-
-        let trimmedPunctuation = strippedLabel.trimmingCharacters(
-            in: CharacterSet(charactersIn: "\"'`#*:-. ")
-        )
-        guard !trimmedPunctuation.isEmpty else {
-            return nil
-        }
-
-        return String(trimmedPunctuation.prefix(80))
     }
 
     private func freshLastTranscriptionForRouting() -> String? {
@@ -1250,201 +952,6 @@ final class ActivationStore: ObservableObject {
         }
 
         return lastTranscription
-    }
-
-    private func rewritePromptWordLimit(
-        for _: AssistantContextRoutingDecision,
-        externalTextInjected: Bool
-    ) -> Int {
-        guard !externalTextInjected else {
-            return effectivePromptWordLimit
-        }
-
-        return max(
-            effectivePromptWordLimit,
-            Self.minimumDirectAssistantPromptWordLimit
-        )
-    }
-
-    private struct ExternalTextInputs {
-        let selectedText: String?
-        let clipboardText: String?
-        let lastTranscription: String?
-        let selectedImageContent: ClipboardImageContent?
-        let clipboardImageContent: ClipboardImageContent?
-    }
-
-    private func validatedExternalTextInputs(
-        selectedText: String?,
-        clipboardText: String?,
-        lastTranscription: String?,
-        selectedImageContent: ClipboardImageContent?,
-        clipboardImageContent: ClipboardImageContent?
-    ) -> ExternalTextInputs {
-        let normalizedSelectedText = normalizedExternalText(selectedText)
-        let normalizedLastTranscription = normalizedExternalText(lastTranscription)
-        let normalizedClipboardText = normalizedExternalText(clipboardText)
-
-        return ExternalTextInputs(
-            selectedText: validatedSizedContext(normalizedSelectedText),
-            clipboardText: validatedSizedContext(normalizedClipboardText),
-            lastTranscription: normalizedLastTranscription,
-            selectedImageContent: selectedImageContent,
-            clipboardImageContent: clipboardImageContent
-        )
-    }
-
-    private func validatedSizedContext(_ text: String?) -> String? {
-        guard let text else { return nil }
-        guard Self.rewriteWordCount(for: text) <= effectivePromptWordLimit else {
-            return nil
-        }
-        return text
-    }
-
-    private func buildRewritePromptBody(
-        dictatedContent: String,
-        inputs: ExternalTextInputs,
-        decision: AssistantContextRoutingDecision
-    ) -> (body: String, externalTextInjected: Bool, decisionUsed: AssistantContextRoutingDecision) {
-        let matchedSources = adjustedMatchedSources(for: decision.matchedSources, inputs: inputs)
-        let decisionUsed = AssistantContextRoutingDecision(
-            matchedSources: matchedSources,
-            decisionSource: matchedSources.isEmpty
-                ? (decision.decisionSource == .noAvailableContext ? .noAvailableContext : .noDeterministicMatch)
-                : decision.decisionSource
-        )
-
-        guard decisionUsed.injectsExternalText else {
-            let directBody = ExternalTextPromptBuilder.buildDirectBody(
-                dictatedContent: dictatedContent
-            )
-            return (directBody, false, decisionUsed)
-        }
-
-        let body = ExternalTextPromptBuilder.buildBody(
-            dictatedContent: dictatedContent,
-            selectedText: inputs.selectedText,
-            clipboardText: inputs.clipboardText,
-            lastTranscription: inputs.lastTranscription,
-            routingDecision: decisionUsed
-        )
-        let injected = decisionUsed.injectsExternalText
-        return (body, injected, decisionUsed)
-    }
-
-    private func adjustedMatchedSources(
-        for matchedSources: [AssistantContextMatchedSource],
-        inputs: ExternalTextInputs
-    ) -> [AssistantContextMatchedSource] {
-        matchedSources.filter { matchedSource in
-            switch matchedSource.targetMode {
-            case .selectedText:
-                return inputs.selectedText != nil || inputs.selectedImageContent != nil
-            case .clipboard:
-                return inputs.clipboardText != nil || inputs.clipboardImageContent != nil
-            case .lastTranscription:
-                return inputs.lastTranscription != nil
-            case .none:
-                return false
-            }
-        }
-    }
-
-    private func assistantInputImages(
-        from matchedSources: [AssistantContextMatchedSource],
-        inputs: ExternalTextInputs
-    ) -> [UserInput.Image] {
-        guard shouldAttachAssistantImages else {
-            return []
-        }
-
-        for matchedSource in matchedSources {
-            let content: ClipboardImageContent?
-            switch matchedSource.targetMode {
-            case .selectedText:
-                content = inputs.selectedImageContent
-            case .clipboard:
-                content = inputs.clipboardImageContent
-            case .lastTranscription, .none:
-                content = nil
-            }
-
-            if let image = makeUserInputImage(from: content) {
-                return [image]
-            }
-        }
-
-        // Image-only clipboard/selection context still needs to reach image-capable
-        // models even when there is no companion text to inject into the prompt body.
-        let fallbackContents: [ClipboardImageContent?] = [
-            inputs.selectedText == nil ? inputs.selectedImageContent : nil,
-            inputs.clipboardText == nil ? inputs.clipboardImageContent : nil,
-        ]
-        for content in fallbackContents {
-            if let image = makeUserInputImage(from: content) {
-                return [image]
-            }
-        }
-
-        return []
-    }
-
-    private var shouldAttachAssistantImages: Bool {
-        false
-    }
-
-    private func makeUserInputImage(from content: ClipboardImageContent?) -> UserInput.Image? {
-        guard let content else { return nil }
-
-        switch content.source {
-        case .fileURL(let url):
-            return .url(url)
-        case .data(let data):
-            if let ciImage = CIImage(data: data) {
-                return .ciImage(ciImage)
-            }
-
-            guard let image = NSImage(data: data),
-                  let tiffData = image.tiffRepresentation,
-                  let ciImage = CIImage(data: tiffData) else {
-                return nil
-            }
-            return .ciImage(ciImage)
-        }
-    }
-
-    private func noteReferencedContexts(
-        from matchedSources: [AssistantContextMatchedSource],
-        inputs: ExternalTextInputs
-    ) -> [NoteCaptureReferencedContext] {
-        matchedSources.compactMap { matchedSource in
-            let content: String?
-            let title: String
-
-            switch matchedSource.targetMode {
-            case .selectedText:
-                title = "Selected text"
-                content = inputs.selectedText
-            case .clipboard:
-                title = "Clipboard text"
-                content = inputs.clipboardText
-            case .lastTranscription:
-                title = "Last transcription"
-                content = inputs.lastTranscription
-            case .none:
-                return nil
-            }
-
-            guard let content else {
-                return nil
-            }
-
-            return NoteCaptureReferencedContext(
-                title: title,
-                content: content
-            )
-        }
     }
 
     var isHoldSessionActive: Bool {
@@ -1515,7 +1022,9 @@ final class ActivationStore: ObservableObject {
             + UInt64(audioSeconds) * whisperTranscriptionTimeoutPerAudioSecond
     }
 
-    private func runWithTimeout<T>(
+    // Internal so `ActivationStore+Notes` can reuse the timeout wrapper for note
+    // title generation alongside the pipeline's prepare/transcribe/rewrite steps.
+    func runWithTimeout<T>(
         nanoseconds: UInt64,
         step: String,
         operation: @Sendable @escaping () async throws -> T
@@ -1537,36 +1046,10 @@ final class ActivationStore: ObservableObject {
         }
     }
 
-    private func beginWhisperModelWarmup() {
-        Task { [weak self] in
-            guard let self else { return }
-            await self.whisperService.cancelScheduledUnload()
-            try? await self.whisperService.prepare(model: self.preferences.whisperModel)
-        }
-    }
-
-    private func scheduleWhisperModelIdleUnload() {
-        Task { [whisperService] in
-            await whisperService.scheduleIdleUnload(
-                afterNanoseconds: Self.whisperModelIdleUnloadDelay
-            )
-        }
-    }
-
-    private func observeWhisperModelDownloadProgress(
-        for model: WhisperModelChoice,
-        sessionID: UUID
-    ) -> AnyCancellable {
-        syncWhisperModelDownloadState(for: model, phase: whisperModelLoadState.phase, sessionID: sessionID)
-        return whisperModelLoadState.phasePublisher
-            .removeDuplicates()
-            .receive(on: DispatchQueue.main)
-            .sink { [weak self] phase in
-                self?.syncWhisperModelDownloadState(for: model, phase: phase, sessionID: sessionID)
-            }
-    }
-
-    private func syncWhisperModelDownloadState(
+    /// Internal (not `private`) so `observeWhisperModelDownloadProgress` in the
+    /// `ActivationStore+Models` extension can drive it. This stays in the main
+    /// file because it mutates the `private(set)` published `state`.
+    func syncWhisperModelDownloadState(
         for model: WhisperModelChoice,
         phase: WhisperModelLoadState.Phase,
         sessionID: UUID
@@ -1584,19 +1067,6 @@ final class ActivationStore: ObservableObject {
             } else if case .modelPrewarming(let activeModel) = state, activeModel == model {
                 state = .processing
             }
-        }
-    }
-
-    private func isWhisperModelReady(_ model: WhisperModelChoice) -> Bool {
-        switch whisperModelLoadState.phase {
-        case .downloading(let active, _) where active == model:
-            return false
-        case .prewarming(let active) where active == model:
-            return false
-        case .ready(let loaded) where loaded == model:
-            return true
-        default:
-            return WhisperService.isModelDownloaded(model)
         }
     }
 
@@ -1639,26 +1109,6 @@ final class ActivationStore: ObservableObject {
                     break
                 }
             }
-    }
-
-    private func beginRewriteModelWarmup() {
-        // Cloud mode has no local model to warm up.
-        guard !preferences.cloudLLMConfig.isEnabled else { return }
-        Task { [weak self] in
-            guard let self else { return }
-            await self.localRewriteService.cancelScheduledUnload()
-            await self.configureLocalRewriteServiceSelection()
-            try? await self.localRewriteService.prewarm()
-        }
-    }
-
-    private func scheduleRewriteModelIdleUnload() {
-        guard !preferences.cloudLLMConfig.isEnabled else { return }
-        Task { [localRewriteService] in
-            await localRewriteService.scheduleIdleUnload(
-                afterNanoseconds: Self.rewriteModelIdleUnloadDelay
-            )
-        }
     }
 
     private func failureReason(for error: AudioCaptureError) -> RecordingState.FailureReason {

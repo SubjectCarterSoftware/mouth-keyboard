@@ -105,6 +105,10 @@
 		A00000010000000000000085 /* RewritePipelineBenchmarkTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000020000000000000085 /* RewritePipelineBenchmarkTests.swift */; };
 		A00000010000000000000084 /* GuideWindowView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000020000000000000084 /* GuideWindowView.swift */; };
 		A000000100000000000000F1 /* AssistantDefaults.swift in Sources */ = {isa = PBXBuildFile; fileRef = A000000200000000000000F1 /* AssistantDefaults.swift */; };
+		A00000010000000000000116 /* ActivationSupport.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000020000000000000116 /* ActivationSupport.swift */; };
+		A00000010000000000000117 /* ActivationStore+Notes.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000020000000000000117 /* ActivationStore+Notes.swift */; };
+		A00000010000000000000118 /* ActivationStore+Models.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000020000000000000118 /* ActivationStore+Models.swift */; };
+		A00000010000000000000119 /* ActivationStore+Rewrite.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000020000000000000119 /* ActivationStore+Rewrite.swift */; };
 		A000000100000000000000FF /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = A000000200000000000000FF /* Assets.xcassets */; };
 		A00000010000000000000107 /* MicProbeMonitor.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000020000000000000107 /* MicProbeMonitor.swift */; };
 		A00000010000000000000108 /* MicProbeMonitorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000020000000000000108 /* MicProbeMonitorTests.swift */; };
@@ -227,6 +231,10 @@
 		A00000020000000000000085 /* RewritePipelineBenchmarkTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RewritePipelineBenchmarkTests.swift; sourceTree = "<group>"; };
 		A00000020000000000000084 /* GuideWindowView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GuideWindowView.swift; sourceTree = "<group>"; };
 		A000000200000000000000F1 /* AssistantDefaults.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AssistantDefaults.swift; sourceTree = "<group>"; };
+		A00000020000000000000116 /* ActivationSupport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ActivationSupport.swift; sourceTree = "<group>"; };
+		A00000020000000000000117 /* ActivationStore+Notes.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "ActivationStore+Notes.swift"; sourceTree = "<group>"; };
+		A00000020000000000000118 /* ActivationStore+Models.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "ActivationStore+Models.swift"; sourceTree = "<group>"; };
+		A00000020000000000000119 /* ActivationStore+Rewrite.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "ActivationStore+Rewrite.swift"; sourceTree = "<group>"; };
 		A000000200000000000000FF /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		A00000020000000000000107 /* MicProbeMonitor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MicProbeMonitor.swift; sourceTree = "<group>"; };
 		A00000020000000000000108 /* MicProbeMonitorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MicProbeMonitorTests.swift; sourceTree = "<group>"; };
@@ -418,6 +426,10 @@
 			isa = PBXGroup;
 			children = (
 				A00000020000000000000017 /* ActivationStore.swift */,
+				A00000020000000000000116 /* ActivationSupport.swift */,
+				A00000020000000000000117 /* ActivationStore+Notes.swift */,
+				A00000020000000000000118 /* ActivationStore+Models.swift */,
+				A00000020000000000000119 /* ActivationStore+Rewrite.swift */,
 				A000000200000000000000F1 /* AssistantDefaults.swift */,
 				A0000002000000000000001A /* HotkeyService.swift */,
 				A00000020000000000000018 /* RecordingState.swift */,
@@ -629,6 +641,10 @@
 			buildActionMask = 2147483647;
 			files = (
 				A00000010000000000000013 /* ActivationStore.swift in Sources */,
+				A00000010000000000000116 /* ActivationSupport.swift in Sources */,
+				A00000010000000000000117 /* ActivationStore+Notes.swift in Sources */,
+				A00000010000000000000118 /* ActivationStore+Models.swift in Sources */,
+				A00000010000000000000119 /* ActivationStore+Rewrite.swift in Sources */,
 				A00000010000000000000002 /* AppDelegate.swift in Sources */,
 				A00000010000000000000081 /* StatusMenuController.swift in Sources */,
 				A00000010000000000000022 /* AudioBufferAccumulator.swift in Sources */,
