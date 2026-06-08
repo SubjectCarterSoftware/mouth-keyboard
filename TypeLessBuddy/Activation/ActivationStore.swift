@@ -98,6 +98,22 @@ extension WhisperModelLoadState: WhisperModelLoadStateProviding {
     }
 }
 
+// MARK: - Sleeping
+
+/// Abstraction over time-based suspension so background timers (e.g. the
+/// success-dismiss countdown) can be driven by virtual time in tests instead
+/// of real wall-clock sleeps. Production uses `SystemSleeper`, which is a thin
+/// wrapper over `Task.sleep` and preserves the previous behaviour exactly.
+protocol Sleeping: Sendable {
+    func sleep(nanoseconds: UInt64) async
+}
+
+struct SystemSleeper: Sleeping {
+    func sleep(nanoseconds: UInt64) async {
+        try? await Task.sleep(nanoseconds: nanoseconds)
+    }
+}
+
 // MARK: - ActivationStore
 
 @MainActor
@@ -149,6 +165,7 @@ final class ActivationStore: ObservableObject {
     private let clipboardService: ClipboardService
     private let pasteService: any PasteServicing
     private let dateProvider: () -> Date
+    private let sleeper: any Sleeping
     private let resetSessionMonitoring: @MainActor () -> Void
     let bufferAccumulator: AudioBufferAccumulator
     var soundPlayer: ActivationSoundPlayer = .init()
@@ -236,6 +253,7 @@ final class ActivationStore: ObservableObject {
         pasteService: any PasteServicing = PasteService(),
         bufferAccumulator: AudioBufferAccumulator = AudioBufferAccumulator(),
         dateProvider: @escaping () -> Date = { Date() },
+        sleeper: any Sleeping = SystemSleeper(),
         resetSessionMonitoring: @escaping @MainActor () -> Void = {}
     ) {
         self.preferences = preferences
@@ -249,6 +267,7 @@ final class ActivationStore: ObservableObject {
         self.pasteService = pasteService
         self.bufferAccumulator = bufferAccumulator
         self.dateProvider = dateProvider
+        self.sleeper = sleeper
         self.resetSessionMonitoring = resetSessionMonitoring
     }
 
@@ -1383,7 +1402,7 @@ final class ActivationStore: ObservableObject {
 
     private func refreshSuccessDismissTimer() {
         guard state.isTerminal, case .success = state else { return }
-        let start = Date()
+        let start = dateProvider()
         successDismissStartedAt = start
         successDismissDeadline = start.addingTimeInterval(Self.successDismissDurationSeconds)
         scheduleDismissToIdle(
@@ -1393,7 +1412,7 @@ final class ActivationStore: ObservableObject {
     }
 
     private func beginSuccessDismissTiming(sessionID: UUID) {
-        let start = Date()
+        let start = dateProvider()
         successDismissStartedAt = start
         successDismissDeadline = start.addingTimeInterval(Self.successDismissDurationSeconds)
         scheduleDismissToIdle(afterNanoseconds: Self.successDismissDelay, sessionID: sessionID)
@@ -1417,8 +1436,9 @@ final class ActivationStore: ObservableObject {
 
     private func scheduleDismissToIdle(afterNanoseconds duration: UInt64, sessionID: UUID) {
         dismissTask?.cancel()
+        let sleeper = sleeper
         dismissTask = Task { [weak self] in
-            try? await Task.sleep(nanoseconds: duration)
+            await sleeper.sleep(nanoseconds: duration)
             guard let self, self.isCurrentSession(sessionID) else { return }
             switch self.state {
             case .success, .failure:

@@ -653,11 +653,13 @@ final class ActivationStoreTests: XCTestCase {
         store.arm()
         store.finish()
 
-        try await Task.sleep(nanoseconds: 150_000_000)
-        XCTAssertEqual(store.state, .converting)
+        // The converting state is held during the minimum display window; nothing
+        // is written to the clipboard until success. Wait for converting rather
+        // than racing a fixed real-time budget (which flakes under suite load).
+        await waitUntil { store.state == .converting }
         XCTAssertNil(mockClipboard.lastWrittenText)
 
-        try await Task.sleep(nanoseconds: 120_000_000)
+        await waitUntil { store.state.isSuccess }
         XCTAssertEqual(mockClipboard.lastWrittenText, "Refined output")
         if case .success(let text, _, let converted, _, _) = store.state {
             XCTAssertEqual(text, "Refined output")
@@ -946,68 +948,103 @@ final class ActivationStoreTests: XCTestCase {
         let preferences = makePreferencesWithTriggerStore()
         preferences.alwaysAutoPaste = false
 
+        let sleeper = ManualSleeper()
         let store = makeStore(
             permissionsAuthorized: true,
             transcriber: ActivationStoreMockTranscriber(result: .success("Target text")),
             clipboard: ActivationStoreMockClipboard(),
+            dateProvider: { sleeper.currentDate },
+            sleeper: sleeper,
             preferences: preferences
         )
 
         store.arm()
         store.finish()
-        try await Task.sleep(nanoseconds: 200_000_000)
-        try await Task.sleep(nanoseconds: 2_200_000_000)
+        await waitUntil { store.state.isSuccess }
+        await settle()
+
+        // 2.2s of virtual time is well within the 10s dismiss window.
+        sleeper.advance(by: 2.2)
+        await settle()
 
         XCTAssertTrue(store.state.isSuccess)
+
+        // Let the dismiss timer fire so its background poll exits cleanly.
+        sleeper.advance(by: 60)
+        await waitUntil { store.state == .idle }
     }
 
     func test_successActionResetsDismissTimer() async throws {
         let preferences = makePreferencesWithTriggerStore()
         preferences.alwaysAutoPaste = false
 
+        let sleeper = ManualSleeper()
         let store = makeStore(
             permissionsAuthorized: true,
             transcriber: ActivationStoreMockTranscriber(result: .success("Target text")),
             clipboard: ActivationStoreMockClipboard(),
+            dateProvider: { sleeper.currentDate },
+            sleeper: sleeper,
             preferences: preferences
         )
 
         store.arm()
         store.finish()
-        try await Task.sleep(nanoseconds: 200_000_000)
+        await waitUntil { store.state.isSuccess }
+        await settle() // let the dismiss timer park at virtual t0 (deadline = +10s)
+
         let originalStartedAt = try XCTUnwrap(store.successDismissStartedAt)
         let originalDeadline = try XCTUnwrap(store.successDismissDeadline)
-        try await Task.sleep(nanoseconds: 9_500_000_000)
 
+        // Advance to just before the original 10s deadline: still in success.
+        sleeper.advance(by: 9.5)
+        await settle()
+        XCTAssertTrue(store.state.isSuccess)
+
+        // A success action resets the countdown from "now" (virtual t=9.5).
         store.copyCurrentSuccessResult()
+        await settle()
         let refreshedStartedAt = try XCTUnwrap(store.successDismissStartedAt)
         let refreshedDeadline = try XCTUnwrap(store.successDismissDeadline)
-        try await Task.sleep(nanoseconds: 1_200_000_000)
+
+        // Past the *original* deadline but within the refreshed one: still success.
+        sleeper.advance(by: 1.2)
+        await settle()
 
         XCTAssertGreaterThan(refreshedStartedAt, originalStartedAt)
         XCTAssertGreaterThan(refreshedDeadline, originalDeadline)
         XCTAssertTrue(store.state.isSuccess)
+
+        // Let the refreshed timer fire so its background poll exits cleanly.
+        sleeper.advance(by: 60)
+        await waitUntil { store.state == .idle }
     }
 
     func test_successDismissTimingClearsWhenReturningToIdle() async throws {
         let preferences = makePreferencesWithTriggerStore()
         preferences.alwaysAutoPaste = false
 
+        let sleeper = ManualSleeper()
         let store = makeStore(
             permissionsAuthorized: true,
             transcriber: ActivationStoreMockTranscriber(result: .success("Target text")),
             clipboard: ActivationStoreMockClipboard(),
+            dateProvider: { sleeper.currentDate },
+            sleeper: sleeper,
             preferences: preferences
         )
 
         store.arm()
         store.finish()
-        try await Task.sleep(nanoseconds: 200_000_000)
+        await waitUntil { store.state.isSuccess }
+        await settle()
 
         XCTAssertNotNil(store.successDismissStartedAt)
         XCTAssertNotNil(store.successDismissDeadline)
 
-        try await Task.sleep(nanoseconds: 10_200_000_000)
+        // Past the 10s dismiss window: returns to idle and clears timing.
+        sleeper.advance(by: 10.2)
+        await waitUntil { store.state == .idle }
 
         XCTAssertEqual(store.state, .idle)
         XCTAssertNil(store.successDismissStartedAt)
@@ -2395,6 +2432,7 @@ final class ActivationStoreTests: XCTestCase {
         pasteService: (any PasteServicing)? = nil,
         bufferAccumulator: AudioBufferAccumulator? = nil,
         dateProvider: (() -> Date)? = nil,
+        sleeper: (any Sleeping)? = nil,
         resetSessionMonitoring: (@MainActor () -> Void)? = nil,
         preferences: ShellPreferences? = nil
     ) -> ActivationStore {
@@ -2418,8 +2456,36 @@ final class ActivationStoreTests: XCTestCase {
             pasteService: pasteService ?? PasteService(),
             bufferAccumulator: bufferAccumulator ?? StubBufferAccumulator(),
             dateProvider: dateProvider ?? { Date() },
+            sleeper: sleeper ?? SystemSleeper(),
             resetSessionMonitoring: resetSessionMonitoring ?? {}
         )
+    }
+
+    /// Polls until `condition` holds, yielding briefly between checks. Fails the
+    /// test if the condition is not met within `timeout`. Used instead of fixed
+    /// sleeps so success/idle transitions are observed as soon as they happen.
+    private func waitUntil(
+        _ condition: () -> Bool,
+        timeout: TimeInterval = 2.0,
+        _ message: @autoclosure () -> String = "condition not met in time",
+        file: StaticString = #filePath,
+        line: UInt = #line
+    ) async {
+        let deadline = Date().addingTimeInterval(timeout)
+        while !condition() {
+            if Date() > deadline {
+                XCTFail(message(), file: file, line: line)
+                return
+            }
+            try? await Task.sleep(nanoseconds: 1_000_000)
+        }
+    }
+
+    /// Gives background tasks a brief real-time window to react to a virtual-time
+    /// `advance` (or to park at their sleep). Bounded and tiny; used before
+    /// negative assertions like "still in success state".
+    private func settle() async {
+        try? await Task.sleep(nanoseconds: 20_000_000)
     }
 
     private func makeTestImageData() -> Data {
@@ -4305,6 +4371,45 @@ private actor RecordingRealModelRewriter: LLMRewriting {
 }
 
 // MARK: - Stubs / Mocks
+
+/// Virtual-time sleeper for deterministic timer tests. `sleep` suspends until
+/// `advance(by:)` has moved virtual time past the requested duration, so the
+/// success-dismiss countdown can be exercised without real multi-second waits.
+/// Pair it with `dateProvider: { sleeper.currentDate }` so the displayed
+/// timestamps advance in lockstep with the firing logic.
+final class ManualSleeper: Sleeping, @unchecked Sendable {
+    private let lock = NSLock()
+    private var elapsedSeconds: TimeInterval = 0
+    let start: Date
+
+    init(start: Date = Date(timeIntervalSinceReferenceDate: 1_000_000)) {
+        self.start = start
+    }
+
+    /// Current virtual time, for use as the store's `dateProvider`.
+    var currentDate: Date {
+        lock.withLock { start.addingTimeInterval(elapsedSeconds) }
+    }
+
+    /// Move virtual time forward. Parked `sleep` calls whose deadline has now
+    /// passed return on their next poll (≤ a couple ms later).
+    func advance(by seconds: TimeInterval) {
+        lock.withLock { elapsedSeconds += seconds }
+    }
+
+    private var elapsed: TimeInterval { lock.withLock { elapsedSeconds } }
+
+    func sleep(nanoseconds: UInt64) async {
+        guard nanoseconds > 0 else { return }
+        // Target is captured against virtual time; real time is irrelevant.
+        let target = elapsed + Double(nanoseconds) / 1_000_000_000
+        while elapsed < target {
+            if Task.isCancelled { return }
+            // Tiny real poll just to yield; virtual time is authoritative.
+            try? await Task.sleep(nanoseconds: 1_000_000)
+        }
+    }
+}
 
 @MainActor
 private struct StubReadinessProvider: ReadinessProviding {
