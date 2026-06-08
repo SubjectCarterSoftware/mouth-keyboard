@@ -1,0 +1,9 @@
+# Report-only SwiftFormat config (Phase 1, Workstream C).
+#
+# CI runs `swiftformat --lint` in a non-blocking job, so this reports what would
+# change without rewriting anything yet. A full auto-format pass is deliberately
+# deferred: doing it now would create a huge diff that collides with the planned
+# Phase 3 file splits. Run `swiftformat .` to apply once the big refactors land.
+
+--swiftversion 5.0
+--exclude build,DerivedData,.build

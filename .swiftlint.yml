@@ -1,0 +1,40 @@
+# Report-only SwiftLint config (Phase 1, Workstream C).
+#
+# Deliberately a SMALL, high-signal rule set rather than all of SwiftLint's
+# defaults — on a vibecoded codebase the full set would emit thousands of style
+# nits and drown the signal. The headline value here is the size guard: it flags
+# the god-files (SetupWindowView ~4.5k lines, ActivationStore ~1.6k) and the
+# oversized methods (finalizeSession ~280 lines) so they can't silently regrow
+# during the Phase 3 split. Add more rules as the code is cleaned up.
+
+included:
+  - TypeLessBuddy
+  - TypeLessBuddyTests
+  - TypeLessBuddyUITests
+
+excluded:
+  - build
+  - DerivedData
+  - .build
+
+# Run only these rules to start. force_cast / force_try are currently clean
+# (per the audit) and act as cheap correctness guards going forward.
+only_rules:
+  - file_length
+  - type_body_length
+  - function_body_length
+  - force_cast
+  - force_try
+
+file_length:
+  warning: 500
+  error: 1500
+  ignore_comment_only_lines: true
+
+type_body_length:
+  warning: 400
+  error: 1000
+
+function_body_length:
+  warning: 80
+  error: 250

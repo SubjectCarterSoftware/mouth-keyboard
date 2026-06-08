@@ -1,0 +1,87 @@
+name: CI
+
+# Protects the deterministic unit suite (Phase 1, Workstream A): runs the
+# dependency-injected unit scheme on every push to main and every PR, and fails
+# the build on any test failure. The unit `TypeLessBuddy` scheme never triggers
+# mic / accessibility / automation OS prompts, so it is safe in CI (see AGENTS.md).
+# UI tests (RUN_UI_TESTS) and real-model integration tests
+# (RUN_MODEL_INTEGRATION_TESTS) are intentionally NOT run here.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  unit-tests:
+    name: Unit tests (TypeLessBuddy scheme)
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+
+      # NOTE: this repo builds locally against a very recent Xcode/SDK. The
+      # macos-15 runner default Xcode (16.x) should build it (deployment target
+      # is macOS 14, Swift 5 language mode), but if the heavy ML dependencies
+      # (mlx-swift, WhisperKit, swift-transformers) require a newer toolchain,
+      # pin a version here, e.g.:
+      #   - uses: maxim-lobanov/setup-xcode@v1
+      #     with: { xcode-version: '16.2' }
+      - name: Show toolchain
+        run: |
+          xcodebuild -version
+          swift --version
+
+      # Cache resolved SwiftPM checkouts so cold runs don't re-clone the (large)
+      # dependency graph. Compilation of MLX/WhisperKit is still the slow part.
+      - name: Cache SwiftPM packages
+        uses: actions/cache@v4
+        with:
+          path: build/DerivedData-ci/SourcePackages
+          key: spm-${{ runner.os }}-${{ hashFiles('**/Package.resolved') }}
+          restore-keys: |
+            spm-${{ runner.os }}-
+
+      - name: Run unit tests
+        # No pipe here, so xcodebuild's exit code is the job's result directly.
+        # If you ever pipe output (e.g. through xcbeautify), add `set -o pipefail`
+        # first, or a failing test build will be masked by the formatter's exit 0.
+        run: |
+          xcodebuild test \
+            -project TypeLessBuddy.xcodeproj \
+            -scheme TypeLessBuddy \
+            -configuration Debug \
+            -destination 'platform=macOS' \
+            -derivedDataPath build/DerivedData-ci \
+            -resultBundlePath build/TestResults.xcresult \
+            CODE_SIGNING_ALLOWED=NO
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results
+          path: build/TestResults.xcresult
+          if-no-files-found: ignore
+
+  lint:
+    name: Lint (report-only)
+    runs-on: macos-15
+    # Report-only for now: surfaces style/size issues as annotations without
+    # failing the build. Flip `continue-on-error` to false (and tighten the
+    # configs) once the codebase is cleaned up in later phases.
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install linters
+        run: brew install swiftlint swiftformat
+
+      - name: SwiftLint
+        run: swiftlint lint --reporter github-actions-logging
+
+      - name: SwiftFormat (lint mode)
+        run: swiftformat --lint .
