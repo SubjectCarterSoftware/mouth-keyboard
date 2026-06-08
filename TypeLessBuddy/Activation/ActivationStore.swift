@@ -567,60 +567,17 @@ final class ActivationStore: ObservableObject {
         return true
     }
 
+    /// Orchestrates the post-recording pipeline: transcribe, route on trigger
+    /// detection, then deliver either the raw transcript or the rewritten result.
+    /// Each step is an extracted private method; the failure handling for thrown
+    /// pipeline errors stays here so all terminal-state transitions live together.
     private func finalizeSession(sessionID: UUID) async {
         do {
             guard isCurrentSession(sessionID) else { return }
-            if let initialSelectedCaptureTask, initialSelectedCapture == nil {
-                initialSelectedCapture = await initialSelectedCaptureTask.value
-            }
-            guard isCurrentSession(sessionID) else { return }
-            finalSelectedCapture = await captureSelectedContent()
+            guard let processed = try await transcribeForSession(sessionID: sessionID) else { return }
 
-            let selectedModel = preferences.whisperModel
-            do {
-                let downloadObserver = observeWhisperModelDownloadProgress(
-                    for: selectedModel,
-                    sessionID: sessionID
-                )
-                defer {
-                    downloadObserver.cancel()
-                    syncWhisperModelDownloadState(for: selectedModel, phase: .idle, sessionID: sessionID)
-                }
-
-                try await runWithTimeout(
-                    nanoseconds: Self.whisperPrepareTimeout,
-                    step: "Whisper model prepare"
-                ) { [whisperService] in
-                    try await whisperService.prepare(model: selectedModel)
-                }
-            }
-            guard isCurrentSession(sessionID) else { return }
-
-            let samples = AudioBufferAccumulator.prepareForTranscription(
-                try bufferAccumulator.convertToWhisperFormat(),
-                minimumDuration: Self.minimumTranscriptionAudioDuration,
-                trailingSilenceDuration: Self.appendedTrailingSilenceDuration
-            )
-            let text = try await runWithTimeout(
-                nanoseconds: Self.whisperTranscriptionTimeout(forSampleCount: samples.count),
-                step: "Whisper transcription"
-            ) { [whisperService] in
-                try await whisperService.transcribe(samples: samples)
-            }
-            let trimmed = TriggerTranscriptParser.normalizeTranscript(text)
-            let processed = TextReplacementEngine.applyReplacements(
-                to: trimmed,
-                replacements: preferences.activeDictionaryData.replacements
-            )
             let triggerNames = preferences.activeTriggerProfile.allCanonicalNames
-
-            guard isCurrentSession(sessionID) else { return }
-            guard !processed.isEmpty else {
-                throw TranscriptionError.noSpeechDetected
-            }
-
             let detection = TriggerTranscriptParser.detect(transcript: processed, triggerNames: triggerNames)
-            let clipboardSnapshot = sessionClipboardSnapshot
             let shouldRewrite: Bool
             switch detection {
             case .noTrigger:
@@ -630,194 +587,16 @@ final class ActivationStore: ObservableObject {
             }
 
             if !shouldRewrite {
-                let didPaste = shouldPasteOnSuccessfulFinish
-                requestsPasteOnCompletion = false
-                recordLastTranscription(processed)
-                currentSuccessNoteContent = noteCaptureContent(
-                    rawTranscription: processed,
-                    assistantOutput: nil
-                )
-                var syntheticPasteSucceeded = false
-                if didPaste {
-                    syntheticPasteSucceeded = await pasteWithClipboardProtection(text: processed)
-                } else {
-                    clipboardService.writeToClipboard(processed)
-                }
-                successNoteSaveState = configuredSuccessNoteSaveState(noteWasSaved: false)
-                state = .success(
-                    text: processed,
-                    pasted: syntheticPasteSucceeded,
-                    rewritten: false,
-                    noMatchPassthrough: false
-                )
-                persistHistoryIfEnabled(
-                    HistoryCaptureContent(
-                        rawTranscription: processed,
-                        assistantOutput: nil
-                    )
-                )
-                playSuccessSoundIfNeeded()
-                beginSuccessDismissTiming(sessionID: sessionID)
+                await deliverPassthroughSuccess(processed: processed, sessionID: sessionID)
             } else {
-                let didPaste = shouldPasteOnSuccessfulFinish
-                requestsPasteOnCompletion = false
-
-                guard isCurrentSession(sessionID) else { return }
-                state = .rewriting
-                let rewritingStartedAt = DispatchTime.now().uptimeNanoseconds
-                let assistantName = preferences.activeTriggerProfile.activePrimary
-                let systemPrompt = LocalRewriteService.resolveAssistantSystemPrompt(
-                    promptTemplate: preferences.rewriteSystemPromptPrefix,
-                    assistantName: assistantName
-                )
-                let noteIntent = AssistantNoteIntentClassifier.classify(
-                    message: processed,
-                    matchedAlias: assistantName
-                )
-                let dictatedAssistantPrompt = noteIntent.sanitizedPrompt
-
-                // Route external text context into the rewrite prompt when requested.
-                let externalTextInputs = validatedExternalTextInputs(
-                    selectedText: await preferredSelectedText(),
-                    clipboardText: clipboardSnapshot?.plainText,
-                    lastTranscription: freshLastTranscriptionForRouting(),
-                    selectedImageContent: await preferredSelectedImageContent(),
-                    clipboardImageContent: clipboardSnapshot?.imageContent
-                )
-                let routingContext = ExternalTextSourceContext(
-                    selectedTextAvailable: externalTextInputs.selectedText != nil
-                        || externalTextInputs.selectedImageContent != nil,
-                    clipboardTextAvailable: externalTextInputs.clipboardText != nil
-                        || externalTextInputs.clipboardImageContent != nil,
-                    lastTranscriptionAvailable: externalTextInputs.lastTranscription != nil
-                )
-                let routingDecision = ExternalTextSourceClassifier.classify(
-                    message: dictatedAssistantPrompt,
-                    availableSources: routingContext
-                )
-
-                let promptConfiguration = buildRewritePromptBody(
-                    dictatedContent: dictatedAssistantPrompt,
-                    inputs: externalTextInputs,
-                    decision: routingDecision
-                )
-                let routingDecisionForPrompt = promptConfiguration.decisionUsed
-                let externalTextWasInjected = promptConfiguration.externalTextInjected
-                let effectiveBody = promptConfiguration.body
-                let referencedNoteContexts = noteReferencedContexts(
-                    from: routingDecisionForPrompt.matchedSources,
-                    inputs: externalTextInputs
-                )
-                let assistantImages = assistantInputImages(
-                    from: routingDecisionForPrompt.matchedSources,
-                    inputs: externalTextInputs
-                )
-
-                // Direct assistant prompts keep the historical 1500-word floor,
-                // while context-injected prompts still use the stricter model limit.
-                let wordLimit = rewritePromptWordLimit(
-                    for: routingDecisionForPrompt,
-                    externalTextInjected: externalTextWasInjected
-                )
-                let effectiveWordCount = Self.rewriteWordCount(for: effectiveBody)
-                guard effectiveWordCount <= wordLimit else {
-                    guard isCurrentSession(sessionID) else { return }
-                    recordLastTranscription(processed)
-                    if !didPaste {
-                        clipboardService.writeToClipboard(processed)
-                    }
-                    let failureSessionID = activeSessionID
-                    clearSuccessDismissTiming()
-                    state = .failure(reason: .wordLimitExceeded)
-                    playFailureSoundIfNeeded()
-                    scheduleDismissToIdle(afterNanoseconds: 2_000_000_000, sessionID: failureSessionID)
+                let clipboardSnapshot = sessionClipboardSnapshot
+                guard await rewriteAndDeliver(
+                    processed: processed,
+                    clipboardSnapshot: clipboardSnapshot,
+                    sessionID: sessionID
+                ) else {
                     return
                 }
-
-                // LLM call — routes to cloud or local service based on config
-                let rewritten: String
-                do {
-                    let promptBody = effectiveBody
-                    if !preferences.cloudLLMConfig.isEnabled {
-                        await configureLocalRewriteServiceSelection()
-                    }
-                    rewritten = try await runWithTimeout(
-                        nanoseconds: Self.rewriteTimeout,
-                        step: "Assistant rewrite"
-                    ) { [activeRewriteService] in
-                        try await activeRewriteService.generate(
-                            prompt: promptBody,
-                            systemPrompt: systemPrompt,
-                            images: assistantImages
-                        )
-                    }
-                } catch {
-                    // Surface rewrite errors visibly. Clipboard-only mode keeps the raw
-                    // transcript as fallback; protected auto-paste preserves the original
-                    // clipboard instead.
-                    guard isCurrentSession(sessionID) else { return }
-                    let errorDescription = (error as? RewriteError)?.errorDescription ?? error.localizedDescription
-                    NSLog("TypeLessBuddy: assistant rewrite failed — \(errorDescription)")
-                    recordLastTranscription(processed)
-                    if !didPaste {
-                        clipboardService.writeToClipboard(processed)
-                    }
-                    clearSuccessDismissTiming()
-                    state = .failure(reason: .modelError("Rewrite failed: \(errorDescription)"))
-                    playFailureSoundIfNeeded()
-                    scheduleDismissToIdle(afterNanoseconds: 2_000_000_000, sessionID: sessionID)
-                    return
-                }
-
-                guard isCurrentSession(sessionID) else { return }
-                let elapsed = DispatchTime.now().uptimeNanoseconds - rewritingStartedAt
-                if elapsed < Self.minimumRewritingDisplayDuration {
-                    try? await Task.sleep(
-                        nanoseconds: Self.minimumRewritingDisplayDuration - elapsed
-                    )
-                }
-
-                guard isCurrentSession(sessionID) else { return }
-                let noteContent = noteCaptureContent(
-                    rawTranscription: processed,
-                    referencedContexts: referencedNoteContexts,
-                    assistantOutput: rewritten
-                )
-                let automaticNoteWasSaved = shouldAutomaticallySaveAssistantNote(
-                    classification: noteIntent
-                )
-                    ? await saveNoteIfPossible(content: noteContent)
-                    : false
-                var syntheticPasteSucceeded = false
-                if didPaste {
-                    syntheticPasteSucceeded = await pasteWithClipboardProtection(text: rewritten)
-                } else {
-                    clipboardService.writeToClipboard(rewritten)
-                }
-                recordLastTranscription(processed)
-                lastRewrittenTranscription = rewritten
-                currentSuccessNoteContent = noteContent
-                successNoteSaveState = configuredSuccessNoteSaveState(
-                    noteWasSaved: automaticNoteWasSaved
-                )
-                state = .success(
-                    text: rewritten,
-                    pasted: syntheticPasteSucceeded,
-                    rewritten: true,
-                    externalTextInjected: externalTextWasInjected
-                )
-                persistHistoryIfEnabled(
-                    HistoryCaptureContent(
-                        rawTranscription: processed,
-                        assistantOutput: rewritten
-                    )
-                )
-                if automaticNoteWasSaved {
-                    playSuccessThenNoteSavedSoundIfNeeded()
-                } else {
-                    playSuccessSoundIfNeeded()
-                }
-                beginSuccessDismissTiming(sessionID: sessionID)
             }
         } catch TranscriptionError.noSpeechDetected {
             guard isCurrentSession(sessionID) else { return }
@@ -848,6 +627,268 @@ final class ActivationStore: ObservableObject {
         if sessionID == activeSessionID {
             transcriptionTask = nil
         }
+    }
+
+    /// Prepares the Whisper model, captures the selected-text context, transcribes
+    /// the recorded audio, and applies dictionary replacements. Returns the
+    /// processed transcript, or `nil` if the session was superseded mid-flight
+    /// (mirroring the original early-`return` guards). Pipeline errors are thrown
+    /// for `finalizeSession` to handle.
+    private func transcribeForSession(sessionID: UUID) async throws -> String? {
+        if let initialSelectedCaptureTask, initialSelectedCapture == nil {
+            initialSelectedCapture = await initialSelectedCaptureTask.value
+        }
+        guard isCurrentSession(sessionID) else { return nil }
+        finalSelectedCapture = await captureSelectedContent()
+
+        let selectedModel = preferences.whisperModel
+        do {
+            let downloadObserver = observeWhisperModelDownloadProgress(
+                for: selectedModel,
+                sessionID: sessionID
+            )
+            defer {
+                downloadObserver.cancel()
+                syncWhisperModelDownloadState(for: selectedModel, phase: .idle, sessionID: sessionID)
+            }
+
+            try await runWithTimeout(
+                nanoseconds: Self.whisperPrepareTimeout,
+                step: "Whisper model prepare"
+            ) { [whisperService] in
+                try await whisperService.prepare(model: selectedModel)
+            }
+        }
+        guard isCurrentSession(sessionID) else { return nil }
+
+        let samples = AudioBufferAccumulator.prepareForTranscription(
+            try bufferAccumulator.convertToWhisperFormat(),
+            minimumDuration: Self.minimumTranscriptionAudioDuration,
+            trailingSilenceDuration: Self.appendedTrailingSilenceDuration
+        )
+        let text = try await runWithTimeout(
+            nanoseconds: Self.whisperTranscriptionTimeout(forSampleCount: samples.count),
+            step: "Whisper transcription"
+        ) { [whisperService] in
+            try await whisperService.transcribe(samples: samples)
+        }
+        let trimmed = TriggerTranscriptParser.normalizeTranscript(text)
+        let processed = TextReplacementEngine.applyReplacements(
+            to: trimmed,
+            replacements: preferences.activeDictionaryData.replacements
+        )
+
+        guard isCurrentSession(sessionID) else { return nil }
+        guard !processed.isEmpty else {
+            throw TranscriptionError.noSpeechDetected
+        }
+
+        return processed
+    }
+
+    /// Delivers the raw transcript (no trigger matched): copy or auto-paste, set
+    /// the success state, persist history, and start the dismiss countdown.
+    private func deliverPassthroughSuccess(processed: String, sessionID: UUID) async {
+        let didPaste = shouldPasteOnSuccessfulFinish
+        requestsPasteOnCompletion = false
+        recordLastTranscription(processed)
+        currentSuccessNoteContent = noteCaptureContent(
+            rawTranscription: processed,
+            assistantOutput: nil
+        )
+        var syntheticPasteSucceeded = false
+        if didPaste {
+            syntheticPasteSucceeded = await pasteWithClipboardProtection(text: processed)
+        } else {
+            clipboardService.writeToClipboard(processed)
+        }
+        successNoteSaveState = configuredSuccessNoteSaveState(noteWasSaved: false)
+        state = .success(
+            text: processed,
+            pasted: syntheticPasteSucceeded,
+            rewritten: false,
+            noMatchPassthrough: false
+        )
+        persistHistoryIfEnabled(
+            HistoryCaptureContent(
+                rawTranscription: processed,
+                assistantOutput: nil
+            )
+        )
+        playSuccessSoundIfNeeded()
+        beginSuccessDismissTiming(sessionID: sessionID)
+    }
+
+    /// Runs the rewrite branch (a trigger matched): builds the prompt, calls the
+    /// active rewrite service, and delivers the rewritten result. Returns `true`
+    /// when the caller should fall through to its tail cleanup, or `false` when
+    /// the session bailed early — preserving the original early-`return` semantics
+    /// that skip that cleanup (session superseded, word limit, or rewrite error).
+    private func rewriteAndDeliver(
+        processed: String,
+        clipboardSnapshot: ClipboardSnapshot?,
+        sessionID: UUID
+    ) async -> Bool {
+        let didPaste = shouldPasteOnSuccessfulFinish
+        requestsPasteOnCompletion = false
+
+        guard isCurrentSession(sessionID) else { return false }
+        state = .rewriting
+        let rewritingStartedAt = DispatchTime.now().uptimeNanoseconds
+        let assistantName = preferences.activeTriggerProfile.activePrimary
+        let systemPrompt = LocalRewriteService.resolveAssistantSystemPrompt(
+            promptTemplate: preferences.rewriteSystemPromptPrefix,
+            assistantName: assistantName
+        )
+        let noteIntent = AssistantNoteIntentClassifier.classify(
+            message: processed,
+            matchedAlias: assistantName
+        )
+        let dictatedAssistantPrompt = noteIntent.sanitizedPrompt
+
+        // Route external text context into the rewrite prompt when requested.
+        let externalTextInputs = validatedExternalTextInputs(
+            selectedText: await preferredSelectedText(),
+            clipboardText: clipboardSnapshot?.plainText,
+            lastTranscription: freshLastTranscriptionForRouting(),
+            selectedImageContent: await preferredSelectedImageContent(),
+            clipboardImageContent: clipboardSnapshot?.imageContent
+        )
+        let routingContext = ExternalTextSourceContext(
+            selectedTextAvailable: externalTextInputs.selectedText != nil
+                || externalTextInputs.selectedImageContent != nil,
+            clipboardTextAvailable: externalTextInputs.clipboardText != nil
+                || externalTextInputs.clipboardImageContent != nil,
+            lastTranscriptionAvailable: externalTextInputs.lastTranscription != nil
+        )
+        let routingDecision = ExternalTextSourceClassifier.classify(
+            message: dictatedAssistantPrompt,
+            availableSources: routingContext
+        )
+
+        let promptConfiguration = buildRewritePromptBody(
+            dictatedContent: dictatedAssistantPrompt,
+            inputs: externalTextInputs,
+            decision: routingDecision
+        )
+        let routingDecisionForPrompt = promptConfiguration.decisionUsed
+        let externalTextWasInjected = promptConfiguration.externalTextInjected
+        let effectiveBody = promptConfiguration.body
+        let referencedNoteContexts = noteReferencedContexts(
+            from: routingDecisionForPrompt.matchedSources,
+            inputs: externalTextInputs
+        )
+        let assistantImages = assistantInputImages(
+            from: routingDecisionForPrompt.matchedSources,
+            inputs: externalTextInputs
+        )
+
+        // Direct assistant prompts keep the historical 1500-word floor,
+        // while context-injected prompts still use the stricter model limit.
+        let wordLimit = rewritePromptWordLimit(
+            for: routingDecisionForPrompt,
+            externalTextInjected: externalTextWasInjected
+        )
+        let effectiveWordCount = Self.rewriteWordCount(for: effectiveBody)
+        guard effectiveWordCount <= wordLimit else {
+            guard isCurrentSession(sessionID) else { return false }
+            recordLastTranscription(processed)
+            if !didPaste {
+                clipboardService.writeToClipboard(processed)
+            }
+            let failureSessionID = activeSessionID
+            clearSuccessDismissTiming()
+            state = .failure(reason: .wordLimitExceeded)
+            playFailureSoundIfNeeded()
+            scheduleDismissToIdle(afterNanoseconds: 2_000_000_000, sessionID: failureSessionID)
+            return false
+        }
+
+        // LLM call — routes to cloud or local service based on config
+        let rewritten: String
+        do {
+            let promptBody = effectiveBody
+            if !preferences.cloudLLMConfig.isEnabled {
+                await configureLocalRewriteServiceSelection()
+            }
+            rewritten = try await runWithTimeout(
+                nanoseconds: Self.rewriteTimeout,
+                step: "Assistant rewrite"
+            ) { [activeRewriteService] in
+                try await activeRewriteService.generate(
+                    prompt: promptBody,
+                    systemPrompt: systemPrompt,
+                    images: assistantImages
+                )
+            }
+        } catch {
+            // Surface rewrite errors visibly. Clipboard-only mode keeps the raw
+            // transcript as fallback; protected auto-paste preserves the original
+            // clipboard instead.
+            guard isCurrentSession(sessionID) else { return false }
+            let errorDescription = (error as? RewriteError)?.errorDescription ?? error.localizedDescription
+            NSLog("TypeLessBuddy: assistant rewrite failed — \(errorDescription)")
+            recordLastTranscription(processed)
+            if !didPaste {
+                clipboardService.writeToClipboard(processed)
+            }
+            clearSuccessDismissTiming()
+            state = .failure(reason: .modelError("Rewrite failed: \(errorDescription)"))
+            playFailureSoundIfNeeded()
+            scheduleDismissToIdle(afterNanoseconds: 2_000_000_000, sessionID: sessionID)
+            return false
+        }
+
+        guard isCurrentSession(sessionID) else { return false }
+        let elapsed = DispatchTime.now().uptimeNanoseconds - rewritingStartedAt
+        if elapsed < Self.minimumRewritingDisplayDuration {
+            try? await Task.sleep(
+                nanoseconds: Self.minimumRewritingDisplayDuration - elapsed
+            )
+        }
+
+        guard isCurrentSession(sessionID) else { return false }
+        let noteContent = noteCaptureContent(
+            rawTranscription: processed,
+            referencedContexts: referencedNoteContexts,
+            assistantOutput: rewritten
+        )
+        let automaticNoteWasSaved = shouldAutomaticallySaveAssistantNote(
+            classification: noteIntent
+        )
+            ? await saveNoteIfPossible(content: noteContent)
+            : false
+        var syntheticPasteSucceeded = false
+        if didPaste {
+            syntheticPasteSucceeded = await pasteWithClipboardProtection(text: rewritten)
+        } else {
+            clipboardService.writeToClipboard(rewritten)
+        }
+        recordLastTranscription(processed)
+        lastRewrittenTranscription = rewritten
+        currentSuccessNoteContent = noteContent
+        successNoteSaveState = configuredSuccessNoteSaveState(
+            noteWasSaved: automaticNoteWasSaved
+        )
+        state = .success(
+            text: rewritten,
+            pasted: syntheticPasteSucceeded,
+            rewritten: true,
+            externalTextInjected: externalTextWasInjected
+        )
+        persistHistoryIfEnabled(
+            HistoryCaptureContent(
+                rawTranscription: processed,
+                assistantOutput: rewritten
+            )
+        )
+        if automaticNoteWasSaved {
+            playSuccessThenNoteSavedSoundIfNeeded()
+        } else {
+            playSuccessSoundIfNeeded()
+        }
+        beginSuccessDismissTiming(sessionID: sessionID)
+        return true
     }
 
     private func invalidateActiveSession() {
