@@ -132,7 +132,7 @@ final class ActivationStoreTests: XCTestCase {
 
         XCTAssertEqual(store.state, .processing)
 
-        try await Task.sleep(nanoseconds: 250_000_000)
+        await waitUntil { store.state.isTerminal }
 
         let maybeCapturedSamples = await transcriber.capturedSamples()
         let capturedSamples = try XCTUnwrap(maybeCapturedSamples)
@@ -214,7 +214,7 @@ final class ActivationStoreTests: XCTestCase {
         XCTAssertEqual(progress, 0.42, accuracy: 0.001)
 
         loadState.phase = .ready(model: .smallEN)
-        try await Task.sleep(nanoseconds: 350_000_000)
+        await waitUntil { store.state.isTerminal }
 
         XCTAssertEqual(store.lastTranscription, "Hello world")
         if case .success(let text, _, _, _, _) = store.state {
@@ -307,7 +307,7 @@ final class ActivationStoreTests: XCTestCase {
         store.arm()
         store.finish()
 
-        try await Task.sleep(nanoseconds: 250_000_000)
+        await waitUntil { store.state.isTerminal }
 
         XCTAssertTrue(finalized)
         let didObserveFinalization = await transcriber.didObserveFinalization()
@@ -339,7 +339,7 @@ final class ActivationStoreTests: XCTestCase {
         store.arm()
         store.finish()
 
-        try await Task.sleep(nanoseconds: 350_000_000)
+        await waitUntil { store.state.isTerminal }
 
         XCTAssertNil(mockClipboard.lastWrittenText)
         if case .success(_, let pasted, let converted, _, _) = store.state {
@@ -465,7 +465,7 @@ final class ActivationStoreTests: XCTestCase {
         store.arm()
         store.finish()
 
-        try await Task.sleep(nanoseconds: 300_000_000)
+        await waitUntil { store.state.isTerminal }
 
         XCTAssertNil(mockClipboard.lastWrittenText)
         XCTAssertTrue(mockClipboard.temporaryWriteTexts.isEmpty)
@@ -495,7 +495,7 @@ final class ActivationStoreTests: XCTestCase {
         store.arm()
         store.finish()
 
-        try await Task.sleep(nanoseconds: 200_000_000)
+        await waitUntil { store.state.isTerminal }
 
         XCTAssertEqual(mockClipboard.lastWrittenText, "Clipboard only")
         XCTAssertEqual(pasteStub.pasteCount, 0)
@@ -529,7 +529,7 @@ final class ActivationStoreTests: XCTestCase {
         store.arm()
         store.finish()
 
-        try await Task.sleep(nanoseconds: 200_000_000)
+        await waitUntil { store.state.isTerminal }
 
         XCTAssertEqual(pasteStub.pasteCount, 1)
         XCTAssertEqual(mockClipboard.temporaryWriteTexts, ["Keep copied"])
@@ -880,7 +880,7 @@ final class ActivationStoreTests: XCTestCase {
         store.arm()
         store.finish()
 
-        try await Task.sleep(nanoseconds: 200_000_000)
+        await waitUntil { store.state.isTerminal }
 
         // Clear clipboard mock to isolate behavior
         mockClipboard.clearWriteCount()
@@ -907,7 +907,7 @@ final class ActivationStoreTests: XCTestCase {
 
         store.arm()
         store.finish()
-        try await Task.sleep(nanoseconds: 300_000_000)
+        await waitUntil { store.state.isTerminal }
 
         mockClipboard.clearWriteCount()
 
@@ -931,7 +931,7 @@ final class ActivationStoreTests: XCTestCase {
 
         store.arm()
         store.finish()
-        try await Task.sleep(nanoseconds: 300_000_000)
+        await waitUntil { store.state.isTerminal }
 
         if case .success(let text, _, let converted, _, _) = store.state {
             XCTAssertEqual(text, "Converted output")
@@ -1213,7 +1213,7 @@ final class ActivationStoreTests: XCTestCase {
         // separate .stopSession shortcut handler while recording.
         store.finish()
 
-        try await Task.sleep(nanoseconds: 200_000_000)
+        await waitUntil { store.state.isTerminal }
 
         if case .success(let text, _, _, _, _) = store.state {
             XCTAssertEqual(text, "ready")
@@ -1246,7 +1246,7 @@ final class ActivationStoreTests: XCTestCase {
         store.arm()
         store.finish()
 
-        try await Task.sleep(nanoseconds: 200_000_000)
+        await waitUntil { store.state.isTerminal }
 
         if case .success(let text, _, _, _, _) = store.state {
             XCTAssertEqual(text, "first")
@@ -1286,7 +1286,7 @@ final class ActivationStoreTests: XCTestCase {
         store.arm()
         store.finish()
 
-        try await Task.sleep(nanoseconds: 200_000_000)
+        await waitUntil { store.state.isTerminal }
 
         XCTAssertNil(mockClipboard.lastWrittenText)
         if case .failure = store.state {
@@ -1310,7 +1310,7 @@ final class ActivationStoreTests: XCTestCase {
         )
         store.arm()
         store.finish()
-        try await Task.sleep(nanoseconds: 300_000_000)
+        await waitUntil { store.state.isTerminal }
         XCTAssertEqual(mockClipboard.lastWrittenText, "Subject: Meeting Request\n\nPlease schedule...")
         XCTAssertEqual(store.lastConvertedTranscription, "Subject: Meeting Request\n\nPlease schedule...")
         if case .success(_, _, let converted, _, _) = store.state {
@@ -1374,7 +1374,7 @@ final class ActivationStoreTests: XCTestCase {
 
         store.arm()
         store.finish()
-        try await Task.sleep(nanoseconds: 300_000_000)
+        await waitUntil { store.state.isTerminal }
 
         XCTAssertEqual(mockRewriter.lastCalledOverload, .generateOverload)
         XCTAssertEqual(mockRewriter.lastGenerateSystemPrompt, "Custom rewrite prefix")
@@ -1393,7 +1393,7 @@ final class ActivationStoreTests: XCTestCase {
         )
         store.arm()
         store.finish()
-        try await Task.sleep(nanoseconds: 300_000_000)
+        await waitUntil { store.state.isTerminal }
 
         // Raw transcript should still be in clipboard as safety net
         XCTAssertEqual(mockClipboard.lastWrittenText, transcript)
@@ -1419,7 +1419,7 @@ final class ActivationStoreTests: XCTestCase {
         )
         store.arm()
         store.finish()
-        try await Task.sleep(nanoseconds: 200_000_000)
+        await waitUntil { store.state.isTerminal }
         XCTAssertEqual(mockClipboard.lastWrittenText, "Hello world")
         XCTAssertNil(store.lastConvertedTranscription)
         if case .success(_, _, let converted, _, _) = store.state {
@@ -1445,7 +1445,7 @@ final class ActivationStoreTests: XCTestCase {
         )
         store.arm()
         store.finish()
-        try await Task.sleep(nanoseconds: 200_000_000)
+        await waitUntil { store.state.isTerminal }
 
         XCTAssertEqual(mockClipboard.lastWrittenText, "Hello world")
         if case .success(_, _, let converted, _, _) = store.state {
@@ -1473,7 +1473,7 @@ final class ActivationStoreTests: XCTestCase {
         )
         store.arm()
         store.finish()
-        try await Task.sleep(nanoseconds: 300_000_000)
+        await waitUntil { store.state.isTerminal }
 
         XCTAssertEqual(mockRewriter.lastCalledOverload, .generateOverload)
         XCTAssertEqual(mockRewriter.lastGeneratePrompt, "helios Please schedule a meeting convert to email")
@@ -1507,7 +1507,7 @@ final class ActivationStoreTests: XCTestCase {
 
         store.arm()
         store.finish()
-        try await Task.sleep(nanoseconds: 300_000_000)
+        await waitUntil { store.state.isTerminal }
 
         XCTAssertEqual(mockRewriter.lastCalledOverload, .generateOverload)
         XCTAssertEqual(mockRewriter.lastGeneratePrompt, transcript)
@@ -1539,7 +1539,7 @@ final class ActivationStoreTests: XCTestCase {
 
         store.arm()
         store.finish()
-        try await Task.sleep(nanoseconds: 300_000_000)
+        await waitUntil { store.state.isTerminal }
 
         XCTAssertNil(mockRewriter.lastCalledOverload)
         XCTAssertEqual(mockClipboard.lastWrittenText, transcript)
@@ -1569,7 +1569,7 @@ final class ActivationStoreTests: XCTestCase {
 
         store.arm()
         store.finish()
-        try await Task.sleep(nanoseconds: 300_000_000)
+        await waitUntil { store.state.isTerminal }
 
         XCTAssertEqual(mockRewriter.lastCalledOverload, .generateOverload)
         XCTAssertEqual(mockRewriter.lastGeneratePrompt, transcript)
@@ -1600,7 +1600,7 @@ final class ActivationStoreTests: XCTestCase {
 
         store.arm()
         store.finish()
-        try await Task.sleep(nanoseconds: 300_000_000)
+        await waitUntil { store.state.isTerminal }
 
         XCTAssertEqual(mockRewriter.lastCalledOverload, .generateOverload)
         XCTAssertEqual(mockRewriter.lastGeneratePrompt?.hasPrefix(transcript), true)
@@ -1625,7 +1625,7 @@ final class ActivationStoreTests: XCTestCase {
 
         store.arm()
         store.finish()
-        try await Task.sleep(nanoseconds: 300_000_000)
+        await waitUntil { store.state.isTerminal }
 
         XCTAssertEqual(mockRewriter.lastCalledOverload, .generateOverload)
         XCTAssertEqual(mockRewriter.lastGeneratePrompt?.hasPrefix(transcript), true)
@@ -1657,7 +1657,7 @@ final class ActivationStoreTests: XCTestCase {
 
         store.arm()
         store.finish()
-        try await Task.sleep(nanoseconds: 300_000_000)
+        await waitUntil { store.state.isTerminal }
 
         XCTAssertEqual(mockRewriter.lastCalledOverload, .generateOverload)
         XCTAssertEqual(mockRewriter.lastGeneratePrompt?.hasPrefix(transcript), true)
@@ -1770,7 +1770,7 @@ final class ActivationStoreTests: XCTestCase {
 
         store.arm()
         store.finish()
-        try await Task.sleep(nanoseconds: 300_000_000)
+        await waitUntil { store.state.isTerminal }
 
         XCTAssertEqual(mockRewriter.lastCalledOverload, .generateOverload)
         XCTAssertEqual(mockClipboard.lastWrittenText, transcript)
@@ -1804,7 +1804,7 @@ final class ActivationStoreTests: XCTestCase {
 
         store.arm()
         store.finish()
-        try await Task.sleep(nanoseconds: 300_000_000)
+        await waitUntil { store.state.isTerminal }
 
         XCTAssertEqual(mockRewriter.lastCalledOverload, .generateOverload)
         XCTAssertEqual(mockRewriter.lastGeneratePrompt?.hasPrefix(transcript), true)
@@ -1850,7 +1850,7 @@ final class ActivationStoreTests: XCTestCase {
 
         store.arm()
         store.finish()
-        try await Task.sleep(nanoseconds: 300_000_000)
+        await waitUntil { store.state.isTerminal }
 
         XCTAssertEqual(mockRewriter.lastCalledOverload, .generateOverload,
                        "Default trigger must activate trigger parsing after resetAssistantNameToDefault without restart")
@@ -1884,7 +1884,7 @@ final class ActivationStoreTests: XCTestCase {
 
         store.arm()
         store.finish()
-        try await Task.sleep(nanoseconds: 300_000_000)
+        await waitUntil { store.state.isTerminal }
 
         XCTAssertEqual(mockRewriter.lastCalledOverload, .generateOverload,
                        "Custom trigger 'helios' must activate parsing after setCustomTrigger without restart")
@@ -1910,7 +1910,7 @@ final class ActivationStoreTests: XCTestCase {
 
         store.arm()
         store.finish()
-        try await Task.sleep(nanoseconds: 300_000_000)
+        await waitUntil { store.state.isTerminal }
 
         XCTAssertEqual(mockRewriter.generateCallCount, 0)
         XCTAssertEqual(mockClipboard.lastWrittenText, transcript)
@@ -1980,7 +1980,7 @@ final class ActivationStoreTests: XCTestCase {
 
         store.arm()
         store.finish()
-        try await Task.sleep(nanoseconds: 300_000_000)
+        await waitUntil { store.state.isTerminal }
 
         guard case .success = store.state else {
             XCTFail("Expected success after first session, got \(store.state)")
@@ -1992,7 +1992,7 @@ final class ActivationStoreTests: XCTestCase {
 
         store.arm()
         store.finish()
-        try await Task.sleep(nanoseconds: 300_000_000)
+        await waitUntil { store.state.isTerminal }
 
         // 2 calls: session 1 rewrite + session 2 rewrite
         XCTAssertEqual(mockRewriter.generateCallCount, 2)
@@ -2032,7 +2032,7 @@ final class ActivationStoreTests: XCTestCase {
 
         store.arm()
         store.finish()
-        try await Task.sleep(nanoseconds: 300_000_000)
+        await waitUntil { store.state.isTerminal }
 
         guard case .success = store.state else {
             XCTFail("Expected success after first session, got \(store.state)")
@@ -2043,7 +2043,7 @@ final class ActivationStoreTests: XCTestCase {
         store.appendFromSuccess()
 
         store.finish()
-        try await Task.sleep(nanoseconds: 300_000_000)
+        await waitUntil { store.state.isTerminal }
 
         // 2 calls: session 1 rewrite + session 2 rewrite
         XCTAssertEqual(mockRewriter.generateCallCount, 2)
@@ -2076,7 +2076,7 @@ final class ActivationStoreTests: XCTestCase {
 
         store.arm()
         store.finish()
-        try await Task.sleep(nanoseconds: 300_000_000)
+        await waitUntil { store.state.isTerminal }
 
         let stored = try XCTUnwrap(store.lastConvertedTranscription)
         XCTAssertEqual(stored, expectedOutput,
