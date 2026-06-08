@@ -1,7 +1,7 @@
 import XCTest
 @testable import TypeLessBuddy
 
-final class LLMRewriteServiceIntegrationTests: XCTestCase {
+final class LocalRewriteServiceIntegrationTests: XCTestCase {
 
     override func setUp() async throws {
         try await super.setUp()
@@ -14,7 +14,7 @@ final class LLMRewriteServiceIntegrationTests: XCTestCase {
     /// Exercises rewrite with user-provided instructions against the real MLX/Qwen path and
     /// asserts that it returns trimmed, non-empty output.
     func testRewriteWithInstructionsProducesNonEmptyOutput() async throws {
-        let service = LLMRewriteService()
+        let service = LocalRewriteService()
 
         let result = try await service.rewrite(
             body: "um so I was thinking we should uh fix the bug before the deadline",
@@ -29,8 +29,8 @@ final class LLMRewriteServiceIntegrationTests: XCTestCase {
     func testRealRewriteReusesLoadedModelOnSecondCall() async throws {
         let loadCounter = IntegrationLoadCounter()
 
-        let defaultLoader = LLMRewriteService.makeDefaultLoader(tier: .standard2B)
-        let service = LLMRewriteService(
+        let defaultLoader = LocalRewriteService.makeDefaultLoader(tier: .standard2B)
+        let service = LocalRewriteService(
             loader: { hub in
                 await loadCounter.increment()
                 return try await defaultLoader(hub)
@@ -46,7 +46,7 @@ final class LLMRewriteServiceIntegrationTests: XCTestCase {
     }
 
     func testRewriteWith4BTierProducesNonEmptyOutput() async throws {
-        let service = LLMRewriteService(tier: .standard4B)
+        let service = LocalRewriteService(tier: .standard4B)
 
         let result = try await service.rewrite(
             body: "weekly product update",
@@ -58,9 +58,9 @@ final class LLMRewriteServiceIntegrationTests: XCTestCase {
     }
 
     func testRewriteWith4BTierUsingDirectHubLoaderProducesNonEmptyOutput() async throws {
-        let service = LLMRewriteService(
+        let service = LocalRewriteService(
             tier: .standard4B,
-            loader: LLMRewriteService.makeDefaultLoader(tier: .standard4B)
+            loader: LocalRewriteService.makeDefaultLoader(tier: .standard4B)
         )
 
         let result = try await service.rewrite(

@@ -1,7 +1,7 @@
 import Foundation
 import MLXLMCommon
 
-actor CloudLLMRewriteService: LLMRewriting {
+actor CloudRewriteService: Rewriting {
     private let config: CloudLLMConfig
     private let apiKey: String
     private let session: URLSession
@@ -16,12 +16,12 @@ actor CloudLLMRewriteService: LLMRewriting {
         try await rewrite(
             body: body,
             instructions: instructions,
-            promptPrefix: LLMRewriteService.defaultRewritePromptPrefix
+            promptPrefix: LocalRewriteService.defaultRewritePromptPrefix
         )
     }
 
     func rewrite(body: String, instructions: String, promptPrefix: String) async throws -> String {
-        let systemPrompt = LLMRewriteService.makeRewriteInstructions(
+        let systemPrompt = LocalRewriteService.makeRewriteInstructions(
             promptPrefix: promptPrefix,
             instructions: instructions
         )
@@ -50,7 +50,7 @@ actor CloudLLMRewriteService: LLMRewriting {
 
     private func sendRequest(systemPrompt: String, userMessage: String) async throws -> String {
         guard !apiKey.isEmpty else {
-            throw LLMRewriteError.authenticationFailed
+            throw RewriteError.authenticationFailed
         }
 
         let trimmedUserMessage = userMessage.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -61,9 +61,9 @@ actor CloudLLMRewriteService: LLMRewriting {
         do {
             (data, response) = try await session.data(for: request)
         } catch is CancellationError {
-            throw LLMRewriteError.cancelled
+            throw RewriteError.cancelled
         } catch {
-            throw LLMRewriteError.networkError(error.localizedDescription)
+            throw RewriteError.networkError(error.localizedDescription)
         }
 
         if let httpResponse = response as? HTTPURLResponse {
@@ -71,19 +71,19 @@ actor CloudLLMRewriteService: LLMRewriting {
             case 200...299:
                 break
             case 401, 403:
-                throw LLMRewriteError.authenticationFailed
+                throw RewriteError.authenticationFailed
             case 429:
-                throw LLMRewriteError.rateLimited
+                throw RewriteError.rateLimited
             default:
                 let body = String(data: data, encoding: .utf8) ?? "Unknown error"
-                throw LLMRewriteError.providerError("HTTP \(httpResponse.statusCode): \(body)")
+                throw RewriteError.providerError("HTTP \(httpResponse.statusCode): \(body)")
             }
         }
 
         let text = try extractText(from: data)
-        let trimmed = LLMRewriteService.sanitizeGeneratedOutput(text)
+        let trimmed = LocalRewriteService.sanitizeGeneratedOutput(text)
         guard !trimmed.isEmpty else {
-            throw LLMRewriteError.emptyOutput
+            throw RewriteError.emptyOutput
         }
         return trimmed
     }
@@ -101,7 +101,7 @@ actor CloudLLMRewriteService: LLMRewriting {
 
     private func buildOpenAIRequest(systemPrompt: String, userMessage: String) throws -> URLRequest {
         guard let url = URL(string: config.baseURL + "/chat/completions") else {
-            throw LLMRewriteError.providerError("Invalid base URL")
+            throw RewriteError.providerError("Invalid base URL")
         }
 
         var request = URLRequest(url: url)
@@ -124,7 +124,7 @@ actor CloudLLMRewriteService: LLMRewriting {
 
     private func buildAnthropicRequest(systemPrompt: String, userMessage: String) throws -> URLRequest {
         guard let url = URL(string: config.baseURL + "/messages") else {
-            throw LLMRewriteError.providerError("Invalid base URL")
+            throw RewriteError.providerError("Invalid base URL")
         }
 
         var request = URLRequest(url: url)
@@ -149,11 +149,11 @@ actor CloudLLMRewriteService: LLMRewriting {
     private func buildGoogleRequest(systemPrompt: String, userMessage: String) throws -> URLRequest {
         let path = "/models/\(config.modelID):generateContent"
         guard var components = URLComponents(string: config.baseURL + path) else {
-            throw LLMRewriteError.providerError("Invalid base URL")
+            throw RewriteError.providerError("Invalid base URL")
         }
         components.queryItems = [URLQueryItem(name: "key", value: apiKey)]
         guard let url = components.url else {
-            throw LLMRewriteError.providerError("Invalid base URL")
+            throw RewriteError.providerError("Invalid base URL")
         }
 
         var request = URLRequest(url: url)
@@ -180,7 +180,7 @@ actor CloudLLMRewriteService: LLMRewriting {
 
     private func extractText(from data: Data) throws -> String {
         guard let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
-            throw LLMRewriteError.providerError("Invalid response JSON")
+            throw RewriteError.providerError("Invalid response JSON")
         }
 
         switch config.provider {
@@ -199,21 +199,21 @@ actor CloudLLMRewriteService: LLMRewriting {
               let message = first["message"] as? [String: Any],
               let content = message["content"] as? String
         else {
-            throw LLMRewriteError.providerError("Unexpected OpenAI response format")
+            throw RewriteError.providerError("Unexpected OpenAI response format")
         }
         return content
     }
 
     private func extractAnthropicText(from json: [String: Any]) throws -> String {
         guard let content = json["content"] as? [[String: Any]] else {
-            throw LLMRewriteError.providerError("Unexpected Anthropic response format")
+            throw RewriteError.providerError("Unexpected Anthropic response format")
         }
         let texts = content.compactMap { block -> String? in
             guard block["type"] as? String == "text" else { return nil }
             return block["text"] as? String
         }
         guard !texts.isEmpty else {
-            throw LLMRewriteError.providerError("Unexpected Anthropic response format")
+            throw RewriteError.providerError("Unexpected Anthropic response format")
         }
         return texts.joined()
     }
@@ -225,7 +225,7 @@ actor CloudLLMRewriteService: LLMRewriting {
               let parts = content["parts"] as? [[String: Any]],
               let text = parts.first?["text"] as? String
         else {
-            throw LLMRewriteError.providerError("Unexpected Google response format")
+            throw RewriteError.providerError("Unexpected Google response format")
         }
         return text
     }

@@ -68,9 +68,9 @@ final class StatusMenuController: NSObject, NSMenuDelegate {
         case .modelPrewarming:
             pillColor = .systemTeal
             description = "Loading model"
-        case .converting:
+        case .rewriting:
             pillColor = .systemPurple
-            description = "Converting"
+            description = "Rewriting"
         case .success:
             pillColor = .systemGreen
             description = "Transcribed"
@@ -145,7 +145,7 @@ final class StatusMenuController: NSObject, NSMenuDelegate {
         recordingState == .recording
             || recordingState == .processing
             || recordingState.isModelDownloading
-            || recordingState == .converting
+            || recordingState == .rewriting
     }
 
     private var canFinishSession: Bool {
@@ -228,8 +228,8 @@ final class StatusMenuController: NSObject, NSMenuDelegate {
             menu.addItem(
                 actionItem(
                     title: "Copy AI Transcription",
-                    action: #selector(copyLastConvertedTranscriptionFromMenu),
-                    enabled: activationStore.lastConvertedTranscription != nil,
+                    action: #selector(copyLastRewrittenTranscriptionFromMenu),
+                    enabled: activationStore.lastRewrittenTranscription != nil,
                     symbolNames: ["sparkles", "wand.and.stars"]
                 )
             )
@@ -535,8 +535,8 @@ final class StatusMenuController: NSObject, NSMenuDelegate {
     }
 
     @objc
-    private func copyLastConvertedTranscriptionFromMenu() {
-        activationStore.copyLastConvertedTranscription()
+    private func copyLastRewrittenTranscriptionFromMenu() {
+        activationStore.copyLastRewrittenTranscription()
     }
 
     @objc

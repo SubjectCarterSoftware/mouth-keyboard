@@ -123,10 +123,10 @@ enum CloudModelListService {
         case 200...299:
             return
         case 401, 403:
-            throw LLMRewriteError.authenticationFailed
+            throw RewriteError.authenticationFailed
         default:
             let body = String(data: data, encoding: .utf8) ?? "Unknown error"
-            throw LLMRewriteError.providerError("HTTP \(httpResponse.statusCode): \(body)")
+            throw RewriteError.providerError("HTTP \(httpResponse.statusCode): \(body)")
         }
     }
 }

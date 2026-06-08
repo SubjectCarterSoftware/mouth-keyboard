@@ -4,8 +4,8 @@ enum RecordingState: Equatable {
     case processing
     case modelDownloading(model: WhisperModelChoice, progress: Double)
     case modelPrewarming(model: WhisperModelChoice)
-    case converting                                           // NEW: non-terminal, blocks arm()
-    case success(text: String, pasted: Bool, converted: Bool, noMatchPassthrough: Bool = false, externalTextInjected: Bool = false)
+    case rewriting                                           // NEW: non-terminal, blocks arm()
+    case success(text: String, pasted: Bool, rewritten: Bool, noMatchPassthrough: Bool = false, externalTextInjected: Bool = false)
     case failure(reason: FailureReason)
 
     enum RecoveryFeedback: Equatable {
@@ -27,7 +27,7 @@ enum RecordingState: Equatable {
         switch self {
         case .success, .failure:
             return true
-        case .idle, .recording, .processing, .modelDownloading, .modelPrewarming, .converting:
+        case .idle, .recording, .processing, .modelDownloading, .modelPrewarming, .rewriting:
             return false
         }
     }

@@ -60,9 +60,9 @@ final class CloudLLMConfigTests: XCTestCase {
     }
 }
 
-// MARK: - CloudLLMRewriteService Tests
+// MARK: - CloudRewriteService Tests
 
-final class CloudLLMRewriteServiceTests: XCTestCase {
+final class CloudRewriteServiceTests: XCTestCase {
     func testEmptyAPIKeyThrowsAuthenticationFailed() async {
         let config = CloudLLMConfig(
             isEnabled: true,
@@ -71,12 +71,12 @@ final class CloudLLMRewriteServiceTests: XCTestCase {
             modelID: "gpt-4o",
             maxTokens: 1024
         )
-        let service = CloudLLMRewriteService(config: config, apiKey: "")
+        let service = CloudRewriteService(config: config, apiKey: "")
 
         do {
             _ = try await service.rewrite(body: "Hello", instructions: "Echo.")
             XCTFail("Expected authenticationFailed")
-        } catch let error as LLMRewriteError {
+        } catch let error as RewriteError {
             XCTAssertEqual(error, .authenticationFailed)
         } catch {
             XCTFail("Unexpected error: \(error)")
@@ -91,7 +91,7 @@ final class CloudLLMRewriteServiceTests: XCTestCase {
         MockURLProtocol.responseData = mockResponse.data(using: .utf8)
         MockURLProtocol.responseStatusCode = 200
 
-        let service = CloudLLMRewriteService(config: config, apiKey: "sk-test", session: session)
+        let service = CloudRewriteService(config: config, apiKey: "sk-test", session: session)
         let result = try await service.rewrite(body: "Hello", instructions: "Echo.")
         XCTAssertEqual(result, "Test output")
 
@@ -108,7 +108,7 @@ final class CloudLLMRewriteServiceTests: XCTestCase {
         let systemMessage = try XCTUnwrap(messages.first)
         XCTAssertEqual(
             systemMessage["content"] as? String,
-            LLMRewriteService.makeRewriteInstructions(instructions: "Echo.")
+            LocalRewriteService.makeRewriteInstructions(instructions: "Echo.")
         )
     }
 
@@ -120,7 +120,7 @@ final class CloudLLMRewriteServiceTests: XCTestCase {
         MockURLProtocol.responseData = mockResponse.data(using: .utf8)
         MockURLProtocol.responseStatusCode = 200
 
-        let service = CloudLLMRewriteService(config: config, apiKey: "sk-ant-test", session: session)
+        let service = CloudRewriteService(config: config, apiKey: "sk-ant-test", session: session)
         let result = try await service.rewrite(body: "Hello", instructions: "Echo.")
         XCTAssertEqual(result, "Test output")
 
@@ -134,7 +134,7 @@ final class CloudLLMRewriteServiceTests: XCTestCase {
         )
         XCTAssertEqual(
             payload["system"] as? String,
-            LLMRewriteService.makeRewriteInstructions(instructions: "Echo.")
+            LocalRewriteService.makeRewriteInstructions(instructions: "Echo.")
         )
     }
 
@@ -146,7 +146,7 @@ final class CloudLLMRewriteServiceTests: XCTestCase {
         MockURLProtocol.responseData = mockResponse.data(using: .utf8)
         MockURLProtocol.responseStatusCode = 200
 
-        let service = CloudLLMRewriteService(config: config, apiKey: "AIza-test", session: session)
+        let service = CloudRewriteService(config: config, apiKey: "AIza-test", session: session)
         let result = try await service.rewrite(body: "Hello", instructions: "Echo.")
         XCTAssertEqual(result, "Test output")
 
@@ -161,7 +161,7 @@ final class CloudLLMRewriteServiceTests: XCTestCase {
         let parts = try XCTUnwrap(systemInstruction["parts"] as? [[String: Any]])
         XCTAssertEqual(
             parts.first?["text"] as? String,
-            LLMRewriteService.makeRewriteInstructions(instructions: "Echo.")
+            LocalRewriteService.makeRewriteInstructions(instructions: "Echo.")
         )
     }
 
@@ -173,7 +173,7 @@ final class CloudLLMRewriteServiceTests: XCTestCase {
         MockURLProtocol.responseData = mockResponse.data(using: .utf8)
         MockURLProtocol.responseStatusCode = 200
 
-        let service = CloudLLMRewriteService(config: config, apiKey: "sk-test", session: session)
+        let service = CloudRewriteService(config: config, apiKey: "sk-test", session: session)
         _ = try await service.rewrite(
             body: "Hello",
             instructions: "Echo.",
@@ -189,7 +189,7 @@ final class CloudLLMRewriteServiceTests: XCTestCase {
         let systemMessage = try XCTUnwrap(messages.first)
         XCTAssertEqual(
             systemMessage["content"] as? String,
-            LLMRewriteService.makeRewriteInstructions(
+            LocalRewriteService.makeRewriteInstructions(
                 promptPrefix: "Custom prefix",
                 instructions: "Echo."
             )
@@ -204,8 +204,8 @@ final class CloudLLMRewriteServiceTests: XCTestCase {
         MockURLProtocol.responseData = mockResponse.data(using: .utf8)
         MockURLProtocol.responseStatusCode = 200
 
-        let service = CloudLLMRewriteService(config: config, apiKey: "sk-test", session: session)
-        let systemPrompt = LLMRewriteService.resolveAssistantSystemPrompt(assistantName: "Ava")
+        let service = CloudRewriteService(config: config, apiKey: "sk-test", session: session)
+        let systemPrompt = LocalRewriteService.resolveAssistantSystemPrompt(assistantName: "Ava")
         _ = try await service.generate(prompt: "Hello", systemPrompt: systemPrompt)
 
         let request = try XCTUnwrap(MockURLProtocol.lastRequest)
@@ -226,8 +226,8 @@ final class CloudLLMRewriteServiceTests: XCTestCase {
         MockURLProtocol.responseData = mockResponse.data(using: .utf8)
         MockURLProtocol.responseStatusCode = 200
 
-        let service = CloudLLMRewriteService(config: config, apiKey: "sk-ant-test", session: session)
-        let systemPrompt = LLMRewriteService.resolveAssistantSystemPrompt(assistantName: "Ava")
+        let service = CloudRewriteService(config: config, apiKey: "sk-ant-test", session: session)
+        let systemPrompt = LocalRewriteService.resolveAssistantSystemPrompt(assistantName: "Ava")
         _ = try await service.generate(prompt: "Hello", systemPrompt: systemPrompt)
 
         let request = try XCTUnwrap(MockURLProtocol.lastRequest)
@@ -246,8 +246,8 @@ final class CloudLLMRewriteServiceTests: XCTestCase {
         MockURLProtocol.responseData = mockResponse.data(using: .utf8)
         MockURLProtocol.responseStatusCode = 200
 
-        let service = CloudLLMRewriteService(config: config, apiKey: "AIza-test", session: session)
-        let systemPrompt = LLMRewriteService.resolveAssistantSystemPrompt(assistantName: "Ava")
+        let service = CloudRewriteService(config: config, apiKey: "AIza-test", session: session)
+        let systemPrompt = LocalRewriteService.resolveAssistantSystemPrompt(assistantName: "Ava")
         _ = try await service.generate(prompt: "Hello", systemPrompt: systemPrompt)
 
         let request = try XCTUnwrap(MockURLProtocol.lastRequest)
@@ -268,8 +268,8 @@ final class CloudLLMRewriteServiceTests: XCTestCase {
         MockURLProtocol.responseData = mockResponse.data(using: .utf8)
         MockURLProtocol.responseStatusCode = 200
 
-        let service = CloudLLMRewriteService(config: config, apiKey: "ollama", session: session)
-        let systemPrompt = LLMRewriteService.resolveAssistantSystemPrompt(assistantName: "Ava")
+        let service = CloudRewriteService(config: config, apiKey: "ollama", session: session)
+        let systemPrompt = LocalRewriteService.resolveAssistantSystemPrompt(assistantName: "Ava")
         _ = try await service.generate(prompt: "Hello", systemPrompt: systemPrompt)
 
         let request = try XCTUnwrap(MockURLProtocol.lastRequest)
@@ -287,12 +287,12 @@ final class CloudLLMRewriteServiceTests: XCTestCase {
         MockURLProtocol.responseData = "{}".data(using: .utf8)
         MockURLProtocol.responseStatusCode = 401
 
-        let service = CloudLLMRewriteService(config: config, apiKey: "bad-key", session: session)
+        let service = CloudRewriteService(config: config, apiKey: "bad-key", session: session)
 
         do {
             _ = try await service.rewrite(body: "Hello", instructions: "Echo.")
             XCTFail("Expected authenticationFailed")
-        } catch let error as LLMRewriteError {
+        } catch let error as RewriteError {
             XCTAssertEqual(error, .authenticationFailed)
         } catch {
             XCTFail("Unexpected error: \(error)")
@@ -304,12 +304,12 @@ final class CloudLLMRewriteServiceTests: XCTestCase {
         MockURLProtocol.responseData = "{}".data(using: .utf8)
         MockURLProtocol.responseStatusCode = 429
 
-        let service = CloudLLMRewriteService(config: config, apiKey: "sk-test", session: session)
+        let service = CloudRewriteService(config: config, apiKey: "sk-test", session: session)
 
         do {
             _ = try await service.rewrite(body: "Hello", instructions: "Echo.")
             XCTFail("Expected rateLimited")
-        } catch let error as LLMRewriteError {
+        } catch let error as RewriteError {
             XCTAssertEqual(error, .rateLimited)
         } catch {
             XCTFail("Unexpected error: \(error)")
@@ -324,12 +324,12 @@ final class CloudLLMRewriteServiceTests: XCTestCase {
         MockURLProtocol.responseData = mockResponse.data(using: .utf8)
         MockURLProtocol.responseStatusCode = 200
 
-        let service = CloudLLMRewriteService(config: config, apiKey: "sk-test", session: session)
+        let service = CloudRewriteService(config: config, apiKey: "sk-test", session: session)
 
         do {
             _ = try await service.rewrite(body: "Hello", instructions: "Echo.")
             XCTFail("Expected emptyOutput")
-        } catch let error as LLMRewriteError {
+        } catch let error as RewriteError {
             XCTAssertEqual(error, .emptyOutput)
         } catch {
             XCTFail("Unexpected error: \(error)")
@@ -344,7 +344,7 @@ final class CloudLLMRewriteServiceTests: XCTestCase {
         MockURLProtocol.responseData = mockResponse.data(using: .utf8)
         MockURLProtocol.responseStatusCode = 200
 
-        let service = CloudLLMRewriteService(config: config, apiKey: "ollama", session: session)
+        let service = CloudRewriteService(config: config, apiKey: "ollama", session: session)
         let result = try await service.rewrite(body: "Hello", instructions: "Echo.")
         XCTAssertEqual(result, "Local output")
 
@@ -484,7 +484,7 @@ final class CloudModelListServiceTests: XCTestCase {
                 session: session
             )
             XCTFail("Expected authenticationFailed")
-        } catch let error as LLMRewriteError {
+        } catch let error as RewriteError {
             XCTAssertEqual(error, .authenticationFailed)
         } catch {
             XCTFail("Unexpected error: \(error)")

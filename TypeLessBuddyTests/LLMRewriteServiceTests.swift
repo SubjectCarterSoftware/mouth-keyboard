@@ -57,7 +57,7 @@ private actor GenerationProbe {
     }
 }
 
-final class LLMRewriteServiceTests: XCTestCase {
+final class LocalRewriteServiceTests: XCTestCase {
 
     func testSuccessfulRewriteReturnsTrimmedNonEmptyText() async throws {
         let service = makeService { _, _, _, _, _ in
@@ -303,12 +303,12 @@ final class LLMRewriteServiceTests: XCTestCase {
         XCTAssertEqual(result, "rewritten")
         XCTAssertEqual(
             capturedInstructions,
-            LLMRewriteService.makeRewriteInstructions(instructions: "Be brief.")
+            LocalRewriteService.makeRewriteInstructions(instructions: "Be brief.")
         )
     }
 
     func testMakeRewritePromptIncludesInstructionsAndBody() {
-        let prompt = LLMRewriteService.makeRewritePrompt(
+        let prompt = LocalRewriteService.makeRewritePrompt(
             body: "Draft note for finance.",
             instructions: "Turn this into a short email."
         )
@@ -321,7 +321,7 @@ final class LLMRewriteServiceTests: XCTestCase {
     }
 
     func testMakeRewriteInstructionsUsesCustomPromptPrefix() {
-        let prompt = LLMRewriteService.makeRewriteInstructions(
+        let prompt = LocalRewriteService.makeRewriteInstructions(
             promptPrefix: "Custom prefix.\nStay concise.",
             instructions: "Turn this into a short email."
         )
@@ -332,7 +332,7 @@ final class LLMRewriteServiceTests: XCTestCase {
     }
 
     func testMakeRewritePromptUsesSafeDefaultWhenInstructionsAreEmpty() {
-        let prompt = LLMRewriteService.makeRewritePrompt(
+        let prompt = LocalRewriteService.makeRewritePrompt(
             body: "Keep this exactly.",
             instructions: "   "
         )
@@ -342,35 +342,35 @@ final class LLMRewriteServiceTests: XCTestCase {
     }
 
     func testBlankPromptPrefixFallsBackToDefaultPrefix() {
-        let prompt = LLMRewriteService.makeRewriteInstructions(
+        let prompt = LocalRewriteService.makeRewriteInstructions(
             promptPrefix: "   ",
             instructions: "Keep this tidy."
         )
 
-        XCTAssertTrue(prompt.contains(LLMRewriteService.defaultRewritePromptPrefix))
+        XCTAssertTrue(prompt.contains(LocalRewriteService.defaultRewritePromptPrefix))
         XCTAssertTrue(prompt.contains("Rewrite instructions:\nKeep this tidy."))
     }
 
     func testResolveAssistantSystemPromptSubstitutesAssistantNamePlaceholder() {
-        let resolved = LLMRewriteService.resolveAssistantSystemPrompt(
-            promptTemplate: LLMRewriteService.defaultAssistantSystemPromptTemplate,
+        let resolved = LocalRewriteService.resolveAssistantSystemPrompt(
+            promptTemplate: LocalRewriteService.defaultAssistantSystemPromptTemplate,
             assistantName: "Ava"
         )
 
         XCTAssertTrue(resolved.contains("You are Ava"))
-        XCTAssertFalse(resolved.contains(LLMRewriteService.assistantNamePlaceholder))
+        XCTAssertFalse(resolved.contains(LocalRewriteService.assistantNamePlaceholder))
     }
 
     func testBlankAssistantPromptTemplateFallsBackToAssistantDefault() {
-        let resolved = LLMRewriteService.resolveAssistantSystemPrompt(
+        let resolved = LocalRewriteService.resolveAssistantSystemPrompt(
             promptTemplate: "   ",
             assistantName: "Ava"
         )
 
         XCTAssertEqual(
             resolved,
-            LLMRewriteService.resolveAssistantSystemPrompt(
-                promptTemplate: LLMRewriteService.defaultAssistantSystemPromptTemplate,
+            LocalRewriteService.resolveAssistantSystemPrompt(
+                promptTemplate: LocalRewriteService.defaultAssistantSystemPromptTemplate,
                 assistantName: "Ava"
             )
         )
@@ -384,7 +384,7 @@ final class LLMRewriteServiceTests: XCTestCase {
         """
 
         XCTAssertEqual(
-            LLMRewriteService.sanitizeGeneratedOutput(output),
+            LocalRewriteService.sanitizeGeneratedOutput(output),
             "Hi Caroline, just wanted to drop a quick note. I'm a bit stuck on how to handle this customer."
         )
     }
@@ -393,7 +393,7 @@ final class LLMRewriteServiceTests: XCTestCase {
         let output = "Message: Hi Caroline, can you take a look at this when you have a minute?"
 
         XCTAssertEqual(
-            LLMRewriteService.sanitizeGeneratedOutput(output),
+            LocalRewriteService.sanitizeGeneratedOutput(output),
             "Hi Caroline, can you take a look at this when you have a minute?"
         )
     }
@@ -402,7 +402,7 @@ final class LLMRewriteServiceTests: XCTestCase {
         let output = "\"Keep the quotes exactly like this.\""
 
         XCTAssertEqual(
-            LLMRewriteService.sanitizeGeneratedOutput(output),
+            LocalRewriteService.sanitizeGeneratedOutput(output),
             "\"Keep the quotes exactly like this.\""
         )
     }
@@ -497,7 +497,7 @@ final class LLMRewriteServiceTests: XCTestCase {
     func testDownloadFilesAndRewriteShareInflightDownloadTask() async throws {
         let downloadCounter = CallCounter()
         let loadCounter = CallCounter()
-        let modelDirectory = URL(fileURLWithPath: "/tmp/LLMRewriteServiceTests.shared-download")
+        let modelDirectory = URL(fileURLWithPath: "/tmp/LocalRewriteServiceTests.shared-download")
         let service = makeService(
             loader: { _ in
                 await loadCounter.increment()
@@ -532,8 +532,8 @@ final class LLMRewriteServiceTests: XCTestCase {
     func testDownloadedModelDetectionReturnsFalseWhenBuiltInTierDirectoryLacksRequiredArtifacts() throws {
         let fileManager = FileManager.default
         let baseURL = fileManager.temporaryDirectory
-            .appendingPathComponent("LLMRewriteServiceTests.Downloaded.\(UUID().uuidString)", isDirectory: true)
-        let modelDirectory = try LLMRewriteService.downloadedModelDirectory(
+            .appendingPathComponent("LocalRewriteServiceTests.Downloaded.\(UUID().uuidString)", isDirectory: true)
+        let modelDirectory = try LocalRewriteService.downloadedModelDirectory(
             for: .standard2B,
             baseURL: baseURL,
             fileManager: fileManager
@@ -544,15 +544,15 @@ final class LLMRewriteServiceTests: XCTestCase {
         try Data("weights".utf8).write(to: modelDirectory.appendingPathComponent("model.safetensors"))
 
         XCTAssertFalse(
-            LLMRewriteService.isModelDownloaded(.standard2B, baseURL: baseURL, fileManager: fileManager)
+            LocalRewriteService.isModelDownloaded(.standard2B, baseURL: baseURL, fileManager: fileManager)
         )
     }
 
     func testDownloadedModelDetectionReturnsTrueWhenBuiltInTierDirectoryHasCurrentArtifacts() throws {
         let fileManager = FileManager.default
         let baseURL = fileManager.temporaryDirectory
-            .appendingPathComponent("LLMRewriteServiceTests.CurrentArtifacts.\(UUID().uuidString)", isDirectory: true)
-        let modelDirectory = try LLMRewriteService.downloadedModelDirectory(
+            .appendingPathComponent("LocalRewriteServiceTests.CurrentArtifacts.\(UUID().uuidString)", isDirectory: true)
+        let modelDirectory = try LocalRewriteService.downloadedModelDirectory(
             for: .standard2B,
             baseURL: baseURL,
             fileManager: fileManager
@@ -566,15 +566,15 @@ final class LLMRewriteServiceTests: XCTestCase {
         try Data("weights".utf8).write(to: modelDirectory.appendingPathComponent("model.safetensors"))
 
         XCTAssertTrue(
-            LLMRewriteService.isModelDownloaded(.standard2B, baseURL: baseURL, fileManager: fileManager)
+            LocalRewriteService.isModelDownloaded(.standard2B, baseURL: baseURL, fileManager: fileManager)
         )
     }
 
     func testPreparedModelDetectionReturnsFalseWithoutPreparedMarker() throws {
         let fileManager = FileManager.default
         let baseURL = fileManager.temporaryDirectory
-            .appendingPathComponent("LLMRewriteServiceTests.PreparedMissing.\(UUID().uuidString)", isDirectory: true)
-        let modelDirectory = try LLMRewriteService.downloadedModelDirectory(
+            .appendingPathComponent("LocalRewriteServiceTests.PreparedMissing.\(UUID().uuidString)", isDirectory: true)
+        let modelDirectory = try LocalRewriteService.downloadedModelDirectory(
             for: .standard2B,
             baseURL: baseURL,
             fileManager: fileManager
@@ -588,15 +588,15 @@ final class LLMRewriteServiceTests: XCTestCase {
         try Data("weights".utf8).write(to: modelDirectory.appendingPathComponent("model.safetensors"))
 
         XCTAssertFalse(
-            LLMRewriteService.isModelPrepared(.standard2B, baseURL: baseURL, fileManager: fileManager)
+            LocalRewriteService.isModelPrepared(.standard2B, baseURL: baseURL, fileManager: fileManager)
         )
     }
 
     func testPreparedModelDetectionReturnsTrueWithPreparedMarker() throws {
         let fileManager = FileManager.default
         let baseURL = fileManager.temporaryDirectory
-            .appendingPathComponent("LLMRewriteServiceTests.PreparedPresent.\(UUID().uuidString)", isDirectory: true)
-        let modelDirectory = try LLMRewriteService.downloadedModelDirectory(
+            .appendingPathComponent("LocalRewriteServiceTests.PreparedPresent.\(UUID().uuidString)", isDirectory: true)
+        let modelDirectory = try LocalRewriteService.downloadedModelDirectory(
             for: .standard2B,
             baseURL: baseURL,
             fileManager: fileManager
@@ -615,15 +615,15 @@ final class LLMRewriteServiceTests: XCTestCase {
         )
 
         XCTAssertTrue(
-            LLMRewriteService.isModelPrepared(.standard2B, baseURL: baseURL, fileManager: fileManager)
+            LocalRewriteService.isModelPrepared(.standard2B, baseURL: baseURL, fileManager: fileManager)
         )
     }
 
     func testDownloadedModelDetectionReturnsFalseWhenTierDirectoryIsMissingRequiredArtifacts() throws {
         let fileManager = FileManager.default
         let baseURL = fileManager.temporaryDirectory
-            .appendingPathComponent("LLMRewriteServiceTests.Incomplete.\(UUID().uuidString)", isDirectory: true)
-        let modelDirectory = try LLMRewriteService.downloadedModelDirectory(
+            .appendingPathComponent("LocalRewriteServiceTests.Incomplete.\(UUID().uuidString)", isDirectory: true)
+        let modelDirectory = try LocalRewriteService.downloadedModelDirectory(
             for: .standard2B,
             baseURL: baseURL,
             fileManager: fileManager
@@ -632,13 +632,13 @@ final class LLMRewriteServiceTests: XCTestCase {
         try Data("{}".utf8).write(to: modelDirectory.appendingPathComponent("config.json"))
 
         XCTAssertFalse(
-            LLMRewriteService.isModelDownloaded(.standard2B, baseURL: baseURL, fileManager: fileManager)
+            LocalRewriteService.isModelDownloaded(.standard2B, baseURL: baseURL, fileManager: fileManager)
         )
     }
 
     func testRequiredDownloadPatternsCoverCurrentBuiltInArtifacts() {
         let requiredArtifacts = ["config.json", "tokenizer.json", "tokenizer_config.json", "processor_config.json", "chat_template.jinja"]
-        let patterns = LLMRewriteService.requiredDownloadPatterns(for: .standard4B)
+        let patterns = LocalRewriteService.requiredDownloadPatterns(for: .standard4B)
 
         for artifact in requiredArtifacts {
             XCTAssertTrue(
@@ -653,16 +653,16 @@ final class LLMRewriteServiceTests: XCTestCase {
         XCTAssertFalse(RecordingState.recording.allowsRewriteModelManagement)
         XCTAssertFalse(RecordingState.processing.allowsRewriteModelManagement)
         XCTAssertFalse(RecordingState.modelDownloading(model: .baseEN, progress: 0.5).allowsRewriteModelManagement)
-        XCTAssertFalse(RecordingState.converting.allowsRewriteModelManagement)
-        XCTAssertFalse(RecordingState.success(text: "ok", pasted: false, converted: true).allowsRewriteModelManagement)
+        XCTAssertFalse(RecordingState.rewriting.allowsRewriteModelManagement)
+        XCTAssertFalse(RecordingState.success(text: "ok", pasted: false, rewritten: true).allowsRewriteModelManagement)
         XCTAssertFalse(RecordingState.failure(reason: .noSpeechDetected).allowsRewriteModelManagement)
     }
 
     func testDeleteIncompleteDownloadedModelFilesIfNeededRemovesPartialTierDirectory() throws {
         let fileManager = FileManager.default
         let baseURL = fileManager.temporaryDirectory
-            .appendingPathComponent("LLMRewriteServiceTests.RepairIncomplete.\(UUID().uuidString)", isDirectory: true)
-        let modelDirectory = try LLMRewriteService.downloadedModelDirectory(
+            .appendingPathComponent("LocalRewriteServiceTests.RepairIncomplete.\(UUID().uuidString)", isDirectory: true)
+        let modelDirectory = try LocalRewriteService.downloadedModelDirectory(
             for: .standard4B,
             baseURL: baseURL,
             fileManager: fileManager
@@ -674,7 +674,7 @@ final class LLMRewriteServiceTests: XCTestCase {
         try Data("{}".utf8).write(to: modelDirectory.appendingPathComponent("processor_config.json"))
         try Data("weights".utf8).write(to: modelDirectory.appendingPathComponent("model.safetensors"))
 
-        try LLMRewriteService.deleteIncompleteDownloadedModelFilesIfNeeded(
+        try LocalRewriteService.deleteIncompleteDownloadedModelFilesIfNeeded(
             for: .standard4B,
             baseURL: baseURL,
             fileManager: fileManager
@@ -686,8 +686,8 @@ final class LLMRewriteServiceTests: XCTestCase {
     func testDeleteIncompleteDownloadedModelFilesIfNeededPreservesCompleteTierDirectory() throws {
         let fileManager = FileManager.default
         let baseURL = fileManager.temporaryDirectory
-            .appendingPathComponent("LLMRewriteServiceTests.PreserveComplete.\(UUID().uuidString)", isDirectory: true)
-        let modelDirectory = try LLMRewriteService.downloadedModelDirectory(
+            .appendingPathComponent("LocalRewriteServiceTests.PreserveComplete.\(UUID().uuidString)", isDirectory: true)
+        let modelDirectory = try LocalRewriteService.downloadedModelDirectory(
             for: .standard4B,
             baseURL: baseURL,
             fileManager: fileManager
@@ -700,7 +700,7 @@ final class LLMRewriteServiceTests: XCTestCase {
         try Data("{}".utf8).write(to: modelDirectory.appendingPathComponent("processor_config.json"))
         try Data("weights".utf8).write(to: modelDirectory.appendingPathComponent("model.safetensors"))
 
-        try LLMRewriteService.deleteIncompleteDownloadedModelFilesIfNeeded(
+        try LocalRewriteService.deleteIncompleteDownloadedModelFilesIfNeeded(
             for: .standard4B,
             baseURL: baseURL,
             fileManager: fileManager
@@ -712,13 +712,13 @@ final class LLMRewriteServiceTests: XCTestCase {
     func testDeleteDownloadedModelFilesRemovesOnlySelectedTierDirectory() throws {
         let fileManager = FileManager.default
         let baseURL = fileManager.temporaryDirectory
-            .appendingPathComponent("LLMRewriteServiceTests.Delete.\(UUID().uuidString)", isDirectory: true)
-        let standard2BDirectory = try LLMRewriteService.downloadedModelDirectory(
+            .appendingPathComponent("LocalRewriteServiceTests.Delete.\(UUID().uuidString)", isDirectory: true)
+        let standard2BDirectory = try LocalRewriteService.downloadedModelDirectory(
             for: .standard2B,
             baseURL: baseURL,
             fileManager: fileManager
         )
-        let standard4BDirectory = try LLMRewriteService.downloadedModelDirectory(
+        let standard4BDirectory = try LocalRewriteService.downloadedModelDirectory(
             for: .standard4B,
             baseURL: baseURL,
             fileManager: fileManager
@@ -729,7 +729,7 @@ final class LLMRewriteServiceTests: XCTestCase {
         try Data("2b".utf8).write(to: standard2BDirectory.appendingPathComponent("config.json"))
         try Data("4b".utf8).write(to: standard4BDirectory.appendingPathComponent("config.json"))
 
-        try LLMRewriteService.deleteDownloadedModelFiles(
+        try LocalRewriteService.deleteDownloadedModelFiles(
             for: .standard2B,
             baseURL: baseURL,
             fileManager: fileManager
@@ -775,11 +775,11 @@ final class LLMRewriteServiceTests: XCTestCase {
 
     private func makeService(
         tier: RewriteModelTier = .standard2B,
-        loader: @escaping LLMRewriteService.Loader = { _ in .init() },
-        fileDownloader: LLMRewriteService.FileDownloader? = nil,
-        streamFactory: @escaping LLMRewriteService.StreamFactory
-    ) -> LLMRewriteService {
-        LLMRewriteService(
+        loader: @escaping LocalRewriteService.Loader = { _ in .init() },
+        fileDownloader: LocalRewriteService.FileDownloader? = nil,
+        streamFactory: @escaping LocalRewriteService.StreamFactory
+    ) -> LocalRewriteService {
+        LocalRewriteService(
             tier: tier,
             loader: loader,
             fileDownloader: fileDownloader,
@@ -789,13 +789,13 @@ final class LLMRewriteServiceTests: XCTestCase {
     }
 
     private func assertRewriteError(
-        _ expected: LLMRewriteError,
+        _ expected: RewriteError,
         operation: () async throws -> String
     ) async {
         do {
             _ = try await operation()
             XCTFail("Expected \(expected) to be thrown")
-        } catch let error as LLMRewriteError {
+        } catch let error as RewriteError {
             XCTAssertEqual(error, expected)
         } catch {
             XCTFail("Expected \(expected), got \(error)")
@@ -804,9 +804,9 @@ final class LLMRewriteServiceTests: XCTestCase {
 }
 
 private func stream(
-    events: [LLMRewriteService.RewriteEvent],
+    events: [LocalRewriteService.RewriteEvent],
     error: Error? = nil
-) -> AsyncThrowingStream<LLMRewriteService.RewriteEvent, Error> {
+) -> AsyncThrowingStream<LocalRewriteService.RewriteEvent, Error> {
     AsyncThrowingStream { continuation in
         let task = Task {
             for event in events {
@@ -833,7 +833,7 @@ private func patternMatches(_ pattern: String, fileName: String) -> Bool {
     return regex?.firstMatch(in: fileName, options: [], range: range) != nil
 }
 
-extension LLMRewriteServiceTests {
+extension LocalRewriteServiceTests {
     func testThinkStripperSimpleNoThink() {
         var stripper = ThinkStripper()
         let result = stripper.process("Hello world!") + stripper.flush()

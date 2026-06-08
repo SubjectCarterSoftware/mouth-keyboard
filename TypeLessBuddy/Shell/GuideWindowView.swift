@@ -246,7 +246,7 @@ struct GuideWindowView: View {
                     )
                     GuideStateRow(
                         colorName: "Purple",
-                        title: "Converting",
+                        title: "Rewriting",
                         description: "The transcription is being rewritten or AI-processed.",
                         accent: Color(red: 0.55, green: 0.18, blue: 0.79),
                         style: .bars
@@ -271,11 +271,11 @@ struct GuideWindowView: View {
                 }
 
                 GuideSection(title: "Quick Notes") {
-                    Text("Buttons only appear when they matter for the current state, so the pill changes as work moves from recording to transcription to conversion to closeout.")
+                    Text("Buttons only appear when they matter for the current state, so the pill changes as work moves from recording to transcription to rewriting to closeout.")
                         .font(.subheadline)
                         .foregroundStyle(.secondary)
 
-                    Text("If conversion is turned off, you may see transcription complete without the purple converting phase.")
+                    Text("If rewriting is turned off, you may see transcription complete without the purple rewriting phase.")
                         .font(.subheadline)
                         .foregroundStyle(.secondary)
                 }

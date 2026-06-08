@@ -3,7 +3,7 @@ import SwiftUI
 private extension View {
     /// Applies `.drawingGroup()` only when `enabled` is true. Used to rasterize
     /// the activity-meter bar strip into a single GPU layer for the smooth
-    /// processing/converting animations, while leaving the recording meter in
+    /// processing/rewriting animations, while leaving the recording meter in
     /// the normal compositing path (where its implicit level-driven animation
     /// needs per-view identity).
     @ViewBuilder
@@ -180,7 +180,7 @@ struct RecordingPillView: View {
     private enum ActivityMeterMode: Equatable {
         case recording
         case processing
-        case converting
+        case rewriting
     }
 
     @ObservedObject var levelMonitor: AudioLevelMonitor
@@ -252,8 +252,8 @@ struct RecordingPillView: View {
             modelPrewarmingContent(model: model)
         case .success:
             successContent
-        case .converting:
-            activeMeterContent(mode: .converting)
+        case .rewriting:
+            activeMeterContent(mode: .rewriting)
         case .failure(let reason):
             failureContent(reason: reason)
         case .idle:
@@ -299,14 +299,14 @@ struct RecordingPillView: View {
         .overlay {
             if mode == .processing {
                 pillGlowBorder(color: Color(red: 0.102, green: 0.431, blue: 1.0))
-            } else if mode == .converting {
+            } else if mode == .rewriting {
                 pillGlowBorder(color: Color(red: 0.545, green: 0.184, blue: 0.788))
             }
         }
         .preferredColorScheme(.dark)
         .animation(.spring(response: 0.3, dampingFraction: 0.84), value: mode)
         // Only smooth the audio-level stream for the recording meter. In
-        // processing/converting the bars are driven per-frame by TimelineView,
+        // processing/rewriting the bars are driven per-frame by TimelineView,
         // so this implicit tween would fight those values and look stuttery.
         .animation(mode == .recording ? .easeInOut(duration: 0.1) : nil, value: levelMonitor.level)
     }
@@ -331,7 +331,7 @@ struct RecordingPillView: View {
             }
             .frame(height: 28)
             // Rasterize the whole bar strip into a single GPU layer for
-            // processing/converting so the per-frame transforms composite as
+            // processing/rewriting so the per-frame transforms composite as
             // one pass (smoother and cheaper than re-laying out 7 frames).
             // Recording keeps normal compositing so its implicit level-driven
             // animation still reads per-bar.
@@ -352,7 +352,7 @@ struct RecordingPillView: View {
             RoundedRectangle(cornerRadius: 1.5, style: .continuous)
                 .fill(meterTint(for: mode).opacity(meterOpacity(for: mode, index: index, date: date)))
                 .frame(width: 3, height: barHeight(for: scale, index: index))
-        case .processing, .converting:
+        case .processing, .rewriting:
             // Fixed frame + scaleEffect: the GPU interpolates sub-pixel so
             // slow, small-amplitude oscillations no longer stair-step between
             // integer point boundaries.
@@ -372,7 +372,7 @@ struct RecordingPillView: View {
         switch mode {
         case .recording: return 28
         case .processing: return 22
-        case .converting: return 24
+        case .rewriting: return 24
         }
     }
 
@@ -386,7 +386,7 @@ struct RecordingPillView: View {
             return silenceWarningActive ? .orange : .white
         case .processing:
             return Color(red: 0.102, green: 0.431, blue: 1.0)
-        case .converting:
+        case .rewriting:
             return Color(red: 0.545, green: 0.184, blue: 0.788)
         }
     }
@@ -401,7 +401,7 @@ struct RecordingPillView: View {
             let base = 0.62 + (0.22 * (1 - min(1, centerDistance / 3)))
             let shimmer = (sin((t / 1.05) * 2 * Double.pi - (Double(index) * 0.55)) + 1) / 2
             return min(1, base + (0.12 * shimmer))
-        case .converting:
+        case .rewriting:
             let t = date.timeIntervalSinceReferenceDate
             let centerDistance = Double(abs(CGFloat(index) - (CGFloat(barScales.count - 1) / 2)))
             let base = 0.66 + (0.24 * (1 - min(1, centerDistance / 3)))
@@ -411,7 +411,7 @@ struct RecordingPillView: View {
     }
 
     // Returns the vertical scale (0…1) applied to a fixed-height bar for
-    // processing/converting. Driving motion via scaleEffect means frames are
+    // processing/rewriting. Driving motion via scaleEffect means frames are
     // GPU-interpolated sub-pixel — no layout pass, no integer snapping.
     private func meterScale(
         for mode: ActivityMeterMode,
@@ -439,8 +439,8 @@ struct RecordingPillView: View {
                 + (0.18 * breath * centerWeight)
                 + (0.12 * ripple)
             return CGFloat(min(1, normalized))
-        case .converting:
-            // Period 1.20 → 0.78s: a confident pulse for the LLM conversion.
+        case .rewriting:
+            // Period 1.20 → 0.78s: a confident pulse for the rewrite.
             let phase = (t / 0.78) * 2 * Double.pi
             let pulse = (sin(phase - (distance * 1.15)) + 1) / 2
             let shimmer = (sin((phase * 1.45) - (Double(index) * 0.42)) + 1) / 2
@@ -1100,11 +1100,11 @@ private struct RecordingTimerConceptPreviewCanvas: View {
 }
 
 #Preview("Success - Copied") {
-    RecordingPillView(levelMonitor: AudioLevelMonitor(), recordingState: .success(text: "Hello world", pasted: false, converted: false))
+    RecordingPillView(levelMonitor: AudioLevelMonitor(), recordingState: .success(text: "Hello world", pasted: false, rewritten: false))
 }
 
 #Preview("Success - Pasted") {
-    RecordingPillView(levelMonitor: AudioLevelMonitor(), recordingState: .success(text: "Hello world", pasted: true, converted: false))
+    RecordingPillView(levelMonitor: AudioLevelMonitor(), recordingState: .success(text: "Hello world", pasted: true, rewritten: false))
 }
 
 #Preview("Failure - No Speech") {
