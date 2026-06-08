@@ -26,6 +26,16 @@ struct ActivationSoundPlayer {
         self.playSuccessThenNoteSavedImpl = playSuccessThenNoteSaved
     }
 
+    /// A no-op player. Useful in tests so running the suite does not play real
+    /// system sounds for every simulated success/failure.
+    static let silent = ActivationSoundPlayer(
+        playStart: {},
+        playSuccess: {},
+        playFailure: {},
+        playNoteSaved: {},
+        playSuccessThenNoteSaved: {}
+    )
+
     func play() {
         playStartImpl()
     }

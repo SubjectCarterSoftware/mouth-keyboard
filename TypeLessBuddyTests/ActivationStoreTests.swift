@@ -2442,7 +2442,7 @@ final class ActivationStoreTests: XCTestCase {
         defaults.removePersistentDomain(forName: suiteName)
         let resolvedPreferences = preferences ?? ShellPreferences(userDefaults: defaults)
 
-        return ActivationStore(
+        let store = ActivationStore(
             preferences: resolvedPreferences,
             readinessProvider: StubReadinessProvider(
                 permissionsAuthorized: permissionsAuthorized,
@@ -2460,6 +2460,10 @@ final class ActivationStoreTests: XCTestCase {
             sleeper: sleeper ?? SystemSleeper(),
             resetSessionMonitoring: resetSessionMonitoring ?? {}
         )
+        // Silence real system sounds during the suite. Tests that assert on sound
+        // playback override `store.soundPlayer` with their own counting player.
+        store.soundPlayer = .silent
+        return store
     }
 
     /// Polls until `condition` holds, yielding briefly between checks. Fails the
