@@ -124,8 +124,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
                     self.onProcessingStarted(state: newState)
                 case .modelDownloading, .modelPrewarming:
                     self.onProcessingStarted(state: newState)
-                case .converting:
-                    self.onConvertingStarted()
+                case .rewriting:
+                    self.onRewritingStarted()
                 case .success:
                     self.onTranscriptionSucceeded()
                 case .failure:
@@ -280,14 +280,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         updateMenuBarIcon(state: state)
     }
 
-    private func onConvertingStarted() {
-        // Audio is already stopped (conversion follows processing); only update the icon.
-        updateMenuBarIcon(state: .converting)
+    private func onRewritingStarted() {
+        // Audio is already stopped (rewrite follows processing); only update the icon.
+        updateMenuBarIcon(state: .rewriting)
     }
 
     private func onTranscriptionSucceeded() {
         // Pill panel shows success briefly then dismisses (RecordingPillPanel handles this).
-        updateMenuBarIcon(state: .success(text: "", pasted: false, converted: false))
+        updateMenuBarIcon(state: .success(text: "", pasted: false, rewritten: false))
     }
 
     private func onTranscriptionFailed() {

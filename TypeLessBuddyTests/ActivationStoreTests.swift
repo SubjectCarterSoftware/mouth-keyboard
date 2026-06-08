@@ -342,9 +342,9 @@ final class ActivationStoreTests: XCTestCase {
         await waitUntil { store.state.isTerminal }
 
         XCTAssertNil(mockClipboard.lastWrittenText)
-        if case .success(_, let pasted, let converted, _, _) = store.state {
+        if case .success(_, let pasted, let rewritten, _, _) = store.state {
             XCTAssertFalse(pasted, "Synthetic paste failed so UI should show copied-only state")
-            XCTAssertFalse(converted)
+            XCTAssertFalse(rewritten)
         } else {
             XCTFail("Expected .success state after fallback")
         }
@@ -386,9 +386,9 @@ final class ActivationStoreTests: XCTestCase {
         XCTAssertEqual(mockClipboard.temporaryWriteTexts, ["Hello world"])
         XCTAssertTrue(mockClipboard.didRestoreOriginalClipboard)
         XCTAssertEqual(mockClipboard.lastRestoredSnapshot?.plainText, "clipboard right before raw auto-paste")
-        if case .success(_, let pasted, let converted, _, _) = store.state {
+        if case .success(_, let pasted, let rewritten, _, _) = store.state {
             XCTAssertTrue(pasted)
-            XCTAssertFalse(converted)
+            XCTAssertFalse(rewritten)
         } else {
             XCTFail("Expected .success state after auto paste")
         }
@@ -421,7 +421,7 @@ final class ActivationStoreTests: XCTestCase {
 
         store.arm()
         store.finish()
-        await waitUntil { store.state == .converting }
+        await waitUntil { store.state == .rewriting }
         mockClipboard.stubbedClipboardContent = "clipboard changed during conversion"
 
         await waitUntil { store.state.isSuccess }
@@ -431,12 +431,12 @@ final class ActivationStoreTests: XCTestCase {
         XCTAssertEqual(mockClipboard.temporaryWriteTexts, ["Converted output"])
         XCTAssertTrue(mockClipboard.didRestoreOriginalClipboard)
         XCTAssertEqual(mockClipboard.lastRestoredSnapshot?.plainText, "clipboard changed during conversion")
-        if case .success(let text, let pasted, let converted, _, _) = store.state {
+        if case .success(let text, let pasted, let rewritten, _, _) = store.state {
             XCTAssertEqual(text, "Converted output")
             XCTAssertTrue(pasted)
-            XCTAssertTrue(converted)
+            XCTAssertTrue(rewritten)
         } else {
-            XCTFail("Expected .success state after converted auto paste")
+            XCTFail("Expected .success state after rewritten auto paste")
         }
     }
 
@@ -499,9 +499,9 @@ final class ActivationStoreTests: XCTestCase {
 
         XCTAssertEqual(mockClipboard.lastWrittenText, "Clipboard only")
         XCTAssertEqual(pasteStub.pasteCount, 0)
-        if case .success(_, let pasted, let converted, _, _) = store.state {
+        if case .success(_, let pasted, let rewritten, _, _) = store.state {
             XCTAssertFalse(pasted)
-            XCTAssertFalse(converted)
+            XCTAssertFalse(rewritten)
         } else {
             XCTFail("Expected .success state after clipboard-only finish")
         }
@@ -627,7 +627,7 @@ final class ActivationStoreTests: XCTestCase {
         store.arm()
         store.finish()
 
-        await waitUntil { store.state == .converting }
+        await waitUntil { store.state == .rewriting }
 
         store.cancelCurrentSession()
         // Bounded negative wait: let the delayed rewrite (500ms) arrive so we can
@@ -653,19 +653,19 @@ final class ActivationStoreTests: XCTestCase {
         store.arm()
         store.finish()
 
-        // The converting state is held during the minimum display window; nothing
-        // is written to the clipboard until success. Wait for converting rather
+        // The rewriting state is held during the minimum display window; nothing
+        // is written to the clipboard until success. Wait for rewriting rather
         // than racing a fixed real-time budget (which flakes under suite load).
-        await waitUntil { store.state == .converting }
+        await waitUntil { store.state == .rewriting }
         XCTAssertNil(mockClipboard.lastWrittenText)
 
         await waitUntil { store.state.isSuccess }
         XCTAssertEqual(mockClipboard.lastWrittenText, "Refined output")
-        if case .success(let text, _, let converted, _, _) = store.state {
+        if case .success(let text, _, let rewritten, _, _) = store.state {
             XCTAssertEqual(text, "Refined output")
-            XCTAssertTrue(converted)
+            XCTAssertTrue(rewritten)
         } else {
-            XCTFail("Expected .success state after minimum converting display")
+            XCTFail("Expected .success state after minimum rewriting display")
         }
     }
 
@@ -691,10 +691,10 @@ final class ActivationStoreTests: XCTestCase {
 
         let enteredConverting = try await waitUntil(timeoutNanoseconds: 400_000_000) {
             await MainActor.run {
-                store.state == .converting
+                store.state == .rewriting
             }
         }
-        XCTAssertTrue(enteredConverting, "Expected assistant-triggered flow to enter .converting")
+        XCTAssertTrue(enteredConverting, "Expected assistant-triggered flow to enter .rewriting")
 
         let reachedSuccess = try await waitUntil(timeoutNanoseconds: 900_000_000) {
             await MainActor.run {
@@ -717,9 +717,9 @@ final class ActivationStoreTests: XCTestCase {
         let successObservedAt = DispatchTime.now().uptimeNanoseconds
         XCTAssertLessThan(successObservedAt - rewriteCompletedAt, 180_000_000)
         XCTAssertEqual(mockClipboard.lastWrittenText, "Delayed refined output")
-        if case .success(let text, _, let converted, _, _) = store.state {
+        if case .success(let text, _, let rewritten, _, _) = store.state {
             XCTAssertEqual(text, "Delayed refined output")
-            XCTAssertTrue(converted)
+            XCTAssertTrue(rewritten)
         } else {
             XCTFail("Expected .success state once delayed rewrite completed")
         }
@@ -739,7 +739,7 @@ final class ActivationStoreTests: XCTestCase {
         store.arm()
         store.finish()
 
-        await waitUntil { store.state == .converting }
+        await waitUntil { store.state == .rewriting }
 
         store.cancelCurrentSession()
         // Bounded negative wait: confirm the cancelled session suppresses the
@@ -917,7 +917,7 @@ final class ActivationStoreTests: XCTestCase {
         XCTAssertEqual(mockClipboard.writeCount, 1)
     }
 
-    func test_convertedSuccess_setsDismissTiming() async throws {
+    func test_rewrittenSuccess_setsDismissTiming() async throws {
         let preferences = makePreferencesWithTriggerStore()
         preferences.alwaysAutoPaste = false
 
@@ -933,11 +933,11 @@ final class ActivationStoreTests: XCTestCase {
         store.finish()
         await waitUntil { store.state.isTerminal }
 
-        if case .success(let text, _, let converted, _, _) = store.state {
+        if case .success(let text, _, let rewritten, _, _) = store.state {
             XCTAssertEqual(text, "Converted output")
-            XCTAssertTrue(converted)
+            XCTAssertTrue(rewritten)
         } else {
-            XCTFail("Expected converted success state")
+            XCTFail("Expected rewritten success state")
         }
 
         let startedAt = try XCTUnwrap(store.successDismissStartedAt)
@@ -1296,7 +1296,7 @@ final class ActivationStoreTests: XCTestCase {
         }
     }
 
-    func test_trigger_dictation_produces_converted_clipboard_output() async throws {
+    func test_trigger_dictation_produces_rewritten_clipboard_output() async throws {
         let mockTranscriber = ActivationStoreMockTranscriber(
             result: .success("buddy Please schedule a meeting for Friday convert to email")
         )
@@ -1312,9 +1312,9 @@ final class ActivationStoreTests: XCTestCase {
         store.finish()
         await waitUntil { store.state.isTerminal }
         XCTAssertEqual(mockClipboard.lastWrittenText, "Subject: Meeting Request\n\nPlease schedule...")
-        XCTAssertEqual(store.lastConvertedTranscription, "Subject: Meeting Request\n\nPlease schedule...")
-        if case .success(_, _, let converted, _, _) = store.state {
-            XCTAssertTrue(converted)
+        XCTAssertEqual(store.lastRewrittenTranscription, "Subject: Meeting Request\n\nPlease schedule...")
+        if case .success(_, _, let rewritten, _, _) = store.state {
+            XCTAssertTrue(rewritten)
         } else {
             XCTFail("Expected .success state, got \(store.state)")
         }
@@ -1421,9 +1421,9 @@ final class ActivationStoreTests: XCTestCase {
         store.finish()
         await waitUntil { store.state.isTerminal }
         XCTAssertEqual(mockClipboard.lastWrittenText, "Hello world")
-        XCTAssertNil(store.lastConvertedTranscription)
-        if case .success(_, _, let converted, _, _) = store.state {
-            XCTAssertFalse(converted)
+        XCTAssertNil(store.lastRewrittenTranscription)
+        if case .success(_, _, let rewritten, _, _) = store.state {
+            XCTAssertFalse(rewritten)
         } else {
             XCTFail("Expected .success state, got \(store.state)")
         }
@@ -1448,8 +1448,8 @@ final class ActivationStoreTests: XCTestCase {
         await waitUntil { store.state.isTerminal }
 
         XCTAssertEqual(mockClipboard.lastWrittenText, "Hello world")
-        if case .success(_, _, let converted, _, _) = store.state {
-            XCTAssertFalse(converted)
+        if case .success(_, _, let rewritten, _, _) = store.state {
+            XCTAssertFalse(rewritten)
         } else {
             XCTFail("Expected .success state, got \(store.state)")
         }
@@ -1543,8 +1543,8 @@ final class ActivationStoreTests: XCTestCase {
 
         XCTAssertNil(mockRewriter.lastCalledOverload)
         XCTAssertEqual(mockClipboard.lastWrittenText, transcript)
-        if case .success(_, _, let converted, _, _) = store.state {
-            XCTAssertFalse(converted)
+        if case .success(_, _, let rewritten, _, _) = store.state {
+            XCTAssertFalse(rewritten)
         } else {
             XCTFail("Expected .success state, got \(store.state)")
         }
@@ -1574,8 +1574,8 @@ final class ActivationStoreTests: XCTestCase {
         XCTAssertEqual(mockRewriter.lastCalledOverload, .generateOverload)
         XCTAssertEqual(mockRewriter.lastGeneratePrompt, transcript)
         XCTAssertEqual(mockClipboard.lastWrittenText, "Assistant output")
-        if case .success(_, _, let converted, _, _) = store.state {
-            XCTAssertTrue(converted)
+        if case .success(_, _, let rewritten, _, _) = store.state {
+            XCTAssertTrue(rewritten)
         } else {
             XCTFail("Expected .success state, got \(store.state)")
         }
@@ -1630,9 +1630,9 @@ final class ActivationStoreTests: XCTestCase {
         XCTAssertEqual(mockRewriter.lastCalledOverload, .generateOverload)
         XCTAssertEqual(mockRewriter.lastGeneratePrompt?.hasPrefix(transcript), true)
         XCTAssertEqual(mockClipboard.lastWrittenText, "Assistant output")
-        if case .success(let text, _, let converted, _, _) = store.state {
+        if case .success(let text, _, let rewritten, _, _) = store.state {
             XCTAssertEqual(text, "Assistant output")
-            XCTAssertTrue(converted)
+            XCTAssertTrue(rewritten)
         } else {
             XCTFail("Expected .success state, got \(store.state)")
         }
@@ -1931,14 +1931,14 @@ final class ActivationStoreTests: XCTestCase {
             .disabled
         )
         XCTAssertEqual(
-            PillCopyControlConfiguration.forState(.converting),
+            PillCopyControlConfiguration.forState(.rewriting),
             .disabled
         )
     }
 
     func test_pillCopyControlConfiguration_enablesSuccessAndKeepsStableGeometry() {
         let successConfiguration = PillCopyControlConfiguration.forState(
-            .success(text: "Hello world", pasted: false, converted: false)
+            .success(text: "Hello world", pasted: false, rewritten: false)
         )
 
         XCTAssertEqual(successConfiguration, .enabled)
@@ -2055,10 +2055,10 @@ final class ActivationStoreTests: XCTestCase {
         )
     }
 
-    /// The output stored in lastConvertedTranscription must be the raw LLM
+    /// The output stored in lastRewrittenTranscription must be the raw LLM
     /// output — not decorated with XML tags or prior-conversation markup.
     /// This verifies the correct value remains available for follow-up routing.
-    func test_lastConvertedTranscription_isRawLLMOutput() async throws {
+    func test_lastRewrittenTranscription_isRawLLMOutput() async throws {
         let preferences = makePreferencesWithTriggerStore()
         preferences.setCustomTrigger(primary: "Atlas")
         try await Task.sleep(nanoseconds: 80_000_000)
@@ -2078,10 +2078,10 @@ final class ActivationStoreTests: XCTestCase {
         store.finish()
         await waitUntil { store.state.isTerminal }
 
-        let stored = try XCTUnwrap(store.lastConvertedTranscription)
+        let stored = try XCTUnwrap(store.lastRewrittenTranscription)
         XCTAssertEqual(stored, expectedOutput,
-            "lastConvertedTranscription must equal the raw LLM output, not wrapped in XML")
-        XCTAssertFalse(stored.contains("<"), "lastConvertedTranscription must not contain XML markup")
+            "lastRewrittenTranscription must equal the raw LLM output, not wrapped in XML")
+        XCTAssertFalse(stored.contains("<"), "lastRewrittenTranscription must not contain XML markup")
     }
 
     func test_assistantNotePhrase_savesRewrittenOutput() async throws {
@@ -3173,7 +3173,7 @@ extension ActivationStoreTests {
         ])
         let mockRewriter = MockRewriter(result: .success("Retry output"))
         mockRewriter.queuedGenerateResults = [
-            .success("Initial converted output"),
+            .success("Initial rewritten output"),
             .success("Retry output"),
         ]
         let store = makeStore(

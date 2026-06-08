@@ -653,8 +653,8 @@ final class LocalRewriteServiceTests: XCTestCase {
         XCTAssertFalse(RecordingState.recording.allowsRewriteModelManagement)
         XCTAssertFalse(RecordingState.processing.allowsRewriteModelManagement)
         XCTAssertFalse(RecordingState.modelDownloading(model: .baseEN, progress: 0.5).allowsRewriteModelManagement)
-        XCTAssertFalse(RecordingState.converting.allowsRewriteModelManagement)
-        XCTAssertFalse(RecordingState.success(text: "ok", pasted: false, converted: true).allowsRewriteModelManagement)
+        XCTAssertFalse(RecordingState.rewriting.allowsRewriteModelManagement)
+        XCTAssertFalse(RecordingState.success(text: "ok", pasted: false, rewritten: true).allowsRewriteModelManagement)
         XCTAssertFalse(RecordingState.failure(reason: .noSpeechDetected).allowsRewriteModelManagement)
     }
 

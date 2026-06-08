@@ -2181,7 +2181,7 @@ struct SetupWindowView: View {
         modelLoadState.phase.downloadProgress != nil || modelLoadState.deletingTier != nil
     }
 
-    private var canManageConversionModels: Bool {
+    private var canManageRewriteModels: Bool {
         activationStore.state.allowsRewriteModelManagement
     }
 
@@ -2392,7 +2392,7 @@ struct SetupWindowView: View {
         }
     }
 
-    private func conversionModelDetailText(
+    private func rewriteModelDetailText(
         for tier: RewriteModelTier,
         status: RewriteModelLoadState.TierStatus
     ) -> String {
@@ -2417,7 +2417,7 @@ struct SetupWindowView: View {
     }
 
     @ViewBuilder
-    private func conversionModelActionView(
+    private func rewriteModelActionView(
         for tier: RewriteModelTier,
         status: RewriteModelLoadState.TierStatus
     ) -> some View {
@@ -2446,18 +2446,18 @@ struct SetupWindowView: View {
                     .foregroundStyle(isDownloaded ? Color.red : Color.accentColor)
             }
             .buttonStyle(.borderless)
-            .disabled(isAnyModelTransferInFlight || !canManageConversionModels)
+            .disabled(isAnyModelTransferInFlight || !canManageRewriteModels)
             .help(
-                canManageConversionModels
+                canManageRewriteModels
                     ? (isDownloaded ? "Delete downloaded model" : "Download model")
-                    : "Wait for the current transcription to finish before changing conversion models"
+                    : "Wait for the current transcription to finish before changing rewrite models"
             )
-            .accessibilityIdentifier("conversionModel.\(tier.rawValue).action")
+            .accessibilityIdentifier("rewriteModel.\(tier.rawValue).action")
         }
     }
 
     @ViewBuilder
-    private func conversionModelRow(for tier: RewriteModelTier) -> some View {
+    private func rewriteModelRow(for tier: RewriteModelTier) -> some View {
         let isSelected = preferences.rewriteModelTier == tier
         let status = modelLoadState.status(for: tier)
         let isSelectable = status.isDownloaded
@@ -2477,7 +2477,7 @@ struct SetupWindowView: View {
 
                     Spacer(minLength: 12)
 
-                    Text(conversionModelDetailText(for: tier, status: status))
+                    Text(rewriteModelDetailText(for: tier, status: status))
                         .font(.caption)
                         .foregroundStyle(.secondary)
                         .lineLimit(1)
@@ -2487,15 +2487,15 @@ struct SetupWindowView: View {
                 .opacity(rowOpacity)
             }
             .buttonStyle(.plain)
-            .disabled(!isSelectable || !canManageConversionModels || isAnyModelTransferInFlight)
+            .disabled(!isSelectable || !canManageRewriteModels || isAnyModelTransferInFlight)
             .help(
-                canManageConversionModels
-                    ? "Select this conversion model for future rewrites"
-                    : "Wait for the current transcription to finish before changing conversion models"
+                canManageRewriteModels
+                    ? "Select this model for future rewrites"
+                    : "Wait for the current transcription to finish before changing rewrite models"
             )
-            .accessibilityIdentifier("conversionModel.\(tier.rawValue).select")
+            .accessibilityIdentifier("rewriteModel.\(tier.rawValue).select")
 
-            conversionModelActionView(for: tier, status: status)
+            rewriteModelActionView(for: tier, status: status)
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 10)
@@ -2507,7 +2507,7 @@ struct SetupWindowView: View {
                         : Color.primary.opacity(0.025)
                 )
         )
-        .accessibilityIdentifier("conversionModel.\(tier.rawValue)")
+        .accessibilityIdentifier("rewriteModel.\(tier.rawValue)")
     }
 
     private func whisperModelDetailText(
@@ -2662,7 +2662,7 @@ struct SetupWindowView: View {
                     .multilineTextAlignment(.trailing)
             }
 
-            Toggle("Enable cloud LLM for conversion", isOn: Binding(
+            Toggle("Enable cloud LLM for rewrites", isOn: Binding(
                 get: { preferences.cloudLLMConfig.isEnabled },
                 set: { newValue in
                     preferences.cloudLLMConfig.isEnabled = newValue
@@ -4264,7 +4264,7 @@ struct SetupWindowView: View {
                         }
 
                         ForEach(RewriteModelTier.allCases) { tier in
-                            conversionModelRow(for: tier)
+                            rewriteModelRow(for: tier)
                         }
 
                         if case .failed(_, let message) = modelLoadState.phase {
@@ -4273,7 +4273,7 @@ struct SetupWindowView: View {
                                 .foregroundStyle(.red)
                         }
 
-                        if !canManageConversionModels {
+                        if !canManageRewriteModels {
                             Text("Wait for the current recording or transcription to finish before downloading, deleting, or switching assistant models.")
                                 .font(.caption)
                                 .foregroundStyle(.secondary)

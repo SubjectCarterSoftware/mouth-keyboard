@@ -160,7 +160,7 @@ final class ActivationStore: ObservableObject {
     @Published private(set) var state: RecordingState = .idle
     @Published private(set) var recoveryFeedback: RecordingState.RecoveryFeedback?
     @Published private(set) var lastTranscription: String?
-    @Published private(set) var lastConvertedTranscription: String?
+    @Published private(set) var lastRewrittenTranscription: String?
     @Published private(set) var successDismissStartedAt: Date?
     @Published private(set) var successDismissDeadline: Date?
     @Published private(set) var successNoteSaveState: SuccessNoteSaveState?
@@ -183,7 +183,7 @@ final class ActivationStore: ObservableObject {
     private static let maxRecordingDuration: UInt64 = 15 * 60 * 1_000_000_000 // 15 minutes
     private static let minimumTranscriptionAudioDuration: TimeInterval = 1.0
     private static let appendedTrailingSilenceDuration: TimeInterval = 0.35
-    private static let minimumConvertingDisplayDuration: UInt64 = 200_000_000
+    private static let minimumRewritingDisplayDuration: UInt64 = 200_000_000
     private static let whisperModelIdleUnloadDelay: UInt64 = WhisperService.idleUnloadDelayNanoseconds
     private static let rewriteModelIdleUnloadDelay: UInt64 = LocalRewriteService.idleUnloadDelayNanoseconds
     private static let whisperPrepareTimeout: UInt64 = 20_000_000_000
@@ -364,7 +364,7 @@ final class ActivationStore: ObservableObject {
             state == .recording
                 || state == .processing
                 || state.isModelDownloading
-                || state == .converting
+                || state == .rewriting
         else {
             return
         }
@@ -398,9 +398,9 @@ final class ActivationStore: ObservableObject {
         }
     }
 
-    /// Copies the last converted transcription to the clipboard.
-    func copyLastConvertedTranscription() {
-        if let text = lastConvertedTranscription {
+    /// Copies the last rewritten transcription to the clipboard.
+    func copyLastRewrittenTranscription() {
+        if let text = lastRewrittenTranscription {
             clipboardService.writeToClipboard(text)
         }
     }
@@ -621,15 +621,15 @@ final class ActivationStore: ObservableObject {
 
             let detection = TriggerTranscriptParser.detect(transcript: processed, triggerNames: triggerNames)
             let clipboardSnapshot = sessionClipboardSnapshot
-            let shouldConvert: Bool
+            let shouldRewrite: Bool
             switch detection {
             case .noTrigger:
-                shouldConvert = false
+                shouldRewrite = false
             case .triggered:
-                shouldConvert = true
+                shouldRewrite = true
             }
 
-            if !shouldConvert {
+            if !shouldRewrite {
                 let didPaste = shouldPasteOnSuccessfulFinish
                 requestsPasteOnCompletion = false
                 recordLastTranscription(processed)
@@ -647,7 +647,7 @@ final class ActivationStore: ObservableObject {
                 state = .success(
                     text: processed,
                     pasted: syntheticPasteSucceeded,
-                    converted: false,
+                    rewritten: false,
                     noMatchPassthrough: false
                 )
                 persistHistoryIfEnabled(
@@ -663,8 +663,8 @@ final class ActivationStore: ObservableObject {
                 requestsPasteOnCompletion = false
 
                 guard isCurrentSession(sessionID) else { return }
-                state = .converting
-                let convertingStartedAt = DispatchTime.now().uptimeNanoseconds
+                state = .rewriting
+                let rewritingStartedAt = DispatchTime.now().uptimeNanoseconds
                 let assistantName = preferences.activeTriggerProfile.activePrimary
                 let systemPrompt = LocalRewriteService.resolveAssistantSystemPrompt(
                     promptTemplate: preferences.rewriteSystemPromptPrefix,
@@ -770,10 +770,10 @@ final class ActivationStore: ObservableObject {
                 }
 
                 guard isCurrentSession(sessionID) else { return }
-                let elapsed = DispatchTime.now().uptimeNanoseconds - convertingStartedAt
-                if elapsed < Self.minimumConvertingDisplayDuration {
+                let elapsed = DispatchTime.now().uptimeNanoseconds - rewritingStartedAt
+                if elapsed < Self.minimumRewritingDisplayDuration {
                     try? await Task.sleep(
-                        nanoseconds: Self.minimumConvertingDisplayDuration - elapsed
+                        nanoseconds: Self.minimumRewritingDisplayDuration - elapsed
                     )
                 }
 
@@ -795,7 +795,7 @@ final class ActivationStore: ObservableObject {
                     clipboardService.writeToClipboard(rewritten)
                 }
                 recordLastTranscription(processed)
-                lastConvertedTranscription = rewritten
+                lastRewrittenTranscription = rewritten
                 currentSuccessNoteContent = noteContent
                 successNoteSaveState = configuredSuccessNoteSaveState(
                     noteWasSaved: automaticNoteWasSaved
@@ -803,7 +803,7 @@ final class ActivationStore: ObservableObject {
                 state = .success(
                     text: rewritten,
                     pasted: syntheticPasteSucceeded,
-                    converted: true,
+                    rewritten: true,
                     externalTextInjected: externalTextWasInjected
                 )
                 persistHistoryIfEnabled(
@@ -1457,7 +1457,7 @@ final class ActivationStore: ObservableObject {
                 self.state = .idle
                 self.scheduleWhisperModelIdleUnload()
                 self.scheduleRewriteModelIdleUnload()
-            case .idle, .recording, .processing, .modelDownloading, .modelPrewarming, .converting:
+            case .idle, .recording, .processing, .modelDownloading, .modelPrewarming, .rewriting:
                 break
             }
             self.dismissTask = nil
