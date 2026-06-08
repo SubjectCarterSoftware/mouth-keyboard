@@ -739,10 +739,11 @@ final class ActivationStoreTests: XCTestCase {
         store.arm()
         store.finish()
 
-        try await Task.sleep(nanoseconds: 80_000_000)
-        XCTAssertEqual(store.state, .converting)
+        await waitUntil { store.state == .converting }
 
         store.cancelCurrentSession()
+        // Bounded negative wait: confirm the cancelled session suppresses the
+        // pending conversion instead of completing it.
         try await Task.sleep(nanoseconds: 220_000_000)
 
         XCTAssertEqual(store.state, .idle)
@@ -797,7 +798,7 @@ final class ActivationStoreTests: XCTestCase {
         store.arm()
         store.finish()
 
-        try await Task.sleep(nanoseconds: 200_000_000)
+        await waitUntil { store.state == .failure(reason: .noSpeechDetected) }
 
         XCTAssertEqual(store.state, .failure(reason: .noSpeechDetected))
         XCTAssertNil(mockClipboard.lastWrittenText)
@@ -814,7 +815,7 @@ final class ActivationStoreTests: XCTestCase {
         store.arm()
         store.finish()
 
-        try await Task.sleep(nanoseconds: 200_000_000)
+        await waitUntil { store.state == .failure(reason: .wordLimitExceeded) }
 
         XCTAssertEqual(store.state, .failure(reason: .wordLimitExceeded))
     }
@@ -863,7 +864,7 @@ final class ActivationStoreTests: XCTestCase {
         store.arm()
         store.finish()
 
-        try await Task.sleep(nanoseconds: 200_000_000)
+        await waitUntil { store.state == .failure(reason: .noSpeechDetected) }
 
         XCTAssertEqual(store.state, .failure(reason: .noSpeechDetected))
         XCTAssertNil(mockClipboard.lastWrittenText)
@@ -1064,7 +1065,7 @@ final class ActivationStoreTests: XCTestCase {
 
         store.arm()
         store.finish()
-        try await Task.sleep(nanoseconds: 200_000_000)
+        await waitUntil { store.state.isSuccess }
 
         XCTAssertTrue(store.state.isSuccess)
         XCTAssertNotNil(store.successDismissStartedAt)
