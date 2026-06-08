@@ -26,6 +26,11 @@
 		A00000010000000000000001 /* TypeLessBuddyApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000020000000000000001 /* TypeLessBuddyApp.swift */; };
 		A00000010000000000000002 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000020000000000000002 /* AppDelegate.swift */; };
 		A00000010000000000000004 /* SetupWindowView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000020000000000000006 /* SetupWindowView.swift */; };
+		A00000010000000000000120 /* ShortcutRecorders.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000020000000000000120 /* ShortcutRecorders.swift */; };
+		A00000010000000000000121 /* SettingsComponents.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000020000000000000121 /* SettingsComponents.swift */; };
+		A00000010000000000000122 /* OnboardingComponents.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000020000000000000122 /* OnboardingComponents.swift */; };
+		A00000010000000000000123 /* HistoryViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000020000000000000123 /* HistoryViews.swift */; };
+		A00000010000000000000124 /* PillAndSheets.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000020000000000000124 /* PillAndSheets.swift */; };
 		A00000010000000000000005 /* ShellPreferences.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000020000000000000007 /* ShellPreferences.swift */; };
 		A00000010000000000000006 /* KeyboardPermissionService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000020000000000000008 /* KeyboardPermissionService.swift */; };
 		A00000010000000000000007 /* MicrophonePermissionService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000020000000000000009 /* MicrophonePermissionService.swift */; };
@@ -150,6 +155,11 @@
 		A00000020000000000000003 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		A00000020000000000000004 /* TypeLessBuddy.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = TypeLessBuddy.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		A00000020000000000000006 /* SetupWindowView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SetupWindowView.swift; sourceTree = "<group>"; };
+		A00000020000000000000120 /* ShortcutRecorders.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShortcutRecorders.swift; sourceTree = "<group>"; };
+		A00000020000000000000121 /* SettingsComponents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsComponents.swift; sourceTree = "<group>"; };
+		A00000020000000000000122 /* OnboardingComponents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingComponents.swift; sourceTree = "<group>"; };
+		A00000020000000000000123 /* HistoryViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HistoryViews.swift; sourceTree = "<group>"; };
+		A00000020000000000000124 /* PillAndSheets.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PillAndSheets.swift; sourceTree = "<group>"; };
 		A00000020000000000000007 /* ShellPreferences.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShellPreferences.swift; sourceTree = "<group>"; };
 		A00000020000000000000008 /* KeyboardPermissionService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeyboardPermissionService.swift; sourceTree = "<group>"; };
 		A00000020000000000000009 /* MicrophonePermissionService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MicrophonePermissionService.swift; sourceTree = "<group>"; };
@@ -337,6 +347,11 @@
 				A00000020000000000000020 /* RecordingPillView.swift */,
 				A0000002000000000000000D /* RecoveryActions.swift */,
 				A00000020000000000000006 /* SetupWindowView.swift */,
+				A00000020000000000000120 /* ShortcutRecorders.swift */,
+				A00000020000000000000121 /* SettingsComponents.swift */,
+				A00000020000000000000122 /* OnboardingComponents.swift */,
+				A00000020000000000000123 /* HistoryViews.swift */,
+				A00000020000000000000124 /* PillAndSheets.swift */,
 				A00000020000000000000055 /* AIAssistantSettingsView.swift */,
 			);
 			path = Shell;
@@ -688,6 +703,11 @@
 				A00000010000000000000058 /* LiveCalibrationSampleCapturer.swift in Sources */,
 				A00000010000000000000067 /* HoldKeyDisplayFormatter.swift in Sources */,
 				A00000010000000000000004 /* SetupWindowView.swift in Sources */,
+				A00000010000000000000120 /* ShortcutRecorders.swift in Sources */,
+				A00000010000000000000121 /* SettingsComponents.swift in Sources */,
+				A00000010000000000000122 /* OnboardingComponents.swift in Sources */,
+				A00000010000000000000123 /* HistoryViews.swift in Sources */,
+				A00000010000000000000124 /* PillAndSheets.swift in Sources */,
 				A00000010000000000000001 /* TypeLessBuddyApp.swift in Sources */,
 				A00000010000000000000020 /* TranscriptionResult.swift in Sources */,
 				A00000010000000000000021 /* WhisperService.swift in Sources */,
