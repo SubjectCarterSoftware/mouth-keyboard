@@ -692,21 +692,21 @@ final class ShellPreferences: ObservableObject {
 
     private static func migratedRewriteSystemPromptPrefix(_ storedValue: String?) -> String {
         guard let storedValue else {
-            return LLMRewriteService.defaultAssistantSystemPromptTemplate
+            return LocalRewriteService.defaultAssistantSystemPromptTemplate
         }
 
         let trimmedValue = storedValue.trimmingCharacters(in: .whitespacesAndNewlines)
-        let trimmedLegacyDefault = LLMRewriteService.legacyDefaultRewritePromptPrefix
+        let trimmedLegacyDefault = LocalRewriteService.legacyDefaultRewritePromptPrefix
             .trimmingCharacters(in: .whitespacesAndNewlines)
         if trimmedValue.isEmpty || trimmedValue == trimmedLegacyDefault {
-            return LLMRewriteService.defaultAssistantSystemPromptTemplate
+            return LocalRewriteService.defaultAssistantSystemPromptTemplate
         }
 
-        return LLMRewriteService.normalizeAssistantSystemPromptTemplate(storedValue)
+        return LocalRewriteService.normalizeAssistantSystemPromptTemplate(storedValue)
     }
 
     private static func normalizedRewritePromptPrefix(_ value: String) -> String {
-        LLMRewriteService.normalizeAssistantSystemPromptTemplate(value)
+        LocalRewriteService.normalizeAssistantSystemPromptTemplate(value)
     }
 
     private static func normalizedOptionalPath(_ value: String) -> String {

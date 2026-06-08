@@ -6,7 +6,7 @@ import MLXLLM
 import MLXLMCommon
 import MLXVLM
 
-enum LLMRewriteError: LocalizedError, Equatable {
+enum RewriteError: LocalizedError, Equatable {
     case modelLoadFailed
     case modelTooLargeForDevice
     case generationFailed
@@ -44,7 +44,7 @@ enum LLMRewriteError: LocalizedError, Equatable {
     }
 }
 
-protocol LLMRewriting: Sendable {
+protocol Rewriting: Sendable {
     func setTier(_ newTier: RewriteModelTier) async
     func prewarm() async throws
     func rewrite(body: String, instructions: String, promptPrefix: String) async throws -> String
@@ -63,14 +63,14 @@ protocol LLMRewriting: Sendable {
     func deleteDownloadedModel(for tier: RewriteModelTier) async throws
 }
 
-extension LLMRewriting {
+extension Rewriting {
     func setTier(_ newTier: RewriteModelTier) async {}
     func prewarm() async throws {}
     func rewrite(body: String, instructions: String) async throws -> String {
         try await rewrite(
             body: body,
             instructions: instructions,
-            promptPrefix: LLMRewriteService.defaultRewritePromptPrefix
+            promptPrefix: LocalRewriteService.defaultRewritePromptPrefix
         )
     }
     func generate(prompt: String, systemPrompt: String) async throws -> String {
@@ -114,7 +114,7 @@ private actor RewriteExecutionGate {
     }
 }
 
-actor LLMRewriteService: LLMRewriting {
+actor LocalRewriteService: Rewriting {
     static let idleUnloadDelayNanoseconds: UInt64 = 30 * 1_000_000_000
     static let legacyDefaultRewritePromptPrefix = """
     You are a local text rewriting assistant.
@@ -180,7 +180,7 @@ actor LLMRewriteService: LLMRewriting {
             _ images: [UserInput.Image]
         ) throws -> AsyncThrowingStream<RewriteEvent, Error>
 
-    static let shared = LLMRewriteService()
+    static let shared = LocalRewriteService()
 
     private let streamFactory: StreamFactory
     private let hubFactory: @Sendable () throws -> HubApi
@@ -188,7 +188,7 @@ actor LLMRewriteService: LLMRewriting {
     private let rewriteExecutionGate = RewriteExecutionGate()
 
     private var tier: RewriteModelTier = .standard2B
-    private var tierLoader: Loader = LLMRewriteService.makeDefaultLoader(tier: .standard2B)
+    private var tierLoader: Loader = LocalRewriteService.makeDefaultLoader(tier: .standard2B)
     private let hasCustomLoader: Bool
     private let hasCustomFileDownloader: Bool
     private var cachedModel: RewriteModel?
@@ -202,16 +202,16 @@ actor LLMRewriteService: LLMRewriting {
         tier: RewriteModelTier = .standard2B,
         loader: Loader? = nil,
         fileDownloader: FileDownloader? = nil,
-        streamFactory: @escaping StreamFactory = LLMRewriteService.defaultStreamFactory,
-        hubFactory: @escaping @Sendable () throws -> HubApi = LLMRewriteService.makePersistentHub
+        streamFactory: @escaping StreamFactory = LocalRewriteService.defaultStreamFactory,
+        hubFactory: @escaping @Sendable () throws -> HubApi = LocalRewriteService.makePersistentHub
     ) {
         self.tier = tier
         self.hasCustomLoader = loader != nil
         self.hasCustomFileDownloader = fileDownloader != nil
-        self.tierLoader = loader ?? LLMRewriteService.makeDefaultLoader(tier: tier)
+        self.tierLoader = loader ?? LocalRewriteService.makeDefaultLoader(tier: tier)
         self.fileDownloader = fileDownloader ?? { tier, progressHandler in
             let hub = try hubFactory()
-            return try await LLMRewriteService.downloadModelFiles(
+            return try await LocalRewriteService.downloadModelFiles(
                 hub: hub,
                 tier: tier,
                 progressHandler: progressHandler
@@ -225,7 +225,7 @@ actor LLMRewriteService: LLMRewriting {
         guard newTier != tier else { return }
         tier = newTier
         if !hasCustomLoader {
-            tierLoader = LLMRewriteService.makeDefaultLoader(tier: newTier)
+            tierLoader = LocalRewriteService.makeDefaultLoader(tier: newTier)
         }
         resetLoadedModelState()
     }
@@ -283,18 +283,18 @@ actor LLMRewriteService: LLMRewriting {
         images: [UserInput.Image]
     ) async throws -> String {
         if Task.isCancelled {
-            throw LLMRewriteError.cancelled
+            throw RewriteError.cancelled
         }
 
         let model: RewriteModel
         do {
             model = try await resolveLoadedModel()
         } catch is CancellationError {
-            throw LLMRewriteError.cancelled
-        } catch let rewriteError as LLMRewriteError {
+            throw RewriteError.cancelled
+        } catch let rewriteError as RewriteError {
             throw rewriteError
         } catch {
-            throw LLMRewriteError.modelLoadFailed
+            throw RewriteError.modelLoadFailed
         }
 
         await rewriteExecutionGate.acquire()
@@ -321,37 +321,37 @@ actor LLMRewriteService: LLMRewriting {
             }
 
             if Task.isCancelled {
-                throw LLMRewriteError.cancelled
+                throw RewriteError.cancelled
             }
 
             guard let completion else {
-                throw LLMRewriteError.generationFailed
+                throw RewriteError.generationFailed
             }
 
             switch completion {
             case .cancelled:
-                throw LLMRewriteError.cancelled
+                throw RewriteError.cancelled
             case .length:
-                throw LLMRewriteError.outputTruncated
+                throw RewriteError.outputTruncated
             case .stop:
                 break
             }
 
             let trimmed = Self.sanitizeGeneratedOutput(output)
             guard !trimmed.isEmpty else {
-                throw LLMRewriteError.emptyOutput
+                throw RewriteError.emptyOutput
             }
             await rewriteExecutionGate.release()
             return trimmed
-        } catch let error as LLMRewriteError {
+        } catch let error as RewriteError {
             await rewriteExecutionGate.release()
             throw error
         } catch is CancellationError {
             await rewriteExecutionGate.release()
-            throw LLMRewriteError.cancelled
+            throw RewriteError.cancelled
         } catch {
             await rewriteExecutionGate.release()
-            throw LLMRewriteError.generationFailed
+            throw RewriteError.generationFailed
         }
     }
 
@@ -361,18 +361,18 @@ actor LLMRewriteService: LLMRewriting {
         images: [UserInput.Image]
     ) async throws -> String {
         if Task.isCancelled {
-            throw LLMRewriteError.cancelled
+            throw RewriteError.cancelled
         }
 
         let model: RewriteModel
         do {
             model = try await resolveLoadedModel()
         } catch is CancellationError {
-            throw LLMRewriteError.cancelled
-        } catch let rewriteError as LLMRewriteError {
+            throw RewriteError.cancelled
+        } catch let rewriteError as RewriteError {
             throw rewriteError
         } catch {
-            throw LLMRewriteError.modelLoadFailed
+            throw RewriteError.modelLoadFailed
         }
 
         await rewriteExecutionGate.acquire()
@@ -399,37 +399,37 @@ actor LLMRewriteService: LLMRewriting {
             }
 
             if Task.isCancelled {
-                throw LLMRewriteError.cancelled
+                throw RewriteError.cancelled
             }
 
             guard let completion else {
-                throw LLMRewriteError.generationFailed
+                throw RewriteError.generationFailed
             }
 
             switch completion {
             case .cancelled:
-                throw LLMRewriteError.cancelled
+                throw RewriteError.cancelled
             case .length:
-                throw LLMRewriteError.outputTruncated
+                throw RewriteError.outputTruncated
             case .stop:
                 break
             }
 
             let trimmed = Self.sanitizeGeneratedOutput(output)
             guard !trimmed.isEmpty else {
-                throw LLMRewriteError.emptyOutput
+                throw RewriteError.emptyOutput
             }
             await rewriteExecutionGate.release()
             return trimmed
-        } catch let error as LLMRewriteError {
+        } catch let error as RewriteError {
             await rewriteExecutionGate.release()
             throw error
         } catch is CancellationError {
             await rewriteExecutionGate.release()
-            throw LLMRewriteError.cancelled
+            throw RewriteError.cancelled
         } catch {
             await rewriteExecutionGate.release()
-            throw LLMRewriteError.generationFailed
+            throw RewriteError.generationFailed
         }
     }
 
@@ -502,7 +502,7 @@ actor LLMRewriteService: LLMRewriting {
             loadTask = nil
             loadProgressObservers.removeAll()
             if isMemoryPressureError(error) {
-                throw LLMRewriteError.modelTooLargeForDevice
+                throw RewriteError.modelTooLargeForDevice
             }
             throw error
         }
@@ -634,7 +634,7 @@ actor LLMRewriteService: LLMRewriting {
             return tierLoader
         }
 
-        return LLMRewriteService.makeDefaultLoader(tier: tier) { [self] progress in
+        return LocalRewriteService.makeDefaultLoader(tier: tier) { [self] progress in
             Task {
                 await broadcastLoadProgress(progress)
             }
@@ -676,7 +676,7 @@ actor LLMRewriteService: LLMRewriting {
         images: [UserInput.Image]
     ) throws -> AsyncThrowingStream<RewriteEvent, Error> {
         guard let container = model.container else {
-            throw LLMRewriteError.generationFailed
+            throw RewriteError.generationFailed
         }
 
         let rewriteBody = body.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -740,7 +740,7 @@ actor LLMRewriteService: LLMRewriting {
         images: [UserInput.Image] = []
     ) throws -> AsyncThrowingStream<RewriteEvent, Error> {
         guard let container = model.container else {
-            throw LLMRewriteError.generationFailed
+            throw RewriteError.generationFailed
         }
 
         let trimmedPrompt = prompt.trimmingCharacters(in: .whitespacesAndNewlines)

@@ -64,7 +64,7 @@ final class RewriteModelLoadState: ObservableObject {
             guard let self else { return }
 
             do {
-                _ = try await LLMRewriteService.downloadModelFiles(for: tier) { [weak self] progress in
+                _ = try await LocalRewriteService.downloadModelFiles(for: tier) { [weak self] progress in
                     let fraction = min(max(progress.fractionCompleted, 0), 1)
                     Task { @MainActor [weak self] in
                         guard let self, case .downloading = self.phase else { return }
@@ -76,10 +76,10 @@ final class RewriteModelLoadState: ObservableObject {
                 if prewarmAfterDownload {
                     phase = .prewarming(tier: tier)
                     refreshStatus()
-                    await LLMRewriteService.shared.setTier(tier)
-                    try await LLMRewriteService.shared.prewarm()
-                    await LLMRewriteService.shared.scheduleIdleUnload(
-                        afterNanoseconds: LLMRewriteService.idleUnloadDelayNanoseconds
+                    await LocalRewriteService.shared.setTier(tier)
+                    try await LocalRewriteService.shared.prewarm()
+                    await LocalRewriteService.shared.scheduleIdleUnload(
+                        afterNanoseconds: LocalRewriteService.idleUnloadDelayNanoseconds
                     )
                     guard !Task.isCancelled else { return }
                 }
@@ -110,15 +110,15 @@ final class RewriteModelLoadState: ObservableObject {
 
     func refreshStatus() {
         downloadedTiers = Set(RewriteModelTier.allCases.filter { tier in
-            LLMRewriteService.isModelDownloaded(tier)
+            LocalRewriteService.isModelDownloaded(tier)
         })
         preparedTiers = Set(RewriteModelTier.allCases.filter { tier in
-            LLMRewriteService.isModelPrepared(tier)
+            LocalRewriteService.isModelPrepared(tier)
         })
         statusRefreshTask?.cancel()
         statusRefreshTask = Task { [weak self] in
             guard let self else { return }
-            let warmTier = await LLMRewriteService.shared.loadedTier()
+            let warmTier = await LocalRewriteService.shared.loadedTier()
             guard !Task.isCancelled else { return }
             self.warmTier = warmTier
             self.statusRefreshTask = nil
@@ -135,7 +135,7 @@ final class RewriteModelLoadState: ObservableObject {
             guard let self else { return }
 
             do {
-                try await LLMRewriteService.shared.deleteDownloadedModel(for: tier)
+                try await LocalRewriteService.shared.deleteDownloadedModel(for: tier)
                 if self.phase.activeTier == tier {
                     self.phase = .idle
                 }

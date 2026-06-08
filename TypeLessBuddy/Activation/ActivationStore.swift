@@ -148,7 +148,7 @@ final class ActivationStore: ObservableObject {
         preferences: .shared,
         readinessProvider: ReadinessStore.shared,
         whisperService: WhisperService.shared,
-        llmRewriteService: LLMRewriteService.shared,
+        localRewriteService: LocalRewriteService.shared,
         noteCaptureService: NoteCaptureService(),
         historyCaptureService: HistoryCaptureService(),
         clipboardService: ClipboardService(),
@@ -169,7 +169,7 @@ final class ActivationStore: ObservableObject {
     private let readinessProvider: any ReadinessProviding
     private let whisperModelLoadState: any WhisperModelLoadStateProviding
     private let whisperService: any WhisperTranscribing
-    private let llmRewriteService: any LLMRewriting
+    private let localRewriteService: any Rewriting
     private let noteCaptureService: any NoteCapturing
     private let historyCaptureService: any HistoryCapturing
     private let clipboardService: ClipboardService
@@ -185,7 +185,7 @@ final class ActivationStore: ObservableObject {
     private static let appendedTrailingSilenceDuration: TimeInterval = 0.35
     private static let minimumConvertingDisplayDuration: UInt64 = 200_000_000
     private static let whisperModelIdleUnloadDelay: UInt64 = WhisperService.idleUnloadDelayNanoseconds
-    private static let rewriteModelIdleUnloadDelay: UInt64 = LLMRewriteService.idleUnloadDelayNanoseconds
+    private static let rewriteModelIdleUnloadDelay: UInt64 = LocalRewriteService.idleUnloadDelayNanoseconds
     private static let whisperPrepareTimeout: UInt64 = 20_000_000_000
     // Transcription time grows with audio length, so the timeout is a hang-guard
     // that scales with duration rather than a flat ceiling that long recordings
@@ -256,7 +256,7 @@ final class ActivationStore: ObservableObject {
         readinessProvider: any ReadinessProviding,
         whisperModelLoadState: any WhisperModelLoadStateProviding = WhisperModelLoadState.shared,
         whisperService: any WhisperTranscribing = WhisperService(),
-        llmRewriteService: any LLMRewriting = LLMRewriteService.shared,
+        localRewriteService: any Rewriting = LocalRewriteService.shared,
         noteCaptureService: any NoteCapturing = NoteCaptureService(),
         historyCaptureService: any HistoryCapturing = HistoryCaptureService(),
         clipboardService: ClipboardService = ClipboardService(),
@@ -270,7 +270,7 @@ final class ActivationStore: ObservableObject {
         self.readinessProvider = readinessProvider
         self.whisperModelLoadState = whisperModelLoadState
         self.whisperService = whisperService
-        self.llmRewriteService = llmRewriteService
+        self.localRewriteService = localRewriteService
         self.noteCaptureService = noteCaptureService
         self.historyCaptureService = historyCaptureService
         self.clipboardService = clipboardService
@@ -283,15 +283,15 @@ final class ActivationStore: ObservableObject {
 
     /// Returns the cloud service when cloud LLM is enabled, otherwise the local on-device service.
     /// Rebuilds the cloud service each call to pick up any config changes between sessions.
-    private var activeRewriteService: any LLMRewriting {
+    private var activeRewriteService: any Rewriting {
         let config = preferences.cloudLLMConfig
         guard config.isEnabled, !config.modelID.isEmpty else {
-            return llmRewriteService
+            return localRewriteService
         }
         guard let apiKey = CloudLLMKeychain.loadAPIKey(for: config.provider), !apiKey.isEmpty else {
-            return llmRewriteService
+            return localRewriteService
         }
-        return CloudLLMRewriteService(config: config, apiKey: apiKey)
+        return CloudRewriteService(config: config, apiKey: apiKey)
     }
 
     /// Word-count ceiling for the rewrite prompt body, matched to the active service.
@@ -309,7 +309,7 @@ final class ActivationStore: ObservableObject {
     }
 
     private func configureLocalRewriteServiceSelection() async {
-        await llmRewriteService.setTier(preferences.rewriteModelTier)
+        await localRewriteService.setTier(preferences.rewriteModelTier)
     }
 
     // MARK: - Public API
@@ -666,7 +666,7 @@ final class ActivationStore: ObservableObject {
                 state = .converting
                 let convertingStartedAt = DispatchTime.now().uptimeNanoseconds
                 let assistantName = preferences.activeTriggerProfile.activePrimary
-                let systemPrompt = LLMRewriteService.resolveAssistantSystemPrompt(
+                let systemPrompt = LocalRewriteService.resolveAssistantSystemPrompt(
                     promptTemplate: preferences.rewriteSystemPromptPrefix,
                     assistantName: assistantName
                 )
@@ -756,7 +756,7 @@ final class ActivationStore: ObservableObject {
                     // transcript as fallback; protected auto-paste preserves the original
                     // clipboard instead.
                     guard isCurrentSession(sessionID) else { return }
-                    let errorDescription = (error as? LLMRewriteError)?.errorDescription ?? error.localizedDescription
+                    let errorDescription = (error as? RewriteError)?.errorDescription ?? error.localizedDescription
                     NSLog("TypeLessBuddy: assistant rewrite failed — \(errorDescription)")
                     recordLastTranscription(processed)
                     if !didPaste {
@@ -1122,11 +1122,11 @@ final class ActivationStore: ObservableObject {
             return nil
         }
 
-        await llmRewriteService.cancelScheduledUnload()
+        await localRewriteService.cancelScheduledUnload()
         await configureLocalRewriteServiceSelection()
         defer {
-            Task { [llmRewriteService] in
-                await llmRewriteService.scheduleIdleUnload(
+            Task { [localRewriteService] in
+                await localRewriteService.scheduleIdleUnload(
                     afterNanoseconds: Self.rewriteModelIdleUnloadDelay
                 )
             }
@@ -1136,8 +1136,8 @@ final class ActivationStore: ObservableObject {
             let generatedTitle = try await runWithTimeout(
                 nanoseconds: Self.noteTitleGenerationTimeout,
                 step: "Note title generation"
-            ) { [llmRewriteService] in
-                try await llmRewriteService.generate(
+            ) { [localRewriteService] in
+                try await localRewriteService.generate(
                     prompt: prompt,
                     systemPrompt: Self.noteTitleSystemPrompt
                 )
@@ -1605,16 +1605,16 @@ final class ActivationStore: ObservableObject {
         guard !preferences.cloudLLMConfig.isEnabled else { return }
         Task { [weak self] in
             guard let self else { return }
-            await self.llmRewriteService.cancelScheduledUnload()
+            await self.localRewriteService.cancelScheduledUnload()
             await self.configureLocalRewriteServiceSelection()
-            try? await self.llmRewriteService.prewarm()
+            try? await self.localRewriteService.prewarm()
         }
     }
 
     private func scheduleRewriteModelIdleUnload() {
         guard !preferences.cloudLLMConfig.isEnabled else { return }
-        Task { [llmRewriteService] in
-            await llmRewriteService.scheduleIdleUnload(
+        Task { [localRewriteService] in
+            await localRewriteService.scheduleIdleUnload(
                 afterNanoseconds: Self.rewriteModelIdleUnloadDelay
             )
         }

@@ -21,14 +21,14 @@ final class RealModelIntegrationTests: XCTestCase {
 
         XCTAssertEqual(detectedTranscript, transcript)
 
-        let service = LLMRewriteService.shared
+        let service = LocalRewriteService.shared
 
         do {
             print("Starting model download & generation... This may take a minute.")
 
             let result = try await service.generate(
                 prompt: detectedTranscript,
-                systemPrompt: LLMRewriteService.resolveAssistantSystemPrompt(
+                systemPrompt: LocalRewriteService.resolveAssistantSystemPrompt(
                     assistantName: "Zeus"
                 )
             )

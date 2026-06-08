@@ -79,7 +79,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         }
 
         // Keep the selected local assistant tier ready for first use.
-        if !LLMRewriteService.isModelPrepared(preferences.rewriteModelTier) {
+        if !LocalRewriteService.isModelPrepared(preferences.rewriteModelTier) {
             RewriteModelLoadState.shared.startDownload(
                 for: preferences.rewriteModelTier,
                 prewarmAfterDownload: true

@@ -213,9 +213,9 @@ private struct AssistantSystemPromptSheet: View {
                 }
 
                 Button("Reset") {
-                    prompt = LLMRewriteService.defaultAssistantSystemPromptTemplate
+                    prompt = LocalRewriteService.defaultAssistantSystemPromptTemplate
                 }
-                .disabled(prompt == LLMRewriteService.defaultAssistantSystemPromptTemplate)
+                .disabled(prompt == LocalRewriteService.defaultAssistantSystemPromptTemplate)
                 .accessibilityIdentifier("setupWindow.rewriteSystemPrompt.reset")
 
                 Spacer()
@@ -2978,10 +2978,10 @@ struct SetupWindowView: View {
                         cloudConnectionTestResult = .success("Connected (\(models.count) models)")
                     }
                 } else {
-                    let service = CloudLLMRewriteService(config: config, apiKey: apiKey)
+                    let service = CloudRewriteService(config: config, apiKey: apiKey)
                     _ = try await service.generate(
                         prompt: "Hello",
-                        systemPrompt: LLMRewriteService.resolveAssistantSystemPrompt(
+                        systemPrompt: LocalRewriteService.resolveAssistantSystemPrompt(
                             promptTemplate: preferences.rewriteSystemPromptPrefix,
                             assistantName: preferences.activeTriggerProfile.activePrimary
                         )
@@ -2989,7 +2989,7 @@ struct SetupWindowView: View {
                     cloudConnectionTestResult = .success("Connected")
                 }
             } catch {
-                let message = (error as? LLMRewriteError)?.errorDescription ?? error.localizedDescription
+                let message = (error as? RewriteError)?.errorDescription ?? error.localizedDescription
                 cloudConnectionTestResult = .failed(message)
             }
         }

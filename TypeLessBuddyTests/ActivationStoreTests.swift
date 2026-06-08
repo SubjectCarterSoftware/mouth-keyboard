@@ -24,10 +24,10 @@ final class ActivationStoreTests: XCTestCase {
         let defaults = UserDefaults(suiteName: "ActivationStoreTests.RewriteWarmup.\(UUID().uuidString)") ?? .standard
         let preferences = ShellPreferences(userDefaults: defaults)
         preferences.rewriteModelTier = .high9B
-        let mockRewriter = MockLLMRewriter(result: .success("unused"))
+        let mockRewriter = MockRewriter(result: .success("unused"))
         let store = makeStore(
             permissionsAuthorized: true,
-            llmRewriter: mockRewriter,
+            localRewriter: mockRewriter,
             preferences: preferences
         )
 
@@ -410,7 +410,7 @@ final class ActivationStoreTests: XCTestCase {
             transcriber: ActivationStoreMockTranscriber(
                 result: .success("buddy Please schedule a meeting for Friday convert to email")
             ),
-            llmRewriter: DelayedLLMRewriter(
+            localRewriter: DelayedRewriter(
                 delayNanoseconds: 300_000_000,
                 result: .success("Converted output")
             ),
@@ -456,7 +456,7 @@ final class ActivationStoreTests: XCTestCase {
             transcriber: ActivationStoreMockTranscriber(
                 result: .success("buddy Please schedule a meeting for Friday convert to email")
             ),
-            llmRewriter: MockLLMRewriter(result: .failure(LLMRewriteError.generationFailed)),
+            localRewriter: MockRewriter(result: .failure(RewriteError.generationFailed)),
             clipboard: mockClipboard,
             pasteService: pasteStub,
             preferences: preferences
@@ -539,10 +539,10 @@ final class ActivationStoreTests: XCTestCase {
 
     func testCancelDuringRecordingReturnsToIdleWithoutClipboardWrite() async throws {
         let mockClipboard = ActivationStoreMockClipboard()
-        let mockRewriter = MockLLMRewriter(result: .success("unused"))
+        let mockRewriter = MockRewriter(result: .success("unused"))
         let store = makeStore(
             permissionsAuthorized: true,
-            llmRewriter: mockRewriter,
+            localRewriter: mockRewriter,
             clipboard: mockClipboard
         )
         store.arm()
@@ -556,16 +556,16 @@ final class ActivationStoreTests: XCTestCase {
         XCTAssertNil(mockClipboard.lastWrittenText)
         XCTAssertEqual(
             mockRewriter.scheduledIdleUnloadDurations.last,
-            LLMRewriteService.idleUnloadDelayNanoseconds
+            LocalRewriteService.idleUnloadDelayNanoseconds
         )
     }
 
     func testSuccessfulPassthroughSessionSchedulesRewriteModelIdleUnloadAfterReturningToIdle() async throws {
-        let mockRewriter = MockLLMRewriter(result: .success("unused"))
+        let mockRewriter = MockRewriter(result: .success("unused"))
         let store = makeStore(
             permissionsAuthorized: true,
             transcriber: ActivationStoreMockTranscriber(result: .success("Hello world")),
-            llmRewriter: mockRewriter
+            localRewriter: mockRewriter
         )
 
         store.arm()
@@ -584,7 +584,7 @@ final class ActivationStoreTests: XCTestCase {
         XCTAssertTrue(scheduledIdleUnload)
         XCTAssertEqual(
             mockRewriter.scheduledIdleUnloadDurations.last,
-            LLMRewriteService.idleUnloadDelayNanoseconds
+            LocalRewriteService.idleUnloadDelayNanoseconds
         )
     }
 
@@ -612,14 +612,14 @@ final class ActivationStoreTests: XCTestCase {
         let mockTranscriber = ActivationStoreMockTranscriber(result: .success(transcript))
         let mockClipboard = ActivationStoreMockClipboard()
         let preferences = makePreferencesWithTriggerStore()
-        let delayedRewriter = DelayedLLMRewriter(
+        let delayedRewriter = DelayedRewriter(
             delayNanoseconds: 500_000_000,
             result: .success("Converted output")
         )
         let store = makeStore(
             permissionsAuthorized: true,
             transcriber: mockTranscriber,
-            llmRewriter: delayedRewriter,
+            localRewriter: delayedRewriter,
             clipboard: mockClipboard,
             preferences: preferences
         )
@@ -646,7 +646,7 @@ final class ActivationStoreTests: XCTestCase {
         let store = makeStore(
             permissionsAuthorized: true,
             transcriber: mockTranscriber,
-            llmRewriter: MockLLMRewriter(result: .success("Refined output")),
+            localRewriter: MockRewriter(result: .success("Refined output")),
             clipboard: mockClipboard
         )
 
@@ -674,14 +674,14 @@ final class ActivationStoreTests: XCTestCase {
         let mockTranscriber = ActivationStoreMockTranscriber(result: .success(transcript))
         let mockClipboard = ActivationStoreMockClipboard()
         let preferences = makePreferencesWithTriggerStore()
-        let delayedRewriter = DelayedLLMRewriter(
+        let delayedRewriter = DelayedRewriter(
             delayNanoseconds: 300_000_000,
             result: .success("Delayed refined output")
         )
         let store = makeStore(
             permissionsAuthorized: true,
             transcriber: mockTranscriber,
-            llmRewriter: delayedRewriter,
+            localRewriter: delayedRewriter,
             clipboard: mockClipboard,
             preferences: preferences
         )
@@ -732,7 +732,7 @@ final class ActivationStoreTests: XCTestCase {
         let store = makeStore(
             permissionsAuthorized: true,
             transcriber: mockTranscriber,
-            llmRewriter: MockLLMRewriter(result: .success("Refined output")),
+            localRewriter: MockRewriter(result: .success("Refined output")),
             clipboard: mockClipboard
         )
 
@@ -900,7 +900,7 @@ final class ActivationStoreTests: XCTestCase {
         let store = makeStore(
             permissionsAuthorized: true,
             transcriber: ActivationStoreMockTranscriber(result: .success("buddy make this formal")),
-            llmRewriter: MockLLMRewriter(result: .success("Converted output")),
+            localRewriter: MockRewriter(result: .success("Converted output")),
             clipboard: mockClipboard,
             preferences: preferences
         )
@@ -924,7 +924,7 @@ final class ActivationStoreTests: XCTestCase {
         let store = makeStore(
             permissionsAuthorized: true,
             transcriber: ActivationStoreMockTranscriber(result: .success("buddy make this formal")),
-            llmRewriter: MockLLMRewriter(result: .success("Converted output")),
+            localRewriter: MockRewriter(result: .success("Converted output")),
             clipboard: ActivationStoreMockClipboard(),
             preferences: preferences
         )
@@ -1300,12 +1300,12 @@ final class ActivationStoreTests: XCTestCase {
         let mockTranscriber = ActivationStoreMockTranscriber(
             result: .success("buddy Please schedule a meeting for Friday convert to email")
         )
-        let mockRewriter = MockLLMRewriter(result: .success("Subject: Meeting Request\n\nPlease schedule..."))
+        let mockRewriter = MockRewriter(result: .success("Subject: Meeting Request\n\nPlease schedule..."))
         let mockClipboard = ActivationStoreMockClipboard()
         let store = makeStore(
             permissionsAuthorized: true,
             transcriber: mockTranscriber,
-            llmRewriter: mockRewriter,
+            localRewriter: mockRewriter,
             clipboard: mockClipboard
         )
         store.arm()
@@ -1327,12 +1327,12 @@ final class ActivationStoreTests: XCTestCase {
             .success(initialTranscript),
             .success(assistantTranscript)
         ])
-        let rewriter = MockLLMRewriter(result: .success("Rewritten output"))
+        let rewriter = MockRewriter(result: .success("Rewritten output"))
         var now = Date(timeIntervalSince1970: 1_700_000_000)
         let store = makeStore(
             permissionsAuthorized: true,
             transcriber: transcriber,
-            llmRewriter: rewriter,
+            localRewriter: rewriter,
             dateProvider: { now }
         )
 
@@ -1363,11 +1363,11 @@ final class ActivationStoreTests: XCTestCase {
         let mockTranscriber = ActivationStoreMockTranscriber(
             result: .success("buddy Please schedule a meeting for Friday convert to email")
         )
-        let mockRewriter = MockLLMRewriter(result: .success("Converted output"))
+        let mockRewriter = MockRewriter(result: .success("Converted output"))
         let store = makeStore(
             permissionsAuthorized: true,
             transcriber: mockTranscriber,
-            llmRewriter: mockRewriter,
+            localRewriter: mockRewriter,
             clipboard: ActivationStoreMockClipboard(),
             preferences: preferences
         )
@@ -1383,12 +1383,12 @@ final class ActivationStoreTests: XCTestCase {
     func test_finalize_rewrite_failure_surfaces_model_error_not_silent_success() async throws {
         let transcript = "team update buddy make this concise and direct"
         let mockTranscriber = ActivationStoreMockTranscriber(result: .success(transcript))
-        let mockRewriter = MockLLMRewriter(result: .failure(LLMRewriteError.generationFailed))
+        let mockRewriter = MockRewriter(result: .failure(RewriteError.generationFailed))
         let mockClipboard = ActivationStoreMockClipboard()
         let store = makeStore(
             permissionsAuthorized: true,
             transcriber: mockTranscriber,
-            llmRewriter: mockRewriter,
+            localRewriter: mockRewriter,
             clipboard: mockClipboard
         )
         store.arm()
@@ -1463,11 +1463,11 @@ final class ActivationStoreTests: XCTestCase {
         let mockTranscriber = ActivationStoreMockTranscriber(
             result: .success("helios Please schedule a meeting convert to email")
         )
-        let mockRewriter = MockLLMRewriter(result: .success("Email output"))
+        let mockRewriter = MockRewriter(result: .success("Email output"))
         let store = makeStore(
             permissionsAuthorized: true,
             transcriber: mockTranscriber,
-            llmRewriter: mockRewriter,
+            localRewriter: mockRewriter,
             clipboard: ActivationStoreMockClipboard(),
             preferences: preferences
         )
@@ -1479,7 +1479,7 @@ final class ActivationStoreTests: XCTestCase {
         XCTAssertEqual(mockRewriter.lastGeneratePrompt, "helios Please schedule a meeting convert to email")
         XCTAssertEqual(
             mockRewriter.lastGenerateSystemPrompt,
-            LLMRewriteService.resolveAssistantSystemPrompt(
+            LocalRewriteService.resolveAssistantSystemPrompt(
                 promptTemplate: preferences.rewriteSystemPromptPrefix,
                 assistantName: "Helios"
             )
@@ -1495,12 +1495,12 @@ final class ActivationStoreTests: XCTestCase {
 
         let transcript = "capture these notes atlas send this to the team convert to email"
         let mockTranscriber = ActivationStoreMockTranscriber(result: .success(transcript))
-        let mockRewriter = MockLLMRewriter(result: .success("Converted output"))
+        let mockRewriter = MockRewriter(result: .success("Converted output"))
         let mockClipboard = ActivationStoreMockClipboard()
         let store = makeStore(
             permissionsAuthorized: true,
             transcriber: mockTranscriber,
-            llmRewriter: mockRewriter,
+            localRewriter: mockRewriter,
             clipboard: mockClipboard,
             preferences: preferences
         )
@@ -1513,7 +1513,7 @@ final class ActivationStoreTests: XCTestCase {
         XCTAssertEqual(mockRewriter.lastGeneratePrompt, transcript)
         XCTAssertEqual(
             mockRewriter.lastGenerateSystemPrompt,
-            LLMRewriteService.resolveAssistantSystemPrompt(
+            LocalRewriteService.resolveAssistantSystemPrompt(
                 promptTemplate: preferences.rewriteSystemPromptPrefix,
                 assistantName: "Atlas"
             )
@@ -1527,12 +1527,12 @@ final class ActivationStoreTests: XCTestCase {
 
         let transcript = "convert to email send this to the team"
         let mockTranscriber = ActivationStoreMockTranscriber(result: .success(transcript))
-        let mockRewriter = MockLLMRewriter(result: .success("Should not be called"))
+        let mockRewriter = MockRewriter(result: .success("Should not be called"))
         let mockClipboard = ActivationStoreMockClipboard()
         let store = makeStore(
             permissionsAuthorized: true,
             transcriber: mockTranscriber,
-            llmRewriter: mockRewriter,
+            localRewriter: mockRewriter,
             clipboard: mockClipboard,
             preferences: preferences
         )
@@ -1557,12 +1557,12 @@ final class ActivationStoreTests: XCTestCase {
 
         let transcript = "convert to email weekly update atlas ok"
         let mockTranscriber = ActivationStoreMockTranscriber(result: .success(transcript))
-        let mockRewriter = MockLLMRewriter(result: .success("Assistant output"))
+        let mockRewriter = MockRewriter(result: .success("Assistant output"))
         let mockClipboard = ActivationStoreMockClipboard()
         let store = makeStore(
             permissionsAuthorized: true,
             transcriber: mockTranscriber,
-            llmRewriter: mockRewriter,
+            localRewriter: mockRewriter,
             clipboard: mockClipboard,
             preferences: preferences
         )
@@ -1588,12 +1588,12 @@ final class ActivationStoreTests: XCTestCase {
 
         let transcript = "atlas convert to email first draft atlas final update convert to slack"
         let mockTranscriber = ActivationStoreMockTranscriber(result: .success(transcript))
-        let mockRewriter = MockLLMRewriter(result: .success("Assistant output"))
+        let mockRewriter = MockRewriter(result: .success("Assistant output"))
         let mockClipboard = ActivationStoreMockClipboard()
         let store = makeStore(
             permissionsAuthorized: true,
             transcriber: mockTranscriber,
-            llmRewriter: mockRewriter,
+            localRewriter: mockRewriter,
             clipboard: mockClipboard,
             preferences: preferences
         )
@@ -1613,12 +1613,12 @@ final class ActivationStoreTests: XCTestCase {
 
         let transcript = "atlas please send this update to the team convert to slack"
         let mockTranscriber = ActivationStoreMockTranscriber(result: .success(transcript))
-        let mockRewriter = MockLLMRewriter(result: .success("Assistant output"))
+        let mockRewriter = MockRewriter(result: .success("Assistant output"))
         let mockClipboard = ActivationStoreMockClipboard()
         let store = makeStore(
             permissionsAuthorized: true,
             transcriber: mockTranscriber,
-            llmRewriter: mockRewriter,
+            localRewriter: mockRewriter,
             clipboard: mockClipboard,
             preferences: preferences
         )
@@ -1645,12 +1645,12 @@ final class ActivationStoreTests: XCTestCase {
 
         let transcript = "status update for engineering atlas convert to email or convert to slack"
         let mockTranscriber = ActivationStoreMockTranscriber(result: .success(transcript))
-        let mockRewriter = MockLLMRewriter(result: .success("Assistant output"))
+        let mockRewriter = MockRewriter(result: .success("Assistant output"))
         let mockClipboard = ActivationStoreMockClipboard()
         let store = makeStore(
             permissionsAuthorized: true,
             transcriber: mockTranscriber,
-            llmRewriter: mockRewriter,
+            localRewriter: mockRewriter,
             clipboard: mockClipboard,
             preferences: preferences
         )
@@ -1672,12 +1672,12 @@ final class ActivationStoreTests: XCTestCase {
         let longBody = repeatedWords(1_200)
         let transcript = "\(longBody) atlas rewrite this as a concise executive update"
         let mockTranscriber = ActivationStoreMockTranscriber(result: .success(transcript))
-        let mockRewriter = MockLLMRewriter(result: .success("Assistant output"))
+        let mockRewriter = MockRewriter(result: .success("Assistant output"))
         let mockClipboard = ActivationStoreMockClipboard()
         let store = makeStore(
             permissionsAuthorized: true,
             transcriber: mockTranscriber,
-            llmRewriter: mockRewriter,
+            localRewriter: mockRewriter,
             clipboard: mockClipboard,
             preferences: preferences
         )
@@ -1700,12 +1700,12 @@ final class ActivationStoreTests: XCTestCase {
         let longBody = repeatedWords(1_501)
         let transcript = "\(longBody) atlas rewrite this as a concise executive update"
         let mockTranscriber = ActivationStoreMockTranscriber(result: .success(transcript))
-        let mockRewriter = MockLLMRewriter(result: .success("Should not be called"))
+        let mockRewriter = MockRewriter(result: .success("Should not be called"))
         let mockClipboard = ActivationStoreMockClipboard()
         let store = makeStore(
             permissionsAuthorized: true,
             transcriber: mockTranscriber,
-            llmRewriter: mockRewriter,
+            localRewriter: mockRewriter,
             clipboard: mockClipboard,
             preferences: preferences
         )
@@ -1758,12 +1758,12 @@ final class ActivationStoreTests: XCTestCase {
 
         let transcript = "atlas please send this update to the team convert to slack"
         let mockTranscriber = ActivationStoreMockTranscriber(result: .success(transcript))
-        let mockRewriter = MockLLMRewriter(result: .failure(LLMRewriteError.generationFailed))
+        let mockRewriter = MockRewriter(result: .failure(RewriteError.generationFailed))
         let mockClipboard = ActivationStoreMockClipboard()
         let store = makeStore(
             permissionsAuthorized: true,
             transcriber: mockTranscriber,
-            llmRewriter: mockRewriter,
+            localRewriter: mockRewriter,
             clipboard: mockClipboard,
             preferences: preferences
         )
@@ -1792,12 +1792,12 @@ final class ActivationStoreTests: XCTestCase {
 
         let transcript = "weekly update on launch metrics atlas make this casual and concise"
         let mockTranscriber = ActivationStoreMockTranscriber(result: .success(transcript))
-        let mockRewriter = MockLLMRewriter(result: .failure(LLMRewriteError.generationFailed))
+        let mockRewriter = MockRewriter(result: .failure(RewriteError.generationFailed))
         let mockClipboard = ActivationStoreMockClipboard()
         let store = makeStore(
             permissionsAuthorized: true,
             transcriber: mockTranscriber,
-            llmRewriter: mockRewriter,
+            localRewriter: mockRewriter,
             clipboard: mockClipboard,
             preferences: preferences
         )
@@ -1838,12 +1838,12 @@ final class ActivationStoreTests: XCTestCase {
         let triggerWord = AssistantDefaults.defaultAssistantName.lowercased()
         let transcript = "please draft a message \(triggerWord) convert to slack"
         let mockTranscriber = ActivationStoreMockTranscriber(result: .success(transcript))
-        let mockRewriter = MockLLMRewriter(result: .success("Assistant output"))
+        let mockRewriter = MockRewriter(result: .success("Assistant output"))
         let mockClipboard = ActivationStoreMockClipboard()
         let store = makeStore(
             permissionsAuthorized: true,
             transcriber: mockTranscriber,
-            llmRewriter: mockRewriter,
+            localRewriter: mockRewriter,
             clipboard: mockClipboard,
             preferences: preferences
         )
@@ -1872,12 +1872,12 @@ final class ActivationStoreTests: XCTestCase {
         // so the built-in mode overload path is selected unambiguously.
         let transcript = "project update helios convert to slack"
         let mockTranscriber = ActivationStoreMockTranscriber(result: .success(transcript))
-        let mockRewriter = MockLLMRewriter(result: .success("Assistant output"))
+        let mockRewriter = MockRewriter(result: .success("Assistant output"))
         let mockClipboard = ActivationStoreMockClipboard()
         let store = makeStore(
             permissionsAuthorized: true,
             transcriber: mockTranscriber,
-            llmRewriter: mockRewriter,
+            localRewriter: mockRewriter,
             clipboard: mockClipboard,
             preferences: preferences
         )
@@ -1898,12 +1898,12 @@ final class ActivationStoreTests: XCTestCase {
 
         let transcript = "please send this to finance before noon"
         let mockTranscriber = ActivationStoreMockTranscriber(result: .success(transcript))
-        let mockRewriter = MockLLMRewriter(result: .success("Should not be called"))
+        let mockRewriter = MockRewriter(result: .success("Should not be called"))
         let mockClipboard = ActivationStoreMockClipboard()
         let store = makeStore(
             permissionsAuthorized: true,
             transcriber: mockTranscriber,
-            llmRewriter: mockRewriter,
+            localRewriter: mockRewriter,
             clipboard: mockClipboard,
             preferences: preferences
         )
@@ -1966,7 +1966,7 @@ final class ActivationStoreTests: XCTestCase {
             .success(firstTranscript),
             .success(secondTranscript),
         ])
-        let mockRewriter = MockLLMRewriter(result: .success("Slack output"))
+        let mockRewriter = MockRewriter(result: .success("Slack output"))
         mockRewriter.queuedGenerateResults = [
             .success("Slack output"),
             .success("Email output"),
@@ -1974,7 +1974,7 @@ final class ActivationStoreTests: XCTestCase {
         let store = makeStore(
             permissionsAuthorized: true,
             transcriber: transcriber,
-            llmRewriter: mockRewriter,
+            localRewriter: mockRewriter,
             preferences: preferences
         )
 
@@ -2018,7 +2018,7 @@ final class ActivationStoreTests: XCTestCase {
             .success(firstTranscript),
             .success(secondTranscript),
         ])
-        let mockRewriter = MockLLMRewriter(result: .success("Email output"))
+        let mockRewriter = MockRewriter(result: .success("Email output"))
         mockRewriter.queuedGenerateResults = [
             .success("Email output"),
             .success("Slack output"),
@@ -2026,7 +2026,7 @@ final class ActivationStoreTests: XCTestCase {
         let store = makeStore(
             permissionsAuthorized: true,
             transcriber: transcriber,
-            llmRewriter: mockRewriter,
+            localRewriter: mockRewriter,
             preferences: preferences
         )
 
@@ -2066,11 +2066,11 @@ final class ActivationStoreTests: XCTestCase {
         let transcript = "atlas make this a professional email"
         let expectedOutput = "Dear Team,\n\nPlease find the update attached."
 
-        let mockRewriter = MockLLMRewriter(result: .success(expectedOutput))
+        let mockRewriter = MockRewriter(result: .success(expectedOutput))
         let store = makeStore(
             permissionsAuthorized: true,
             transcriber: ActivationStoreMockTranscriber(result: .success(transcript)),
-            llmRewriter: mockRewriter,
+            localRewriter: mockRewriter,
             preferences: preferences
         )
 
@@ -2087,8 +2087,8 @@ final class ActivationStoreTests: XCTestCase {
     func test_assistantNotePhrase_savesRewrittenOutput() async throws {
         let preferences = makePreferencesWithConfiguredNoteDestination()
         let noteCaptureService = StubNoteCaptureService()
-        let llmRewriter = MockLLMRewriter(result: .success("- first\n- second"))
-        llmRewriter.queuedGenerateResults = [
+        let localRewriter = MockRewriter(result: .success("- first\n- second"))
+        localRewriter.queuedGenerateResults = [
             .success("- first\n- second"),
             .success("Bullet summary")
         ]
@@ -2097,7 +2097,7 @@ final class ActivationStoreTests: XCTestCase {
             transcriber: ActivationStoreMockTranscriber(
                 result: .success("Buddy make a note of this turn this into bullet points")
             ),
-            llmRewriter: llmRewriter,
+            localRewriter: localRewriter,
             noteCaptureService: noteCaptureService,
             preferences: preferences
         )
@@ -2132,8 +2132,8 @@ final class ActivationStoreTests: XCTestCase {
                 .dispatched("hey thanks for the quick reply"),
             ]
         )
-        let llmRewriter = MockLLMRewriter(result: .success("Thank you for the quick reply."))
-        llmRewriter.queuedGenerateResults = [
+        let localRewriter = MockRewriter(result: .success("Thank you for the quick reply."))
+        localRewriter.queuedGenerateResults = [
             .success("Thank you for the quick reply."),
             .success("Selected text cleanup")
         ]
@@ -2143,7 +2143,7 @@ final class ActivationStoreTests: XCTestCase {
             transcriber: ActivationStoreMockTranscriber(
                 result: .success("Buddy make a note of this make the selected text more professional")
             ),
-            llmRewriter: llmRewriter,
+            localRewriter: localRewriter,
             noteCaptureService: noteCaptureService,
             clipboard: clipboard,
             pasteService: pasteService,
@@ -2213,15 +2213,15 @@ final class ActivationStoreTests: XCTestCase {
     func test_manualSaveCurrentSuccessResultAsNote_savesAssistantOutputWithoutAutomaticNotePhrase() async throws {
         let preferences = makePreferencesWithConfiguredNoteDestination()
         let noteCaptureService = StubNoteCaptureService()
-        let llmRewriter = MockLLMRewriter(result: .success("Here is the cleaned status update."))
-        llmRewriter.queuedGenerateResults = [
+        let localRewriter = MockRewriter(result: .success("Here is the cleaned status update."))
+        localRewriter.queuedGenerateResults = [
             .success("Here is the cleaned status update."),
             .success("Quick status update")
         ]
         let store = makeStore(
             permissionsAuthorized: true,
             transcriber: ActivationStoreMockTranscriber(result: .success("Buddy draft a quick status update")),
-            llmRewriter: llmRewriter,
+            localRewriter: localRewriter,
             noteCaptureService: noteCaptureService,
             preferences: preferences
         )
@@ -2307,7 +2307,7 @@ final class ActivationStoreTests: XCTestCase {
             transcriber: ActivationStoreMockTranscriber(
                 result: .success("Buddy make a note of this summarize the update")
             ),
-            llmRewriter: MockLLMRewriter(result: .failure(LLMRewriteError.modelLoadFailed)),
+            localRewriter: MockRewriter(result: .failure(RewriteError.modelLoadFailed)),
             noteCaptureService: noteCaptureService,
             preferences: preferences
         )
@@ -2374,7 +2374,7 @@ final class ActivationStoreTests: XCTestCase {
             transcriber: ActivationStoreMockTranscriber(
                 result: .success("Buddy rewrite this professionally")
             ),
-            llmRewriter: MockLLMRewriter(result: .success("Professional rewrite")),
+            localRewriter: MockRewriter(result: .success("Professional rewrite")),
             historyCaptureService: historyCaptureService,
             preferences: preferences
         )
@@ -2425,7 +2425,7 @@ final class ActivationStoreTests: XCTestCase {
         permissionsAuthorized: Bool,
         postEventAuthorized: Bool = false,
         transcriber: (any WhisperTranscribing)? = nil,
-        llmRewriter: (any LLMRewriting)? = nil,
+        localRewriter: (any Rewriting)? = nil,
         whisperModelLoadState: (any WhisperModelLoadStateProviding)? = nil,
         noteCaptureService: (any NoteCapturing)? = nil,
         historyCaptureService: (any HistoryCapturing)? = nil,
@@ -2450,7 +2450,7 @@ final class ActivationStoreTests: XCTestCase {
             ),
             whisperModelLoadState: whisperModelLoadState ?? StubWhisperModelLoadState(),
             whisperService: transcriber ?? ActivationStoreMockTranscriber(result: .success("")),
-            llmRewriteService: llmRewriter ?? MockLLMRewriter(result: .failure(LLMRewriteError.cancelled)),
+            localRewriteService: localRewriter ?? MockRewriter(result: .failure(RewriteError.cancelled)),
             noteCaptureService: noteCaptureService ?? StubNoteCaptureService(),
             historyCaptureService: historyCaptureService ?? StubHistoryCaptureService(),
             clipboardService: clipboard ?? ActivationStoreMockClipboard(),
@@ -3051,14 +3051,14 @@ extension ActivationStoreTests {
             .success(firstTranscript),
             .success(secondTranscript),
         ])
-        let mockRewriter = MockLLMRewriter(result: .success("Much more polite version"))
+        let mockRewriter = MockRewriter(result: .success("Much more polite version"))
         mockRewriter.queuedGenerateResults = [
             .success("Much more polite version"),
         ]
         let store = makeStore(
             permissionsAuthorized: true,
             transcriber: transcriber,
-            llmRewriter: mockRewriter,
+            localRewriter: mockRewriter,
             preferences: preferences
         )
 
@@ -3102,7 +3102,7 @@ extension ActivationStoreTests {
             .success(firstTranscript),
             .success(secondTranscript),
         ])
-        let mockRewriter = MockLLMRewriter(result: .success("Combined output"))
+        let mockRewriter = MockRewriter(result: .success("Combined output"))
         let mockClipboard = ActivationStoreMockClipboard()
         mockClipboard.stubbedClipboardContent = "clipboard context"
         let pasteStub = StubSelectionAwarePasteService(
@@ -3118,7 +3118,7 @@ extension ActivationStoreTests {
             permissionsAuthorized: true,
             postEventAuthorized: true,
             transcriber: transcriber,
-            llmRewriter: mockRewriter,
+            localRewriter: mockRewriter,
             clipboard: mockClipboard,
             pasteService: pasteStub,
             preferences: preferences
@@ -3171,7 +3171,7 @@ extension ActivationStoreTests {
             .success(firstTranscript),
             .success(secondTranscript),
         ])
-        let mockRewriter = MockLLMRewriter(result: .success("Retry output"))
+        let mockRewriter = MockRewriter(result: .success("Retry output"))
         mockRewriter.queuedGenerateResults = [
             .success("Initial converted output"),
             .success("Retry output"),
@@ -3179,7 +3179,7 @@ extension ActivationStoreTests {
         let store = makeStore(
             permissionsAuthorized: true,
             transcriber: transcriber,
-            llmRewriter: mockRewriter,
+            localRewriter: mockRewriter,
             preferences: preferences
         )
 
@@ -3213,14 +3213,14 @@ extension ActivationStoreTests {
             .success(firstTranscript),
             .success(secondTranscript),
         ])
-        let mockRewriter = MockLLMRewriter(result: .success("Retry output"))
+        let mockRewriter = MockRewriter(result: .success("Retry output"))
         mockRewriter.queuedGenerateResults = [
             .success("Retry output"),
         ]
         let store = makeStore(
             permissionsAuthorized: true,
             transcriber: transcriber,
-            llmRewriter: mockRewriter,
+            localRewriter: mockRewriter,
             preferences: preferences
         )
 
@@ -3249,7 +3249,7 @@ extension ActivationStoreTests {
 
         let transcript = "buddy use what I copied to improve this"
         let transcriber = ActivationStoreMockTranscriber(result: .success(transcript))
-        let mockRewriter = MockLLMRewriter(result: .success("Clipboard rewrite"))
+        let mockRewriter = MockRewriter(result: .success("Clipboard rewrite"))
         let mockClipboard = ActivationStoreMockClipboard()
         mockClipboard.stubbedClipboardContent = "clipboard context"
         let pasteStub = StubSelectionAwarePasteService(
@@ -3263,7 +3263,7 @@ extension ActivationStoreTests {
             permissionsAuthorized: true,
             postEventAuthorized: true,
             transcriber: transcriber,
-            llmRewriter: mockRewriter,
+            localRewriter: mockRewriter,
             clipboard: mockClipboard,
             pasteService: pasteStub,
             preferences: preferences
@@ -3293,7 +3293,7 @@ extension ActivationStoreTests {
 
         let transcript = "buddy rewrite what's selected"
         let transcriber = ActivationStoreMockTranscriber(result: .success(transcript))
-        let mockRewriter = MockLLMRewriter(result: .success("Direct assistant output"))
+        let mockRewriter = MockRewriter(result: .success("Direct assistant output"))
         let mockClipboard = ActivationStoreMockClipboard()
         let oversizedSelection = repeatedWords(5_000, token: "selected")
         let pasteStub = StubSelectionAwarePasteService(
@@ -3307,7 +3307,7 @@ extension ActivationStoreTests {
             permissionsAuthorized: true,
             postEventAuthorized: true,
             transcriber: transcriber,
-            llmRewriter: mockRewriter,
+            localRewriter: mockRewriter,
             clipboard: mockClipboard,
             pasteService: pasteStub,
             preferences: preferences
@@ -3674,7 +3674,7 @@ extension ActivationStoreTests {
             "External text routing real-model eval skipped. Set RUN_EXTERNAL_TEXT_EVAL_TESTS=1 or create \(markerURL.path) to run."
         )
 
-        let service = LLMRewriteService(tier: .standard2B)
+        let service = LocalRewriteService(tier: .standard2B)
         defer {
             Task {
                 await service.unload()
@@ -3841,7 +3841,7 @@ extension ActivationStoreTests {
 
             let finalOutput = try await recorder.generate(
                 prompt: finalPrompt,
-                systemPrompt: LLMRewriteService.resolveAssistantSystemPrompt(assistantName: "Buddy")
+                systemPrompt: LocalRewriteService.resolveAssistantSystemPrompt(assistantName: "Buddy")
             )
 
             let trace = await recorder.trace()
@@ -3887,7 +3887,7 @@ extension ActivationStoreTests {
         let priorTranscript = "Sarah, these designs you've just sent me are like... ungodly. They're an absolute piece of shit and you should be completely ashamed of yourself. We need to meet immediately."
         let dictatedRequest = "Buddy, that last transcription that I did was really mean. Can you make it a lot nicer but still communicate the point?"
 
-        let service = LLMRewriteService(tier: .standard2B)
+        let service = LocalRewriteService(tier: .standard2B)
         defer {
             Task {
                 await service.unload()
@@ -3912,13 +3912,13 @@ extension ActivationStoreTests {
             lastTranscription: priorTranscript,
             routingDecision: decision
         )
-        let productionSystemPrompt = LLMRewriteService.resolveAssistantSystemPrompt(
+        let productionSystemPrompt = LocalRewriteService.resolveAssistantSystemPrompt(
             assistantName: assistantName
         )
 
-        let strongerRewriteSystemPrompt = LLMRewriteService.resolveAssistantSystemPrompt(
+        let strongerRewriteSystemPrompt = LocalRewriteService.resolveAssistantSystemPrompt(
             promptTemplate: """
-            \(LLMRewriteService.defaultAssistantSystemPromptTemplate)
+            \(LocalRewriteService.defaultAssistantSystemPromptTemplate)
             When the user asks to make provided text nicer, kinder, less harsh, or more polite, rewrite the provided source text itself to satisfy that request.
             Do not merely correct punctuation, capitalization, or formatting when the request asks for a tone change.
             """,
@@ -4290,11 +4290,11 @@ private struct RealModelRoutingEvalReport {
     }
 }
 
-private actor RecordingRealModelRewriter: LLMRewriting {
-    private let base: any LLMRewriting
+private actor RecordingRealModelRewriter: Rewriting {
+    private let base: any Rewriting
     private var entries: [RealModelRoutingEvalTraceEntry] = []
 
-    init(base: any LLMRewriting) {
+    init(base: any Rewriting) {
         self.base = base
     }
 
@@ -4755,7 +4755,7 @@ actor CapturingWhisperTranscriber: WhisperTranscribing {
     }
 }
 
-final class MockLLMRewriter: LLMRewriting, @unchecked Sendable {
+final class MockRewriter: Rewriting, @unchecked Sendable {
     enum MockResult { case success(String); case failure(Error) }
     enum CalledOverload: Equatable { case instructionsOverload, generateOverload }
     private let result: MockResult
@@ -4828,9 +4828,9 @@ final class MockLLMRewriter: LLMRewriting, @unchecked Sendable {
     }
 }
 
-final class DelayedLLMRewriter: LLMRewriting, @unchecked Sendable {
+final class DelayedRewriter: Rewriting, @unchecked Sendable {
     private let delayNanoseconds: UInt64
-    private let result: MockLLMRewriter.MockResult
+    private let result: MockRewriter.MockResult
     private let timingLock = NSLock()
     private var _lastCompletionUptimeNanoseconds: UInt64?
 
@@ -4840,7 +4840,7 @@ final class DelayedLLMRewriter: LLMRewriting, @unchecked Sendable {
         return _lastCompletionUptimeNanoseconds
     }
 
-    init(delayNanoseconds: UInt64, result: MockLLMRewriter.MockResult) {
+    init(delayNanoseconds: UInt64, result: MockRewriter.MockResult) {
         self.delayNanoseconds = delayNanoseconds
         self.result = result
     }

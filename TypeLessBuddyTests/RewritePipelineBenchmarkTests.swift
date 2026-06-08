@@ -7,7 +7,7 @@ import XCTest
 /// Gate: set RUN_REWRITE_BENCHMARK_TESTS=1 to run. Never runs in CI or normal development.
 final class RewritePipelineBenchmarkTests: XCTestCase {
 
-    private let service = LLMRewriteService.shared
+    private let service = LocalRewriteService.shared
     private static let wordLimit = RewriteModelTier.standard2B.rewritePromptWordLimit
 
     override func setUp() async throws {
@@ -131,7 +131,7 @@ extension RewritePipelineBenchmarkTests {
             )
         }
 
-        let systemPrompt = LLMRewriteService.resolveAssistantSystemPrompt(assistantName: "Assistant")
+        let systemPrompt = LocalRewriteService.resolveAssistantSystemPrompt(assistantName: "Assistant")
         let start = Date()
 
         do {
