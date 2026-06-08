@@ -276,8 +276,7 @@ final class ActivationStoreTests: XCTestCase {
         store.arm()
         store.finish()
 
-        // Wait for async transcription
-        try await Task.sleep(nanoseconds: 500_000_000)
+        await waitUntil { store.state.isSuccess }
 
         XCTAssertEqual(mockClipboard.lastWrittenText, "Hello world")
         XCTAssertEqual(store.lastTranscription, "Hello world")
@@ -422,10 +421,10 @@ final class ActivationStoreTests: XCTestCase {
 
         store.arm()
         store.finish()
-        try await Task.sleep(nanoseconds: 100_000_000)
+        await waitUntil { store.state == .converting }
         mockClipboard.stubbedClipboardContent = "clipboard changed during conversion"
 
-        try await Task.sleep(nanoseconds: 1_100_000_000)
+        await waitUntil { store.state.isSuccess }
 
         XCTAssertNil(mockClipboard.lastWrittenText)
         XCTAssertEqual(pasteStub.pasteCount, 1)
@@ -628,10 +627,11 @@ final class ActivationStoreTests: XCTestCase {
         store.arm()
         store.finish()
 
-        try await Task.sleep(nanoseconds: 200_000_000)
-        XCTAssertEqual(store.state, .converting)
+        await waitUntil { store.state == .converting }
 
         store.cancelCurrentSession()
+        // Bounded negative wait: let the delayed rewrite (500ms) arrive so we can
+        // confirm the cancelled session suppresses it rather than pasting late.
         try await Task.sleep(nanoseconds: 600_000_000)
 
         XCTAssertEqual(store.state, .idle)
@@ -768,7 +768,7 @@ final class ActivationStoreTests: XCTestCase {
         XCTAssertEqual(buffer.resetCount, 2)
         XCTAssertEqual(resetTracker.callCount, 1)
 
-        try await Task.sleep(nanoseconds: 1_700_000_000)
+        await waitUntil { store.recoveryFeedback == nil }
 
         XCTAssertNil(store.recoveryFeedback)
         XCTAssertEqual(store.state, .recording)
