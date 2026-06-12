@@ -206,7 +206,8 @@ struct ExternalTextSourceClassifier {
         return regex.firstMatch(in: lowered, options: [], range: range) != nil
     }
 
-    private static let selectedPhrases = [
+    // Exposed (internal) so structural parity tests can verify the phrase grid.
+    static let selectedPhrases = [
         // explicit selection references
         "selected text",
         "the selected text",
@@ -225,18 +226,32 @@ struct ExternalTextSourceClassifier {
         "what ive selected",
         "what i have selected",
         "what i selected",
+        "this text that i selected",
+        "this text that i have selected",
+        "this text that i've selected",
+        "this text that ive selected",
         // highlighted references (common synonym for selected)
         "highlighted text",
         "the highlighted text",
         "highlighted content",
+        "highlighted paragraph",
+        "highlighted portion",
         "the highlighted",
+        "currently highlighted",
         "what i highlighted",
         "what's highlighted",
         "whats highlighted",
         "what is highlighted",
         "what i have highlighted",
+        "what i've highlighted",
+        "what ive highlighted",
+        "i have highlighted",
         "i've highlighted",
         "ive highlighted",
+        "this text that i highlighted",
+        "this text that i have highlighted",
+        "this text that i've highlighted",
+        "this text that ive highlighted",
         // "this X" references (pointing at visible/selected content)
         "this text",
         "this sentence",
@@ -261,20 +276,62 @@ struct ExternalTextSourceClassifier {
         "that block",
         "that selection",
         "that selected text",
+        "that highlighted text",
         // informal "the thing I" references
         "the thing i selected",
-        "the thing i highlighted"
+        "the thing i have selected",
+        "the thing i've selected",
+        "the thing ive selected",
+        "the thing i highlighted",
+        "the thing i have highlighted",
+        "the thing i've highlighted",
+        "the thing ive highlighted",
+        // "the X I selected/highlighted" patterns
+        "the text i selected",
+        "the text i have selected",
+        "the text i've selected",
+        "the text ive selected",
+        "the text i highlighted",
+        "the text i have highlighted",
+        "the text i've highlighted",
+        "the text ive highlighted",
+        "the part i selected",
+        "the part i highlighted",
+        "the chunk i selected",
+        "the chunk i highlighted",
+        "the bit i selected",
+        "the bit i highlighted",
+        "the words i selected",
+        "the words i highlighted",
+        "the section i selected",
+        "the section i highlighted",
+        "the paragraph i selected",
+        "the paragraph i highlighted",
+        "the snippet i selected",
+        "the snippet i highlighted",
+        "the line i selected",
+        "the line i highlighted",
+        "the passage i selected",
+        "the passage i highlighted",
+        "the excerpt i selected",
+        "the excerpt i highlighted"
     ]
 
-    private static let clipboardPhrases = [
+    static let clipboardPhrases = [
         // explicit clipboard references
         "clipboard",
         "my clipboard",
         "from my clipboard",
         "from the clipboard",
+        "on my clipboard",
+        "on the clipboard",
+        "in the clipboard",
         "what's in my clipboard",
         "whats in my clipboard",
         "what is in my clipboard",
+        "what's on my clipboard",
+        "whats on my clipboard",
+        "what is on my clipboard",
         // natural "copied" references that don't say clipboard
         "what i copied",
         "what i just copied",
@@ -283,10 +340,30 @@ struct ExternalTextSourceClassifier {
         "that i copied",
         "the copied text",
         "the text i copied",
-        "the thing i copied"
+        "the thing i copied",
+        "the text i just copied",
+        "the thing i just copied",
+        "copied to clipboard",
+        "copied to the clipboard",
+        // "have copied" / contraction variants (speech-to-text commonly produces these)
+        "i have copied",
+        "i've copied",
+        "ive copied",
+        "what i have copied",
+        "what i've copied",
+        "what ive copied",
+        "that i have copied",
+        "that i've copied",
+        "that ive copied",
+        "the text i have copied",
+        "the text i've copied",
+        "the text ive copied",
+        "the thing i have copied",
+        "the thing i've copied",
+        "the thing ive copied"
     ]
 
-    private static let transcriptionPhrases = [
+    static let transcriptionPhrases = [
         // explicit transcription references
         "transcription",
         "the transcription",
@@ -295,18 +372,32 @@ struct ExternalTextSourceClassifier {
         "my last transcription",
         "transcribed text",
         "what was transcribed",
+        // transcript (shorter synonym people commonly use)
+        "transcript",
+        "the transcript",
+        "my transcript",
+        "last transcript",
+        "my last transcript",
         // dictation references
         "my dictation",
         "what i dictated",
         "my last dictation",
         "what i just dictated",
+        "what i have dictated",
+        "what i've dictated",
+        "what ive dictated",
         // speech/voice references
         "what i said",
         "what i just said",
         "i just said",
+        "what i have said",
+        "what i've said",
+        "what ive said",
         "what i spoke",
         "my voice note",
         "the voice note",
+        "my voice memo",
+        "the voice memo",
         // recording references
         "my recording",
         "the recording",
@@ -316,6 +407,9 @@ struct ExternalTextSourceClassifier {
         "recent recording",
         "previous recording",
         "what i recorded",
+        "what i have recorded",
+        "what i've recorded",
+        "what ive recorded",
         // dictation time variants
         "the dictation",
         "last dictation",
@@ -331,7 +425,16 @@ struct ExternalTextSourceClassifier {
         "previous transcription",
         // informal "the thing I" references
         "the thing i said",
+        "the thing i have said",
+        "the thing i've said",
+        "the thing ive said",
         "the thing i dictated",
-        "the thing i recorded"
+        "the thing i have dictated",
+        "the thing i've dictated",
+        "the thing ive dictated",
+        "the thing i recorded",
+        "the thing i have recorded",
+        "the thing i've recorded",
+        "the thing ive recorded"
     ]
 }

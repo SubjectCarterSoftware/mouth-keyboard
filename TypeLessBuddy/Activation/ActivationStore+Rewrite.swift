@@ -7,15 +7,19 @@ import MLXLMCommon
 
 extension ActivationStore {
     /// Word-count ceiling for the rewrite prompt body, matched to the active service.
-    /// Built-in local tiers keep their guardrails; cloud models are allowed to
-    /// attempt full input without an app-side context cap.
+    /// Built-in local tiers are sized to the machine's RAM; cloud models are allowed
+    /// to attempt full input without an app-side context cap.
     private var effectivePromptWordLimit: Int {
         let config = preferences.cloudLLMConfig
+        let localLimit = RewriteModelLimits.compute(
+            tier: preferences.rewriteModelTier,
+            ramProfile: .current
+        ).promptWordLimit
         guard config.isEnabled, !config.modelID.isEmpty else {
-            return preferences.rewriteModelTier.rewritePromptWordLimit
+            return localLimit
         }
         guard let apiKey = CloudLLMKeychain.loadAPIKey(for: config.provider), !apiKey.isEmpty else {
-            return preferences.rewriteModelTier.rewritePromptWordLimit
+            return localLimit
         }
         return .max
     }
@@ -55,25 +59,51 @@ extension ActivationStore {
         selectedImageContent: ClipboardImageContent?,
         clipboardImageContent: ClipboardImageContent?
     ) -> ExternalTextInputs {
-        let normalizedSelectedText = normalizedExternalText(selectedText)
-        let normalizedLastTranscription = normalizedExternalText(lastTranscription)
-        let normalizedClipboardText = normalizedExternalText(clipboardText)
-
+        // Sources are normalized but intentionally NOT size-gated here. An
+        // explicitly-referenced source that exceeds the model's word limit must
+        // still be routed so `buildRewritePromptBody` can substitute a short
+        // "too large to include" notice in place of the text. Silently dropping it
+        // here instead leaves a context-free prompt, and the model confidently
+        // hallucinates "I cannot access your clipboard."
         return ExternalTextInputs(
-            selectedText: validatedSizedContext(normalizedSelectedText),
-            clipboardText: validatedSizedContext(normalizedClipboardText),
-            lastTranscription: normalizedLastTranscription,
+            selectedText: normalizedExternalText(selectedText),
+            clipboardText: normalizedExternalText(clipboardText),
+            lastTranscription: normalizedExternalText(lastTranscription),
             selectedImageContent: selectedImageContent,
             clipboardImageContent: clipboardImageContent
         )
     }
 
-    private func validatedSizedContext(_ text: String?) -> String? {
-        guard let text else { return nil }
-        guard Self.rewriteWordCount(for: text) <= effectivePromptWordLimit else {
-            return nil
+    /// Matched sources whose text alone exceeds the active word limit. These are
+    /// routed and acknowledged in the prompt, but their text is replaced by a
+    /// notice so the model can tell the user it was too large rather than answering
+    /// as if no context was provided. Cloud models (`.max` limit) never qualify.
+    private func oversizeTargetModes(
+        for matchedSources: [AssistantContextMatchedSource],
+        inputs: ExternalTextInputs
+    ) -> Set<AssistantContextTargetMode> {
+        let limit = effectivePromptWordLimit
+        guard limit != .max else { return [] }
+
+        var oversize: Set<AssistantContextTargetMode> = []
+        for matchedSource in matchedSources {
+            let text: String?
+            switch matchedSource.targetMode {
+            case .selectedText:
+                text = inputs.selectedText
+            case .clipboard:
+                text = inputs.clipboardText
+            case .lastTranscription:
+                text = inputs.lastTranscription
+            case .none:
+                text = nil
+            }
+
+            if let text, Self.rewriteWordCount(for: text) > limit {
+                oversize.insert(matchedSource.targetMode)
+            }
         }
-        return text
+        return oversize
     }
 
     func buildRewritePromptBody(
@@ -96,11 +126,13 @@ extension ActivationStore {
             return (directBody, false, decisionUsed)
         }
 
+        let oversizeSources = oversizeTargetModes(for: matchedSources, inputs: inputs)
         let body = ExternalTextPromptBuilder.buildBody(
             dictatedContent: dictatedContent,
             selectedText: inputs.selectedText,
             clipboardText: inputs.clipboardText,
             lastTranscription: inputs.lastTranscription,
+            oversizeSources: oversizeSources,
             routingDecision: decisionUsed
         )
         let injected = decisionUsed.injectsExternalText

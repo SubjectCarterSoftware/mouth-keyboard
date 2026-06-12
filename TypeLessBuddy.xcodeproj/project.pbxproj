@@ -10,6 +10,8 @@
 		A0000001000000000000010A /* AssistantNoteIntentClassifier.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0000002000000000000010A /* AssistantNoteIntentClassifier.swift */; };
 		A0000001000000000000010B /* ReplacementPackCatalog.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0000002000000000000010B /* ReplacementPackCatalog.swift */; };
 		A0000001000000000000010C /* ReplacementPackService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0000002000000000000010C /* ReplacementPackService.swift */; };
+		A00000010000000000000131 /* SystemRAMProfile.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000020000000000000131 /* SystemRAMProfile.swift */; };
+		A00000010000000000000132 /* RewriteModelLimits.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000020000000000000132 /* RewriteModelLimits.swift */; };
 		A0000001000000000000010D /* HistoryCaptureService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0000002000000000000010D /* HistoryCaptureService.swift */; };
 		A0000001000000000000010E /* NoteCaptureService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0000002000000000000010E /* NoteCaptureService.swift */; };
 		A0000001000000000000010F /* AssistantNoteIntentClassifierTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0000002000000000000010F /* AssistantNoteIntentClassifierTests.swift */; };
@@ -19,6 +21,8 @@
 		A00000010000000000000113 /* NoteCaptureServiceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000020000000000000113 /* NoteCaptureServiceTests.swift */; };
 		A00000010000000000000114 /* ReplacementPackCatalogTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000020000000000000114 /* ReplacementPackCatalogTests.swift */; };
 		A00000010000000000000115 /* ReplacementPackServiceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000020000000000000115 /* ReplacementPackServiceTests.swift */; };
+		A00000010000000000000133 /* RewriteModelLimitsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000020000000000000133 /* RewriteModelLimitsTests.swift */; };
+		A00000010000000000000134 /* RewriteContextLengthIntegrationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000020000000000000134 /* RewriteContextLengthIntegrationTests.swift */; };
 		933C00412F6C862500B5BB12 /* WhisperModelChoice.swift in Frameworks */ = {isa = PBXBuildFile; fileRef = A0000002000000000000002F /* WhisperModelChoice.swift */; };
 		933C00422F6C862500B5BB12 /* MLXLLM in Frameworks */ = {isa = PBXBuildFile; productRef = A00000130000000000000003 /* MLXLLM */; };
 		933C00432F6C862500B5BB12 /* MLXLMCommon in Frameworks */ = {isa = PBXBuildFile; productRef = A00000130000000000000004 /* MLXLMCommon */; };
@@ -26,6 +30,13 @@
 		A00000010000000000000001 /* TypeLessBuddyApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000020000000000000001 /* TypeLessBuddyApp.swift */; };
 		A00000010000000000000002 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000020000000000000002 /* AppDelegate.swift */; };
 		A00000010000000000000004 /* SetupWindowView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000020000000000000006 /* SetupWindowView.swift */; };
+		A00000010000000000000125 /* CloudLLMSettingsViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000020000000000000125 /* CloudLLMSettingsViewModel.swift */; };
+		A00000010000000000000126 /* CloudLLMSettingsSectionView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000020000000000000126 /* CloudLLMSettingsSectionView.swift */; };
+		A00000010000000000000127 /* HistorySettingsViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000020000000000000127 /* HistorySettingsViewModel.swift */; };
+		A00000010000000000000128 /* SetupWindowView+ModelStatus.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000020000000000000128 /* SetupWindowView+ModelStatus.swift */; };
+		A00000010000000000000129 /* SetupWindowView+Onboarding.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000020000000000000129 /* SetupWindowView+Onboarding.swift */; };
+		A00000010000000000000130 /* SetupWindowView+Sections.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000020000000000000130 /* SetupWindowView+Sections.swift */; };
+		A00000010000000000000135 /* SetupWindowView+Tryout.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000020000000000000135 /* SetupWindowView+Tryout.swift */; };
 		A00000010000000000000120 /* ShortcutRecorders.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000020000000000000120 /* ShortcutRecorders.swift */; };
 		A00000010000000000000121 /* SettingsComponents.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000020000000000000121 /* SettingsComponents.swift */; };
 		A00000010000000000000122 /* OnboardingComponents.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000020000000000000122 /* OnboardingComponents.swift */; };
@@ -141,6 +152,8 @@
 		A0000002000000000000010A /* AssistantNoteIntentClassifier.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AssistantNoteIntentClassifier.swift; sourceTree = "<group>"; };
 		A0000002000000000000010B /* ReplacementPackCatalog.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReplacementPackCatalog.swift; sourceTree = "<group>"; };
 		A0000002000000000000010C /* ReplacementPackService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReplacementPackService.swift; sourceTree = "<group>"; };
+		A00000020000000000000131 /* SystemRAMProfile.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SystemRAMProfile.swift; sourceTree = "<group>"; };
+		A00000020000000000000132 /* RewriteModelLimits.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RewriteModelLimits.swift; sourceTree = "<group>"; };
 		A0000002000000000000010D /* HistoryCaptureService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HistoryCaptureService.swift; sourceTree = "<group>"; };
 		A0000002000000000000010E /* NoteCaptureService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NoteCaptureService.swift; sourceTree = "<group>"; };
 		A0000002000000000000010F /* AssistantNoteIntentClassifierTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AssistantNoteIntentClassifierTests.swift; sourceTree = "<group>"; };
@@ -150,11 +163,20 @@
 		A00000020000000000000113 /* NoteCaptureServiceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NoteCaptureServiceTests.swift; sourceTree = "<group>"; };
 		A00000020000000000000114 /* ReplacementPackCatalogTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReplacementPackCatalogTests.swift; sourceTree = "<group>"; };
 		A00000020000000000000115 /* ReplacementPackServiceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReplacementPackServiceTests.swift; sourceTree = "<group>"; };
+		A00000020000000000000133 /* RewriteModelLimitsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RewriteModelLimitsTests.swift; sourceTree = "<group>"; };
+		A00000020000000000000134 /* RewriteContextLengthIntegrationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RewriteContextLengthIntegrationTests.swift; sourceTree = "<group>"; };
 		A00000020000000000000001 /* TypeLessBuddyApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TypeLessBuddyApp.swift; sourceTree = "<group>"; };
 		A00000020000000000000002 /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
 		A00000020000000000000003 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		A00000020000000000000004 /* TypeLessBuddy.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = TypeLessBuddy.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		A00000020000000000000006 /* SetupWindowView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SetupWindowView.swift; sourceTree = "<group>"; };
+		A00000020000000000000125 /* CloudLLMSettingsViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CloudLLMSettingsViewModel.swift; sourceTree = "<group>"; };
+		A00000020000000000000126 /* CloudLLMSettingsSectionView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CloudLLMSettingsSectionView.swift; sourceTree = "<group>"; };
+		A00000020000000000000127 /* HistorySettingsViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HistorySettingsViewModel.swift; sourceTree = "<group>"; };
+		A00000020000000000000128 /* SetupWindowView+ModelStatus.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "SetupWindowView+ModelStatus.swift"; sourceTree = "<group>"; };
+		A00000020000000000000129 /* SetupWindowView+Onboarding.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "SetupWindowView+Onboarding.swift"; sourceTree = "<group>"; };
+		A00000020000000000000130 /* SetupWindowView+Sections.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "SetupWindowView+Sections.swift"; sourceTree = "<group>"; };
+		A00000020000000000000135 /* SetupWindowView+Tryout.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "SetupWindowView+Tryout.swift"; sourceTree = "<group>"; };
 		A00000020000000000000120 /* ShortcutRecorders.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShortcutRecorders.swift; sourceTree = "<group>"; };
 		A00000020000000000000121 /* SettingsComponents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsComponents.swift; sourceTree = "<group>"; };
 		A00000020000000000000122 /* OnboardingComponents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingComponents.swift; sourceTree = "<group>"; };
@@ -347,6 +369,13 @@
 				A00000020000000000000020 /* RecordingPillView.swift */,
 				A0000002000000000000000D /* RecoveryActions.swift */,
 				A00000020000000000000006 /* SetupWindowView.swift */,
+				A00000020000000000000125 /* CloudLLMSettingsViewModel.swift */,
+				A00000020000000000000126 /* CloudLLMSettingsSectionView.swift */,
+				A00000020000000000000127 /* HistorySettingsViewModel.swift */,
+				A00000020000000000000128 /* SetupWindowView+ModelStatus.swift */,
+				A00000020000000000000129 /* SetupWindowView+Onboarding.swift */,
+				A00000020000000000000130 /* SetupWindowView+Sections.swift */,
+				A00000020000000000000135 /* SetupWindowView+Tryout.swift */,
 				A00000020000000000000120 /* ShortcutRecorders.swift */,
 				A00000020000000000000121 /* SettingsComponents.swift */,
 				A00000020000000000000122 /* OnboardingComponents.swift */,
@@ -423,6 +452,8 @@
 				A00000020000000000000113 /* NoteCaptureServiceTests.swift */,
 				A00000020000000000000114 /* ReplacementPackCatalogTests.swift */,
 				A00000020000000000000115 /* ReplacementPackServiceTests.swift */,
+				A00000020000000000000133 /* RewriteModelLimitsTests.swift */,
+				A00000020000000000000134 /* RewriteContextLengthIntegrationTests.swift */,
 			);
 			path = TypeLessBuddyTests;
 			sourceTree = "<group>";
@@ -507,6 +538,8 @@
 				A0000002000000000000010A /* AssistantNoteIntentClassifier.swift */,
 				A0000002000000000000010B /* ReplacementPackCatalog.swift */,
 				A0000002000000000000010C /* ReplacementPackService.swift */,
+				A00000020000000000000131 /* SystemRAMProfile.swift */,
+				A00000020000000000000132 /* RewriteModelLimits.swift */,
 			);
 			path = Conversion;
 			sourceTree = "<group>";
@@ -703,6 +736,13 @@
 				A00000010000000000000058 /* LiveCalibrationSampleCapturer.swift in Sources */,
 				A00000010000000000000067 /* HoldKeyDisplayFormatter.swift in Sources */,
 				A00000010000000000000004 /* SetupWindowView.swift in Sources */,
+				A00000010000000000000125 /* CloudLLMSettingsViewModel.swift in Sources */,
+				A00000010000000000000126 /* CloudLLMSettingsSectionView.swift in Sources */,
+				A00000010000000000000127 /* HistorySettingsViewModel.swift in Sources */,
+				A00000010000000000000128 /* SetupWindowView+ModelStatus.swift in Sources */,
+				A00000010000000000000129 /* SetupWindowView+Onboarding.swift in Sources */,
+				A00000010000000000000130 /* SetupWindowView+Sections.swift in Sources */,
+				A00000010000000000000135 /* SetupWindowView+Tryout.swift in Sources */,
 				A00000010000000000000120 /* ShortcutRecorders.swift in Sources */,
 				A00000010000000000000121 /* SettingsComponents.swift in Sources */,
 				A00000010000000000000122 /* OnboardingComponents.swift in Sources */,
@@ -721,6 +761,8 @@
 				A0000001000000000000010A /* AssistantNoteIntentClassifier.swift in Sources */,
 				A0000001000000000000010B /* ReplacementPackCatalog.swift in Sources */,
 				A0000001000000000000010C /* ReplacementPackService.swift in Sources */,
+				A00000010000000000000131 /* SystemRAMProfile.swift in Sources */,
+				A00000010000000000000132 /* RewriteModelLimits.swift in Sources */,
 				A0000001000000000000010D /* HistoryCaptureService.swift in Sources */,
 				A0000001000000000000010E /* NoteCaptureService.swift in Sources */,
 			);
@@ -760,6 +802,8 @@
 				A00000010000000000000113 /* NoteCaptureServiceTests.swift in Sources */,
 				A00000010000000000000114 /* ReplacementPackCatalogTests.swift in Sources */,
 				A00000010000000000000115 /* ReplacementPackServiceTests.swift in Sources */,
+				A00000010000000000000133 /* RewriteModelLimitsTests.swift in Sources */,
+				A00000010000000000000134 /* RewriteContextLengthIntegrationTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

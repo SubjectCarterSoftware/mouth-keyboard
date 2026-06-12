@@ -1692,12 +1692,15 @@ final class ActivationStoreTests: XCTestCase {
         XCTAssertEqual(mockClipboard.lastWrittenText, "Assistant output")
     }
 
-    func test_finalize_triggered_assistantPromptUsesGlobal1500WordGate() async throws {
+    func test_finalize_triggered_assistantPromptRejectsInputBeyondDynamicLimit() async throws {
         let preferences = makePreferencesWithTriggerStore()
         preferences.setCustomTrigger(primary: "Atlas")
         try await Task.sleep(nanoseconds: 80_000_000)
 
-        let longBody = repeatedWords(1_501)
+        // RewriteModelLimits caps input at the 32k-token practical ceiling, which
+        // converts to roughly 23k words. 30k words is reliably over that on any
+        // supported machine.
+        let longBody = repeatedWords(30_000)
         let transcript = "\(longBody) atlas rewrite this as a concise executive update"
         let mockTranscriber = ActivationStoreMockTranscriber(result: .success(transcript))
         let mockRewriter = MockRewriter(result: .success("Should not be called"))
@@ -2733,6 +2736,286 @@ extension ActivationStoreTests {
         XCTAssertTrue(decision.matchedSources.isEmpty)
     }
 
+    /// Representative sample of phrase-coverage additions. Each case asserts the
+    /// command routes to the expected single source and is labelled with the longest
+    /// matching phrase.
+    func test_externalTextSourceClassifier_expandedPhraseCoverage() {
+        let context = ExternalTextSourceContext(
+            selectedTextAvailable: true,
+            clipboardTextAvailable: true,
+            lastTranscriptionAvailable: true
+        )
+
+        let cases: [(message: String, mode: AssistantContextTargetMode, label: String)] = [
+            // selected-text additions
+            ("Buddy, tidy up the text I selected", .selectedText, "the text i selected"),
+            ("Buddy, tidy up the text I have selected", .selectedText, "the text i have selected"),
+            ("Buddy, summarize the highlighted paragraph", .selectedText, "highlighted paragraph"),
+            ("Buddy, rewrite the chunk I highlighted", .selectedText, "the chunk i highlighted"),
+            ("Buddy, fix whatever is currently highlighted", .selectedText, "currently highlighted"),
+            ("Buddy, clean up what I've highlighted", .selectedText, "what i've highlighted"),
+            ("Buddy, shorten that highlighted text", .selectedText, "that highlighted text"),
+            // clipboard additions
+            ("Buddy, summarize what's on my clipboard", .clipboard, "what's on my clipboard"),
+            ("Buddy, polish the text I just copied", .clipboard, "the text i just copied"),
+            ("Buddy, format what I copied to the clipboard", .clipboard, "copied to the clipboard"),
+            ("Buddy, rewrite whatever is on the clipboard", .clipboard, "on the clipboard"),
+            // last-transcription additions
+            ("Buddy, clean up my transcript", .lastTranscription, "my transcript"),
+            ("Buddy, fix the grammar in what I've said", .lastTranscription, "what i've said"),
+            ("Buddy, tidy up what I've dictated", .lastTranscription, "what i've dictated"),
+            ("Buddy, summarize my voice memo", .lastTranscription, "my voice memo"),
+            ("Buddy, punch up what I recorded", .lastTranscription, "what i recorded"),
+        ]
+
+        for testCase in cases {
+            let decision = ExternalTextSourceClassifier.classify(
+                message: testCase.message,
+                availableSources: context
+            )
+
+            XCTAssertEqual(
+                decision.targetMode,
+                testCase.mode,
+                "Expected \(testCase.mode) for \"\(testCase.message)\""
+            )
+            XCTAssertEqual(
+                decision.decisionSource,
+                .explicitFastPath,
+                "Expected fast-path match for \"\(testCase.message)\""
+            )
+            XCTAssertEqual(
+                decision.promptLabel,
+                testCase.label,
+                "Unexpected label for \"\(testCase.message)\""
+            )
+        }
+    }
+
+    /// The new "transcript" synonym must not match inside the longer word
+    /// "transcription" (whole-word boundary protection).
+    func test_externalTextSourceClassifier_transcriptDoesNotMatchInsideTranscription() {
+        let context = ExternalTextSourceContext(
+            selectedTextAvailable: false,
+            clipboardTextAvailable: false,
+            lastTranscriptionAvailable: true
+        )
+
+        let decision = ExternalTextSourceClassifier.classify(
+            message: "Buddy, clean up my last transcription",
+            availableSources: context
+        )
+
+        XCTAssertEqual(decision.targetMode, .lastTranscription)
+        XCTAssertEqual(decision.promptLabel, "my last transcription")
+    }
+
+    /// Regression: "make that last transcript sound like a pirate" must route to the
+    /// last transcription. Before the "transcript" synonyms were added, only
+    /// "transcription" matched, so this command injected no context and the model
+    /// hallucinated a generic reply instead of transforming the dictation.
+    func test_externalTextSourceClassifier_routesLastTranscriptPirateCommand() {
+        let context = ExternalTextSourceContext(
+            selectedTextAvailable: false,
+            clipboardTextAvailable: false,
+            lastTranscriptionAvailable: true
+        )
+
+        let decision = ExternalTextSourceClassifier.classify(
+            message: "Buddy, can you make that last transcript sound like a pirate instead of me?",
+            availableSources: context
+        )
+
+        XCTAssertEqual(decision.targetMode, .lastTranscription)
+        XCTAssertEqual(decision.decisionSource, .explicitFastPath)
+        XCTAssertEqual(decision.promptLabel, "last transcript")
+    }
+
+    /// Guardrail: expanded phrase tables must not hijack an everyday request that
+    /// names no source.
+    func test_externalTextSourceClassifier_expandedPhrasesDoNotCauseFalsePositive() {
+        let context = ExternalTextSourceContext(
+            selectedTextAvailable: true,
+            clipboardTextAvailable: true,
+            lastTranscriptionAvailable: true
+        )
+
+        for message in [
+            "Buddy, write me a short professional email about the launch",
+            "Buddy, give me a checklist for onboarding a new hire",
+            "Buddy, make this more concise and to the point",
+        ] {
+            let decision = ExternalTextSourceClassifier.classify(
+                message: message,
+                availableSources: context
+            )
+
+            XCTAssertEqual(
+                decision.targetMode,
+                .none,
+                "\"\(message)\" should not route to any source"
+            )
+            XCTAssertEqual(decision.decisionSource, .noDeterministicMatch)
+            XCTAssertTrue(decision.matchedSources.isEmpty)
+        }
+    }
+
+    /// Structural invariant: every first-person self-reference phrase in the
+    /// deterministic tables ("the text i selected", "what i've copied") must appear in
+    /// its full contraction/tense set. Speech-to-text emits these variants
+    /// interchangeably, so a half-filled family is a real routing gap. This catches the
+    /// asymmetry mechanically instead of by eyeballing parity across the three lists.
+    func test_selfReferencePhrases_haveCompleteContractionForms() {
+        // Forms that must travel together. A framed reference ("the text i ...") keeps
+        // the bare "i" form because the determiner disambiguates it; an unframed one
+        // ("i copied") drops bare "i" on purpose — it collides with everyday speech
+        // ("I copied my friend") — so only the have/contraction forms are required.
+        let framedRequired: Set<String> = ["i", "i have", "i've", "ive"]
+        let unframedRequired: Set<String> = ["i have", "i've", "ive"]
+
+        let exemptFamilies = Self.exemptSelfReferenceFamilies()
+
+        var formsByFamily: [PhraseFamily: Set<String>] = [:]
+        let allPhrases = ExternalTextSourceClassifier.selectedPhrases
+            + ExternalTextSourceClassifier.clipboardPhrases
+            + ExternalTextSourceClassifier.transcriptionPhrases
+        for phrase in allPhrases {
+            guard let (family, form) = Self.decomposeSelfReference(phrase) else { continue }
+            formsByFamily[family, default: []].insert(form)
+        }
+
+        func missingForms(_ family: PhraseFamily, _ forms: Set<String>) -> [String] {
+            let required = family.frame.isEmpty ? unframedRequired : framedRequired
+            return required.subtracting(forms).sorted()
+        }
+
+        var violations: [String] = []
+        for (family, forms) in formsByFamily {
+            let missing = missingForms(family, forms)
+            guard !missing.isEmpty, exemptFamilies[family] == nil else { continue }
+            let frameDesc = family.frame.isEmpty ? "(unframed)" : "\"\(family.frame) i ...\""
+            violations.append("\(frameDesc) + \"\(family.verb)\" missing \(missing)")
+        }
+        XCTAssertTrue(
+            violations.isEmpty,
+            "Self-reference phrases missing contraction/tense siblings — add them or "
+                + "document an exemption:\n" + violations.sorted().joined(separator: "\n")
+        )
+
+        // Keep the exemption list honest: an exemption is stale if its family is now
+        // complete OR no longer matches any phrase (e.g. a typo'd frame). Flagging the
+        // latter also guards against a vacuous pass — if the decomposer matched nothing,
+        // every exemption would read as absent and this assertion would fail.
+        let staleExemptions = exemptFamilies.keys.filter { family in
+            guard let forms = formsByFamily[family] else { return true }
+            return missingForms(family, forms).isEmpty
+        }
+        XCTAssertTrue(
+            staleExemptions.isEmpty,
+            "Stale self-reference exemptions (now complete/absent) — remove them:\n"
+                + staleExemptions
+                    .map { "\"\($0.frame)\" / \($0.verb)" }
+                    .sorted()
+                    .joined(separator: "\n")
+        )
+    }
+
+    /// Structural guards for the routing tables as they grow: no phrase may belong to
+    /// two sources (that would silently route one command into multiple contexts), and
+    /// no phrase may be a bare everyday word that hijacks unrelated commands.
+    func test_routingPhraseTables_haveNoCollisionsOrGenericWords() {
+        let selected = Set(ExternalTextSourceClassifier.selectedPhrases)
+        let clipboard = Set(ExternalTextSourceClassifier.clipboardPhrases)
+        let transcription = Set(ExternalTextSourceClassifier.transcriptionPhrases)
+
+        XCTAssertTrue(
+            selected.isDisjoint(with: clipboard),
+            "Phrase(s) in both selected and clipboard: \(selected.intersection(clipboard).sorted())"
+        )
+        XCTAssertTrue(
+            selected.isDisjoint(with: transcription),
+            "Phrase(s) in both selected and transcription: \(selected.intersection(transcription).sorted())"
+        )
+        XCTAssertTrue(
+            clipboard.isDisjoint(with: transcription),
+            "Phrase(s) in both clipboard and transcription: \(clipboard.intersection(transcription).sorted())"
+        )
+
+        // Bare everyday words would match unrelated commands and hijack them. The
+        // domain keywords clipboard/transcript/transcription are specific enough to keep.
+        let bannedGenericWords: Set<String> = [
+            "this", "that", "text", "copied", "said", "thing", "content",
+            "selected", "highlighted", "it", "the", "my", "what",
+        ]
+        let offenders = selected.union(clipboard).union(transcription)
+            .filter { bannedGenericWords.contains($0) }
+        XCTAssertTrue(
+            offenders.isEmpty,
+            "Too-generic single-word phrases present: \(offenders.sorted())"
+        )
+    }
+
+    struct PhraseFamily: Hashable {
+        let frame: String
+        let verb: String
+    }
+
+    /// Splits a phrase like "the text i've selected" into its (frame, verb) family and
+    /// the subject form used ("i" / "i have" / "i've" / "ive"). Returns nil for phrases
+    /// that are not a first-person self-reference, or that use the orthogonal "just"
+    /// axis ("what i just copied"), which is not part of the contraction quartet.
+    static func decomposeSelfReference(_ phrase: String) -> (PhraseFamily, String)? {
+        // Longest/most-specific first so "i have"/"i've"/"ive" win over bare "i".
+        for form in ["i have", "i've", "ive", "i just", "i"] {
+            let escaped = NSRegularExpression.escapedPattern(for: form)
+            let pattern = "^(?:(.+?) )?\(escaped) ([a-z]+)$"
+            guard let regex = try? NSRegularExpression(pattern: pattern) else { continue }
+            let range = NSRange(phrase.startIndex..<phrase.endIndex, in: phrase)
+            guard let match = regex.firstMatch(in: phrase, options: [], range: range) else {
+                continue
+            }
+            if form == "i just" { return nil }
+            let frame: String
+            if let frameRange = Range(match.range(at: 1), in: phrase) {
+                frame = String(phrase[frameRange])
+            } else {
+                frame = ""
+            }
+            guard let verbRange = Range(match.range(at: 2), in: phrase) else { return nil }
+            return (PhraseFamily(frame: frame, verb: String(phrase[verbRange])), form)
+        }
+        return nil
+    }
+
+    /// (frame, verb) families we knowingly leave bare-only, each with the reason. This
+    /// is the live worklist of deferred quartet completions — the parity test fails if
+    /// any entry here is actually complete, forcing the list to stay accurate.
+    static func exemptSelfReferenceFamilies() -> [PhraseFamily: String] {
+        var exemptions: [PhraseFamily: String] = [:]
+
+        // Bespoke selected/highlighted noun frames: only ever added in bare past tense,
+        // and unlike "the text"/"the thing" they have no cross-source precedent. The ~60
+        // contraction variants are deferred to a batched triage pass (a candidate for
+        // template generation rather than hand-entry).
+        let nounFrames = [
+            "the part", "the chunk", "the bit", "the words", "the section",
+            "the paragraph", "the snippet", "the line", "the passage", "the excerpt",
+        ]
+        for frame in nounFrames {
+            for verb in ["selected", "highlighted"] {
+                exemptions[PhraseFamily(frame: frame, verb: verb)] =
+                    "bare-only noun frame; quartet completion deferred to batched triage"
+            }
+        }
+
+        // Irregular verb: the participle is "spoken", so "i have spoke" / "i've spoke"
+        // are ungrammatical. "what i spoke" stays bare-only by design.
+        exemptions[PhraseFamily(frame: "what", verb: "spoke")] =
+            "irregular verb: participle is 'spoken', so have/contraction forms don't apply"
+
+        return exemptions
+    }
+
     func test_route_noneTarget_producesDirectAssistantPrompt() {
         let body = ExternalTextPromptBuilder.buildBody(
             dictatedContent: "Buddy, write me a thank-you note for the team dinner",
@@ -3286,16 +3569,16 @@ extension ActivationStoreTests {
         XCTAssertFalse(finalPrompt.contains("selected context provided below:"))
     }
 
-    func test_externalTextRouter_oversizedSelectedTextIsExcludedFromRouting() async throws {
+    func test_externalTextRouter_oversizedReferencedSourceIsNotedNotInjected() async throws {
         let preferences = makePreferencesWithTriggerStore()
         preferences.setCustomTrigger(primary: "Buddy")
         try await Task.sleep(nanoseconds: 80_000_000)
 
         let transcript = "buddy rewrite what's selected"
         let transcriber = ActivationStoreMockTranscriber(result: .success(transcript))
-        let mockRewriter = MockRewriter(result: .success("Direct assistant output"))
+        let mockRewriter = MockRewriter(result: .success("Sorry, that was too large to process."))
         let mockClipboard = ActivationStoreMockClipboard()
-        let oversizedSelection = repeatedWords(5_000, token: "selected")
+        let oversizedSelection = repeatedWords(30_000, token: "selected")
         let pasteStub = StubSelectionAwarePasteService(
             clipboard: mockClipboard,
             queuedCopyResults: [
@@ -3318,9 +3601,15 @@ extension ActivationStoreTests {
         let succeeded = try await waitForSuccess(of: store)
         XCTAssertTrue(succeeded)
 
+        // The referenced source is too large to inject, but the model is still
+        // called with a short "too large" notice instead of its 30k-word text, so it
+        // can tell the user honestly rather than answering as if no context existed.
         XCTAssertEqual(mockRewriter.generateCallCount, 1)
-        XCTAssertEqual(mockRewriter.lastGeneratePrompt, transcript)
-        XCTAssertFalse(mockRewriter.lastGeneratePrompt?.contains("selected context provided below:") ?? false)
+        let prompt = try XCTUnwrap(mockRewriter.lastGeneratePrompt)
+        XCTAssertTrue(prompt.contains("too large to include"))
+        XCTAssertFalse(prompt.contains(oversizedSelection))
+        // The 30k-word text must not have leaked into the prompt body.
+        XCTAssertLessThan(prompt.split(whereSeparator: { $0.isWhitespace }).count, 200)
     }
 
     func test_externalTextRouting_mockScenarioMatrix() async {

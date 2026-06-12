@@ -56,9 +56,14 @@ enum ExternalTextPromptBuilder {
         "more polite",
         "polite",
         "less harsh",
+        "less aggressive",
+        "less rude",
         "gentler",
+        "more gentle",
         "softer",
         "friendlier",
+        "diplomatic",
+        "more diplomatic",
     ]
 
     private static let languageCleanupPhrases = [
@@ -137,7 +142,10 @@ enum ExternalTextPromptBuilder {
         "correct the punctuation",
         "fix typos",
         "check typos",
+        "fix the typos",
+        "correct typos",
         "remove typos",
+        "spell check",
         "proofread",
         "proof read",
         "copy edit",
@@ -157,6 +165,9 @@ enum ExternalTextPromptBuilder {
         "action items",
         "todo list",
         "to-do list",
+        "to do list",
+        "task list",
+        "checklist",
     ]
 
     private static let bulletListPhrases = [
@@ -181,12 +192,15 @@ enum ExternalTextPromptBuilder {
         "shorter",
         "concise",
         "condense",
+        "to the point",
+        "succinct",
     ]
 
     private static let professionalRewritePhrases = [
         "professional",
         "polished",
         "formal",
+        "businesslike",
     ]
 
     /// Builds the body text for the rewrite service when routed assistant
@@ -196,6 +210,7 @@ enum ExternalTextPromptBuilder {
         selectedText: String?,
         clipboardText: String?,
         lastTranscription: String? = nil,
+        oversizeSources: Set<AssistantContextTargetMode> = [],
         routingDecision: AssistantContextRoutingDecision
     ) -> String {
         let trimmedDictation = normalizedText(dictatedContent) ?? ""
@@ -212,26 +227,42 @@ enum ExternalTextPromptBuilder {
             matchedSources: routingDecision.matchedSources
         )
 
-        let sourceSections: [String] = routingDecision.matchedSources.compactMap { matchedSource in
-            let content: String?
-
-            switch matchedSource.targetMode {
+        func content(for targetMode: AssistantContextTargetMode) -> String? {
+            switch targetMode {
             case .selectedText:
-                content = trimmedSelectedText
+                return trimmedSelectedText
             case .clipboard:
-                content = trimmedClipboardText
+                return trimmedClipboardText
             case .lastTranscription:
-                content = trimmedLastTranscription
+                return trimmedLastTranscription
             case .none:
-                content = nil
+                return nil
             }
+        }
 
-            guard let content else { return nil }
+        // Partition matched sources into those whose text we can include and those
+        // too large to fit. Oversize sources keep a short placeholder section so the
+        // model can tell the user their text couldn't be processed rather than
+        // answering as if no context was provided.
+        var includedSources: [AssistantContextMatchedSource] = []
+        var oversizeMatched: [AssistantContextMatchedSource] = []
+        var sourceSections: [String] = []
 
-            return buildTextTargetSection(
-                sourceLabel: neutralSectionLabel(for: matchedSource.targetMode),
-                content: content
-            )
+        for matchedSource in routingDecision.matchedSources {
+            if oversizeSources.contains(matchedSource.targetMode) {
+                oversizeMatched.append(matchedSource)
+                sourceSections.append(buildOversizeNoticeSection(for: matchedSource.targetMode))
+            } else {
+                includedSources.append(matchedSource)
+                if let content = content(for: matchedSource.targetMode) {
+                    sourceSections.append(
+                        buildTextTargetSection(
+                            sourceLabel: neutralSectionLabel(for: matchedSource.targetMode),
+                            content: content
+                        )
+                    )
+                }
+            }
         }
 
         guard !sourceSections.isEmpty else {
@@ -246,7 +277,8 @@ enum ExternalTextPromptBuilder {
 
         promptComponents.append(
             contextUsageInstruction(
-                for: routingDecision.matchedSources,
+                includedSources: includedSources,
+                oversizeSources: oversizeMatched,
                 dictatedContent: modelFacingRequest
             )
         )
@@ -361,20 +393,90 @@ enum ExternalTextPromptBuilder {
     }
 
     private static func contextUsageInstruction(
-        for matchedSources: [AssistantContextMatchedSource],
+        includedSources: [AssistantContextMatchedSource],
+        oversizeSources: [AssistantContextMatchedSource],
         dictatedContent: String
     ) -> String {
-        if matchedSources.count == 1, let matchedSource = matchedSources.first {
-            let label = neutralSectionLabel(for: matchedSource.targetMode)
-            return singleSourceInstruction(
-                for: composedSingleSourceRequestShape(for: dictatedContent),
-                sourceLabel: label
-            )
+        let shape = composedSingleSourceRequestShape(for: dictatedContent)
+
+        // Every referenced source was too large to include — there is no source
+        // text to transform, so instruct the model to report that honestly.
+        guard !includedSources.isEmpty else {
+            return allOversizeInstruction(for: oversizeSources)
         }
 
-        return multiSourceInstruction(
-            for: composedSingleSourceRequestShape(for: dictatedContent)
-        )
+        var instruction: String
+        if includedSources.count == 1, let matchedSource = includedSources.first {
+            instruction = singleSourceInstruction(
+                for: shape,
+                sourceLabel: neutralSectionLabel(for: matchedSource.targetMode)
+            )
+        } else {
+            instruction = multiSourceInstruction(for: shape)
+        }
+
+        if !oversizeSources.isEmpty {
+            instruction += "\n" + oversizeCaveatLine(for: oversizeSources)
+        }
+        return instruction
+    }
+
+    /// Section emitted in place of a source's text when it is too large to include.
+    /// Self-describing so even a weak local model won't try to transform it literally.
+    private static func buildOversizeNoticeSection(
+        for targetMode: AssistantContextTargetMode
+    ) -> String {
+        let label = neutralSectionLabel(for: targetMode)
+        return "\(label):\n[Too large to include — the \(sourceNoun(for: targetMode)) exceeded the assistant's size limit and was not provided.]"
+    }
+
+    /// Instruction used when no referenced source text could be included at all.
+    private static func allOversizeInstruction(
+        for oversizeSources: [AssistantContextMatchedSource]
+    ) -> String {
+        let joined = listPhrase(oversizeSources.map { sourceNoun(for: $0.targetMode) })
+        return [
+            "The user wants you to work with their \(joined) (see the request above), but it was too large to include here.",
+            "Do not fabricate, guess, or summarize its contents.",
+            "Briefly and politely tell the user you couldn't complete the request because the \(joined) was too large to process, and suggest selecting or copying a smaller portion.",
+        ].joined(separator: "\n")
+    }
+
+    /// Caveat appended when some sources were included but others were too large.
+    private static func oversizeCaveatLine(
+        for oversizeSources: [AssistantContextMatchedSource]
+    ) -> String {
+        let joined = listPhrase(oversizeSources.map { sourceNoun(for: $0.targetMode) })
+        return "Note: the \(joined) was too large to include; do not fabricate its contents, and let the user know that part was too large to process."
+    }
+
+    /// Plain-language noun for a source, used in user-facing notices.
+    private static func sourceNoun(for targetMode: AssistantContextTargetMode) -> String {
+        switch targetMode {
+        case .selectedText:
+            return "selected text"
+        case .clipboard:
+            return "copied text"
+        case .lastTranscription:
+            return "transcript"
+        case .none:
+            return "text"
+        }
+    }
+
+    /// Joins items into a natural English list: "a", "a and b", "a, b, and c".
+    private static func listPhrase(_ items: [String]) -> String {
+        switch items.count {
+        case 0:
+            return ""
+        case 1:
+            return items[0]
+        case 2:
+            return "\(items[0]) and \(items[1])"
+        default:
+            let head = items.dropLast().joined(separator: ", ")
+            return "\(head), and \(items[items.count - 1])"
+        }
     }
 
     private static func singleSourceInstruction(

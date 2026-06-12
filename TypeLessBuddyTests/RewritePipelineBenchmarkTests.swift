@@ -8,7 +8,10 @@ import XCTest
 final class RewritePipelineBenchmarkTests: XCTestCase {
 
     private let service = LocalRewriteService.shared
-    private static let wordLimit = RewriteModelTier.standard2B.rewritePromptWordLimit
+    private static let wordLimit = RewriteModelLimits.compute(
+        tier: .standard2B,
+        ramProfile: .current
+    ).promptWordLimit
 
     override func setUp() async throws {
         try await super.setUp()

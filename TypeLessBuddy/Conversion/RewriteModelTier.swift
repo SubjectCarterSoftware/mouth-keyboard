@@ -34,21 +34,19 @@ enum RewriteModelTier: String, CaseIterable, Identifiable, Hashable, Codable {
         }
     }
 
-    var recommendedMaxTokens: Int {
-        switch self {
-        case .standard2B: return 1_024
-        case .standard4B: return 1_536
-        case .high9B:     return 2_048
-        }
+    /// Resident weight footprint (4-bit quantized). Matches `approximateDownloadSizeGB`
+    /// but in bytes for use in RAM budgeting math.
+    var weightsBytes: UInt64 {
+        UInt64(approximateDownloadSizeGB * 1_073_741_824)
     }
 
-    /// Maximum word count allowed in the rewrite prompt body for built-in local tiers.
-    /// Benchmark on 2B confirmed failure at ~1380w and quality degradation above ~700w.
-    var rewritePromptWordLimit: Int {
+    /// KV cache cost per token, fp16, derived from the model's layer × kv_head × head_dim shape.
+    /// Used to size the input ceiling that still fits in available RAM.
+    var kvBytesPerToken: Int {
         switch self {
-        case .standard2B: return 1_000
-        case .standard4B: return 1_500
-        case .high9B:     return 2_000
+        case .standard2B: return 115 * 1024
+        case .standard4B: return 147 * 1024
+        case .high9B:     return 196 * 1024
         }
     }
 

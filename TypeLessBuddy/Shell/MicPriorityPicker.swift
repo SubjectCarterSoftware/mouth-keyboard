@@ -6,6 +6,7 @@ private enum MicPriorityPickerMetrics {
     static let menuOffset: CGFloat = 4
     static let menuShadowRadius: CGFloat = 22
     static let menuShadowY: CGFloat = 10
+    static let menuBackground = Color(red: 0.13, green: 0.14, blue: 0.16)
     static let selectedFillOpacity: Double = 0.22
     static let hoverFillOpacity: Double = 0.06
 }
@@ -13,6 +14,7 @@ private enum MicPriorityPickerMetrics {
 struct MicPriorityPicker: View {
     @ObservedObject var preferences: ShellPreferences
     @ObservedObject var audioDeviceService: AudioDeviceService
+    let onOpenChange: (Bool) -> Void
     @State private var isOpen = false
 
     fileprivate struct Row: Identifiable {
@@ -84,6 +86,7 @@ struct MicPriorityPicker: View {
             withAnimation(.easeInOut(duration: 0.12)) {
                 isOpen.toggle()
             }
+            onOpenChange(isOpen)
         } label: {
             HStack(spacing: 6) {
                 Text(triggerLabel)
@@ -135,6 +138,7 @@ struct MicPriorityPicker: View {
                             withAnimation(.easeInOut(duration: 0.12)) {
                                 isOpen = false
                             }
+                            onOpenChange(false)
                         },
                         onRemove: {
                             preferences.removeMicDevice(row.uid)
@@ -156,6 +160,7 @@ struct MicPriorityPicker: View {
                             withAnimation(.easeInOut(duration: 0.12)) {
                                 isOpen = false
                             }
+                            onOpenChange(false)
                         },
                         onRemove: nil
                     )
@@ -168,7 +173,7 @@ struct MicPriorityPicker: View {
                 cornerRadius: MicPriorityPickerMetrics.controlCornerRadius,
                 style: .continuous
             )
-            .fill(SetupColorPalette.raisedControlBackground)
+            .fill(MicPriorityPickerMetrics.menuBackground)
         )
         .overlay(
             RoundedRectangle(
@@ -186,6 +191,7 @@ struct MicPriorityPicker: View {
             withAnimation(.easeInOut(duration: 0.12)) {
                 isOpen = false
             }
+            onOpenChange(false)
         } label: {
             HStack(spacing: 8) {
                 Text("System Default")
@@ -327,7 +333,8 @@ private struct MicPriorityRow: View {
 #Preview {
     MicPriorityPicker(
         preferences: .shared,
-        audioDeviceService: .shared
+        audioDeviceService: .shared,
+        onOpenChange: { _ in }
     )
     .frame(width: 260)
     .padding()

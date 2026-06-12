@@ -4,7 +4,6 @@ import Hub
 import MLX
 import MLXLLM
 import MLXLMCommon
-import MLXVLM
 
 enum RewriteError: LocalizedError, Equatable {
     case modelLoadFailed
@@ -509,7 +508,15 @@ actor LocalRewriteService: Rewriting {
     }
 
     private func generationParameters(for tier: RewriteModelTier) -> GenerateParameters {
-        GenerateParameters(maxTokens: tier.recommendedMaxTokens, temperature: 0, topP: 1.0)
+        let limits = RewriteModelLimits.compute(tier: tier, ramProfile: .current)
+        return GenerateParameters(
+            maxTokens: limits.maxOutputTokens,
+            maxKVSize: limits.maxKVSize,
+            kvBits: 4,
+            temperature: 0,
+            topP: 1.0,
+            prefillStepSize: 1024
+        )
     }
 
     private func isMemoryPressureError(_ error: Error) -> Bool {

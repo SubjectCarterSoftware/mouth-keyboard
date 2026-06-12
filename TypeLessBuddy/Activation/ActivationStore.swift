@@ -81,7 +81,8 @@ final class ActivationStore: ObservableObject {
     private static let whisperTranscriptionBaseTimeout: UInt64 = 45_000_000_000
     private static let whisperTranscriptionTimeoutPerAudioSecond: UInt64 = 4_000_000_000
     private static let whisperSampleRate: Double = 16_000
-    private static let rewriteTimeout: UInt64 = 45_000_000_000
+    // Sized to the 9B tier at near-cap input (~28k tokens), measured at ~90s end-to-end.
+    private static let rewriteTimeout: UInt64 = 120_000_000_000
     static let minimumDirectAssistantPromptWordLimit = 1_500
     private static let lastTranscriptionContextMaxAge: TimeInterval = 30 * 60
     private static let clipboardRestoreDelay: UInt64 = 150_000_000
