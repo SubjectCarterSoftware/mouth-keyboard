@@ -461,13 +461,9 @@ extension SetupWindowView {
                 RoundedRectangle(cornerRadius: 12, style: .continuous)
                     .strokeBorder(Color.white.opacity(0.12), lineWidth: 1)
             )
-            .overlay(alignment: .topLeading) {
+            .overlay {
                 if tryoutBoxText.isEmpty {
-                    Text("Your words will appear here…")
-                        .font(.body)
-                        .foregroundStyle(.tertiary)
-                        .padding(.horizontal, 13)
-                        .padding(.vertical, 16)
+                    tryoutHoldHint
                         .allowsHitTesting(false)
                 }
             }
