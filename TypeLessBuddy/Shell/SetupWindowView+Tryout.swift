@@ -20,6 +20,9 @@ extension SetupWindowView {
         let spokenPhrase: String
         var footnote: String?
         var needsSampleText: Bool = false
+        /// When the step becomes active, focus the box and select all its text so
+        /// the user can trigger the selected-text demo without selecting manually.
+        var selectsBoxTextOnEnter: Bool = false
     }
 
     /// Sample paragraphs placed on the clipboard for the summarize step.
@@ -64,7 +67,8 @@ extension SetupWindowView {
                 title: "Give {NAME} Your Selection",
                 systemImage: "text.cursor",
                 spokenPhrase: "Hey {NAME}, can you make the text I have selected sound like a pirate?",
-                footnote: "Select some text in the box first."
+                footnote: "We've selected the box text for you — just hold your key and speak.",
+                selectsBoxTextOnEnter: true
             ),
         ]
     }
@@ -123,7 +127,7 @@ extension SetupWindowView {
     /// `start()` is idempotent, and the AppDelegate re-runs it after onboarding
     /// completes.
     func startActivationForTryout() {
-        guard isMicrophoneAuthorized, isAccessibilityAuthorized else { return }
+        guard areOnboardingModelsReady, isMicrophoneAuthorized, isAccessibilityAuthorized else { return }
         HotkeyService.shared.start()
     }
 
@@ -164,6 +168,48 @@ extension SetupWindowView {
         cancelTryoutAdvance()
         withAnimation(.easeInOut(duration: 0.3)) {
             tryoutStep = index
+        }
+    }
+
+    /// Free forward/back navigation driven by the explicit Back/Next buttons.
+    /// Clamps to the real slides (never lands on the post-completion banner) and
+    /// keeps the reached marker in sync so the dots stay consistent.
+    func goToTryoutStep(_ index: Int) {
+        let clamped = max(0, min(index, tryoutSteps.count - 1))
+        guard clamped != tryoutStep else { return }
+        cancelTryoutAdvance()
+        tryoutMaxReachedStep = max(tryoutMaxReachedStep, clamped)
+        withAnimation(.easeInOut(duration: 0.3)) {
+            tryoutStep = clamped
+        }
+    }
+
+    var tryoutNavigationBar: some View {
+        HStack {
+            Button {
+                goToTryoutStep(tryoutStep - 1)
+            } label: {
+                Label("Back", systemImage: "chevron.left")
+            }
+            .buttonStyle(.bordered)
+            .controlSize(.large)
+            .disabled(tryoutStep == 0)
+            .accessibilityIdentifier("onboarding.tryout.back")
+
+            Spacer()
+
+            Button {
+                goToTryoutStep(tryoutStep + 1)
+            } label: {
+                HStack(spacing: 6) {
+                    Text("Next")
+                    Image(systemName: "chevron.right")
+                }
+            }
+            .buttonStyle(.bordered)
+            .controlSize(.large)
+            .disabled(tryoutStep >= tryoutSteps.count - 1)
+            .accessibilityIdentifier("onboarding.tryout.next")
         }
     }
 
@@ -247,37 +293,90 @@ extension SetupWindowView {
 
     @ViewBuilder
     var onboardingTryoutSection: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Group {
-                if let step = currentTryoutStep {
-                    VStack(alignment: .leading, spacing: 10) {
-                        tryoutStepHeader(for: step)
-                        if step.needsSampleText {
-                            tryoutCopySampleButton
-                        }
-                        tryoutPhraseChip(tryoutInterpolate(step.spokenPhrase))
-                        if let footnote = step.footnote {
-                            Text(tryoutInterpolate(footnote))
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
+        Group {
+            if areOnboardingModelsReady {
+                VStack(alignment: .leading, spacing: 12) {
+                    Group {
+                        if let step = currentTryoutStep {
+                            VStack(alignment: .leading, spacing: 10) {
+                                tryoutStepHeader(for: step)
+                                if step.needsSampleText {
+                                    tryoutCopySampleButton
+                                }
+                                tryoutPhraseChip(tryoutInterpolate(step.spokenPhrase))
+                                if let footnote = step.footnote {
+                                    Text(tryoutInterpolate(footnote))
+                                        .font(.caption)
+                                        .foregroundStyle(.secondary)
+                                }
+                            }
+                            .transition(.opacity)
+                            .id(tryoutStep)
+                        } else {
+                            tryoutCompletionBanner
+                                .transition(.opacity)
                         }
                     }
-                    .transition(.opacity)
-                    .id(tryoutStep)
-                } else {
-                    tryoutCompletionBanner
-                        .transition(.opacity)
-                }
-            }
 
-            tryoutTextBox
+                    tryoutTextBox
+                }
+            } else {
+                tryoutWaitingPlaceholder
+            }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .onAppear {
             startActivationForTryout()
         }
+        .onChange(of: areOnboardingModelsReady) { _, ready in
+            if ready { startActivationForTryout() }
+        }
         .onChange(of: activationStore.state) { _, newState in
             handleTryoutActivationStateChange(newState)
+        }
+        .onChange(of: tryoutStep) { _, newStep in
+            handleTryoutStepChanged(newStep)
+        }
+    }
+
+    /// Shown in place of the interactive tryout while the local models are still
+    /// downloading/prewarming, so the user can't try things that won't work yet.
+    var tryoutWaitingPlaceholder: some View {
+        VStack(spacing: 12) {
+            Spacer(minLength: 0)
+            Image(systemName: "hourglass")
+                .font(.system(size: 30, weight: .regular))
+                .foregroundStyle(.secondary)
+            Text("Finishing local setup…")
+                .font(.headline)
+                .foregroundStyle(.secondary)
+            Text("Your transcription and assistant models are still installing. The tryout unlocks automatically the moment they're ready.")
+                .font(.callout)
+                .foregroundStyle(.secondary)
+                .multilineTextAlignment(.center)
+                .fixedSize(horizontal: false, vertical: true)
+                .frame(maxWidth: 420)
+            Spacer(minLength: 0)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+
+    /// When entering a step that pre-selects the box (the selection demo), focus
+    /// the box and select all of its text — but only when there's text to select.
+    func handleTryoutStepChanged(_ newStep: Int) {
+        guard tryoutSteps.indices.contains(newStep),
+              tryoutSteps[newStep].selectsBoxTextOnEnter,
+              !tryoutBoxText.isEmpty else {
+            return
+        }
+
+        isTryoutBoxFocused = true
+        Task { @MainActor in
+            // Let the focus change land so the text view is first responder
+            // before the select-all action is dispatched to it.
+            try? await Task.sleep(nanoseconds: 250_000_000)
+            guard tryoutStep == newStep else { return }
+            NSApp.sendAction(#selector(NSText.selectAll(_:)), to: nil, from: nil)
         }
     }
 
@@ -349,6 +448,7 @@ extension SetupWindowView {
 
     var tryoutTextBox: some View {
         TextEditor(text: $tryoutBoxText)
+            .focused($isTryoutBoxFocused)
             .font(.body)
             .scrollContentBackground(.hidden)
             .padding(8)

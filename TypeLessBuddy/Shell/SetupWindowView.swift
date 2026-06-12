@@ -220,6 +220,10 @@ struct SetupWindowView: View {
     @State var tryoutBoxText: String = ""
     @State var didCopyTryoutSample: Bool = false
     @State var tryoutAdvanceTask: Task<Void, Never>?
+    @FocusState var isTryoutBoxFocused: Bool
+    @State var accessibilityWaitingForGrant = false
+    @State var accessibilityJustGranted = false
+    @State var accessibilityAdvanceTask: Task<Void, Never>?
     @StateObject var historyVM: HistorySettingsViewModel
     @State var isShowingClearHistoryConfirmation = false
     let updatePillPositionPreview: (RecordingPillPosition?) -> Void
@@ -704,6 +708,8 @@ struct SetupWindowView: View {
             updatePillPositionPreview(nil)
             assistantSettingsViewModel.handleSettingsDismissed()
             cancelTryoutAdvance()
+            accessibilityAdvanceTask?.cancel()
+            accessibilityAdvanceTask = nil
         }
         .onReceive(Timer.publish(every: 3, on: .main, in: .common).autoconnect()) { _ in
             readinessStore.refresh()
@@ -722,8 +728,24 @@ struct SetupWindowView: View {
         .onChange(of: preferences.historyFolderPath) { _, _ in
             historyVM.reloadEntries()
         }
-        .onChange(of: onboardingStep) { _, _ in
+        .onChange(of: onboardingStep) { _, newStep in
             persistOnboardingProgress()
+            if newStep != .accessibility {
+                accessibilityWaitingForGrant = false
+                accessibilityJustGranted = false
+                accessibilityAdvanceTask?.cancel()
+                accessibilityAdvanceTask = nil
+            }
+        }
+        .onChange(of: isAccessibilityAuthorized) { _, newValue in
+            handleAccessibilityAuthorizationChange(newValue)
+        }
+        .onReceive(Timer.publish(every: 1, on: .main, in: .common).autoconnect()) { _ in
+            // Poll quickly while waiting on the Accessibility toggle so the step
+            // reacts almost instantly when the user flips the switch.
+            if mode == .onboarding, onboardingStep == .accessibility, !isAccessibilityAuthorized {
+                readinessStore.refresh()
+            }
         }
         .onChange(of: preferences.cloudLLMConfig.provider) { _, _ in
             cloudVM.providerChanged(provider: preferences.cloudLLMConfig.provider)

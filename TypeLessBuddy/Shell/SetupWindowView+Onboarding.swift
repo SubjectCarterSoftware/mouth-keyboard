@@ -4,6 +4,15 @@ import SwiftUI
 // MARK: - Onboarding flow
 
 extension SetupWindowView {
+    /// The "Try It Out" step's subtitle reflects whether the local models are
+    /// still preparing, since the tryout itself is gated on readiness.
+    var currentOnboardingSubtitle: String {
+        if onboardingStep == .speechEngine, !areOnboardingModelsReady {
+            return "Hang tight — getting your local models ready. You can try it out the moment they're done."
+        }
+        return onboardingStep.subtitle
+    }
+
     func isStepComplete(_ step: OnboardingStep) -> Bool {
         switch step {
         case .microphone:
@@ -261,15 +270,14 @@ extension SetupWindowView {
 
     var onboardingAccessibilityStep: some View {
         HStack(alignment: .top, spacing: 18) {
-            if let accessibilityPermissionItem {
-                OnboardingPermissionCard(
-                    item: accessibilityPermissionItem,
-                    headline: "Accessibility Permission",
-                    message: "Accessibility is required for TypeLessBuddy’s full cross-app control behavior. It also unlocks auto-paste whenever you want to use it, while global keyboard and mouse triggers may also depend on macOS input event access.",
-                    actionTitle: accessibilityActionTitle(for: accessibilityPermissionItem.status),
-                    requestPermission: requestPermission,
-                    openRecovery: openPermissionRecovery
-                )
+            OnboardingFeatureCard(
+                systemImage: accessibilityPermissionItem?.kind.systemImage ?? "figure.wave",
+                title: "Accessibility Permission",
+                badgeTitle: isAccessibilityAuthorized ? "Granted" : (accessibilityWaitingForGrant ? "Waiting" : "Required"),
+                badgeTone: isAccessibilityAuthorized ? .success : (accessibilityWaitingForGrant ? .warning : .danger),
+                isHighlighted: true
+            ) {
+                accessibilityCardBody
             }
 
             OnboardingFeatureCard(
@@ -285,6 +293,91 @@ extension SetupWindowView {
         }
     }
 
+    @ViewBuilder
+    var accessibilityCardBody: some View {
+        if isAccessibilityAuthorized {
+            Label(
+                accessibilityJustGranted ? "Accessibility granted — moving on…" : "Accessibility granted — you're all set.",
+                systemImage: "checkmark.circle.fill"
+            )
+                .font(.callout.weight(.medium))
+                .foregroundStyle(.green)
+                .padding(16)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(Color.green.opacity(0.12), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+        } else {
+            Text("TypeLessBuddy needs Accessibility access for cross-app control and auto-paste. macOS only lets you turn this on yourself in System Settings.")
+                .font(.callout)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+
+            AccessibilityToggleIllustration()
+
+            if accessibilityWaitingForGrant {
+                accessibilityWaitingRow
+            } else {
+                Button("Open Accessibility Settings") {
+                    beginAccessibilityGrantFlow()
+                }
+                .buttonStyle(.borderedProminent)
+                .controlSize(.large)
+            }
+        }
+    }
+
+    var accessibilityWaitingRow: some View {
+        HStack(alignment: .top, spacing: 10) {
+            ProgressView()
+                .controlSize(.small)
+            VStack(alignment: .leading, spacing: 4) {
+                Text("Find TypeLessBuddy in the list and turn its switch on.")
+                    .font(.callout.weight(.medium))
+                Text("This page updates on its own — no need to come back and click anything.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                Button("Open Settings again") {
+                    openPermissionRecovery(.postEvent)
+                }
+                .buttonStyle(.link)
+                .font(.caption)
+            }
+            .fixedSize(horizontal: false, vertical: true)
+        }
+        .padding(14)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Color.white.opacity(0.05), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+    }
+
+    /// Registers the app in the Accessibility list (or deep-links to the pane if a
+    /// prior denial means the system prompt won't reappear), then switches the
+    /// step into its self-updating "waiting" state.
+    func beginAccessibilityGrantFlow() {
+        accessibilityWaitingForGrant = true
+        if accessibilityPermissionItem?.status == .denied {
+            openPermissionRecovery(.postEvent)
+        } else {
+            requestPermission(.postEvent)
+        }
+    }
+
+    /// Called when the accessibility grant flips while on this step: shows a brief
+    /// confirmation, then auto-advances so the user never has to find their way
+    /// back to the window and press Continue.
+    func handleAccessibilityAuthorizationChange(_ isAuthorized: Bool) {
+        guard mode == .onboarding, onboardingStep == .accessibility else { return }
+        guard isAuthorized, accessibilityAdvanceTask == nil else { return }
+
+        accessibilityWaitingForGrant = false
+        accessibilityJustGranted = true
+        accessibilityAdvanceTask = Task { @MainActor in
+            try? await Task.sleep(nanoseconds: 1_500_000_000)
+            guard !Task.isCancelled else { return }
+            accessibilityJustGranted = false
+            accessibilityAdvanceTask = nil
+            advanceOnboarding()
+        }
+    }
+
     var onboardingSpeechEngineStep: some View {
         VStack(alignment: .leading, spacing: 16) {
             tryoutTopBar
@@ -292,6 +385,11 @@ extension SetupWindowView {
             Divider().opacity(0.35)
 
             onboardingTryoutSection
+
+            if areOnboardingModelsReady {
+                Divider().opacity(0.35)
+                tryoutNavigationBar
+            }
         }
         .padding(20)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
@@ -345,7 +443,7 @@ extension SetupWindowView {
                             .font(.system(size: 34, weight: .bold, design: .rounded))
                             .frame(maxWidth: .infinity, alignment: .center)
 
-                        Text(onboardingStep.subtitle)
+                        Text(currentOnboardingSubtitle)
                             .font(.title3)
                             .foregroundStyle(.secondary)
                             .multilineTextAlignment(.center)

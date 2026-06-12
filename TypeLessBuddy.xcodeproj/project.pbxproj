@@ -37,6 +37,7 @@
 		A00000010000000000000129 /* SetupWindowView+Onboarding.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000020000000000000129 /* SetupWindowView+Onboarding.swift */; };
 		A00000010000000000000130 /* SetupWindowView+Sections.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000020000000000000130 /* SetupWindowView+Sections.swift */; };
 		A00000010000000000000135 /* SetupWindowView+Tryout.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000020000000000000135 /* SetupWindowView+Tryout.swift */; };
+		A00000010000000000000136 /* AccessibilityToggleIllustration.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000020000000000000136 /* AccessibilityToggleIllustration.swift */; };
 		A00000010000000000000120 /* ShortcutRecorders.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000020000000000000120 /* ShortcutRecorders.swift */; };
 		A00000010000000000000121 /* SettingsComponents.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000020000000000000121 /* SettingsComponents.swift */; };
 		A00000010000000000000122 /* OnboardingComponents.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000020000000000000122 /* OnboardingComponents.swift */; };
@@ -177,6 +178,7 @@
 		A00000020000000000000129 /* SetupWindowView+Onboarding.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "SetupWindowView+Onboarding.swift"; sourceTree = "<group>"; };
 		A00000020000000000000130 /* SetupWindowView+Sections.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "SetupWindowView+Sections.swift"; sourceTree = "<group>"; };
 		A00000020000000000000135 /* SetupWindowView+Tryout.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "SetupWindowView+Tryout.swift"; sourceTree = "<group>"; };
+		A00000020000000000000136 /* AccessibilityToggleIllustration.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AccessibilityToggleIllustration.swift; sourceTree = "<group>"; };
 		A00000020000000000000120 /* ShortcutRecorders.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShortcutRecorders.swift; sourceTree = "<group>"; };
 		A00000020000000000000121 /* SettingsComponents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsComponents.swift; sourceTree = "<group>"; };
 		A00000020000000000000122 /* OnboardingComponents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingComponents.swift; sourceTree = "<group>"; };
@@ -376,6 +378,7 @@
 				A00000020000000000000129 /* SetupWindowView+Onboarding.swift */,
 				A00000020000000000000130 /* SetupWindowView+Sections.swift */,
 				A00000020000000000000135 /* SetupWindowView+Tryout.swift */,
+				A00000020000000000000136 /* AccessibilityToggleIllustration.swift */,
 				A00000020000000000000120 /* ShortcutRecorders.swift */,
 				A00000020000000000000121 /* SettingsComponents.swift */,
 				A00000020000000000000122 /* OnboardingComponents.swift */,
@@ -743,6 +746,7 @@
 				A00000010000000000000129 /* SetupWindowView+Onboarding.swift in Sources */,
 				A00000010000000000000130 /* SetupWindowView+Sections.swift in Sources */,
 				A00000010000000000000135 /* SetupWindowView+Tryout.swift in Sources */,
+				A00000010000000000000136 /* AccessibilityToggleIllustration.swift in Sources */,
 				A00000010000000000000120 /* ShortcutRecorders.swift in Sources */,
 				A00000010000000000000121 /* SettingsComponents.swift in Sources */,
 				A00000010000000000000122 /* OnboardingComponents.swift in Sources */,
