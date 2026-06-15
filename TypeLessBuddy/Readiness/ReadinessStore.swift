@@ -52,7 +52,9 @@ final class ReadinessStore: ObservableObject {
             readyConfirmation = nil
         }
 
-        snapshot = newSnapshot
+        if snapshot != newSnapshot {
+            snapshot = newSnapshot
+        }
         previousState = newSnapshot.state
     }
 

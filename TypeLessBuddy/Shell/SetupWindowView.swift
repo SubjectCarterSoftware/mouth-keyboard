@@ -214,6 +214,8 @@ struct SetupWindowView: View {
     @State var isShowingClearAllReplacementsConfirmation = false
     @State var scheduledFlashTask: Task<Void, Never>?
     @State var isProgrammaticScroll = false
+    @State var sectionTrackingThrottleTask: Task<Void, Never>?
+    @State var pendingSectionOffsets: [SettingsSection: CGFloat]?
     @State var onboardingStep: OnboardingStep = .microphone
     @State var hasInitializedOnboardingStep = false
     @State var isMicPriorityPickerMenuOpen = false
@@ -626,10 +628,20 @@ struct SetupWindowView: View {
 
     func updateActiveSection(using offsets: [SettingsSection: CGFloat]) {
         guard !isProgrammaticScroll else { return }
-        guard let nearest = offsets.min(by: { abs($0.value - 12) < abs($1.value - 12) })?.key else {
-            return
+        // Stash the latest offsets and start a throttle window if one isn't running.
+        pendingSectionOffsets = offsets
+        guard sectionTrackingThrottleTask == nil else { return }
+        sectionTrackingThrottleTask = Task { @MainActor in
+            try? await Task.sleep(nanoseconds: 100_000_000) // 100ms
+            guard !Task.isCancelled else { return }
+            if let offsets = pendingSectionOffsets {
+                if let nearest = offsets.min(by: { abs($0.value - 12) < abs($1.value - 12) })?.key {
+                    activeSection = nearest
+                }
+                pendingSectionOffsets = nil
+            }
+            sectionTrackingThrottleTask = nil
         }
-        activeSection = nearest
     }
 
     func scrollToSection(_ section: SettingsSection, proxy: ScrollViewProxy) {
@@ -713,7 +725,7 @@ struct SetupWindowView: View {
             accessibilityAdvanceTask?.cancel()
             accessibilityAdvanceTask = nil
         }
-        .onReceive(Timer.publish(every: 3, on: .main, in: .common).autoconnect()) { _ in
+        .onReceive(Timer.publish(every: 3, on: .main, in: .default).autoconnect()) { _ in
             readinessStore.refresh()
             modelLoadState.refreshStatus()
             whisperModelLoadState.refreshStatus()
@@ -742,7 +754,7 @@ struct SetupWindowView: View {
         .onChange(of: isAccessibilityAuthorized) { _, newValue in
             handleAccessibilityAuthorizationChange(newValue)
         }
-        .onReceive(Timer.publish(every: 1, on: .main, in: .common).autoconnect()) { _ in
+        .onReceive(Timer.publish(every: 1, on: .main, in: .default).autoconnect()) { _ in
             // Poll quickly while waiting on the Accessibility toggle so the step
             // reacts almost instantly when the user flips the switch.
             if mode == .onboarding, onboardingStep == .accessibility, !isAccessibilityAuthorized {

@@ -109,18 +109,26 @@ final class RewriteModelLoadState: ObservableObject {
     }
 
     func refreshStatus() {
-        downloadedTiers = Set(RewriteModelTier.allCases.filter { tier in
+        let newDownloaded = Set(RewriteModelTier.allCases.filter { tier in
             LocalRewriteService.isModelDownloaded(tier)
         })
-        preparedTiers = Set(RewriteModelTier.allCases.filter { tier in
+        let newPrepared = Set(RewriteModelTier.allCases.filter { tier in
             LocalRewriteService.isModelPrepared(tier)
         })
+        if downloadedTiers != newDownloaded {
+            downloadedTiers = newDownloaded
+        }
+        if preparedTiers != newPrepared {
+            preparedTiers = newPrepared
+        }
         statusRefreshTask?.cancel()
         statusRefreshTask = Task { [weak self] in
             guard let self else { return }
             let warmTier = await LocalRewriteService.shared.loadedTier()
             guard !Task.isCancelled else { return }
-            self.warmTier = warmTier
+            if self.warmTier != warmTier {
+                self.warmTier = warmTier
+            }
             self.statusRefreshTask = nil
         }
     }

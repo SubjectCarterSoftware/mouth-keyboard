@@ -36,18 +36,24 @@ final class HistorySettingsViewModel: ObservableObject {
 
         do {
             let configuration = configurationProvider()
-            let entries = try historyCaptureService.listEntries(configuration: configuration)
-            self.entries = entries
-            usage = try? historyCaptureService.storageUsage(configuration: configuration)
+            let newEntries = try historyCaptureService.listEntries(configuration: configuration)
+            let newUsage = try? historyCaptureService.storageUsage(configuration: configuration)
+
+            if entries != newEntries {
+                entries = newEntries
+            }
+            if usage != newUsage {
+                usage = newUsage
+            }
             loadError = nil
 
             if let selectedEntryURL,
-               entries.contains(where: { $0.fileURL == selectedEntryURL }) {
+               newEntries.contains(where: { $0.fileURL == selectedEntryURL }) {
                 loadEntryDetail(for: selectedEntryURL)
                 return
             }
 
-            if let firstEntry = entries.first {
+            if let firstEntry = newEntries.first {
                 selectedEntryURL = firstEntry.fileURL
                 loadEntryDetail(for: firstEntry.fileURL)
             } else {
