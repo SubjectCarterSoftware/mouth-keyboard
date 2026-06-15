@@ -78,10 +78,12 @@ enum SetupWindowMode: Equatable {
 }
 
 enum OnboardingStep: String, CaseIterable, Identifiable {
+    // Order drives the onboarding flow (via CaseIterable): permissions first
+    // (microphone → accessibility), then preferences, then the Try It Out payoff.
     case microphone
+    case accessibility
     case shortcuts
     case pillPosition
-    case accessibility
     case vocabularyPacks
     case speechEngine
 
