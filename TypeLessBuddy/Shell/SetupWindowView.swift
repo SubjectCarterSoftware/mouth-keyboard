@@ -4,6 +4,15 @@ import KeyboardShortcuts
 import SwiftUI
 import UniformTypeIdentifiers
 
+struct SectionOffsetPreferenceKey: PreferenceKey {
+    static var defaultValue: [SettingsSection: CGFloat] = [:]
+
+    static func reduce(value: inout [SettingsSection: CGFloat], nextValue: () -> [SettingsSection: CGFloat]) {
+        value.merge(nextValue(), uniquingKeysWith: { _, new in new })
+    }
+}
+
+
 enum SetupWindowMetrics {
     static let width: CGFloat = 920
     static let collapsedHeight: CGFloat = 780
@@ -207,7 +216,9 @@ struct SetupWindowView: View {
     @State var isAdvancedSettingsExpanded = false
     @StateObject var cloudVM = CloudLLMSettingsViewModel()
     @State var activeSection: SettingsSection? = .general
-    @State var programmaticScrollTarget: SettingsSection? = nil
+    @State var isProgrammaticScroll = false
+    @State var sectionTrackingThrottleTask: Task<Void, Never>?
+    @State var pendingSectionOffsets: [SettingsSection: CGFloat]?
     @State var flashedSection: SettingsSection?
     @State var flashNonce: Int = 0
     @State var keyboardShortcutChangeNonce: Int = 0
@@ -244,17 +255,38 @@ struct SetupWindowView: View {
         )
     }
 
-    var scrollPositionBinding: Binding<SettingsSection?> {
-        Binding(
-            get: {
-                programmaticScrollTarget
-            },
-            set: { newValue in
-                if let newValue {
-                    activeSection = newValue
+    @ViewBuilder
+    func trackedSection<Content: View>(
+        _ section: SettingsSection,
+        @ViewBuilder content: () -> Content
+    ) -> some View {
+        content()
+            .background(
+                GeometryReader { geometry in
+                    Color.clear.preference(
+                        key: SectionOffsetPreferenceKey.self,
+                        value: [section: geometry.frame(in: .named("settingsScroll")).minY]
+                    )
                 }
+            )
+            .id(section)
+    }
+
+    func updateActiveSection(using offsets: [SettingsSection: CGFloat]) {
+        guard !isProgrammaticScroll else { return }
+        pendingSectionOffsets = offsets
+        guard sectionTrackingThrottleTask == nil else { return }
+        sectionTrackingThrottleTask = Task { @MainActor in
+            try? await Task.sleep(nanoseconds: 100_000_000) // 100ms
+            guard !Task.isCancelled else { return }
+            if let offsets = pendingSectionOffsets {
+                if let nearest = offsets.min(by: { abs($0.value - 12) < abs($1.value - 12) })?.key {
+                    activeSection = nearest
+                }
+                pendingSectionOffsets = nil
             }
-        )
+            sectionTrackingThrottleTask = nil
+        }
     }
 
     var isAnyModelTransferInFlight: Bool {
@@ -637,17 +669,11 @@ struct SetupWindowView: View {
         )
     }
 
-    func scrollToSection(_ section: SettingsSection) {
+    func scrollToSection(_ section: SettingsSection, proxy: ScrollViewProxy) {
         activeSection = section
+        isProgrammaticScroll = true
         withAnimation(.easeInOut(duration: 0.22)) {
-            programmaticScrollTarget = section
-        }
-
-        // Reset target so that manual scroll wheel movements don't fight with the binding
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) {
-            if programmaticScrollTarget == section {
-                programmaticScrollTarget = nil
-            }
+            proxy.scrollTo(section, anchor: .top)
         }
 
         scheduledFlashTask?.cancel()
@@ -657,6 +683,11 @@ struct SetupWindowView: View {
             guard !Task.isCancelled else { return }
             flashedSection = section
             flashNonce &+= 1
+
+            // Allow scroll-based section tracking to resume after the flash starts.
+            try? await Task.sleep(nanoseconds: 600_000_000)
+            guard !Task.isCancelled else { return }
+            isProgrammaticScroll = false
         }
     }
 

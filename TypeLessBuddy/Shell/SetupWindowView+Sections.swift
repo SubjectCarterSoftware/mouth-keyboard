@@ -541,53 +541,66 @@ extension SetupWindowView {
                     .accessibilityIdentifier("setupWindow.guideButton")
                 }
 
-                HStack(alignment: .top, spacing: SettingsLayoutMetrics.contentSpacing) {
-                    VStack(alignment: .leading, spacing: 8) {
-                        ForEach(SettingsSection.allCases) { section in
-                            SettingsSidebarButton(
-                                section: section,
-                                isActive: activeSection == section
-                            ) {
-                                scrollToSection(section)
+                ScrollViewReader { proxy in
+                    HStack(alignment: .top, spacing: SettingsLayoutMetrics.contentSpacing) {
+                        VStack(alignment: .leading, spacing: 8) {
+                            ForEach(SettingsSection.allCases) { section in
+                                SettingsSidebarButton(
+                                    section: section,
+                                    isActive: activeSection == section
+                                ) {
+                                    scrollToSection(section, proxy: proxy)
+                                }
                             }
                         }
-                    }
-                    .frame(width: SettingsLayoutMetrics.sidebarWidth, alignment: .topLeading)
-                    .accessibilityIdentifier("setupWindow.sidebar")
+                        .frame(width: SettingsLayoutMetrics.sidebarWidth, alignment: .topLeading)
+                        .accessibilityIdentifier("setupWindow.sidebar")
 
-                    ScrollView {
-                        LazyVStack(alignment: .leading, spacing: 18) {
-                            generalSectionContent
-                                .id(SettingsSection.general)
+                        ScrollView {
+                            LazyVStack(alignment: .leading, spacing: 18) {
+                                trackedSection(.general) {
+                                    generalSectionContent
+                                }
 
-                            shortcutsSectionContent
-                                .id(SettingsSection.shortcuts)
+                                trackedSection(.shortcuts) {
+                                    shortcutsSectionContent
+                                }
 
-                            assistantSectionContent
-                                .id(SettingsSection.assistant)
+                                trackedSection(.assistant) {
+                                    assistantSectionContent
+                                }
 
-                            replacementsSectionContent
-                                .id(SettingsSection.replacements)
+                                trackedSection(.replacements) {
+                                    replacementsSectionContent
+                                }
 
-                            notesSectionContent
-                                .id(SettingsSection.notes)
+                                trackedSection(.notes) {
+                                    notesSectionContent
+                                }
 
-                            historySectionContent
-                                .id(SettingsSection.history)
+                                trackedSection(.history) {
+                                    historySectionContent
+                                }
 
-                            permissionsSectionContent
-                                .id(SettingsSection.permissions)
+                                trackedSection(.permissions) {
+                                    permissionsSectionContent
+                                }
 
-                            advancedSectionContent
-                                .id(SettingsSection.advanced)
+                                trackedSection(.advanced) {
+                                    advancedSectionContent
+                                }
+                            }
+                            .padding(.trailing, 4)
+                            .onPreferenceChange(SectionOffsetPreferenceKey.self) { offsets in
+                                updateActiveSection(using: offsets)
+                            }
                         }
-                        .padding(.trailing, 4)
+                        .coordinateSpace(name: "settingsScroll")
+                        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
                     }
-                    .scrollPosition(id: scrollPositionBinding)
-                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-                }
-                .onReceive(NotificationCenter.default.publisher(for: .postEventGuideRequested)) { _ in
-                    scrollToSection(.permissions)
+                    .onReceive(NotificationCenter.default.publisher(for: .postEventGuideRequested)) { _ in
+                        scrollToSection(.permissions, proxy: proxy)
+                    }
                 }
             }
             .padding(24)

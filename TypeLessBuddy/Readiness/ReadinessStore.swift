@@ -1,3 +1,4 @@
+import AppKit
 import Combine
 import Foundation
 
@@ -65,6 +66,7 @@ final class ReadinessStore: ObservableObject {
             Task { @MainActor in
                 _ = await microphoneService.requestAccess()
                 refresh()
+                NSApp.activate(ignoringOtherApps: true)
             }
         case .postEvent:
             preferences.recordPostEventPermissionPrompt()
