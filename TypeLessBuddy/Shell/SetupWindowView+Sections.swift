@@ -583,7 +583,7 @@ extension SetupWindowView {
                         }
                         .padding(.trailing, 4)
                     }
-                    .scrollPosition(id: $activeSection)
+                    .scrollPosition(id: scrollPositionBinding)
                     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
                 }
                 .onReceive(NotificationCenter.default.publisher(for: .postEventGuideRequested)) { _ in

@@ -207,6 +207,7 @@ struct SetupWindowView: View {
     @State var isAdvancedSettingsExpanded = false
     @StateObject var cloudVM = CloudLLMSettingsViewModel()
     @State var activeSection: SettingsSection? = .general
+    @State var programmaticScrollTarget: SettingsSection? = nil
     @State var flashedSection: SettingsSection?
     @State var flashNonce: Int = 0
     @State var keyboardShortcutChangeNonce: Int = 0
@@ -239,6 +240,19 @@ struct SetupWindowView: View {
             },
             set: { newValue in
                 preferences.rewriteSystemPromptPrefix = newValue
+            }
+        )
+    }
+
+    var scrollPositionBinding: Binding<SettingsSection?> {
+        Binding(
+            get: {
+                programmaticScrollTarget
+            },
+            set: { newValue in
+                if let newValue {
+                    activeSection = newValue
+                }
             }
         )
     }
@@ -624,8 +638,16 @@ struct SetupWindowView: View {
     }
 
     func scrollToSection(_ section: SettingsSection) {
+        activeSection = section
         withAnimation(.easeInOut(duration: 0.22)) {
-            activeSection = section
+            programmaticScrollTarget = section
+        }
+
+        // Reset target so that manual scroll wheel movements don't fight with the binding
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) {
+            if programmaticScrollTarget == section {
+                programmaticScrollTarget = nil
+            }
         }
 
         scheduledFlashTask?.cancel()
