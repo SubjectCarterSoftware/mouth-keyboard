@@ -556,7 +556,7 @@ extension SetupWindowView {
                     .accessibilityIdentifier("setupWindow.sidebar")
 
                     ScrollView {
-                        VStack(alignment: .leading, spacing: 18) {
+                        LazyVStack(alignment: .leading, spacing: 18) {
                             generalSectionContent
                                 .id(SettingsSection.general)
 
