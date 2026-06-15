@@ -637,18 +637,21 @@ final class WhisperModelLoadState: ObservableObject {
     }
 
     func refreshStatus() {
-        let newDownloaded = Set(WhisperModelChoice.allCases.filter { model in
-            WhisperService.isModelDownloaded(model)
-        })
-        if downloadedModels != newDownloaded {
-            downloadedModels = newDownloaded
-        }
         statusRefreshTask?.cancel()
         statusRefreshTask = Task { [weak self] in
             guard let self else { return }
+            // Perform filesystem check off the main actor to avoid blocking the UI.
+            let newDownloaded = await Task.detached {
+                Set(WhisperModelChoice.allCases.filter { model in
+                    WhisperService.isModelDownloaded(model)
+                })
+            }.value
             let warmModel = await WhisperService.shared.loadedModelChoice()
             let loadingModel = await WhisperService.shared.loadingModelChoice()
             guard !Task.isCancelled else { return }
+            if self.downloadedModels != newDownloaded {
+                self.downloadedModels = newDownloaded
+            }
             if self.warmModel != warmModel {
                 self.warmModel = warmModel
             }

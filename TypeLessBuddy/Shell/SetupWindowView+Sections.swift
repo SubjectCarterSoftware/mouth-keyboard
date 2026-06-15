@@ -541,66 +541,53 @@ extension SetupWindowView {
                     .accessibilityIdentifier("setupWindow.guideButton")
                 }
 
-                ScrollViewReader { proxy in
-                    HStack(alignment: .top, spacing: SettingsLayoutMetrics.contentSpacing) {
-                        VStack(alignment: .leading, spacing: 8) {
-                            ForEach(SettingsSection.allCases) { section in
-                                SettingsSidebarButton(
-                                    section: section,
-                                    isActive: activeSection == section
-                                ) {
-                                    scrollToSection(section, proxy: proxy)
-                                }
+                HStack(alignment: .top, spacing: SettingsLayoutMetrics.contentSpacing) {
+                    VStack(alignment: .leading, spacing: 8) {
+                        ForEach(SettingsSection.allCases) { section in
+                            SettingsSidebarButton(
+                                section: section,
+                                isActive: activeSection == section
+                            ) {
+                                scrollToSection(section)
                             }
                         }
-                        .frame(width: SettingsLayoutMetrics.sidebarWidth, alignment: .topLeading)
-                        .accessibilityIdentifier("setupWindow.sidebar")
+                    }
+                    .frame(width: SettingsLayoutMetrics.sidebarWidth, alignment: .topLeading)
+                    .accessibilityIdentifier("setupWindow.sidebar")
 
-                        ScrollView {
-                            VStack(alignment: .leading, spacing: 18) {
-                                trackedSection(.general) {
-                                    generalSectionContent
-                                }
+                    ScrollView {
+                        VStack(alignment: .leading, spacing: 18) {
+                            generalSectionContent
+                                .id(SettingsSection.general)
 
-                                trackedSection(.shortcuts) {
-                                    shortcutsSectionContent
-                                }
+                            shortcutsSectionContent
+                                .id(SettingsSection.shortcuts)
 
-                                trackedSection(.assistant) {
-                                    assistantSectionContent
-                                }
+                            assistantSectionContent
+                                .id(SettingsSection.assistant)
 
-                                trackedSection(.replacements) {
-                                    replacementsSectionContent
-                                }
+                            replacementsSectionContent
+                                .id(SettingsSection.replacements)
 
-                                trackedSection(.notes) {
-                                    notesSectionContent
-                                }
+                            notesSectionContent
+                                .id(SettingsSection.notes)
 
-                                trackedSection(.history) {
-                                    historySectionContent
-                                }
+                            historySectionContent
+                                .id(SettingsSection.history)
 
-                                trackedSection(.permissions) {
-                                    permissionsSectionContent
-                                }
+                            permissionsSectionContent
+                                .id(SettingsSection.permissions)
 
-                                trackedSection(.advanced) {
-                                    advancedSectionContent
-                                }
-                            }
-                            .padding(.trailing, 4)
-                            .onPreferenceChange(SectionOffsetPreferenceKey.self) { offsets in
-                                updateActiveSection(using: offsets)
-                            }
+                            advancedSectionContent
+                                .id(SettingsSection.advanced)
                         }
-                        .coordinateSpace(name: "settingsScroll")
-                        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+                        .padding(.trailing, 4)
                     }
-                    .onReceive(NotificationCenter.default.publisher(for: .postEventGuideRequested)) { _ in
-                        scrollToSection(.permissions, proxy: proxy)
-                    }
+                    .scrollPosition(id: $activeSection)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+                }
+                .onReceive(NotificationCenter.default.publisher(for: .postEventGuideRequested)) { _ in
+                    scrollToSection(.permissions)
                 }
             }
             .padding(24)

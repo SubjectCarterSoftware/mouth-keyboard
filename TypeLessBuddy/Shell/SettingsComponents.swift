@@ -4,13 +4,8 @@ import KeyboardShortcuts
 import SwiftUI
 import UniformTypeIdentifiers
 
-struct SectionOffsetPreferenceKey: PreferenceKey {
-    static var defaultValue: [SettingsSection: CGFloat] = [:]
 
-    static func reduce(value: inout [SettingsSection: CGFloat], nextValue: () -> [SettingsSection: CGFloat]) {
-        value.merge(nextValue(), uniquingKeysWith: { _, new in new })
-    }
-}
+
 
 enum SettingsSectionHeaderAccessoryPlacement {
     case inline
