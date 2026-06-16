@@ -549,7 +549,7 @@ final class HoldToTranscribeMonitor {
     private var activeHoldOwner: HoldBindingSlot?
     private var pendingModifierRelease: DispatchWorkItem?
     private var pendingModifierReleaseOwner: HoldBindingSlot?
-    private static let modifierReleaseDebounce: TimeInterval = 0.05
+    private static let modifierReleaseDebounce: TimeInterval = 0.15
 
     private struct HoldBindingTarget {
         let slot: HoldBindingSlot

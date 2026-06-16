@@ -66,7 +66,7 @@ extension SetupWindowView {
             TryoutStep(
                 title: "Give {NAME} Your Selection",
                 systemImage: "text.cursor",
-                spokenPhrase: "Hey {NAME}, can you make the text I have selected sound like a pirate?",
+                spokenPhrase: "Hey {NAME}, can you turn the text I have selected into dot points?",
                 footnote: "We've selected the box text for you — just hold your key and speak.",
                 selectsBoxTextOnEnter: true
             ),

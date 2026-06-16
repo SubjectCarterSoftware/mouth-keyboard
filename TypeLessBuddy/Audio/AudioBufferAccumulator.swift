@@ -11,7 +11,6 @@ private let whisperSampleRate: Double = 16_000.0
 private let defaultAccumulatorMaxDuration: TimeInterval = 15 * 60
 private let trimmingWindowDuration: TimeInterval = 0.1
 private let trimmingPreRollDuration: TimeInterval = 0.3
-private let trimmingPostRollDuration: TimeInterval = 0.2
 private let speechThresholdRMS: Float = 0.0056
 
 class AudioBufferAccumulator: AudioBufferReceiving {
@@ -90,7 +89,7 @@ class AudioBufferAccumulator: AudioBufferReceiving {
 
         let minimumSampleCount = max(0, Int(ceil(minimumDuration * whisperSampleRate)))
         let trailingSilenceSampleCount = max(0, Int(ceil(trailingSilenceDuration * whisperSampleRate)))
-        let trimmed = trimBoundarySilence(from: samples)
+        let trimmed = trimLeadingSilence(from: samples)
 
         var prepared = trimmed
         prepared.reserveCapacity(max(trimmed.count + trailingSilenceSampleCount, minimumSampleCount))
@@ -106,19 +105,16 @@ class AudioBufferAccumulator: AudioBufferReceiving {
         return prepared
     }
 
-    private static func trimBoundarySilence(from samples: [Float]) -> [Float] {
+    private static func trimLeadingSilence(from samples: [Float]) -> [Float] {
         let windowSampleCount = max(1, Int(ceil(trimmingWindowDuration * whisperSampleRate)))
         let preRollSampleCount = max(0, Int(ceil(trimmingPreRollDuration * whisperSampleRate)))
-        let postRollSampleCount = max(0, Int(ceil(trimmingPostRollDuration * whisperSampleRate)))
 
-        guard let firstSpeechRange = firstSpeechWindow(in: samples, windowSampleCount: windowSampleCount),
-              let lastSpeechRange = lastSpeechWindow(in: samples, windowSampleCount: windowSampleCount) else {
+        guard let firstSpeechRange = firstSpeechWindow(in: samples, windowSampleCount: windowSampleCount) else {
             return samples
         }
 
         let startIndex = max(0, firstSpeechRange.lowerBound - preRollSampleCount)
-        let endIndex = min(samples.count, max(startIndex, lastSpeechRange.upperBound + postRollSampleCount))
-        return Array(samples[startIndex..<endIndex])
+        return Array(samples[startIndex...])
     }
 
     private static func firstSpeechWindow(in samples: [Float], windowSampleCount: Int) -> Range<Int>? {
@@ -131,20 +127,6 @@ class AudioBufferAccumulator: AudioBufferReceiving {
             lowerBound += windowSampleCount
         }
         return nil
-    }
-
-    private static func lastSpeechWindow(in samples: [Float], windowSampleCount: Int) -> Range<Int>? {
-        var lowerBound = max(0, samples.count - windowSampleCount)
-        while true {
-            let upperBound = min(samples.count, lowerBound + windowSampleCount)
-            if rms(of: samples[lowerBound..<upperBound]) > speechThresholdRMS {
-                return lowerBound..<upperBound
-            }
-            if lowerBound == 0 {
-                return nil
-            }
-            lowerBound = max(0, lowerBound - windowSampleCount)
-        }
     }
 
     private static func rms(of samples: ArraySlice<Float>) -> Float {

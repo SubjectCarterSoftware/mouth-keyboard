@@ -15,7 +15,7 @@ struct ActivationSoundPlayer {
         playStart: @escaping () -> Void = { Self.playNamedSound("Tink") },
         playSuccess: @escaping () -> Void = { Self.playNamedSound("Glass") },
         playFailure: @escaping () -> Void = { Self.playNamedSound("Basso") },
-        playNoteSaved: @escaping () -> Void = { Self.playNamedSound("NoteSaved") },
+        playNoteSaved: @escaping () -> Void = { Self.playNamedSound("Pop") },
         playSuccessThenNoteSaved: @escaping () -> Void = { Self.playSuccessThenNoteSavedDefault() }
     ) {
         self.playStartImpl = playStart
@@ -57,7 +57,7 @@ struct ActivationSoundPlayer {
 
     private static func playSuccessThenNoteSavedDefault() {
         let successSound = sound(named: "Glass")
-        guard let noteSound = sound(named: "NoteSaved") else {
+        guard let noteSound = sound(named: "Pop") else {
             successSound?.play()
             return
         }

@@ -1,0 +1,8 @@
+// Shared signing defaults. Put personal Apple Developer Team settings in
+// Config/Signing.local.xcconfig, which is intentionally ignored by Git.
+
+CODE_SIGN_STYLE = Automatic
+CODE_SIGN_IDENTITY[sdk=macosx*] = -
+DEVELOPMENT_TEAM =
+
+#include? "Signing.local.xcconfig"

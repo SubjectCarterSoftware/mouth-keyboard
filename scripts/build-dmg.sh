@@ -7,17 +7,15 @@ REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 
 APP_NAME="TypeLessBuddy"
 SCHEME="TypeLessBuddy"
-PROJECT_PATH="${REPO_ROOT}/TypeLessBuddy.xcodeproj"
 RELEASE_DIR="${REPO_ROOT}/dist"
-RELEASE_BUILD_DIR="${RELEASE_DIR}/build"
-RELEASE_DERIVED_DATA_DIR="${RELEASE_DIR}/DerivedData"
 STAGING_DIR="${RELEASE_DIR}/dmg"
 VOLUME_NAME="${APP_NAME}"
-APP_BUILD_PATH="${RELEASE_BUILD_DIR}/Release/${APP_NAME}.app"
+APP_BUILD_PATH="${REPO_ROOT}/build/DerivedData-app/Build/Products/Release/${APP_NAME}.app"
 APP_PATH="${RELEASE_DIR}/${APP_NAME}.app"
 DMG_PATH="${RELEASE_DIR}/${APP_NAME}.dmg"
 TEMP_DMG_PATH="${RELEASE_DIR}/${APP_NAME}-temp.dmg"
 MOUNT_ROOT="/Volumes/${VOLUME_NAME}"
+RELEASE_ARCHS="${RELEASE_ARCHS:-$(uname -m)}"
 
 SIGNING_IDENTITY="${SIGNING_IDENTITY:-}"
 APPLE_ID="${APPLE_ID:-}"
@@ -45,16 +43,10 @@ require_command hdiutil
 require_command osascript
 
 mkdir -p "${RELEASE_DIR}"
-rm -rf "${STAGING_DIR}" "${DMG_PATH}" "${TEMP_DMG_PATH}" "${APP_PATH}" "${RELEASE_BUILD_DIR}" "${RELEASE_DERIVED_DATA_DIR}"
+rm -rf "${STAGING_DIR}" "${DMG_PATH}" "${TEMP_DMG_PATH}" "${APP_PATH}"
 
-echo "Building ${APP_NAME}.app..."
-xcodebuild \
-  -project "${PROJECT_PATH}" \
-  -scheme "${SCHEME}" \
-  -configuration Release \
-  -derivedDataPath "${RELEASE_DERIVED_DATA_DIR}" \
-  SYMROOT="${RELEASE_BUILD_DIR}" \
-  build
+echo "Building ${APP_NAME}.app for ${RELEASE_ARCHS}..."
+CONFIGURATION=Release BUILD_ARCHS="${RELEASE_ARCHS}" "${SCRIPT_DIR}/build-app.sh"
 
 if [[ ! -d "${APP_BUILD_PATH}" ]]; then
   echo "Expected app bundle not found at ${APP_BUILD_PATH}" >&2
@@ -97,7 +89,8 @@ hdiutil create \
 echo "Mounting DMG for Finder layout..."
 hdiutil attach "${TEMP_DMG_PATH}" -mountpoint "${MOUNT_ROOT}" -noautoopen -quiet
 
-osascript <<APPLESCRIPT
+if ! osascript <<APPLESCRIPT
+with timeout of 300 seconds
 tell application "Finder"
   tell disk "${VOLUME_NAME}"
     open
@@ -116,7 +109,11 @@ tell application "Finder"
     delay 2
   end tell
 end tell
+end timeout
 APPLESCRIPT
+then
+  echo "Warning: Finder layout step failed; continuing with the default DMG layout." >&2
+fi
 
 echo "Finalizing compressed DMG..."
 hdiutil detach "${MOUNT_ROOT}" -quiet

@@ -1,0 +1,21 @@
+* text=auto
+
+*.swift text eol=lf
+*.md text eol=lf
+*.yml text eol=lf
+*.yaml text eol=lf
+*.json text eol=lf
+*.plist text eol=lf
+*.xcconfig text eol=lf
+*.pbxproj text eol=lf
+
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.icns binary
+*.aiff binary
+*.wav binary
+*.dmg binary
+*.app binary
+*.xcresult binary

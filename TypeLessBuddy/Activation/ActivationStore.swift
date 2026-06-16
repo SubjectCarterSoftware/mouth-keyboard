@@ -281,6 +281,18 @@ final class ActivationStore: ObservableObject {
         refreshSuccessDismissTimer()
     }
 
+    func requestCurrentSessionResultAsNote() {
+        switch state {
+        case .recording, .processing, .rewriting:
+            guard successNoteSaveState?.canQueueSave == true else { return }
+            successNoteSaveState = .queued
+        case .success:
+            saveCurrentSuccessResultAsNote()
+        case .idle, .modelDownloading, .modelPrewarming, .failure:
+            return
+        }
+    }
+
     func saveCurrentSuccessResultAsNote() {
         guard currentSuccessText != nil else { return }
         guard let noteContent = currentSuccessNoteContent else { return }
@@ -421,6 +433,7 @@ final class ActivationStore: ObservableObject {
         initialSelectedCaptureTask = nil
         activeActivationOrigin = origin
         bufferAccumulator.reset()
+        successNoteSaveState = configuredSuccessNoteSaveState(noteWasSaved: false)
         state = .recording
         beginWhisperModelWarmup()
         beginRewriteModelWarmup()
@@ -562,17 +575,21 @@ final class ActivationStore: ObservableObject {
         let didPaste = shouldPasteOnSuccessfulFinish
         requestsPasteOnCompletion = false
         recordLastTranscription(processed)
-        currentSuccessNoteContent = noteCaptureContent(
+        let noteContent = noteCaptureContent(
             rawTranscription: processed,
             assistantOutput: nil
         )
+        let queuedNoteWasSaved = successNoteSaveState == .queued
+            ? await saveNoteIfPossible(content: noteContent)
+            : false
+        currentSuccessNoteContent = noteContent
         var syntheticPasteSucceeded = false
         if didPaste {
             syntheticPasteSucceeded = await pasteWithClipboardProtection(text: processed)
         } else {
             clipboardService.writeToClipboard(processed)
         }
-        successNoteSaveState = configuredSuccessNoteSaveState(noteWasSaved: false)
+        successNoteSaveState = configuredSuccessNoteSaveState(noteWasSaved: queuedNoteWasSaved)
         state = .success(
             text: processed,
             pasted: syntheticPasteSucceeded,
@@ -585,7 +602,11 @@ final class ActivationStore: ObservableObject {
                 assistantOutput: nil
             )
         )
-        playSuccessSoundIfNeeded()
+        if queuedNoteWasSaved {
+            playSuccessThenNoteSavedSoundIfNeeded()
+        } else {
+            playSuccessSoundIfNeeded()
+        }
         beginSuccessDismissTiming(sessionID: sessionID)
     }
 
@@ -614,6 +635,10 @@ final class ActivationStore: ObservableObject {
             message: processed,
             matchedAlias: assistantName
         )
+        if shouldAutomaticallySaveAssistantNote(classification: noteIntent),
+           successNoteSaveState?.canQueueSave == true {
+            successNoteSaveState = .queued
+        }
         let dictatedAssistantPrompt = noteIntent.sanitizedPrompt
 
         // Route external text context into the rewrite prompt when requested.
@@ -723,9 +748,7 @@ final class ActivationStore: ObservableObject {
             referencedContexts: referencedNoteContexts,
             assistantOutput: rewritten
         )
-        let automaticNoteWasSaved = shouldAutomaticallySaveAssistantNote(
-            classification: noteIntent
-        )
+        let queuedNoteWasSaved = successNoteSaveState == .queued
             ? await saveNoteIfPossible(content: noteContent)
             : false
         var syntheticPasteSucceeded = false
@@ -738,7 +761,7 @@ final class ActivationStore: ObservableObject {
         lastRewrittenTranscription = rewritten
         currentSuccessNoteContent = noteContent
         successNoteSaveState = configuredSuccessNoteSaveState(
-            noteWasSaved: automaticNoteWasSaved
+            noteWasSaved: queuedNoteWasSaved
         )
         state = .success(
             text: rewritten,
@@ -752,7 +775,7 @@ final class ActivationStore: ObservableObject {
                 assistantOutput: rewritten
             )
         )
-        if automaticNoteWasSaved {
+        if queuedNoteWasSaved {
             playSuccessThenNoteSavedSoundIfNeeded()
         } else {
             playSuccessSoundIfNeeded()

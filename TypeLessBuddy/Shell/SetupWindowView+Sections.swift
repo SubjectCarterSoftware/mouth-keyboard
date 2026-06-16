@@ -561,6 +561,7 @@ extension SetupWindowView {
                                 trackedSection(.general) {
                                     generalSectionContent
                                 }
+                                .zIndex(isMicPriorityPickerMenuOpen ? 1 : 0)
 
                                 trackedSection(.shortcuts) {
                                     shortcutsSectionContent

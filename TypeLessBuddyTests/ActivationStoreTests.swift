@@ -2213,6 +2213,96 @@ final class ActivationStoreTests: XCTestCase {
         )
     }
 
+    func test_requestCurrentSessionResultAsNote_queuesDuringRecordingAndSavesPassthroughOutput() async throws {
+        let preferences = makePreferencesWithConfiguredNoteDestination()
+        let noteCaptureService = StubNoteCaptureService()
+        let store = makeStore(
+            permissionsAuthorized: true,
+            transcriber: ActivationStoreMockTranscriber(result: .success("plain transcript")),
+            noteCaptureService: noteCaptureService,
+            preferences: preferences
+        )
+
+        store.arm()
+        XCTAssertEqual(store.successNoteSaveState, .available)
+
+        store.requestCurrentSessionResultAsNote()
+        XCTAssertEqual(store.successNoteSaveState, .queued)
+
+        store.finish()
+
+        let didSucceed = try await waitForSuccess(of: store)
+        XCTAssertTrue(didSucceed)
+        XCTAssertEqual(store.successNoteSaveState, .saved)
+        XCTAssertEqual(
+            noteCaptureService.savedContents,
+            [
+                NoteCaptureContent(
+                    title: nil,
+                    rawTranscription: "plain transcript",
+                    assistantOutput: nil
+                )
+            ]
+        )
+    }
+
+    func test_requestCurrentSessionResultAsNote_queuesDuringProcessingAndSavesPassthroughOutput() async throws {
+        let preferences = makePreferencesWithConfiguredNoteDestination()
+        let noteCaptureService = StubNoteCaptureService()
+        let store = makeStore(
+            permissionsAuthorized: true,
+            transcriber: DelayedWhisperTranscriber(
+                delayNanoseconds: 250_000_000,
+                result: .success("plain transcript")
+            ),
+            noteCaptureService: noteCaptureService,
+            preferences: preferences
+        )
+
+        store.arm()
+        store.finish()
+        XCTAssertEqual(store.state, .processing)
+
+        store.requestCurrentSessionResultAsNote()
+        XCTAssertEqual(store.successNoteSaveState, .queued)
+
+        let didSucceed = try await waitForSuccess(of: store)
+        XCTAssertTrue(didSucceed)
+        XCTAssertEqual(store.successNoteSaveState, .saved)
+        XCTAssertEqual(noteCaptureService.savedContents.count, 1)
+        XCTAssertEqual(noteCaptureService.savedContents.first?.rawTranscription, "plain transcript")
+        XCTAssertNil(noteCaptureService.savedContents.first?.assistantOutput)
+    }
+
+    func test_requestCurrentSessionResultAsNote_queuesDuringRewritingAndSavesAssistantOutput() async throws {
+        let preferences = makePreferencesWithConfiguredNoteDestination()
+        let noteCaptureService = StubNoteCaptureService()
+        let store = makeStore(
+            permissionsAuthorized: true,
+            transcriber: ActivationStoreMockTranscriber(result: .success("Buddy draft a quick status update")),
+            localRewriter: DelayedRewriter(
+                delayNanoseconds: 250_000_000,
+                result: .success("Here is the cleaned status update.")
+            ),
+            noteCaptureService: noteCaptureService,
+            preferences: preferences
+        )
+
+        store.arm()
+        store.finish()
+
+        await waitUntil { store.state == .rewriting }
+        store.requestCurrentSessionResultAsNote()
+        XCTAssertEqual(store.successNoteSaveState, .queued)
+
+        let didSucceed = try await waitForSuccess(of: store, timeoutNanoseconds: 3_000_000_000)
+        XCTAssertTrue(didSucceed)
+        XCTAssertEqual(store.successNoteSaveState, .saved)
+        XCTAssertEqual(noteCaptureService.savedContents.count, 1)
+        XCTAssertEqual(noteCaptureService.savedContents.first?.rawTranscription, "Buddy draft a quick status update")
+        XCTAssertEqual(noteCaptureService.savedContents.first?.assistantOutput, "Here is the cleaned status update.")
+    }
+
     func test_manualSaveCurrentSuccessResultAsNote_savesAssistantOutputWithoutAutomaticNotePhrase() async throws {
         let preferences = makePreferencesWithConfiguredNoteDestination()
         let noteCaptureService = StubNoteCaptureService()
@@ -2329,6 +2419,41 @@ final class ActivationStoreTests: XCTestCase {
 
         XCTAssertTrue(didFail)
         XCTAssertTrue(noteCaptureService.savedContents.isEmpty)
+    }
+
+    func test_assistantNotePhrase_marksQueuedStateBeforeRewriteSuccess() async throws {
+        let preferences = makePreferencesWithConfiguredNoteDestination()
+        let noteCaptureService = StubNoteCaptureService()
+        let store = makeStore(
+            permissionsAuthorized: true,
+            transcriber: ActivationStoreMockTranscriber(
+                result: .success("Buddy make a note of this summarize the update")
+            ),
+            localRewriter: DelayedRewriter(
+                delayNanoseconds: 250_000_000,
+                result: .success("Summary output")
+            ),
+            noteCaptureService: noteCaptureService,
+            preferences: preferences
+        )
+
+        store.arm()
+        store.finish()
+
+        let didQueue = try await waitUntil(timeoutNanoseconds: 1_000_000_000) {
+            await MainActor.run {
+                store.state == .rewriting && store.successNoteSaveState == .queued
+            }
+        }
+
+        XCTAssertTrue(didQueue)
+
+        let didSucceed = try await waitForSuccess(of: store, timeoutNanoseconds: 3_000_000_000)
+        XCTAssertTrue(didSucceed)
+        XCTAssertEqual(store.successNoteSaveState, .saved)
+        XCTAssertEqual(noteCaptureService.savedContents.count, 1)
+        XCTAssertEqual(noteCaptureService.savedContents.first?.rawTranscription, "Buddy make a note of this summarize the update")
+        XCTAssertEqual(noteCaptureService.savedContents.first?.assistantOutput, "Summary output")
     }
 
     func test_rawSuccess_savesHistoryWhenEnabled() async throws {

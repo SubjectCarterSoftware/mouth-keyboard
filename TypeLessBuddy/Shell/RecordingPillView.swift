@@ -192,11 +192,10 @@ struct RecordingPillView: View {
     var silenceWarningActive: Bool = false
     var onFinish: (() -> Void)?
     var onCancel: (() -> Void)?
-    var onRestart: (() -> Void)?
+    var onNoteAction: (() -> Void)?
     var onSuccessClose: (() -> Void)?
     var onSuccessCopy: (() -> Void)?
     var onSuccessAppend: (() -> Void)?
-    var onSuccessSaveNote: (() -> Void)?
 
     private static let pillBackground = Color(red: 0.11, green: 0.11, blue: 0.13)
     private static let noteActionPurple = Color(red: 0.55, green: 0.18, blue: 0.79)
@@ -214,11 +213,10 @@ struct RecordingPillView: View {
         silenceWarningActive: Bool = false,
         onFinish: (() -> Void)? = nil,
         onCancel: (() -> Void)? = nil,
-        onRestart: (() -> Void)? = nil,
+        onNoteAction: (() -> Void)? = nil,
         onSuccessClose: (() -> Void)? = nil,
         onSuccessCopy: (() -> Void)? = nil,
-        onSuccessAppend: (() -> Void)? = nil,
-        onSuccessSaveNote: (() -> Void)? = nil
+        onSuccessAppend: (() -> Void)? = nil
     ) {
         self.levelMonitor = levelMonitor
         self.recordingState = recordingState
@@ -229,11 +227,10 @@ struct RecordingPillView: View {
         self.silenceWarningActive = silenceWarningActive
         self.onFinish = onFinish
         self.onCancel = onCancel
-        self.onRestart = onRestart
+        self.onNoteAction = onNoteAction
         self.onSuccessClose = onSuccessClose
         self.onSuccessCopy = onSuccessCopy
         self.onSuccessAppend = onSuccessAppend
-        self.onSuccessSaveNote = onSuccessSaveNote
         barScales = (0..<7).map { _ in CGFloat.random(in: 0.55...1.0) }
     }
 
@@ -265,10 +262,10 @@ struct RecordingPillView: View {
     // MARK: - Recording state
 
     private func activeMeterContent(mode: ActivityMeterMode) -> some View {
-        let sideButtonGap: CGFloat = mode == .recording ? 5 : 0
+        let sideButtonGap: CGFloat = 5
         let actionSlotWidth = PillCopyControlConfiguration.slotWidth
-        let leftControlCount: CGFloat = mode == .recording ? 2 : 1
-        let rightControlCount: CGFloat = mode == .recording ? 2 : 1
+        let leftControlCount: CGFloat = 2
+        let rightControlCount: CGFloat = 2
         let leftLaneWidth: CGFloat = (actionSlotWidth * leftControlCount) + (sideButtonGap * max(0, leftControlCount - 1))
         let rightLaneWidth: CGFloat = (actionSlotWidth * rightControlCount) + (sideButtonGap * max(0, rightControlCount - 1))
 
@@ -277,6 +274,8 @@ struct RecordingPillView: View {
                 cancelButton
                 if mode == .recording {
                     finishButton
+                } else {
+                    appendButton(isEnabled: false)
                 }
             }
             .frame(width: leftLaneWidth, alignment: .leading)
@@ -285,9 +284,7 @@ struct RecordingPillView: View {
             .frame(maxWidth: .infinity, alignment: .center)
 
             HStack(spacing: sideButtonGap) {
-                if mode == .recording {
-                    restartButton
-                }
+                noteButton
                 trailingCopyControl(configuration: .disabled)
             }
             .frame(width: rightLaneWidth, alignment: .trailing)
@@ -563,7 +560,7 @@ struct RecordingPillView: View {
                 HStack(spacing: 0) {
                     HStack(spacing: sideButtonGap) {
                         successCloseButton
-                        successAppendButton
+                        appendButton(isEnabled: true)
                     }
                     .frame(width: laneWidth, alignment: .leading)
 
@@ -574,7 +571,7 @@ struct RecordingPillView: View {
                         .frame(maxWidth: .infinity, alignment: .center)
 
                     HStack(spacing: sideButtonGap) {
-                        successNoteButton
+                        noteButton
                         successCopyButton
                     }
                     .frame(width: laneWidth, alignment: .trailing)
@@ -643,29 +640,30 @@ struct RecordingPillView: View {
         .accessibilityIdentifier("pill.successClose")
     }
 
-    private var successAppendButton: some View {
+    private func appendButton(isEnabled: Bool) -> some View {
         Button(action: { onSuccessAppend?() }) {
             ZStack {
                 Image(systemName: "circle.fill")
                     .font(.system(size: Self.filledActionCircleSize, weight: .bold))
-                    .foregroundStyle(Color.blue)
+                    .foregroundStyle(isEnabled ? Color.blue : Color(white: 0.36))
 
                 Image(systemName: "plus")
                     .font(.system(size: Self.overlayActionSymbolSize, weight: .bold))
-                    .foregroundStyle(Color(white: 0.95))
+                    .foregroundStyle(isEnabled ? Color(white: 0.95) : Color(white: 0.82))
             }
-                .frame(width: Self.actionButtonFrame, height: Self.actionButtonFrame)
-                .contentShape(Circle())
+            .frame(width: Self.actionButtonFrame, height: Self.actionButtonFrame)
+            .contentShape(Circle())
         }
         .buttonStyle(.plain)
-        .accessibilityIdentifier("pill.successAppend")
+        .disabled(!isEnabled)
+        .accessibilityIdentifier(isEnabled ? "pill.successAppend" : "pill.appendDisabled")
     }
 
-    private var successNoteButton: some View {
+    private var noteButton: some View {
         let effectiveState = successNoteSaveState ?? .disabledMissingConfiguration
         let configuration = successNoteButtonConfiguration(for: effectiveState)
 
-        return Button(action: { onSuccessSaveNote?() }) {
+        return Button(action: { onNoteAction?() }) {
             successNoteButtonLabel(configuration: configuration)
                 .frame(width: Self.actionButtonFrame, height: Self.actionButtonFrame)
                 .contentShape(Circle())
@@ -674,19 +672,6 @@ struct RecordingPillView: View {
         .disabled(!configuration.isEnabled)
         .help(configuration.helpText)
         .accessibilityIdentifier(configuration.accessibilityIdentifier)
-    }
-
-    private var restartButton: some View {
-        Button(action: { onRestart?() }) {
-            Image(systemName: "arrow.counterclockwise.circle.fill")
-                .font(.system(size: Self.actionButtonSymbolSize, weight: .bold))
-                .symbolRenderingMode(.palette)
-                .foregroundStyle(Color(white: 0.9), Color.orange)
-                .frame(width: Self.actionButtonFrame, height: Self.actionButtonFrame)
-                .contentShape(Circle())
-        }
-        .buttonStyle(.plain)
-        .accessibilityIdentifier("pill.restart")
     }
 
     private func trailingCopyControl(
@@ -742,7 +727,21 @@ struct RecordingPillView: View {
                 secondaryColor: Color(white: 0.95),
                 isEnabled: true,
                 helpText: "Save this result as a note.",
-                accessibilityIdentifier: "pill.successSaveNote"
+                accessibilityIdentifier: "pill.note"
+            )
+        case .queued:
+            return (
+                primarySymbolName: "ellipsis.circle.fill",
+                secondarySymbolName: nil,
+                primarySymbolSize: Self.actionButtonSymbolSize,
+                primarySymbolWeight: .bold,
+                secondarySymbolSize: 0,
+                secondarySymbolWeight: .regular,
+                primaryColor: Self.noteActionPurple,
+                secondaryColor: Color(white: 0.9),
+                isEnabled: false,
+                helpText: "This result is queued to be saved as a note.",
+                accessibilityIdentifier: "pill.noteQueued"
             )
         case .saving:
             return (
@@ -756,7 +755,7 @@ struct RecordingPillView: View {
                 secondaryColor: Color(white: 0.9),
                 isEnabled: false,
                 helpText: "Saving note…",
-                accessibilityIdentifier: "pill.successSaveNoteSaving"
+                accessibilityIdentifier: "pill.noteSaving"
             )
         case .saved:
             return (
@@ -770,7 +769,7 @@ struct RecordingPillView: View {
                 secondaryColor: Color(white: 0.82),
                 isEnabled: false,
                 helpText: "This result has already been saved as a note.",
-                accessibilityIdentifier: "pill.successSaveNoteSaved"
+                accessibilityIdentifier: "pill.noteSaved"
             )
         case .disabledMissingConfiguration:
             return (
@@ -784,7 +783,7 @@ struct RecordingPillView: View {
                 secondaryColor: Color(white: 0.82),
                 isEnabled: false,
                 helpText: "Configure a note destination in Settings to enable note saving.",
-                accessibilityIdentifier: "pill.successSaveNoteDisabled"
+                accessibilityIdentifier: "pill.noteDisabled"
             )
         }
     }

@@ -355,7 +355,30 @@ final class HotkeyServiceTests: XCTestCase {
         monitor.handleModifierFlagsChanged(keyCode: 61, flags: .maskAlternate)
         monitor.handleModifierFlagsChanged(keyCode: 61, flags: [])
 
-        wait(for: [releaseExpectation], timeout: 0.2)
+        wait(for: [releaseExpectation], timeout: 0.4)
+    }
+
+    func testModifierReleaseFlickerDoesNotFinishOrRetriggerSession() async throws {
+        let monitor = HoldToTranscribeMonitor()
+        monitor.updateTarget(keyCode: 61, modifiers: 0)
+
+        var pressCount = 0
+        var releaseCount = 0
+        monitor.onHoldKeyPressed = {
+            pressCount += 1
+        }
+        monitor.onHoldKeyReleased = {
+            releaseCount += 1
+        }
+
+        monitor.handleModifierFlagsChanged(keyCode: 61, flags: .maskAlternate)
+        monitor.handleModifierFlagsChanged(keyCode: 61, flags: [])
+        monitor.handleModifierFlagsChanged(keyCode: 61, flags: .maskAlternate)
+
+        try await Task.sleep(nanoseconds: 250_000_000)
+
+        XCTAssertEqual(pressCount, 1)
+        XCTAssertEqual(releaseCount, 0)
     }
 
     func testAlternateRegularKeyReleaseDoesNotFinishModifierOwnerSession() {

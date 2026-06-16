@@ -1,5 +1,7 @@
 # AGENTS.md
 
+Whenever you need to run a build, use the repository build script: `scripts/build-app.sh`.
+
 ## Running tests
 
 Use the **`TypeLessBuddy`** scheme for normal test runs (Cmd+U or

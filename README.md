@@ -1,64 +1,58 @@
 # TypeLessBuddy
 
-Just direct speech transcription and refinement. Nothing else.
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+[![CI](https://github.com/subjectCarterSoftware/typelessbuddy/actions/workflows/ci.yml/badge.svg)](https://github.com/subjectCarterSoftware/typelessbuddy/actions/workflows/ci.yml)
+[![Latest release](https://img.shields.io/github/v/release/subjectCarterSoftware/typelessbuddy?display_name=tag)](https://github.com/subjectCarterSoftware/typelessbuddy/releases/latest)
+[![Platform](https://img.shields.io/badge/macOS-14%2B-black?logo=apple)](#requirements)
 
-TypeLessBuddy is a local-first macOS voice writing app. It can give you the raw transcript when that's all you need, or use the built-in AI buddy to turn what you said into finished writing you can actually send.
+Local-first voice writing with a built-in buddy for macOS.
 
-![TypeLessBuddy recording pill](assets/Pill_recording_state.png)
+TypeLessBuddy turns speech into text anywhere on your Mac. Use it as plain dictation when you want a raw transcript, or say "buddy" to route the transcript through the built-in assistant for cleanup and rewriting.
 
-## What It Does
+<p align="center">
+  <a href="https://github.com/subjectCarterSoftware/typelessbuddy/releases/latest/download/TypeLessBuddy.dmg">
+    <img src="https://img.shields.io/badge/Download-TypeLessBuddy.dmg-2ea44f?style=for-the-badge&logo=apple&logoColor=white" alt="Download TypeLessBuddy.dmg">
+  </a>
+</p>
 
-- Seamless dictation anywhere
-- Provides a built-in AI buddy for additional refinement when needed
-- Always copies to your clipboard or auto-pastes
+<p align="center">
+  <img src="assets/Pill_recording_state.png" alt="TypeLessBuddy recording pill" width="228">
+</p>
 
-## Architecture
+## Features
 
-- A menu bar app listens for your configured shortcut, captures microphone audio, and shows a recording pill while a session is active.
-- The recorded audio is transcribed locally with Whisper models on your Mac, then routed either directly to output or through the buddy rewrite pipeline.
-- Final text is copied to the clipboard and can optionally be auto-pasted with Accessibility permission, while app state lives in Application Support and sensitive cloud keys stay in Keychain.
+- Local Whisper models for transcription
+- Local LLMs for assistant actions
+- Context pass-through from copied text, selected text, and the last transcript
+- Local history tracking
+- Note saving
+- Custom vocabulary packs
+- Word replacements
+- Preferred microphone selection
 
-## Examples
+## Install
 
-Simple mode: just speak, then it transcribes and pastes.
-
-Buddy mode: Just say "buddy" anywhere in your message, and it will be passed to your buddy for processing.
-
-## Installation
-
-Once packaged releases are available, installation is simple:
-
-1. Download `TypeLessBuddy.dmg` from GitHub Releases.
+1. Download `TypeLessBuddy.dmg` from the [latest release](https://github.com/subjectCarterSoftware/typelessbuddy/releases/latest).
 2. Open the disk image.
 3. Drag `TypeLessBuddy.app` into `Applications`.
-4. Open it from `Applications`.
+4. Launch TypeLessBuddy from `Applications`.
 
-To build that installer locally, run:
+macOS will ask for Microphone permission on first use. Enable Accessibility permission if you want TypeLessBuddy to auto-paste into other apps.
 
-```bash
-./scripts/build-dmg.sh
-```
+## Usage
 
-That produces:
+Use your shortcut, speak, and release. TypeLessBuddy transcribes locally and sends the result to your clipboard or active app.
 
-- `dist/TypeLessBuddy.app`
-- `dist/TypeLessBuddy.dmg`
+Say "buddy" anywhere in the message when you want the assistant to rewrite or refine the transcript before output.
 
-For a stable local debug app build path, run:
+## Privacy
 
-```bash
-./scripts/build-app.sh
-```
+- Audio is captured only while you are recording.
+- Transcription runs locally on your Mac.
+- Cloud requests are never made unless you enable a cloud rewrite provider.
+- Cloud API keys are stored in the macOS Keychain.
 
-That always builds to:
-
-- `build/DerivedData-app/Build/Products/Debug/TypeLessBuddy.app`
-
-If you want to distribute the app publicly on the internet, you should also sign and notarize the DMG. The release steps are documented in [docs/RELEASING.md](docs/RELEASING.md).
-
-Do not commit the generated `.app` or `.dmg` into the repository. Keep source, docs, screenshots, and release scripts in Git, then upload the built DMG to GitHub Releases for each version.
-
-Packaged releases are not published yet.
+See [PRIVACY.md](PRIVACY.md) for details.
 
 ## Requirements
 
@@ -66,18 +60,25 @@ Packaged releases are not published yet.
 - Microphone permission
 - Accessibility permission for auto-paste
 
-## Privacy
+## Build From Source
 
-- Audio is recorded and transcribed locally
-- No cloud request is made unless you explicitly enable cloud conversion
-- If cloud conversion is enabled, only transcript text is sent directly to your selected provider
+Build the debug app:
 
-## Limitations
+```bash
+./scripts/build-app.sh
+```
 
-- macOS only
-- First use after a model download or model switch can be slower
-- Auto-paste depends on system permissions and target app behavior
-- Cloud conversion changes the privacy model
+Build the local DMG installer:
+
+```bash
+./scripts/build-dmg.sh
+```
+
+The DMG is written to `dist/TypeLessBuddy.dmg`. Release packaging and notarization notes are in [docs/RELEASING.md](docs/RELEASING.md).
+
+## Contributing
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for setup, signing, build, and test guidance.
 
 ## License
 

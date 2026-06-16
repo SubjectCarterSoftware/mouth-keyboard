@@ -1,0 +1,38 @@
+name: Feature request
+description: Suggest an improvement or new capability.
+title: "[Feature]: "
+labels: ["enhancement"]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: What workflow or pain point should this solve?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed solution
+      description: Describe the behavior you would like.
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: Any simpler workaround or different design you considered.
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - Recording or microphone
+        - Transcription
+        - Assistant rewrite
+        - Clipboard or auto-paste
+        - Permissions
+        - Model download or loading
+        - Settings or onboarding
+        - Build or tests
+        - Other

@@ -56,6 +56,7 @@ enum RecordingState: Equatable {
 
 enum SuccessNoteSaveState: Equatable {
     case available
+    case queued
     case saving
     case saved
     case disabledMissingConfiguration
@@ -64,9 +65,16 @@ enum SuccessNoteSaveState: Equatable {
         switch self {
         case .available:
             return true
-        case .saving, .saved, .disabledMissingConfiguration:
+        case .queued, .saving, .saved, .disabledMissingConfiguration:
             return false
         }
+    }
+
+    var canQueueSave: Bool {
+        if case .available = self {
+            return true
+        }
+        return false
     }
 
     var isSaved: Bool {
