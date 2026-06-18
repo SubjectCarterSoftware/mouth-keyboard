@@ -35,6 +35,27 @@ final class ExternalTextSourceClassifierTests: XCTestCase {
         XCTAssertTrue(decision.matchedSources.isEmpty)
     }
 
+    func testSelectionPageDoesNotMatchSelectedTextSource() {
+        let decision = ExternalTextSourceClassifier.classify(
+            message: "draft copy for the selection page in onboarding",
+            availableSources: context(selected: true)
+        )
+
+        XCTAssertEqual(decision.decisionSource, .noDeterministicMatch)
+        XCTAssertTrue(decision.matchedSources.isEmpty)
+    }
+
+    func testExplicitSelectedTextAboutSelectionPageStillMatches() {
+        let decision = ExternalTextSourceClassifier.classify(
+            message: "rewrite the selected text about the selection page",
+            availableSources: context(selected: true)
+        )
+
+        XCTAssertEqual(decision.decisionSource, .explicitFastPath)
+        XCTAssertEqual(decision.targetModes, [.selectedText])
+        XCTAssertEqual(decision.promptLabel, "the selected text")
+    }
+
     func testPluralTranscriptionWordDoesNotMatch() {
         let decision = ExternalTextSourceClassifier.classify(
             message: "review the transcriptions later",

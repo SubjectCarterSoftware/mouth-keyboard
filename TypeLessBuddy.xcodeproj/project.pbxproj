@@ -17,6 +17,7 @@
 		A0000001000000000000010F /* AssistantNoteIntentClassifierTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0000002000000000000010F /* AssistantNoteIntentClassifierTests.swift */; };
 		A00000010000000000000110 /* ExternalTextPromptBuilderTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000020000000000000110 /* ExternalTextPromptBuilderTests.swift */; };
 		A00000010000000000000111 /* ExternalTextSourceClassifierTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000020000000000000111 /* ExternalTextSourceClassifierTests.swift */; };
+		A00000010000000000000138 /* ExternalTextScenarioMatrixEvaluationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000020000000000000138 /* ExternalTextScenarioMatrixEvaluationTests.swift */; };
 		A00000010000000000000112 /* HistoryCaptureServiceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000020000000000000112 /* HistoryCaptureServiceTests.swift */; };
 		A00000010000000000000113 /* NoteCaptureServiceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000020000000000000113 /* NoteCaptureServiceTests.swift */; };
 		A00000010000000000000114 /* ReplacementPackCatalogTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000020000000000000114 /* ReplacementPackCatalogTests.swift */; };
@@ -158,6 +159,7 @@
 		A0000002000000000000010F /* AssistantNoteIntentClassifierTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AssistantNoteIntentClassifierTests.swift; sourceTree = "<group>"; };
 		A00000020000000000000110 /* ExternalTextPromptBuilderTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExternalTextPromptBuilderTests.swift; sourceTree = "<group>"; };
 		A00000020000000000000111 /* ExternalTextSourceClassifierTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExternalTextSourceClassifierTests.swift; sourceTree = "<group>"; };
+		A00000020000000000000138 /* ExternalTextScenarioMatrixEvaluationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExternalTextScenarioMatrixEvaluationTests.swift; sourceTree = "<group>"; };
 		A00000020000000000000112 /* HistoryCaptureServiceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HistoryCaptureServiceTests.swift; sourceTree = "<group>"; };
 		A00000020000000000000113 /* NoteCaptureServiceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NoteCaptureServiceTests.swift; sourceTree = "<group>"; };
 		A00000020000000000000114 /* ReplacementPackCatalogTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReplacementPackCatalogTests.swift; sourceTree = "<group>"; };
@@ -452,6 +454,7 @@
 				A0000002000000000000010F /* AssistantNoteIntentClassifierTests.swift */,
 				A00000020000000000000110 /* ExternalTextPromptBuilderTests.swift */,
 				A00000020000000000000111 /* ExternalTextSourceClassifierTests.swift */,
+				A00000020000000000000138 /* ExternalTextScenarioMatrixEvaluationTests.swift */,
 				A00000020000000000000112 /* HistoryCaptureServiceTests.swift */,
 				A00000020000000000000113 /* NoteCaptureServiceTests.swift */,
 				A00000020000000000000114 /* ReplacementPackCatalogTests.swift */,
@@ -800,6 +803,7 @@
 				A0000001000000000000010F /* AssistantNoteIntentClassifierTests.swift in Sources */,
 				A00000010000000000000110 /* ExternalTextPromptBuilderTests.swift in Sources */,
 				A00000010000000000000111 /* ExternalTextSourceClassifierTests.swift in Sources */,
+				A00000010000000000000138 /* ExternalTextScenarioMatrixEvaluationTests.swift in Sources */,
 				A00000010000000000000112 /* HistoryCaptureServiceTests.swift in Sources */,
 				A00000010000000000000113 /* NoteCaptureServiceTests.swift in Sources */,
 				A00000010000000000000114 /* ReplacementPackCatalogTests.swift in Sources */,

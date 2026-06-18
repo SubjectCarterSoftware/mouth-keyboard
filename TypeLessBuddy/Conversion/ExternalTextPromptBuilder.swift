@@ -187,6 +187,8 @@ enum ExternalTextPromptBuilder {
     ]
 
     private static let shorterDirectPhrases = [
+        "short",
+        "brief",
         "tighten",
         "more direct",
         "shorter",
@@ -328,6 +330,9 @@ enum ExternalTextPromptBuilder {
             lines.append(contentsOf: directFormatInstructionLines(for: formatInstruction))
         }
 
+        lines.append(
+            "Preserve concrete facts and constraints from the request, including the recipient or audience, topic, event, names, dates, and requested tone."
+        )
         lines.append(directFinalOutputInstruction(for: shape))
 
         return lines.joined(separator: "\n")
@@ -346,6 +351,8 @@ enum ExternalTextPromptBuilder {
             return [
                 "Format the result as a clean action-item list.",
                 "Every line should begin with a clear imperative action verb.",
+                "Only include actions that are still open or need follow-up.",
+                "Do not include completed, resolved, cleared, already-done, informational, or explicitly excluded items as action items.",
             ]
         case .slackUpdate:
             return ["Write it as a short, professional Slack-ready update."]
@@ -594,6 +601,9 @@ enum ExternalTextPromptBuilder {
             return [
                 "Convert it into a clean action-item list.",
                 "Every line should begin with a clear imperative action verb.",
+                "Only include actions that are still open or need follow-up.",
+                "Do not include completed, resolved, cleared, already-done, informational, or explicitly excluded items as action items.",
+                "If the source says not to list something as open, omit that item entirely.",
             ]
         case .slackUpdate:
             return [

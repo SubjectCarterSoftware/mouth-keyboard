@@ -315,8 +315,10 @@ struct SetupWindowView: View {
         let managedTapShortcuts: [KeyboardShortcuts.Name] = [
             .activate,
             .activateAlt,
+            .activateTertiary,
             .stopSession,
             .stopSessionAlt,
+            .stopSessionTertiary,
         ]
         let hasCustomizedTapShortcut = managedTapShortcuts.contains {
             KeyboardShortcuts.getShortcut(for: $0) != $0.defaultShortcut
@@ -326,10 +328,12 @@ struct SetupWindowView: View {
             || preferences.holdShortcutModifiers != ShellPreferences.defaultHoldShortcutModifiers
             || preferences.holdShortcutKeyCodeAlt != ShellPreferences.defaultHoldShortcutKeyCodeAlt
             || preferences.holdShortcutModifiersAlt != ShellPreferences.defaultHoldShortcutModifiersAlt
+            || preferences.holdShortcutKeyCodeTertiary != ShellPreferences.defaultHoldShortcutKeyCodeTertiary
+            || preferences.holdShortcutModifiersTertiary != ShellPreferences.defaultHoldShortcutModifiersTertiary
         let hasCustomizedMouseShortcut =
-            preferences.startMouseButtonBinding != nil
-            || preferences.stopMouseButtonBinding != nil
-            || preferences.holdMouseButtonBinding != nil
+            !preferences.startMouseButtonBindings.isEmpty
+            || !preferences.stopMouseButtonBindings.isEmpty
+            || !preferences.holdMouseButtonBindings.isEmpty
 
         return hasCustomizedTapShortcut || hasCustomizedHoldShortcut || hasCustomizedMouseShortcut
     }
@@ -639,7 +643,14 @@ struct SetupWindowView: View {
     }
 
     func restoreDefaultKeyboardShortcuts() {
-        KeyboardShortcuts.reset(.activate, .activateAlt, .stopSession, .stopSessionAlt)
+        KeyboardShortcuts.reset(
+            .activate,
+            .activateAlt,
+            .activateTertiary,
+            .stopSession,
+            .stopSessionAlt,
+            .stopSessionTertiary
+        )
         preferences.restoreDefaultHoldShortcuts()
         HotkeyService.shared.configureHoldTarget()
         HotkeyService.shared.configureMouseBindings()

@@ -195,42 +195,58 @@ extension SetupWindowView {
                 VStack(alignment: .leading, spacing: 14) {
                     SetupFieldRow(title: "Start recording") {
                         HStack(spacing: 12) {
-                            KeyComboRecorder(name: .activate, preferences: preferences)
-                            KeyComboRecorder(name: .activateAlt, preferences: preferences)
-                            MouseButtonRecorder(
-                                action: .startRecording,
+                            TapShortcutSlotRecorder(
+                                slot: .primary,
+                                name: .activate,
                                 preferences: preferences,
-                                binding: preferences.startMouseButtonBinding,
-                                accessibilityID: "setupWindow.activate.mouseRecorder",
-                                onRecord: { binding in
-                                    preferences.startMouseButtonBinding = binding
-                                    HotkeyService.shared.configureMouseBindings()
-                                },
-                                onClear: {
-                                    preferences.startMouseButtonBinding = nil
-                                    HotkeyService.shared.configureMouseBindings()
-                                }
+                                mouseAction: .startRecording,
+                                mouseBindings: preferences.startMouseButtonBindings,
+                                accessibilityID: "setupWindow.activate.recorder"
+                            )
+                            TapShortcutSlotRecorder(
+                                slot: .secondary,
+                                name: .activateAlt,
+                                preferences: preferences,
+                                mouseAction: .startRecording,
+                                mouseBindings: preferences.startMouseButtonBindings,
+                                accessibilityID: "setupWindow.activateAlt.recorder"
+                            )
+                            TapShortcutSlotRecorder(
+                                slot: .tertiary,
+                                name: .activateTertiary,
+                                preferences: preferences,
+                                mouseAction: .startRecording,
+                                mouseBindings: preferences.startMouseButtonBindings,
+                                accessibilityID: "setupWindow.activateTertiary.recorder"
                             )
                         }
                     }
 
                     SetupFieldRow(title: "Stop recording") {
                         HStack(spacing: 12) {
-                            KeyComboRecorder(name: .stopSession, preferences: preferences)
-                            KeyComboRecorder(name: .stopSessionAlt, preferences: preferences)
-                            MouseButtonRecorder(
-                                action: .stopRecording,
+                            TapShortcutSlotRecorder(
+                                slot: .primary,
+                                name: .stopSession,
                                 preferences: preferences,
-                                binding: preferences.stopMouseButtonBinding,
-                                accessibilityID: "setupWindow.stopSession.mouseRecorder",
-                                onRecord: { binding in
-                                    preferences.stopMouseButtonBinding = binding
-                                    HotkeyService.shared.configureMouseBindings()
-                                },
-                                onClear: {
-                                    preferences.stopMouseButtonBinding = nil
-                                    HotkeyService.shared.configureMouseBindings()
-                                }
+                                mouseAction: .stopRecording,
+                                mouseBindings: preferences.stopMouseButtonBindings,
+                                accessibilityID: "setupWindow.stopSession.recorder"
+                            )
+                            TapShortcutSlotRecorder(
+                                slot: .secondary,
+                                name: .stopSessionAlt,
+                                preferences: preferences,
+                                mouseAction: .stopRecording,
+                                mouseBindings: preferences.stopMouseButtonBindings,
+                                accessibilityID: "setupWindow.stopSessionAlt.recorder"
+                            )
+                            TapShortcutSlotRecorder(
+                                slot: .tertiary,
+                                name: .stopSessionTertiary,
+                                preferences: preferences,
+                                mouseAction: .stopRecording,
+                                mouseBindings: preferences.stopMouseButtonBindings,
+                                accessibilityID: "setupWindow.stopSessionTertiary.recorder"
                             )
                         }
                     }

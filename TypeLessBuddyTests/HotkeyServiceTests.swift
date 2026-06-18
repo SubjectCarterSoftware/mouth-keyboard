@@ -9,7 +9,9 @@ final class HotkeyServiceTests: XCTestCase {
     // app. Snapshot the user's real shortcuts before each test and restore them after
     // so running the suite never clobbers their configured hotkeys.
     private static let managedShortcutNames: [KeyboardShortcuts.Name] = [
-        .activate, .activateAlt, .stopSession, .stopSessionAlt, .cancelSession
+        .activate, .activateAlt, .activateTertiary,
+        .stopSession, .stopSessionAlt, .stopSessionTertiary,
+        .cancelSession
     ]
     private var shortcutSnapshot: [KeyboardShortcuts.Name: KeyboardShortcuts.Shortcut?] = [:]
 
@@ -477,7 +479,7 @@ final class HotkeyServiceTests: XCTestCase {
                 armCount += 1
             },
             currentMouseBindings: {
-                (start: MouseButtonBinding(buttonNumber: 4), stop: nil, hold: nil)
+                (start: .single(MouseButtonBinding(buttonNumber: 4)), stop: .empty, hold: .empty)
             },
             now: { 0 }
         )
@@ -495,7 +497,7 @@ final class HotkeyServiceTests: XCTestCase {
                 stopCount += 1
             },
             currentMouseBindings: {
-                (start: nil, stop: MouseButtonBinding(buttonNumber: 5), hold: nil)
+                (start: .empty, stop: .single(MouseButtonBinding(buttonNumber: 5)), hold: .empty)
             }
         )
 
@@ -520,7 +522,7 @@ final class HotkeyServiceTests: XCTestCase {
                 isRecording = false
             },
             currentMouseBindings: {
-                (start: binding, stop: binding, hold: nil)
+                (start: .single(binding), stop: .single(binding), hold: .empty)
             },
             now: {
                 timestamps.next() ?? 0
@@ -550,7 +552,7 @@ final class HotkeyServiceTests: XCTestCase {
                 finishHoldCount += 1
             },
             currentMouseBindings: {
-                (start: nil, stop: nil, hold: MouseButtonBinding(buttonNumber: 4))
+                (start: .empty, stop: .empty, hold: .single(MouseButtonBinding(buttonNumber: 4)))
             }
         )
 

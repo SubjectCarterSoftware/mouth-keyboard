@@ -36,11 +36,81 @@ enum RecordingPillPosition: String, CaseIterable, Codable {
     }
 }
 
-struct MouseButtonBinding: Codable, Equatable {
+struct MouseButtonBinding: Codable, Equatable, Hashable {
     let buttonNumber: Int
 
     var displayName: String {
         "Mouse Button \(buttonNumber)"
+    }
+}
+
+struct MouseButtonBindingSet: Codable, Equatable {
+    var primary: MouseButtonBinding?
+    var secondary: MouseButtonBinding?
+    var tertiary: MouseButtonBinding?
+
+    static let empty = MouseButtonBindingSet()
+
+    static func single(_ binding: MouseButtonBinding, slot: ShortcutBindingSlot = .defaultMouseSlot) -> Self {
+        var set = MouseButtonBindingSet.empty
+        set.set(binding, for: slot)
+        return set
+    }
+
+    var isEmpty: Bool {
+        primary == nil && secondary == nil && tertiary == nil
+    }
+
+    var all: [MouseButtonBinding] {
+        [primary, secondary, tertiary].compactMap { $0 }
+    }
+
+    func binding(for slot: ShortcutBindingSlot) -> MouseButtonBinding? {
+        switch slot {
+        case .primary:
+            return primary
+        case .secondary:
+            return secondary
+        case .tertiary:
+            return tertiary
+        }
+    }
+
+    func contains(_ binding: MouseButtonBinding) -> Bool {
+        all.contains(binding)
+    }
+
+    func contains(buttonNumber: Int) -> Bool {
+        all.contains { $0.buttonNumber == buttonNumber }
+    }
+
+    mutating func set(_ binding: MouseButtonBinding?, for slot: ShortcutBindingSlot) {
+        switch slot {
+        case .primary:
+            primary = binding
+        case .secondary:
+            secondary = binding
+        case .tertiary:
+            tertiary = binding
+        }
+    }
+
+    mutating func remove(_ binding: MouseButtonBinding) {
+        if primary == binding {
+            primary = nil
+        }
+        if secondary == binding {
+            secondary = nil
+        }
+        if tertiary == binding {
+            tertiary = nil
+        }
+    }
+
+    mutating func remove(_ bindings: [MouseButtonBinding]) {
+        for binding in bindings {
+            remove(binding)
+        }
     }
 }
 
@@ -66,9 +136,14 @@ final class ShellPreferences: ObservableObject {
         static let holdShortcutModifiers = "holdShortcutModifiers"
         static let holdShortcutKeyCodeAlt = "holdShortcutKeyCodeAlt"
         static let holdShortcutModifiersAlt = "holdShortcutModifiersAlt"
+        static let holdShortcutKeyCodeTertiary = "holdShortcutKeyCodeTertiary"
+        static let holdShortcutModifiersTertiary = "holdShortcutModifiersTertiary"
         static let startMouseButtonBinding = "startMouseButtonBinding"
         static let stopMouseButtonBinding = "stopMouseButtonBinding"
         static let holdMouseButtonBinding = "holdMouseButtonBinding"
+        static let startMouseButtonBindings = "startMouseButtonBindings"
+        static let stopMouseButtonBindings = "stopMouseButtonBindings"
+        static let holdMouseButtonBindings = "holdMouseButtonBindings"
         static let cloudLLMConfig = "cloudLLMConfig"
         static let legacyAllowClipboardAccess = "allowClipboardAccess"
         static let rewriteSystemPromptPrefix = "rewriteSystemPromptPrefix"
@@ -86,6 +161,8 @@ final class ShellPreferences: ObservableObject {
     static let defaultHoldShortcutModifiers: UInt = 0
     static let defaultHoldShortcutKeyCodeAlt = -1
     static let defaultHoldShortcutModifiersAlt: UInt = 0
+    static let defaultHoldShortcutKeyCodeTertiary = -1
+    static let defaultHoldShortcutModifiersTertiary: UInt = 0
 
     @Published var hasCompletedInitialSetup: Bool {
         didSet {
@@ -327,21 +404,50 @@ final class ShellPreferences: ObservableObject {
         }
     }
 
-    @Published var startMouseButtonBinding: MouseButtonBinding? {
+    /// Third hold shortcut slot. -1 means unset (no binding).
+    @Published var holdShortcutKeyCodeTertiary: Int {
         didSet {
-            persistBinding(startMouseButtonBinding, forKey: Keys.startMouseButtonBinding)
+            persistIfNeeded {
+                defaults.set(holdShortcutKeyCodeTertiary, forKey: Keys.holdShortcutKeyCodeTertiary)
+            }
         }
     }
 
-    @Published var stopMouseButtonBinding: MouseButtonBinding? {
+    @Published var holdShortcutModifiersTertiary: UInt {
         didSet {
-            persistBinding(stopMouseButtonBinding, forKey: Keys.stopMouseButtonBinding)
+            persistIfNeeded {
+                defaults.set(Int(holdShortcutModifiersTertiary), forKey: Keys.holdShortcutModifiersTertiary)
+            }
         }
     }
 
-    @Published var holdMouseButtonBinding: MouseButtonBinding? {
+    @Published var startMouseButtonBindings: MouseButtonBindingSet {
         didSet {
-            persistBinding(holdMouseButtonBinding, forKey: Keys.holdMouseButtonBinding)
+            persistBindingSet(
+                startMouseButtonBindings,
+                forKey: Keys.startMouseButtonBindings,
+                legacyKey: Keys.startMouseButtonBinding
+            )
+        }
+    }
+
+    @Published var stopMouseButtonBindings: MouseButtonBindingSet {
+        didSet {
+            persistBindingSet(
+                stopMouseButtonBindings,
+                forKey: Keys.stopMouseButtonBindings,
+                legacyKey: Keys.stopMouseButtonBinding
+            )
+        }
+    }
+
+    @Published var holdMouseButtonBindings: MouseButtonBindingSet {
+        didSet {
+            persistBindingSet(
+                holdMouseButtonBindings,
+                forKey: Keys.holdMouseButtonBindings,
+                legacyKey: Keys.holdMouseButtonBinding
+            )
         }
     }
 
@@ -516,17 +622,28 @@ final class ShellPreferences: ObservableObject {
         }
 
         holdShortcutModifiersAlt = UInt(max(0, userDefaults.integer(forKey: Keys.holdShortcutModifiersAlt)))
-        startMouseButtonBinding = Self.decodeMouseButtonBinding(
+
+        if userDefaults.object(forKey: Keys.holdShortcutKeyCodeTertiary) == nil {
+            holdShortcutKeyCodeTertiary = Self.defaultHoldShortcutKeyCodeTertiary
+        } else {
+            holdShortcutKeyCodeTertiary = userDefaults.integer(forKey: Keys.holdShortcutKeyCodeTertiary)
+        }
+
+        holdShortcutModifiersTertiary = UInt(max(0, userDefaults.integer(forKey: Keys.holdShortcutModifiersTertiary)))
+        startMouseButtonBindings = Self.decodeMouseButtonBindingSet(
             from: userDefaults,
-            key: Keys.startMouseButtonBinding
+            key: Keys.startMouseButtonBindings,
+            legacyKey: Keys.startMouseButtonBinding
         )
-        stopMouseButtonBinding = Self.decodeMouseButtonBinding(
+        stopMouseButtonBindings = Self.decodeMouseButtonBindingSet(
             from: userDefaults,
-            key: Keys.stopMouseButtonBinding
+            key: Keys.stopMouseButtonBindings,
+            legacyKey: Keys.stopMouseButtonBinding
         )
-        holdMouseButtonBinding = Self.decodeMouseButtonBinding(
+        holdMouseButtonBindings = Self.decodeMouseButtonBindingSet(
             from: userDefaults,
-            key: Keys.holdMouseButtonBinding
+            key: Keys.holdMouseButtonBindings,
+            legacyKey: Keys.holdMouseButtonBinding
         )
 
         if let configData = userDefaults.data(forKey: Keys.cloudLLMConfig),
@@ -660,9 +777,11 @@ final class ShellPreferences: ObservableObject {
         holdShortcutModifiers = Self.defaultHoldShortcutModifiers
         holdShortcutKeyCodeAlt = Self.defaultHoldShortcutKeyCodeAlt
         holdShortcutModifiersAlt = Self.defaultHoldShortcutModifiersAlt
-        startMouseButtonBinding = nil
-        stopMouseButtonBinding = nil
-        holdMouseButtonBinding = nil
+        holdShortcutKeyCodeTertiary = Self.defaultHoldShortcutKeyCodeTertiary
+        holdShortcutModifiersTertiary = Self.defaultHoldShortcutModifiersTertiary
+        startMouseButtonBindings = .empty
+        stopMouseButtonBindings = .empty
+        holdMouseButtonBindings = .empty
     }
 
     /// Removes only user-authored replacements (those not contributed by a vocabulary
@@ -713,17 +832,36 @@ final class ShellPreferences: ObservableObject {
         value.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
-    private func persistBinding(_ binding: MouseButtonBinding?, forKey key: String) {
+    private func persistBindingSet(_ bindings: MouseButtonBindingSet, forKey key: String, legacyKey: String) {
         persistIfNeeded {
-            guard let binding else {
+            defaults.removeObject(forKey: legacyKey)
+
+            guard !bindings.isEmpty else {
                 defaults.removeObject(forKey: key)
                 return
             }
 
-            if let data = try? JSONEncoder().encode(binding) {
+            if let data = try? JSONEncoder().encode(bindings) {
                 defaults.set(data, forKey: key)
             }
         }
+    }
+
+    private static func decodeMouseButtonBindingSet(
+        from defaults: UserDefaults,
+        key: String,
+        legacyKey: String
+    ) -> MouseButtonBindingSet {
+        if let data = defaults.data(forKey: key),
+           let decoded = try? JSONDecoder().decode(MouseButtonBindingSet.self, from: data) {
+            return decoded
+        }
+
+        if let legacyBinding = decodeMouseButtonBinding(from: defaults, key: legacyKey) {
+            return .single(legacyBinding)
+        }
+
+        return .empty
     }
 
     private static func decodeMouseButtonBinding(from defaults: UserDefaults, key: String) -> MouseButtonBinding? {

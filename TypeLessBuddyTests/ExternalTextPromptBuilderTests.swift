@@ -70,6 +70,16 @@ final class ExternalTextPromptBuilderTests: XCTestCase {
         XCTAssertTrue(body.contains("Make the result professional and polished."))
     }
 
+    func testDirectBodyAppendsShortShaping() {
+        let body = ExternalTextPromptBuilder.buildDirectBody(
+            dictatedContent: "write a short apology note for missing a customer meeting"
+        )
+
+        XCTAssertTrue(body.contains("Keep the result short and direct"))
+        XCTAssertTrue(body.contains("Preserve concrete facts and constraints from the request"))
+        XCTAssertTrue(body.contains("Return only the requested result."))
+    }
+
     func testDirectBodyUnchangedWithoutShapingKeywords() {
         let dictation = "write an email to my boss about the schedule"
         let body = ExternalTextPromptBuilder.buildDirectBody(dictatedContent: dictation)
@@ -107,5 +117,19 @@ final class ExternalTextPromptBuilderTests: XCTestCase {
         // Neutral context labels are preserved so the model does not try to fetch sources.
         XCTAssertTrue(body.contains("transcript context provided below"))
         XCTAssertTrue(body.contains("copied context provided below"))
+    }
+
+    func testActionItemPromptOmitsCompletedOrExcludedItems() {
+        let body = ExternalTextPromptBuilder.buildBody(
+            dictatedContent: "turn my last transcription into a clean action-item list",
+            selectedText: nil,
+            clipboardText: nil,
+            lastTranscription: "Finance already cleared the export blocker, so do not list that as open.",
+            routingDecision: singleSourceDecision(.lastTranscription, label: "my last transcription")
+        )
+
+        XCTAssertTrue(body.contains("Only include actions that are still open or need follow-up."))
+        XCTAssertTrue(body.contains("Do not include completed, resolved, cleared, already-done, informational, or explicitly excluded items as action items."))
+        XCTAssertTrue(body.contains("If the source says not to list something as open, omit that item entirely."))
     }
 }

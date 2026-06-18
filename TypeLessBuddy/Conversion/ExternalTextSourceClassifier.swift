@@ -179,7 +179,9 @@ struct ExternalTextSourceClassifier {
 
         if availableSources.selectedTextAvailable,
            let label = longestWholeWordMatch(in: lowered, phrases: selectedPhrases) {
-            matched.append(AssistantContextMatchedSource(targetMode: .selectedText, promptLabel: label))
+            if !isSelectionNounFalsePositive(label: label, in: lowered) {
+                matched.append(AssistantContextMatchedSource(targetMode: .selectedText, promptLabel: label))
+            }
         }
 
         return matched
@@ -205,6 +207,28 @@ struct ExternalTextSourceClassifier {
         let range = NSRange(lowered.startIndex..<lowered.endIndex, in: lowered)
         return regex.firstMatch(in: lowered, options: [], range: range) != nil
     }
+
+    private static func isSelectionNounFalsePositive(label: String, in lowered: String) -> Bool {
+        guard ambiguousSelectionNounLabels.contains(label) else { return false }
+        return selectionNounFalsePositivePhrases.contains { containsWholeWord($0, in: lowered) }
+    }
+
+    private static let ambiguousSelectionNounLabels: Set<String> = [
+        "the selection",
+        "my selection",
+        "the current selection",
+        "that selection",
+    ]
+
+    private static let selectionNounFalsePositivePhrases = [
+        "selection page",
+        "selection screen",
+        "selection view",
+        "selection flow",
+        "selection menu",
+        "selection list",
+        "selection state",
+    ]
 
     // Exposed (internal) so structural parity tests can verify the phrase grid.
     static let selectedPhrases = [

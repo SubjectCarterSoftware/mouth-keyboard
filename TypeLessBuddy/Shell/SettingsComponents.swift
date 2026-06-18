@@ -210,68 +210,81 @@ struct KeyboardShortcutsRow: View {
     var body: some View {
         SetupFieldRow(title: "Hold to record") {
             HStack(spacing: 12) {
-                HoldShortcutRecorder(
+                HoldShortcutSlotRecorder(
                     slot: .primary,
                     preferences: preferences,
                     keyCode: preferences.holdShortcutKeyCode,
                     modifiers: preferences.holdShortcutModifiers,
                     defaultKeyCode: ShellPreferences.defaultHoldShortcutKeyCode,
                     defaultModifiers: ShellPreferences.defaultHoldShortcutModifiers,
+                    mouseBindings: preferences.holdMouseButtonBindings,
                     accessibilityID: "setupWindow.holdShortcut.recorder",
-                    onRecord: { kc, mods in
+                    onRecordKey: { kc, mods in
                         preferences.holdShortcutKeyCode = kc
                         preferences.holdShortcutModifiers = mods
                         HotkeyService.shared.configureHoldTarget()
                     },
-                    onClear: {
+                    onClearKey: {
                         preferences.holdShortcutKeyCode = -1
                         preferences.holdShortcutModifiers = 0
                         HotkeyService.shared.configureHoldTarget()
                     },
-                    onReset: {
+                    onResetKey: {
                         preferences.holdShortcutKeyCode = ShellPreferences.defaultHoldShortcutKeyCode
                         preferences.holdShortcutModifiers = ShellPreferences.defaultHoldShortcutModifiers
                         HotkeyService.shared.configureHoldTarget()
                     }
                 )
 
-                HoldShortcutRecorder(
+                HoldShortcutSlotRecorder(
                     slot: .secondary,
                     preferences: preferences,
                     keyCode: preferences.holdShortcutKeyCodeAlt,
                     modifiers: preferences.holdShortcutModifiersAlt,
                     defaultKeyCode: ShellPreferences.defaultHoldShortcutKeyCodeAlt,
                     defaultModifiers: ShellPreferences.defaultHoldShortcutModifiersAlt,
+                    mouseBindings: preferences.holdMouseButtonBindings,
                     accessibilityID: "setupWindow.holdShortcutAlt.recorder",
-                    onRecord: { kc, mods in
+                    onRecordKey: { kc, mods in
                         preferences.holdShortcutKeyCodeAlt = kc
                         preferences.holdShortcutModifiersAlt = mods
                         HotkeyService.shared.configureHoldTarget()
                     },
-                    onClear: {
+                    onClearKey: {
                         preferences.holdShortcutKeyCodeAlt = -1
                         preferences.holdShortcutModifiersAlt = 0
                         HotkeyService.shared.configureHoldTarget()
                     },
-                    onReset: {
+                    onResetKey: {
                         preferences.holdShortcutKeyCodeAlt = ShellPreferences.defaultHoldShortcutKeyCodeAlt
                         preferences.holdShortcutModifiersAlt = ShellPreferences.defaultHoldShortcutModifiersAlt
                         HotkeyService.shared.configureHoldTarget()
                     }
                 )
 
-                MouseButtonRecorder(
-                    action: .holdToRecord,
+                HoldShortcutSlotRecorder(
+                    slot: .tertiary,
                     preferences: preferences,
-                    binding: preferences.holdMouseButtonBinding,
-                    accessibilityID: "setupWindow.holdShortcut.mouseRecorder",
-                    onRecord: { binding in
-                        preferences.holdMouseButtonBinding = binding
-                        HotkeyService.shared.configureMouseBindings()
+                    keyCode: preferences.holdShortcutKeyCodeTertiary,
+                    modifiers: preferences.holdShortcutModifiersTertiary,
+                    defaultKeyCode: ShellPreferences.defaultHoldShortcutKeyCodeTertiary,
+                    defaultModifiers: ShellPreferences.defaultHoldShortcutModifiersTertiary,
+                    mouseBindings: preferences.holdMouseButtonBindings,
+                    accessibilityID: "setupWindow.holdShortcutTertiary.recorder",
+                    onRecordKey: { kc, mods in
+                        preferences.holdShortcutKeyCodeTertiary = kc
+                        preferences.holdShortcutModifiersTertiary = mods
+                        HotkeyService.shared.configureHoldTarget()
                     },
-                    onClear: {
-                        preferences.holdMouseButtonBinding = nil
-                        HotkeyService.shared.configureMouseBindings()
+                    onClearKey: {
+                        preferences.holdShortcutKeyCodeTertiary = -1
+                        preferences.holdShortcutModifiersTertiary = 0
+                        HotkeyService.shared.configureHoldTarget()
+                    },
+                    onResetKey: {
+                        preferences.holdShortcutKeyCodeTertiary = ShellPreferences.defaultHoldShortcutKeyCodeTertiary
+                        preferences.holdShortcutModifiersTertiary = ShellPreferences.defaultHoldShortcutModifiersTertiary
+                        HotkeyService.shared.configureHoldTarget()
                     }
                 )
             }

@@ -1,10 +1,15 @@
 import AppKit
 import KeyboardShortcuts
 
-enum HoldShortcutSlot {
+enum ShortcutBindingSlot: Int, Codable, CaseIterable {
     case primary
     case secondary
+    case tertiary
+
+    static let defaultMouseSlot = ShortcutBindingSlot.tertiary
 }
+
+typealias HoldShortcutSlot = ShortcutBindingSlot
 
 enum MouseButtonShortcutAction {
     case startRecording
@@ -22,9 +27,10 @@ struct ShortcutBindingSnapshot {
     let tapShortcuts: [KeyboardShortcuts.Shortcut]
     let primaryHoldShortcut: KeyboardShortcuts.Shortcut?
     let secondaryHoldShortcut: KeyboardShortcuts.Shortcut?
-    let startMouseButton: MouseButtonBinding?
-    let stopMouseButton: MouseButtonBinding?
-    let holdMouseButton: MouseButtonBinding?
+    let tertiaryHoldShortcut: KeyboardShortcuts.Shortcut?
+    let startMouseButtons: MouseButtonBindingSet
+    let stopMouseButtons: MouseButtonBindingSet
+    let holdMouseButtons: MouseButtonBindingSet
 
     static func current(preferences: ShellPreferences) -> Self {
         Self(
@@ -41,9 +47,15 @@ struct ShortcutBindingSnapshot {
                     modifiers: preferences.holdShortcutModifiersAlt
                 )
             ),
-            startMouseButton: preferences.startMouseButtonBinding,
-            stopMouseButton: preferences.stopMouseButtonBinding,
-            holdMouseButton: preferences.holdMouseButtonBinding
+            tertiaryHoldShortcut: shortcut(
+                for: HoldShortcutBinding(
+                    keyCode: preferences.holdShortcutKeyCodeTertiary,
+                    modifiers: preferences.holdShortcutModifiersTertiary
+                )
+            ),
+            startMouseButtons: preferences.startMouseButtonBindings,
+            stopMouseButtons: preferences.stopMouseButtonBindings,
+            holdMouseButtons: preferences.holdMouseButtonBindings
         )
     }
 
@@ -60,7 +72,8 @@ struct ShortcutBindingSnapshot {
     }
 
     private static let tapShortcutNames: [KeyboardShortcuts.Name] = [
-        .activate, .activateAlt, .stopSession, .stopSessionAlt
+        .activate, .activateAlt, .activateTertiary,
+        .stopSession, .stopSessionAlt, .stopSessionTertiary
     ]
 }
 
@@ -70,7 +83,9 @@ enum ShortcutBindingPolicy {
         _ candidate: KeyboardShortcuts.Shortcut,
         snapshot: ShortcutBindingSnapshot
     ) -> Bool {
-        snapshot.primaryHoldShortcut == candidate || snapshot.secondaryHoldShortcut == candidate
+        snapshot.primaryHoldShortcut == candidate
+            || snapshot.secondaryHoldShortcut == candidate
+            || snapshot.tertiaryHoldShortcut == candidate
     }
 
     static func holdShortcutConflicts(
@@ -85,8 +100,13 @@ enum ShortcutBindingPolicy {
         switch slot {
         case .primary:
             return snapshot.secondaryHoldShortcut == candidate
+                || snapshot.tertiaryHoldShortcut == candidate
         case .secondary:
             return snapshot.primaryHoldShortcut == candidate
+                || snapshot.tertiaryHoldShortcut == candidate
+        case .tertiary:
+            return snapshot.primaryHoldShortcut == candidate
+                || snapshot.secondaryHoldShortcut == candidate
         }
     }
 
@@ -97,73 +117,109 @@ enum ShortcutBindingPolicy {
     ) -> Bool {
         switch action {
         case .startRecording:
-            return snapshot.holdMouseButton == candidate
+            return snapshot.holdMouseButtons.contains(candidate)
         case .stopRecording:
-            return snapshot.holdMouseButton == candidate
+            return snapshot.holdMouseButtons.contains(candidate)
         case .holdToRecord:
-            return snapshot.startMouseButton == candidate || snapshot.stopMouseButton == candidate
+            return snapshot.startMouseButtons.contains(candidate) || snapshot.stopMouseButtons.contains(candidate)
         }
     }
 
     static func sanitizedHoldBindings(
         preferences: ShellPreferences
-    ) -> (primary: HoldShortcutBinding?, secondary: HoldShortcutBinding?) {
+    ) -> (primary: HoldShortcutBinding?, secondary: HoldShortcutBinding?, tertiary: HoldShortcutBinding?) {
         let snapshot = ShortcutBindingSnapshot.current(preferences: preferences)
 
-        let primary = HoldShortcutBinding(
-            keyCode: preferences.holdShortcutKeyCode,
-            modifiers: preferences.holdShortcutModifiers
-        )
-        let primaryShortcut = ShortcutBindingSnapshot.shortcut(for: primary)
-        let sanitizedPrimary: HoldShortcutBinding?
-        if let primaryShortcut,
-           !snapshot.tapShortcuts.contains(primaryShortcut) {
-            sanitizedPrimary = primary
-        } else {
-            sanitizedPrimary = nil
+        let candidates: [(ShortcutBindingSlot, HoldShortcutBinding)] = [
+            (
+                .primary,
+                HoldShortcutBinding(
+                    keyCode: preferences.holdShortcutKeyCode,
+                    modifiers: preferences.holdShortcutModifiers
+                )
+            ),
+            (
+                .secondary,
+                HoldShortcutBinding(
+                    keyCode: preferences.holdShortcutKeyCodeAlt,
+                    modifiers: preferences.holdShortcutModifiersAlt
+                )
+            ),
+            (
+                .tertiary,
+                HoldShortcutBinding(
+                    keyCode: preferences.holdShortcutKeyCodeTertiary,
+                    modifiers: preferences.holdShortcutModifiersTertiary
+                )
+            )
+        ]
+
+        var sanitized: [ShortcutBindingSlot: HoldShortcutBinding] = [:]
+        var usedShortcuts: [KeyboardShortcuts.Shortcut] = []
+        for (slot, binding) in candidates {
+            guard let shortcut = ShortcutBindingSnapshot.shortcut(for: binding),
+                  !snapshot.tapShortcuts.contains(shortcut),
+                  !usedShortcuts.contains(shortcut) else {
+                continue
+            }
+            sanitized[slot] = binding
+            usedShortcuts.append(shortcut)
         }
 
-        let secondary = HoldShortcutBinding(
-            keyCode: preferences.holdShortcutKeyCodeAlt,
-            modifiers: preferences.holdShortcutModifiersAlt
-        )
-        let secondaryShortcut = ShortcutBindingSnapshot.shortcut(for: secondary)
-        let sanitizedSecondary: HoldShortcutBinding?
-        if let secondaryShortcut,
-           !snapshot.tapShortcuts.contains(secondaryShortcut),
-           secondaryShortcut != ShortcutBindingSnapshot.shortcut(for: sanitizedPrimary) {
-            sanitizedSecondary = secondary
-        } else {
-            sanitizedSecondary = nil
-        }
-
-        return (sanitizedPrimary, sanitizedSecondary)
+        return (sanitized[.primary], sanitized[.secondary], sanitized[.tertiary])
     }
 
     static func sanitizedMouseBindings(
         preferences: ShellPreferences
-    ) -> (start: MouseButtonBinding?, stop: MouseButtonBinding?, hold: MouseButtonBinding?) {
-        let start = preferences.startMouseButtonBinding
-        let sanitizedStart = start
+    ) -> (start: MouseButtonBindingSet, stop: MouseButtonBindingSet, hold: MouseButtonBindingSet) {
+        let start = preferences.startMouseButtonBindings
+        let stop = preferences.stopMouseButtonBindings
+        var hold = preferences.holdMouseButtonBindings
+        hold.remove(start.all + stop.all)
 
-        let stop = preferences.stopMouseButtonBinding
-        let sanitizedStop: MouseButtonBinding?
-        if let stop {
-            sanitizedStop = stop
-        } else {
-            sanitizedStop = nil
+        return (start, stop, hold)
+    }
+
+    static func assignMouseButtonBinding(
+        _ binding: MouseButtonBinding?,
+        action: MouseButtonShortcutAction,
+        slot: ShortcutBindingSlot = .defaultMouseSlot,
+        preferences: ShellPreferences
+    ) {
+        switch action {
+        case .startRecording:
+            var startBindings = preferences.startMouseButtonBindings
+            startBindings.set(binding, for: slot)
+            preferences.startMouseButtonBindings = startBindings
+            if let binding {
+                var holdBindings = preferences.holdMouseButtonBindings
+                holdBindings.remove(binding)
+                preferences.holdMouseButtonBindings = holdBindings
+            }
+
+        case .stopRecording:
+            var stopBindings = preferences.stopMouseButtonBindings
+            stopBindings.set(binding, for: slot)
+            preferences.stopMouseButtonBindings = stopBindings
+            if let binding {
+                var holdBindings = preferences.holdMouseButtonBindings
+                holdBindings.remove(binding)
+                preferences.holdMouseButtonBindings = holdBindings
+            }
+
+        case .holdToRecord:
+            var holdBindings = preferences.holdMouseButtonBindings
+            holdBindings.set(binding, for: slot)
+            preferences.holdMouseButtonBindings = holdBindings
+            if let binding {
+                var startBindings = preferences.startMouseButtonBindings
+                startBindings.remove(binding)
+                preferences.startMouseButtonBindings = startBindings
+
+                var stopBindings = preferences.stopMouseButtonBindings
+                stopBindings.remove(binding)
+                preferences.stopMouseButtonBindings = stopBindings
+            }
         }
-
-        let hold = preferences.holdMouseButtonBinding
-        let sanitizedHold: MouseButtonBinding?
-        if let hold,
-           hold != sanitizedStart,
-           hold != sanitizedStop {
-            sanitizedHold = hold
-        } else {
-            sanitizedHold = nil
-        }
-
-        return (sanitizedStart, sanitizedStop, sanitizedHold)
     }
 }

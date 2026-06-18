@@ -92,21 +92,34 @@ final class ShellPreferencesModelTests: XCTestCase {
     func testMouseButtonBindingsDefaultToUnset() {
         let (_, preferences) = makePreferences()
 
-        XCTAssertNil(preferences.startMouseButtonBinding)
-        XCTAssertNil(preferences.stopMouseButtonBinding)
-        XCTAssertNil(preferences.holdMouseButtonBinding)
+        XCTAssertTrue(preferences.startMouseButtonBindings.isEmpty)
+        XCTAssertTrue(preferences.stopMouseButtonBindings.isEmpty)
+        XCTAssertTrue(preferences.holdMouseButtonBindings.isEmpty)
     }
 
     func testMouseButtonBindingsPersistRoundTrip() {
         let (defaults, preferences) = makePreferences()
-        preferences.startMouseButtonBinding = MouseButtonBinding(buttonNumber: 4)
-        preferences.stopMouseButtonBinding = MouseButtonBinding(buttonNumber: 5)
-        preferences.holdMouseButtonBinding = MouseButtonBinding(buttonNumber: 3)
+        preferences.startMouseButtonBindings = .single(MouseButtonBinding(buttonNumber: 4), slot: .primary)
+        preferences.stopMouseButtonBindings = .single(MouseButtonBinding(buttonNumber: 5), slot: .secondary)
+        preferences.holdMouseButtonBindings = .single(MouseButtonBinding(buttonNumber: 3), slot: .tertiary)
 
         let preferences2 = ShellPreferences(userDefaults: defaults)
-        XCTAssertEqual(preferences2.startMouseButtonBinding, MouseButtonBinding(buttonNumber: 4))
-        XCTAssertEqual(preferences2.stopMouseButtonBinding, MouseButtonBinding(buttonNumber: 5))
-        XCTAssertEqual(preferences2.holdMouseButtonBinding, MouseButtonBinding(buttonNumber: 3))
+        XCTAssertEqual(preferences2.startMouseButtonBindings.binding(for: .primary), MouseButtonBinding(buttonNumber: 4))
+        XCTAssertEqual(preferences2.stopMouseButtonBindings.binding(for: .secondary), MouseButtonBinding(buttonNumber: 5))
+        XCTAssertEqual(preferences2.holdMouseButtonBindings.binding(for: .tertiary), MouseButtonBinding(buttonNumber: 3))
+    }
+
+    func testLegacyMouseButtonBindingsMigrateToThirdSlot() {
+        let (defaults, _) = makePreferences()
+        defaults.set(try? JSONEncoder().encode(MouseButtonBinding(buttonNumber: 4)), forKey: ShellPreferences.Keys.startMouseButtonBinding)
+        defaults.set(try? JSONEncoder().encode(MouseButtonBinding(buttonNumber: 5)), forKey: ShellPreferences.Keys.stopMouseButtonBinding)
+        defaults.set(try? JSONEncoder().encode(MouseButtonBinding(buttonNumber: 3)), forKey: ShellPreferences.Keys.holdMouseButtonBinding)
+
+        let preferences = ShellPreferences(userDefaults: defaults)
+
+        XCTAssertEqual(preferences.startMouseButtonBindings.binding(for: .tertiary), MouseButtonBinding(buttonNumber: 4))
+        XCTAssertEqual(preferences.stopMouseButtonBindings.binding(for: .tertiary), MouseButtonBinding(buttonNumber: 5))
+        XCTAssertEqual(preferences.holdMouseButtonBindings.binding(for: .tertiary), MouseButtonBinding(buttonNumber: 3))
     }
 
     func testInvalidStoredRecordingPillPositionFallsBackToDefault() {
@@ -397,6 +410,8 @@ final class ShellPreferencesModelTests: XCTestCase {
         preferences.holdShortcutModifiers = NSEvent.ModifierFlags.control.rawValue
         preferences.holdShortcutKeyCodeAlt = 106
         preferences.holdShortcutModifiersAlt = NSEvent.ModifierFlags.shift.rawValue
+        preferences.holdShortcutKeyCodeTertiary = 107
+        preferences.holdShortcutModifiersTertiary = NSEvent.ModifierFlags.option.rawValue
 
         preferences.restoreDefaultHoldShortcuts()
 
@@ -404,6 +419,8 @@ final class ShellPreferencesModelTests: XCTestCase {
         XCTAssertEqual(preferences.holdShortcutModifiers, ShellPreferences.defaultHoldShortcutModifiers)
         XCTAssertEqual(preferences.holdShortcutKeyCodeAlt, ShellPreferences.defaultHoldShortcutKeyCodeAlt)
         XCTAssertEqual(preferences.holdShortcutModifiersAlt, ShellPreferences.defaultHoldShortcutModifiersAlt)
+        XCTAssertEqual(preferences.holdShortcutKeyCodeTertiary, ShellPreferences.defaultHoldShortcutKeyCodeTertiary)
+        XCTAssertEqual(preferences.holdShortcutModifiersTertiary, ShellPreferences.defaultHoldShortcutModifiersTertiary)
     }
 
     func testResetAssistantNameToDefaultClearsCustomTrigger() async {

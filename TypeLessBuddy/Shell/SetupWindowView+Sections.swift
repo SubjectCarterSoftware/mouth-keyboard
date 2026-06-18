@@ -42,7 +42,7 @@ extension SetupWindowView {
                         )
                         .frame(maxWidth: 240, alignment: .leading)
                     }
-                    .zIndex(10)
+                    .zIndex(isMicPriorityPickerMenuOpen ? 100 : 0)
 
                     SetupFieldRow(title: "Auto Paste") {
                         AlwaysAutoPasteRow(isOn: alwaysAutoPasteBinding)
@@ -60,6 +60,7 @@ extension SetupWindowView {
                     }
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
+                .zIndex(isMicPriorityPickerMenuOpen ? 100 : 0)
 
                 VStack(spacing: 10) {
                     Text("Pill Position")
@@ -73,9 +74,11 @@ extension SetupWindowView {
                     .frame(maxWidth: .infinity, alignment: .center)
                 }
                 .frame(width: 180, alignment: .center)
+                .zIndex(0)
             }
+            .zIndex(isMicPriorityPickerMenuOpen ? 100 : 0)
         }
-        .zIndex(isMicPriorityPickerMenuOpen ? 20 : 0)
+        .zIndex(isMicPriorityPickerMenuOpen ? 1000 : 0)
     }
 
     var assistantSectionContent: some View {
@@ -357,46 +360,64 @@ extension SetupWindowView {
             VStack(alignment: .leading, spacing: 14) {
                 SetupFieldRow(title: "Start recording") {
                     HStack(spacing: 12) {
-                        KeyComboRecorder(name: .activate, preferences: preferences, onShortcutChanged: onTapShortcutChanged)
-                        KeyComboRecorder(name: .activateAlt, preferences: preferences, onShortcutChanged: onTapShortcutChanged)
-                        MouseButtonRecorder(
-                            action: .startRecording,
+                        TapShortcutSlotRecorder(
+                            slot: .primary,
+                            name: .activate,
                             preferences: preferences,
-                            binding: preferences.startMouseButtonBinding,
-                            accessibilityID: "setupWindow.activate.mouseRecorder",
-                            onRecord: { binding in
-                                preferences.startMouseButtonBinding = binding
-                                HotkeyService.shared.configureMouseBindings()
-                                onTapShortcutChanged()
-                            },
-                            onClear: {
-                                preferences.startMouseButtonBinding = nil
-                                HotkeyService.shared.configureMouseBindings()
-                                onTapShortcutChanged()
-                            }
+                            mouseAction: .startRecording,
+                            mouseBindings: preferences.startMouseButtonBindings,
+                            accessibilityID: "setupWindow.activate.recorder",
+                            onShortcutChanged: onTapShortcutChanged
+                        )
+                        TapShortcutSlotRecorder(
+                            slot: .secondary,
+                            name: .activateAlt,
+                            preferences: preferences,
+                            mouseAction: .startRecording,
+                            mouseBindings: preferences.startMouseButtonBindings,
+                            accessibilityID: "setupWindow.activateAlt.recorder",
+                            onShortcutChanged: onTapShortcutChanged
+                        )
+                        TapShortcutSlotRecorder(
+                            slot: .tertiary,
+                            name: .activateTertiary,
+                            preferences: preferences,
+                            mouseAction: .startRecording,
+                            mouseBindings: preferences.startMouseButtonBindings,
+                            accessibilityID: "setupWindow.activateTertiary.recorder",
+                            onShortcutChanged: onTapShortcutChanged
                         )
                     }
                 }
 
                 SetupFieldRow(title: "Stop recording") {
                     HStack(spacing: 12) {
-                        KeyComboRecorder(name: .stopSession, preferences: preferences, onShortcutChanged: onTapShortcutChanged)
-                        KeyComboRecorder(name: .stopSessionAlt, preferences: preferences, onShortcutChanged: onTapShortcutChanged)
-                        MouseButtonRecorder(
-                            action: .stopRecording,
+                        TapShortcutSlotRecorder(
+                            slot: .primary,
+                            name: .stopSession,
                             preferences: preferences,
-                            binding: preferences.stopMouseButtonBinding,
-                            accessibilityID: "setupWindow.stopSession.mouseRecorder",
-                            onRecord: { binding in
-                                preferences.stopMouseButtonBinding = binding
-                                HotkeyService.shared.configureMouseBindings()
-                                onTapShortcutChanged()
-                            },
-                            onClear: {
-                                preferences.stopMouseButtonBinding = nil
-                                HotkeyService.shared.configureMouseBindings()
-                                onTapShortcutChanged()
-                            }
+                            mouseAction: .stopRecording,
+                            mouseBindings: preferences.stopMouseButtonBindings,
+                            accessibilityID: "setupWindow.stopSession.recorder",
+                            onShortcutChanged: onTapShortcutChanged
+                        )
+                        TapShortcutSlotRecorder(
+                            slot: .secondary,
+                            name: .stopSessionAlt,
+                            preferences: preferences,
+                            mouseAction: .stopRecording,
+                            mouseBindings: preferences.stopMouseButtonBindings,
+                            accessibilityID: "setupWindow.stopSessionAlt.recorder",
+                            onShortcutChanged: onTapShortcutChanged
+                        )
+                        TapShortcutSlotRecorder(
+                            slot: .tertiary,
+                            name: .stopSessionTertiary,
+                            preferences: preferences,
+                            mouseAction: .stopRecording,
+                            mouseBindings: preferences.stopMouseButtonBindings,
+                            accessibilityID: "setupWindow.stopSessionTertiary.recorder",
+                            onShortcutChanged: onTapShortcutChanged
                         )
                     }
                 }
@@ -557,11 +578,11 @@ extension SetupWindowView {
                         .accessibilityIdentifier("setupWindow.sidebar")
 
                         ScrollView {
-                            LazyVStack(alignment: .leading, spacing: 18) {
+                            VStack(alignment: .leading, spacing: 18) {
                                 trackedSection(.general) {
                                     generalSectionContent
                                 }
-                                .zIndex(isMicPriorityPickerMenuOpen ? 1 : 0)
+                                .zIndex(isMicPriorityPickerMenuOpen ? 1000 : 0)
 
                                 trackedSection(.shortcuts) {
                                     shortcutsSectionContent

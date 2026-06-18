@@ -51,6 +51,11 @@ struct ShortcutRecorderField: View {
                 .padding(.vertical, 3)
                 .accessibilityIdentifier(accessibilityID)
                 .accessibilityLabel(displayText)
+                .contentShape(Rectangle())
+                .onTapGesture {
+                    guard !isRecording else { return }
+                    onStartRecording()
+                }
 
             if !isRecording {
                 if isNonDefault, let onReset {
@@ -87,11 +92,6 @@ struct ShortcutRecorderField: View {
                 .fill(SetupColorPalette.raisedControlBackground)
         )
         .contentShape(RoundedRectangle(cornerRadius: 5))
-        .onTapGesture {
-            if isEmpty && !isRecording {
-                onStartRecording()
-            }
-        }
         .overlay(
             RoundedRectangle(cornerRadius: 5)
                 .stroke(SetupColorPalette.controlBorder, lineWidth: 0.75)
@@ -99,25 +99,70 @@ struct ShortcutRecorderField: View {
     }
 }
 
-struct KeyComboRecorder: View {
+@MainActor
+private enum ShortcutRecorderRuntime {
+    static func disableManagedShortcuts() {
+        KeyboardShortcuts.disable(.activate, .activateAlt, .activateTertiary)
+        KeyboardShortcuts.disable(.stopSession, .stopSessionAlt, .stopSessionTertiary)
+        KeyboardShortcuts.disable(.cancelSession)
+        HotkeyService.shared.setMouseBindingsEnabled(false)
+    }
+
+    static func enableManagedShortcuts() {
+        KeyboardShortcuts.enable(.activate, .activateAlt, .activateTertiary)
+        KeyboardShortcuts.enable(.stopSession, .stopSessionAlt, .stopSessionTertiary)
+        KeyboardShortcuts.enable(.cancelSession)
+        HotkeyService.shared.setMouseBindingsEnabled(true)
+    }
+}
+
+struct TapShortcutSlotRecorder: View {
+    let slot: ShortcutBindingSlot
     let name: KeyboardShortcuts.Name
-    let preferences: ShellPreferences
+    @ObservedObject var preferences: ShellPreferences
+    let mouseAction: MouseButtonShortcutAction
+    let mouseBindings: MouseButtonBindingSet
+    let accessibilityID: String
     var onShortcutChanged: () -> Void = {}
+
     @State private var isRecording = false
-    @State private var eventMonitor: Any?
-    @State private var clickMonitor: Any?
-    @State private var currentShortcut: KeyboardShortcuts.Shortcut?
+    @State private var keyMonitor: Any?
+    @State private var mouseMonitor: Any?
+    @State private var cancelMonitor: Any?
     @State private var shortcutBeforeRecording: KeyboardShortcuts.Shortcut?
+    @State private var mouseBindingsBeforeRecording: MouseButtonBindingSet = .empty
     @State private var lastCancelTime: Date = .distantPast
 
-    private let emptyShortcutText = "Click to set Key"
+    private let emptyShortcutText = "Click to set"
+
+    private var currentShortcut: KeyboardShortcuts.Shortcut? {
+        KeyboardShortcuts.getShortcut(for: name)
+    }
+
+    private var mouseBinding: MouseButtonBinding? {
+        mouseBindings.binding(for: slot)
+    }
+
+    private var isMouseAssignedToSlot: Bool {
+        mouseBinding != nil
+    }
 
     private var displayText: String {
-        currentShortcut?.description ?? emptyShortcutText
+        if isMouseAssignedToSlot, let mouseBinding {
+            return mouseBinding.displayName
+        }
+        return currentShortcut?.description ?? emptyShortcutText
+    }
+
+    private var isEmpty: Bool {
+        !isMouseAssignedToSlot && currentShortcut == nil
     }
 
     private var isNonDefault: Bool {
-        currentShortcut != name.defaultShortcut
+        if isMouseAssignedToSlot {
+            return true
+        }
+        return currentShortcut != name.defaultShortcut
     }
 
     var body: some View {
@@ -125,36 +170,27 @@ struct KeyComboRecorder: View {
             displayText: displayText,
             isRecording: isRecording,
             isNonDefault: isNonDefault,
-            isEmpty: currentShortcut == nil,
-            accessibilityID: "setupWindow.\(name.rawValue).recorder",
-            onClear: {
-                KeyboardShortcuts.setShortcut(nil, for: name)
-                currentShortcut = nil
-                onShortcutChanged()
-            },
+            isEmpty: isEmpty,
+            accessibilityID: accessibilityID,
+            recordingPrompt: "Press key/button",
+            onClear: clearCurrentBinding,
             onStartRecording: {
                 guard Date().timeIntervalSince(lastCancelTime) > 0.3 else { return }
                 startRecording()
             },
-            onReset: {
-                KeyboardShortcuts.reset(name)
-                currentShortcut = KeyboardShortcuts.getShortcut(for: name)
-                onShortcutChanged()
-            }
+            onReset: resetToDefault
         )
-        .onAppear {
-            currentShortcut = KeyboardShortcuts.getShortcut(for: name)
-        }
         .onDisappear { cancelRecording() }
     }
 
     private func startRecording() {
         shortcutBeforeRecording = currentShortcut
+        mouseBindingsBeforeRecording = mouseBindings
         isRecording = true
-        KeyboardShortcuts.disable(.activate, .activateAlt, .stopSession, .stopSessionAlt, .cancelSession)
-        HotkeyService.shared.setMouseBindingsEnabled(false)
-        eventMonitor = NSEvent.addLocalMonitorForEvents(matching: [.keyDown]) { event in
-            if event.keyCode == 53 { // Escape — restore previous
+        ShortcutRecorderRuntime.disableManagedShortcuts()
+
+        keyMonitor = NSEvent.addLocalMonitorForEvents(matching: [.keyDown]) { event in
+            if event.keyCode == 53 {
                 cancelRecording()
                 return nil
             }
@@ -169,72 +205,129 @@ struct KeyComboRecorder: View {
                 return nil
             }
 
-            if let shortcut = KeyboardShortcuts.Shortcut(event: event) {
-                let snapshot = ShortcutBindingSnapshot.current(preferences: preferences)
-                if !ShortcutBindingPolicy.tapShortcutConflictsWithHold(shortcut, snapshot: snapshot) {
-                    KeyboardShortcuts.setShortcut(shortcut, for: name)
-                    currentShortcut = shortcut
-                    onShortcutChanged()
-                    finishRecording()
-                } else {
-                    NSSound.beep()
-                }
+            guard let shortcut = KeyboardShortcuts.Shortcut(event: event) else {
+                NSSound.beep()
+                return nil
             }
+
+            let snapshot = ShortcutBindingSnapshot.current(preferences: preferences)
+            guard !ShortcutBindingPolicy.tapShortcutConflictsWithHold(shortcut, snapshot: snapshot) else {
+                NSSound.beep()
+                return nil
+            }
+
+            KeyboardShortcuts.setShortcut(shortcut, for: name)
+            clearMouseBindingIfAssignedToSlot()
+            onShortcutChanged()
+            finishRecording()
             return nil
         }
-        clickMonitor = NSEvent.addLocalMonitorForEvents(matching: [.leftMouseDown]) { event in
+
+        mouseMonitor = NSEvent.addLocalMonitorForEvents(matching: [.otherMouseDown]) { event in
+            let candidate = MouseButtonBinding(buttonNumber: Int(event.buttonNumber))
+            KeyboardShortcuts.setShortcut(nil, for: name)
+            ShortcutBindingPolicy.assignMouseButtonBinding(
+                candidate,
+                action: mouseAction,
+                slot: slot,
+                preferences: preferences
+            )
+            HotkeyService.shared.configureMouseBindings()
+            onShortcutChanged()
+            finishRecording()
+            return nil
+        }
+
+        cancelMonitor = NSEvent.addLocalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown]) { event in
             cancelRecording()
             return event
         }
     }
 
+    private func clearCurrentBinding() {
+        if isMouseAssignedToSlot {
+            setMouseBinding(nil, slot: slot)
+            HotkeyService.shared.configureMouseBindings()
+        } else {
+            KeyboardShortcuts.setShortcut(nil, for: name)
+        }
+        onShortcutChanged()
+    }
+
+    private func resetToDefault() {
+        KeyboardShortcuts.reset(name)
+        if isMouseAssignedToSlot {
+            setMouseBinding(nil, slot: slot)
+            HotkeyService.shared.configureMouseBindings()
+        }
+        onShortcutChanged()
+    }
+
+    private func clearMouseBindingIfAssignedToSlot() {
+        guard isMouseAssignedToSlot else { return }
+        setMouseBinding(nil, slot: slot)
+        HotkeyService.shared.configureMouseBindings()
+    }
+
     private func cancelRecording() {
         guard isRecording else { return }
-        if let previous = shortcutBeforeRecording {
-            KeyboardShortcuts.setShortcut(previous, for: name)
-            currentShortcut = previous
-        }
+        KeyboardShortcuts.setShortcut(shortcutBeforeRecording, for: name)
+        setMouseBindings(mouseBindingsBeforeRecording)
+        HotkeyService.shared.configureMouseBindings()
         lastCancelTime = Date()
         finishRecording()
     }
 
     private func finishRecording() {
-        if let eventMonitor {
-            NSEvent.removeMonitor(eventMonitor)
+        if let keyMonitor {
+            NSEvent.removeMonitor(keyMonitor)
         }
-        if let clickMonitor {
-            NSEvent.removeMonitor(clickMonitor)
+        if let mouseMonitor {
+            NSEvent.removeMonitor(mouseMonitor)
         }
-        eventMonitor = nil
-        clickMonitor = nil
+        if let cancelMonitor {
+            NSEvent.removeMonitor(cancelMonitor)
+        }
+        keyMonitor = nil
+        mouseMonitor = nil
+        cancelMonitor = nil
         shortcutBeforeRecording = nil
+        mouseBindingsBeforeRecording = .empty
         isRecording = false
-        KeyboardShortcuts.enable(.activate, .activateAlt, .stopSession, .stopSessionAlt, .cancelSession)
-        HotkeyService.shared.setMouseBindingsEnabled(true)
+        ShortcutRecorderRuntime.enableManagedShortcuts()
+    }
+
+    private func setMouseBinding(_ binding: MouseButtonBinding?, slot: ShortcutBindingSlot) {
+        var bindings = mouseBindingsForAction()
+        bindings.set(binding, for: slot)
+        setMouseBindings(bindings)
+    }
+
+    private func setMouseBindings(_ bindings: MouseButtonBindingSet) {
+        switch mouseAction {
+        case .startRecording:
+            preferences.startMouseButtonBindings = bindings
+        case .stopRecording:
+            preferences.stopMouseButtonBindings = bindings
+        case .holdToRecord:
+            preferences.holdMouseButtonBindings = bindings
+        }
+    }
+
+    private func mouseBindingsForAction() -> MouseButtonBindingSet {
+        switch mouseAction {
+        case .startRecording:
+            return preferences.startMouseButtonBindings
+        case .stopRecording:
+            return preferences.stopMouseButtonBindings
+        case .holdToRecord:
+            return preferences.holdMouseButtonBindings
+        }
     }
 }
 
-struct HoldShortcutRecorder: View {
-    let slot: HoldShortcutSlot
-    let preferences: ShellPreferences
-    let keyCode: Int
-    let modifiers: UInt
-    let defaultKeyCode: Int
-    let defaultModifiers: UInt
-    let accessibilityID: String
-    let onRecord: (Int, UInt) -> Void
-    let onClear: () -> Void
-    let onReset: () -> Void
-
-    @State private var isRecording = false
-    @State private var eventMonitor: Any?
-    @State private var clickMonitor: Any?
-    @State private var pendingModifierKeyCode: Int?
-    @State private var keyCodeBeforeRecording: Int?
-    @State private var modifiersBeforeRecording: UInt?
-    @State private var lastCancelTime: Date = .distantPast
-
-    static func displayName(keyCode: Int, modifiers: UInt) -> String {
+private enum HoldShortcutDisplayName {
+    static func format(keyCode: Int, modifiers: UInt) -> String {
         let nsFlags = NSEvent.ModifierFlags(rawValue: modifiers)
         var symbols = ""
         if nsFlags.contains(.control) { symbols += "⌃" }
@@ -251,18 +344,58 @@ struct HoldShortcutRecorder: View {
         let keyChar = shortcut.description.trimmingCharacters(in: .whitespaces)
         return symbols.isEmpty ? keyChar : symbols + keyChar
     }
+}
 
-    /// True when a binding is set (keyCode >= 0) and differs from the default.
-    private var isNonDefault: Bool {
-        guard keyCode >= 0 else { return false }
-        return keyCode != defaultKeyCode || modifiers != defaultModifiers
+struct HoldShortcutSlotRecorder: View {
+    let slot: HoldShortcutSlot
+    @ObservedObject var preferences: ShellPreferences
+    let keyCode: Int
+    let modifiers: UInt
+    let defaultKeyCode: Int
+    let defaultModifiers: UInt
+    let mouseBindings: MouseButtonBindingSet
+    let accessibilityID: String
+    let onRecordKey: (Int, UInt) -> Void
+    let onClearKey: () -> Void
+    let onResetKey: () -> Void
+
+    @State private var isRecording = false
+    @State private var keyMonitor: Any?
+    @State private var mouseMonitor: Any?
+    @State private var cancelMonitor: Any?
+    @State private var pendingModifierKeyCode: Int?
+    @State private var keyCodeBeforeRecording: Int?
+    @State private var modifiersBeforeRecording: UInt?
+    @State private var mouseBindingsBeforeRecording: MouseButtonBindingSet = .empty
+    @State private var lastCancelTime: Date = .distantPast
+
+    private let emptyShortcutText = "Click to set"
+
+    private var mouseBinding: MouseButtonBinding? {
+        mouseBindings.binding(for: slot)
     }
 
-    private let emptyShortcutText = "Click to set Key"
+    private var isMouseAssignedToSlot: Bool {
+        mouseBinding != nil
+    }
 
     private var displayText: String {
+        if isMouseAssignedToSlot, let mouseBinding {
+            return mouseBinding.displayName
+        }
         guard keyCode >= 0 else { return emptyShortcutText }
-        return Self.displayName(keyCode: keyCode, modifiers: modifiers)
+        return HoldShortcutDisplayName.format(keyCode: keyCode, modifiers: modifiers)
+    }
+
+    private var isEmpty: Bool {
+        !isMouseAssignedToSlot && keyCode < 0
+    }
+
+    private var isNonDefault: Bool {
+        if isMouseAssignedToSlot {
+            return true
+        }
+        return keyCode != defaultKeyCode || modifiers != defaultModifiers
     }
 
     var body: some View {
@@ -270,18 +403,15 @@ struct HoldShortcutRecorder: View {
             displayText: displayText,
             isRecording: isRecording,
             isNonDefault: isNonDefault,
-            isEmpty: keyCode < 0,
+            isEmpty: isEmpty,
             accessibilityID: accessibilityID,
-            onClear: {
-                onClear()
-            },
+            recordingPrompt: "Press key/button",
+            onClear: clearCurrentBinding,
             onStartRecording: {
                 guard Date().timeIntervalSince(lastCancelTime) > 0.3 else { return }
                 startRecording()
             },
-            onReset: {
-                onReset()
-            }
+            onReset: resetToDefault
         )
         .onDisappear { cancelRecording() }
     }
@@ -289,13 +419,14 @@ struct HoldShortcutRecorder: View {
     private func startRecording() {
         keyCodeBeforeRecording = keyCode
         modifiersBeforeRecording = modifiers
+        mouseBindingsBeforeRecording = mouseBindings
         isRecording = true
-        KeyboardShortcuts.disable(.activate, .activateAlt, .stopSession, .stopSessionAlt, .cancelSession)
-        HotkeyService.shared.setMouseBindingsEnabled(false)
         pendingModifierKeyCode = nil
-        eventMonitor = NSEvent.addLocalMonitorForEvents(matching: [.keyDown, .flagsChanged]) { [self] event in
+        ShortcutRecorderRuntime.disableManagedShortcuts()
+
+        keyMonitor = NSEvent.addLocalMonitorForEvents(matching: [.keyDown, .flagsChanged]) { event in
             if event.type == .keyDown {
-                if event.keyCode == 53 { // Escape — restore previous
+                if event.keyCode == 53 {
                     cancelRecording()
                     return nil
                 }
@@ -329,7 +460,22 @@ struct HoldShortcutRecorder: View {
             }
             return event
         }
-        clickMonitor = NSEvent.addLocalMonitorForEvents(matching: [.leftMouseDown]) { event in
+
+        mouseMonitor = NSEvent.addLocalMonitorForEvents(matching: [.otherMouseDown]) { event in
+            let candidate = MouseButtonBinding(buttonNumber: Int(event.buttonNumber))
+            onRecordKey(-1, 0)
+            ShortcutBindingPolicy.assignMouseButtonBinding(
+                candidate,
+                action: .holdToRecord,
+                slot: slot,
+                preferences: preferences
+            )
+            HotkeyService.shared.configureMouseBindings()
+            finishRecording()
+            return nil
+        }
+
+        cancelMonitor = NSEvent.addLocalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown]) { event in
             cancelRecording()
             return event
         }
@@ -346,117 +492,69 @@ struct HoldShortcutRecorder: View {
     }
 
     private func recordKey(keyCode: Int, modifiers: UInt) {
-        onRecord(keyCode, modifiers)
+        onRecordKey(keyCode, modifiers)
+        clearMouseBindingIfAssignedToSlot()
         finishRecording()
+    }
+
+    private func clearCurrentBinding() {
+        if isMouseAssignedToSlot {
+            setMouseBinding(nil, slot: slot)
+            HotkeyService.shared.configureMouseBindings()
+        } else {
+            onClearKey()
+        }
+    }
+
+    private func resetToDefault() {
+        onResetKey()
+        if isMouseAssignedToSlot {
+            setMouseBinding(nil, slot: slot)
+            HotkeyService.shared.configureMouseBindings()
+        }
+    }
+
+    private func clearMouseBindingIfAssignedToSlot() {
+        guard isMouseAssignedToSlot else { return }
+        setMouseBinding(nil, slot: slot)
+        HotkeyService.shared.configureMouseBindings()
     }
 
     private func cancelRecording() {
         guard isRecording else { return }
-        if let kc = keyCodeBeforeRecording, let mods = modifiersBeforeRecording {
-            onRecord(kc, mods)
+        if let keyCodeBeforeRecording, let modifiersBeforeRecording {
+            onRecordKey(keyCodeBeforeRecording, modifiersBeforeRecording)
         }
+        preferences.holdMouseButtonBindings = mouseBindingsBeforeRecording
+        HotkeyService.shared.configureMouseBindings()
         lastCancelTime = Date()
         finishRecording()
     }
 
     private func finishRecording() {
-        if let eventMonitor {
-            NSEvent.removeMonitor(eventMonitor)
+        if let keyMonitor {
+            NSEvent.removeMonitor(keyMonitor)
         }
-        if let clickMonitor {
-            NSEvent.removeMonitor(clickMonitor)
-        }
-        eventMonitor = nil
-        clickMonitor = nil
-        pendingModifierKeyCode = nil
-        keyCodeBeforeRecording = nil
-        modifiersBeforeRecording = nil
-        isRecording = false
-        KeyboardShortcuts.enable(.activate, .activateAlt, .stopSession, .stopSessionAlt, .cancelSession)
-        HotkeyService.shared.setMouseBindingsEnabled(true)
-    }
-}
-
-struct MouseButtonRecorder: View {
-    let action: MouseButtonShortcutAction
-    let preferences: ShellPreferences
-    let binding: MouseButtonBinding?
-    let accessibilityID: String
-    let onRecord: (MouseButtonBinding) -> Void
-    let onClear: () -> Void
-
-    @State private var isRecording = false
-    @State private var mouseMonitor: Any?
-    @State private var cancelMonitor: Any?
-    @State private var previousBinding: MouseButtonBinding?
-    @State private var lastCancelTime: Date = .distantPast
-
-    private let emptyShortcutText = "Click to set Key"
-
-    private var displayText: String {
-        binding?.displayName ?? emptyShortcutText
-    }
-
-    var body: some View {
-        ShortcutRecorderField(
-            displayText: displayText,
-            isRecording: isRecording,
-            isNonDefault: binding != nil,
-            isEmpty: binding == nil,
-            accessibilityID: accessibilityID,
-            recordingPrompt: "Click button",
-            onClear: onClear,
-            onStartRecording: {
-                guard Date().timeIntervalSince(lastCancelTime) > 0.3 else { return }
-                startRecording()
-            }
-        )
-        .onDisappear { cancelRecording() }
-    }
-
-    private func startRecording() {
-        previousBinding = binding
-        isRecording = true
-        KeyboardShortcuts.disable(.activate, .activateAlt, .stopSession, .stopSessionAlt, .cancelSession)
-        HotkeyService.shared.setMouseBindingsEnabled(false)
-        mouseMonitor = NSEvent.addLocalMonitorForEvents(matching: [.otherMouseDown]) { event in
-            let candidate = MouseButtonBinding(buttonNumber: Int(event.buttonNumber))
-            let snapshot = ShortcutBindingSnapshot.current(preferences: preferences)
-            if ShortcutBindingPolicy.mouseButtonConflicts(candidate, action: action, snapshot: snapshot) {
-                NSSound.beep()
-            } else {
-                onRecord(candidate)
-                finishRecording()
-            }
-            return nil
-        }
-        cancelMonitor = NSEvent.addLocalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown]) { event in
-            cancelRecording()
-            return event
-        }
-    }
-
-    private func cancelRecording() {
-        guard isRecording else { return }
-        if let previousBinding {
-            onRecord(previousBinding)
-        }
-        lastCancelTime = Date()
-        finishRecording()
-    }
-
-    private func finishRecording() {
         if let mouseMonitor {
             NSEvent.removeMonitor(mouseMonitor)
         }
         if let cancelMonitor {
             NSEvent.removeMonitor(cancelMonitor)
         }
+        keyMonitor = nil
         mouseMonitor = nil
         cancelMonitor = nil
-        previousBinding = nil
+        pendingModifierKeyCode = nil
+        keyCodeBeforeRecording = nil
+        modifiersBeforeRecording = nil
+        mouseBindingsBeforeRecording = .empty
         isRecording = false
-        KeyboardShortcuts.enable(.activate, .activateAlt, .stopSession, .stopSessionAlt, .cancelSession)
-        HotkeyService.shared.setMouseBindingsEnabled(true)
+        ShortcutRecorderRuntime.enableManagedShortcuts()
+    }
+
+    private func setMouseBinding(_ binding: MouseButtonBinding?, slot: ShortcutBindingSlot) {
+        var bindings = preferences.holdMouseButtonBindings
+        bindings.set(binding, for: slot)
+        preferences.holdMouseButtonBindings = bindings
     }
 }

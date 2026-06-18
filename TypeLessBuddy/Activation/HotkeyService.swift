@@ -8,12 +8,15 @@ extension KeyboardShortcuts.Name {
     static let stopSession = Self("stopSession", default: .init(.v, modifiers: [.control]))
     static let cancelSession = Self("cancelSession", default: .init(.v, modifiers: [.control, .shift]))
     static let activateAlt = Self("activateAlt")
+    static let activateTertiary = Self("activateTertiary")
     static let stopSessionAlt = Self("stopSessionAlt")
+    static let stopSessionTertiary = Self("stopSessionTertiary")
 }
 
 enum HoldBindingSlot {
     case primary
     case secondary
+    case tertiary
 }
 
 enum HoldModifierKey: Int, CaseIterable {
@@ -153,7 +156,11 @@ final class HotkeyService {
     var onCancel: () -> Void
     var onBeginHold: () -> Bool
     var onFinishHold: () -> Void
-    var currentMouseBindings: @MainActor () -> (start: MouseButtonBinding?, stop: MouseButtonBinding?, hold: MouseButtonBinding?)
+    var currentMouseBindings: @MainActor () -> (
+        start: MouseButtonBindingSet,
+        stop: MouseButtonBindingSet,
+        hold: MouseButtonBindingSet
+    )
 
     private let holdMonitor: HoldToTranscribeMonitor
     private let mouseMonitor: MouseButtonShortcutMonitor
@@ -173,7 +180,11 @@ final class HotkeyService {
         onCancel: @escaping () -> Void = {},
         onBeginHold: @escaping () -> Bool = { false },
         onFinishHold: @escaping () -> Void = {},
-        currentMouseBindings: @escaping @MainActor () -> (start: MouseButtonBinding?, stop: MouseButtonBinding?, hold: MouseButtonBinding?) = {
+        currentMouseBindings: @escaping @MainActor () -> (
+            start: MouseButtonBindingSet,
+            stop: MouseButtonBindingSet,
+            hold: MouseButtonBindingSet
+        ) = {
             ShortcutBindingPolicy.sanitizedMouseBindings(preferences: .shared)
         },
         now: @escaping () -> CFAbsoluteTime = CFAbsoluteTimeGetCurrent,
@@ -263,11 +274,11 @@ final class HotkeyService {
     func handleMouseButtonDown(buttonNumber: Int) -> Bool {
         let currentTime = now()
         let bindings = currentMouseBindings()
-        let isStartButton = bindings.start?.buttonNumber == buttonNumber
-        let isStopButton = bindings.stop?.buttonNumber == buttonNumber
+        let isStartButton = bindings.start.contains(buttonNumber: buttonNumber)
+        let isStopButton = bindings.stop.contains(buttonNumber: buttonNumber)
         let state = currentState()
 
-        if bindings.hold?.buttonNumber == buttonNumber {
+        if bindings.hold.contains(buttonNumber: buttonNumber) {
             lastHandledKeypressTime = currentTime
             handleHoldKeyStateChange(isPressed: true)
             return true
@@ -296,7 +307,7 @@ final class HotkeyService {
     @discardableResult
     func handleMouseButtonUp(buttonNumber: Int) -> Bool {
         let bindings = currentMouseBindings()
-        guard bindings.hold?.buttonNumber == buttonNumber else {
+        guard bindings.hold.contains(buttonNumber: buttonNumber) else {
             return false
         }
 
@@ -328,6 +339,16 @@ final class HotkeyService {
                 }
             }
 
+            KeyboardShortcuts.onKeyDown(for: .activateTertiary) { [weak self] in
+                let fireTime = CFAbsoluteTimeGetCurrent()
+                Task { @MainActor [weak self] in
+                    guard let self else { return }
+                    guard fireTime - self.lastHandledKeypressTime > 0.05 else { return }
+                    self.lastHandledKeypressTime = fireTime
+                    _ = self.handleKeyDown()
+                }
+            }
+
             KeyboardShortcuts.onKeyDown(for: .stopSession) { [weak self] in
                 let fireTime = CFAbsoluteTimeGetCurrent()
                 Task { @MainActor [weak self] in
@@ -340,6 +361,17 @@ final class HotkeyService {
             }
 
             KeyboardShortcuts.onKeyDown(for: .stopSessionAlt) { [weak self] in
+                let fireTime = CFAbsoluteTimeGetCurrent()
+                Task { @MainActor [weak self] in
+                    guard let self else { return }
+                    guard fireTime - self.lastHandledKeypressTime > 0.05 else { return }
+                    guard self.currentState() == .recording else { return }
+                    self.lastHandledKeypressTime = fireTime
+                    self.onStop()
+                }
+            }
+
+            KeyboardShortcuts.onKeyDown(for: .stopSessionTertiary) { [weak self] in
                 let fireTime = CFAbsoluteTimeGetCurrent()
                 Task { @MainActor [weak self] in
                     guard let self else { return }
@@ -378,6 +410,11 @@ final class HotkeyService {
         } else {
             holdMonitor.clearSecondaryTarget()
         }
+        if let tertiary = sanitizedBindings.tertiary {
+            holdMonitor.updateTertiaryTarget(keyCode: tertiary.keyCode, modifiers: tertiary.modifiers)
+        } else {
+            holdMonitor.clearTertiaryTarget()
+        }
     }
 
     func configureHoldTarget(keyCode: Int, modifiers: UInt) {
@@ -399,8 +436,8 @@ final class HotkeyService {
     }
 
     func stop() {
-        KeyboardShortcuts.disable(.activate, .activateAlt)
-        KeyboardShortcuts.disable(.stopSession, .stopSessionAlt)
+        KeyboardShortcuts.disable(.activate, .activateAlt, .activateTertiary)
+        KeyboardShortcuts.disable(.stopSession, .stopSessionAlt, .stopSessionTertiary)
         KeyboardShortcuts.disable(.cancelSession)
         holdMonitor.stop()
         mouseMonitor.stop()
@@ -421,15 +458,15 @@ final class MouseButtonShortcutMonitor {
 
     private var eventTap: CFMachPort?
     private var runLoopSource: CFRunLoopSource?
-    private var startBinding: MouseButtonBinding?
-    private var stopBinding: MouseButtonBinding?
-    private var holdBinding: MouseButtonBinding?
+    private var startBindings: MouseButtonBindingSet = .empty
+    private var stopBindings: MouseButtonBindingSet = .empty
+    private var holdBindings: MouseButtonBindingSet = .empty
     private var isEnabled = true
 
-    func updateBindings(start: MouseButtonBinding?, stop: MouseButtonBinding?, hold: MouseButtonBinding?) {
-        startBinding = start
-        stopBinding = stop
-        holdBinding = hold
+    func updateBindings(start: MouseButtonBindingSet, stop: MouseButtonBindingSet, hold: MouseButtonBindingSet) {
+        startBindings = start
+        stopBindings = stop
+        holdBindings = hold
     }
 
     func setEnabled(_ isEnabled: Bool) {
@@ -530,9 +567,9 @@ final class MouseButtonShortcutMonitor {
             return false
         }
 
-        return startBinding?.buttonNumber == buttonNumber
-            || stopBinding?.buttonNumber == buttonNumber
-            || holdBinding?.buttonNumber == buttonNumber
+        return startBindings.contains(buttonNumber: buttonNumber)
+            || stopBindings.contains(buttonNumber: buttonNumber)
+            || holdBindings.contains(buttonNumber: buttonNumber)
     }
 
     private static func mask(for type: CGEventType) -> CGEventMask {
@@ -578,6 +615,7 @@ final class HoldToTranscribeMonitor {
 
     private var primaryTarget = HoldBindingTarget(slot: .primary, keyCode: 61)
     private var secondaryTarget = HoldBindingTarget(slot: .secondary)
+    private var tertiaryTarget = HoldBindingTarget(slot: .tertiary)
 
     static func isAutoRepeatKeyDownEvent(_ event: CGEvent) -> Bool {
         event.getIntegerValueField(.keyboardEventAutorepeat) != 0
@@ -603,6 +641,20 @@ final class HoldToTranscribeMonitor {
 
     func clearSecondaryTarget() {
         secondaryTarget = HoldBindingTarget(slot: .secondary)
+        resetHoldState()
+    }
+
+    func updateTertiaryTarget(keyCode: Int, modifiers: UInt) {
+        tertiaryTarget = HoldBindingTarget(
+            slot: .tertiary,
+            keyCode: Int64(keyCode),
+            requiredModifiers: HoldModifierKey.cgEventFlags(fromStoredModifiers: modifiers)
+        )
+        resetHoldState()
+    }
+
+    func clearTertiaryTarget() {
+        tertiaryTarget = HoldBindingTarget(slot: .tertiary)
         resetHoldState()
     }
 
@@ -706,6 +758,11 @@ final class HoldToTranscribeMonitor {
             return
         }
 
+        if let edge = modifierEdge(for: tertiaryTarget, keyCode: keyCode, flags: flags) {
+            handleModifierEdge(edge)
+            return
+        }
+
         if let owner = activeHoldOwner,
            let ownerTarget = target(for: owner),
            !ownerTarget.isModifier,
@@ -788,6 +845,11 @@ final class HoldToTranscribeMonitor {
 
         if let edge = regularKeyDownEdge(for: secondaryTarget, keyCode: keyCode, eventFlags: eventFlags) {
             handle(edge: edge)
+            return
+        }
+
+        if let edge = regularKeyDownEdge(for: tertiaryTarget, keyCode: keyCode, eventFlags: eventFlags) {
+            handle(edge: edge)
         }
     }
 
@@ -811,6 +873,11 @@ final class HoldToTranscribeMonitor {
 
         if let edge = regularKeyUpEdge(for: secondaryTarget, keyCode: keyCode) {
             handle(edge: edge)
+            return
+        }
+
+        if let edge = regularKeyUpEdge(for: tertiaryTarget, keyCode: keyCode) {
+            handle(edge: edge)
         }
     }
 
@@ -828,6 +895,8 @@ final class HoldToTranscribeMonitor {
             return primaryTarget.isConfigured ? primaryTarget : nil
         case .secondary:
             return secondaryTarget.isConfigured ? secondaryTarget : nil
+        case .tertiary:
+            return tertiaryTarget.isConfigured ? tertiaryTarget : nil
         }
     }
 

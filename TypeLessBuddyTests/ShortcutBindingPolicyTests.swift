@@ -6,7 +6,9 @@ import XCTest
 @MainActor
 final class ShortcutBindingPolicyTests: XCTestCase {
     private static let managedShortcutNames: [KeyboardShortcuts.Name] = [
-        .activate, .activateAlt, .stopSession, .stopSessionAlt, .cancelSession
+        .activate, .activateAlt, .activateTertiary,
+        .stopSession, .stopSessionAlt, .stopSessionTertiary,
+        .cancelSession
     ]
 
     private var shortcutSnapshot: [KeyboardShortcuts.Name: KeyboardShortcuts.Shortcut?] = [:]
@@ -35,9 +37,10 @@ final class ShortcutBindingPolicyTests: XCTestCase {
             tapShortcuts: [candidate],
             primaryHoldShortcut: nil,
             secondaryHoldShortcut: nil,
-            startMouseButton: nil,
-            stopMouseButton: nil,
-            holdMouseButton: nil
+            tertiaryHoldShortcut: nil,
+            startMouseButtons: .empty,
+            stopMouseButtons: .empty,
+            holdMouseButtons: .empty
         )
 
         XCTAssertFalse(ShortcutBindingPolicy.tapShortcutConflictsWithHold(candidate, snapshot: snapshot))
@@ -49,9 +52,10 @@ final class ShortcutBindingPolicyTests: XCTestCase {
             tapShortcuts: [],
             primaryHoldShortcut: candidate,
             secondaryHoldShortcut: nil,
-            startMouseButton: nil,
-            stopMouseButton: nil,
-            holdMouseButton: nil
+            tertiaryHoldShortcut: nil,
+            startMouseButtons: .empty,
+            stopMouseButtons: .empty,
+            holdMouseButtons: .empty
         )
 
         XCTAssertTrue(ShortcutBindingPolicy.tapShortcutConflictsWithHold(candidate, snapshot: snapshot))
@@ -63,9 +67,10 @@ final class ShortcutBindingPolicyTests: XCTestCase {
             tapShortcuts: [candidate],
             primaryHoldShortcut: nil,
             secondaryHoldShortcut: nil,
-            startMouseButton: nil,
-            stopMouseButton: nil,
-            holdMouseButton: nil
+            tertiaryHoldShortcut: nil,
+            startMouseButtons: .empty,
+            stopMouseButtons: .empty,
+            holdMouseButtons: .empty
         )
 
         XCTAssertTrue(
@@ -83,9 +88,10 @@ final class ShortcutBindingPolicyTests: XCTestCase {
             tapShortcuts: [],
             primaryHoldShortcut: candidate,
             secondaryHoldShortcut: nil,
-            startMouseButton: nil,
-            stopMouseButton: nil,
-            holdMouseButton: nil
+            tertiaryHoldShortcut: nil,
+            startMouseButtons: .empty,
+            stopMouseButtons: .empty,
+            holdMouseButtons: .empty
         )
 
         XCTAssertTrue(
@@ -144,9 +150,10 @@ final class ShortcutBindingPolicyTests: XCTestCase {
             tapShortcuts: [],
             primaryHoldShortcut: nil,
             secondaryHoldShortcut: nil,
-            startMouseButton: nil,
-            stopMouseButton: nil,
-            holdMouseButton: candidate
+            tertiaryHoldShortcut: nil,
+            startMouseButtons: .empty,
+            stopMouseButtons: .empty,
+            holdMouseButtons: .single(candidate)
         )
 
         XCTAssertTrue(
@@ -160,15 +167,72 @@ final class ShortcutBindingPolicyTests: XCTestCase {
 
     func testSanitizedMouseBindingsKeepsSharedStartStopAndDropsConflictingHold() {
         let (_, preferences) = makePreferences()
-        preferences.startMouseButtonBinding = MouseButtonBinding(buttonNumber: 4)
-        preferences.stopMouseButtonBinding = MouseButtonBinding(buttonNumber: 4)
-        preferences.holdMouseButtonBinding = MouseButtonBinding(buttonNumber: 4)
+        preferences.startMouseButtonBindings = .single(MouseButtonBinding(buttonNumber: 4), slot: .primary)
+        preferences.stopMouseButtonBindings = .single(MouseButtonBinding(buttonNumber: 4), slot: .secondary)
+        preferences.holdMouseButtonBindings = .single(MouseButtonBinding(buttonNumber: 4), slot: .tertiary)
 
         let sanitized = ShortcutBindingPolicy.sanitizedMouseBindings(preferences: preferences)
 
-        XCTAssertEqual(sanitized.start, MouseButtonBinding(buttonNumber: 4))
-        XCTAssertEqual(sanitized.stop, MouseButtonBinding(buttonNumber: 4))
-        XCTAssertNil(sanitized.hold)
+        XCTAssertEqual(sanitized.start.binding(for: .primary), MouseButtonBinding(buttonNumber: 4))
+        XCTAssertEqual(sanitized.stop.binding(for: .secondary), MouseButtonBinding(buttonNumber: 4))
+        XCTAssertTrue(sanitized.hold.isEmpty)
+    }
+
+    func testAssigningStartMouseButtonClearsConflictingHoldBinding() {
+        let (_, preferences) = makePreferences()
+        let binding = MouseButtonBinding(buttonNumber: 4)
+        preferences.holdMouseButtonBindings = .single(binding, slot: .primary)
+
+        ShortcutBindingPolicy.assignMouseButtonBinding(
+            binding,
+            action: .startRecording,
+            slot: .secondary,
+            preferences: preferences
+        )
+
+        XCTAssertEqual(preferences.startMouseButtonBindings.binding(for: .secondary), binding)
+        XCTAssertTrue(preferences.holdMouseButtonBindings.isEmpty)
+    }
+
+    func testAssigningHoldMouseButtonClearsConflictingTapBindings() {
+        let (_, preferences) = makePreferences()
+        let binding = MouseButtonBinding(buttonNumber: 4)
+        preferences.startMouseButtonBindings = .single(binding, slot: .primary)
+        preferences.stopMouseButtonBindings = .single(binding, slot: .secondary)
+
+        ShortcutBindingPolicy.assignMouseButtonBinding(
+            binding,
+            action: .holdToRecord,
+            slot: .tertiary,
+            preferences: preferences
+        )
+
+        XCTAssertTrue(preferences.startMouseButtonBindings.isEmpty)
+        XCTAssertTrue(preferences.stopMouseButtonBindings.isEmpty)
+        XCTAssertEqual(preferences.holdMouseButtonBindings.binding(for: .tertiary), binding)
+    }
+
+    func testAssigningMouseButtonsKeepsIndependentSlotsForSameAction() {
+        let (_, preferences) = makePreferences()
+        let primary = MouseButtonBinding(buttonNumber: 4)
+        let secondary = MouseButtonBinding(buttonNumber: 5)
+
+        ShortcutBindingPolicy.assignMouseButtonBinding(
+            primary,
+            action: .startRecording,
+            slot: .primary,
+            preferences: preferences
+        )
+        ShortcutBindingPolicy.assignMouseButtonBinding(
+            secondary,
+            action: .startRecording,
+            slot: .secondary,
+            preferences: preferences
+        )
+
+        XCTAssertEqual(preferences.startMouseButtonBindings.binding(for: .primary), primary)
+        XCTAssertEqual(preferences.startMouseButtonBindings.binding(for: .secondary), secondary)
+        XCTAssertNil(preferences.startMouseButtonBindings.binding(for: .tertiary))
     }
 
     private func makePreferences(
