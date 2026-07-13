@@ -2147,6 +2147,7 @@ final class ActivationStoreTests: XCTestCase {
                 result: .success("Buddy make a note of this make the selected text more professional")
             ),
             localRewriter: localRewriter,
+            contextRouter: ScriptedContextRouter(modes: [.selectedText]),
             noteCaptureService: noteCaptureService,
             clipboard: clipboard,
             pasteService: pasteService,
@@ -2554,6 +2555,7 @@ final class ActivationStoreTests: XCTestCase {
         postEventAuthorized: Bool = false,
         transcriber: (any WhisperTranscribing)? = nil,
         localRewriter: (any Rewriting)? = nil,
+        contextRouter: (any AssistantContextRouting)? = nil,
         whisperModelLoadState: (any WhisperModelLoadStateProviding)? = nil,
         noteCaptureService: (any NoteCapturing)? = nil,
         historyCaptureService: (any HistoryCapturing)? = nil,
@@ -2579,6 +2581,7 @@ final class ActivationStoreTests: XCTestCase {
             whisperModelLoadState: whisperModelLoadState ?? StubWhisperModelLoadState(),
             whisperService: transcriber ?? ActivationStoreMockTranscriber(result: .success("")),
             localRewriteService: localRewriter ?? MockRewriter(result: .failure(RewriteError.cancelled)),
+            contextRouter: contextRouter ?? NoContextRouter(),
             noteCaptureService: noteCaptureService ?? StubNoteCaptureService(),
             historyCaptureService: historyCaptureService ?? StubHistoryCaptureService(),
             clipboardService: clipboard ?? ActivationStoreMockClipboard(),
@@ -2715,431 +2718,6 @@ final class ActivationStoreTests: XCTestCase {
 }
 
 extension ActivationStoreTests {
-    func test_externalTextSourceClassifier_explicitSelectedTextReturnsSingleDeterministicMatch() {
-        let context = ExternalTextSourceContext(
-            selectedTextAvailable: true,
-            clipboardTextAvailable: true,
-            lastTranscriptionAvailable: true
-        )
-
-        let decision = ExternalTextSourceClassifier.classify(
-            message: "Buddy, make what's selected more concise and professional",
-            availableSources: context
-        )
-
-        XCTAssertEqual(decision.targetMode, .selectedText)
-        XCTAssertEqual(decision.decisionSource, .explicitFastPath)
-        XCTAssertEqual(decision.promptLabel, "what's selected")
-        XCTAssertEqual(
-            decision.matchedSources,
-            [
-                AssistantContextMatchedSource(
-                    targetMode: .selectedText,
-                    promptLabel: "what's selected"
-                )
-            ]
-        )
-    }
-
-    func test_externalTextSourceClassifier_explicitClipboardReturnsSingleDeterministicMatch() {
-        let context = ExternalTextSourceContext(
-            selectedTextAvailable: true,
-            clipboardTextAvailable: true,
-            lastTranscriptionAvailable: true
-        )
-
-        let decision = ExternalTextSourceClassifier.classify(
-            message: "Buddy, turn what I copied into a polished Slack update",
-            availableSources: context
-        )
-
-        XCTAssertEqual(decision.targetMode, .clipboard)
-        XCTAssertEqual(decision.decisionSource, .explicitFastPath)
-        XCTAssertEqual(decision.promptLabel, "what i copied")
-        XCTAssertEqual(
-            decision.matchedSources,
-            [
-                AssistantContextMatchedSource(
-                    targetMode: .clipboard,
-                    promptLabel: "what i copied"
-                )
-            ]
-        )
-    }
-
-    func test_externalTextSourceClassifier_explicitLastTranscriptionReturnsSingleDeterministicMatch() {
-        let context = ExternalTextSourceContext(
-            selectedTextAvailable: true,
-            clipboardTextAvailable: true,
-            lastTranscriptionAvailable: true
-        )
-
-        let decision = ExternalTextSourceClassifier.classify(
-            message: "Buddy, clean up my last transcription and make it easier to read",
-            availableSources: context
-        )
-
-        XCTAssertEqual(decision.targetMode, .lastTranscription)
-        XCTAssertEqual(decision.decisionSource, .explicitFastPath)
-        XCTAssertEqual(decision.promptLabel, "my last transcription")
-        XCTAssertEqual(
-            decision.matchedSources,
-            [
-                AssistantContextMatchedSource(
-                    targetMode: .lastTranscription,
-                    promptLabel: "my last transcription"
-                )
-            ]
-        )
-    }
-
-    func test_externalTextSourceClassifier_multipleExplicitSourcesReturnsAllMatchedSourcesInStableOrder() {
-        let context = ExternalTextSourceContext(
-            selectedTextAvailable: true,
-            clipboardTextAvailable: true,
-            lastTranscriptionAvailable: true
-        )
-
-        let decision = ExternalTextSourceClassifier.classify(
-            message: "Buddy, compare what's selected with what I copied and my last transcription",
-            availableSources: context
-        )
-
-        XCTAssertEqual(decision.targetMode, .none)
-        XCTAssertEqual(decision.promptLabel, nil)
-        XCTAssertEqual(decision.decisionSource, .explicitFastPath)
-        XCTAssertEqual(
-            decision.matchedSources,
-            [
-                AssistantContextMatchedSource(
-                    targetMode: .lastTranscription,
-                    promptLabel: "my last transcription"
-                ),
-                AssistantContextMatchedSource(
-                    targetMode: .clipboard,
-                    promptLabel: "what i copied"
-                ),
-                AssistantContextMatchedSource(
-                    targetMode: .selectedText,
-                    promptLabel: "what's selected"
-                ),
-            ]
-        )
-    }
-
-    func test_externalTextSourceClassifier_vagueRequestReturnsNoDeterministicMatch() {
-        let context = ExternalTextSourceContext(
-            selectedTextAvailable: true,
-            clipboardTextAvailable: true,
-            lastTranscriptionAvailable: true
-        )
-
-        let decision = ExternalTextSourceClassifier.classify(
-            message: "Buddy, make this more professional",
-            availableSources: context
-        )
-
-        XCTAssertEqual(decision.targetMode, .none)
-        XCTAssertEqual(decision.decisionSource, .noDeterministicMatch)
-        XCTAssertTrue(decision.matchedSources.isEmpty)
-    }
-
-    func test_externalTextSourceClassifier_noAvailableContextReturnsNoAvailableContext() {
-        let context = ExternalTextSourceContext(
-            selectedTextAvailable: false,
-            clipboardTextAvailable: false,
-            lastTranscriptionAvailable: false
-        )
-
-        let decision = ExternalTextSourceClassifier.classify(
-            message: "Buddy, make this more professional",
-            availableSources: context
-        )
-
-        XCTAssertEqual(decision.targetMode, .none)
-        XCTAssertEqual(decision.decisionSource, .noAvailableContext)
-        XCTAssertTrue(decision.matchedSources.isEmpty)
-    }
-
-    /// Representative sample of phrase-coverage additions. Each case asserts the
-    /// command routes to the expected single source and is labelled with the longest
-    /// matching phrase.
-    func test_externalTextSourceClassifier_expandedPhraseCoverage() {
-        let context = ExternalTextSourceContext(
-            selectedTextAvailable: true,
-            clipboardTextAvailable: true,
-            lastTranscriptionAvailable: true
-        )
-
-        let cases: [(message: String, mode: AssistantContextTargetMode, label: String)] = [
-            // selected-text additions
-            ("Buddy, tidy up the text I selected", .selectedText, "the text i selected"),
-            ("Buddy, tidy up the text I have selected", .selectedText, "the text i have selected"),
-            ("Buddy, summarize the highlighted paragraph", .selectedText, "highlighted paragraph"),
-            ("Buddy, rewrite the chunk I highlighted", .selectedText, "the chunk i highlighted"),
-            ("Buddy, fix whatever is currently highlighted", .selectedText, "currently highlighted"),
-            ("Buddy, clean up what I've highlighted", .selectedText, "what i've highlighted"),
-            ("Buddy, shorten that highlighted text", .selectedText, "that highlighted text"),
-            // clipboard additions
-            ("Buddy, summarize what's on my clipboard", .clipboard, "what's on my clipboard"),
-            ("Buddy, polish the text I just copied", .clipboard, "the text i just copied"),
-            ("Buddy, format what I copied to the clipboard", .clipboard, "copied to the clipboard"),
-            ("Buddy, rewrite whatever is on the clipboard", .clipboard, "on the clipboard"),
-            // last-transcription additions
-            ("Buddy, clean up my transcript", .lastTranscription, "my transcript"),
-            ("Buddy, fix the grammar in what I've said", .lastTranscription, "what i've said"),
-            ("Buddy, tidy up what I've dictated", .lastTranscription, "what i've dictated"),
-            ("Buddy, summarize my voice memo", .lastTranscription, "my voice memo"),
-            ("Buddy, punch up what I recorded", .lastTranscription, "what i recorded"),
-        ]
-
-        for testCase in cases {
-            let decision = ExternalTextSourceClassifier.classify(
-                message: testCase.message,
-                availableSources: context
-            )
-
-            XCTAssertEqual(
-                decision.targetMode,
-                testCase.mode,
-                "Expected \(testCase.mode) for \"\(testCase.message)\""
-            )
-            XCTAssertEqual(
-                decision.decisionSource,
-                .explicitFastPath,
-                "Expected fast-path match for \"\(testCase.message)\""
-            )
-            XCTAssertEqual(
-                decision.promptLabel,
-                testCase.label,
-                "Unexpected label for \"\(testCase.message)\""
-            )
-        }
-    }
-
-    /// The new "transcript" synonym must not match inside the longer word
-    /// "transcription" (whole-word boundary protection).
-    func test_externalTextSourceClassifier_transcriptDoesNotMatchInsideTranscription() {
-        let context = ExternalTextSourceContext(
-            selectedTextAvailable: false,
-            clipboardTextAvailable: false,
-            lastTranscriptionAvailable: true
-        )
-
-        let decision = ExternalTextSourceClassifier.classify(
-            message: "Buddy, clean up my last transcription",
-            availableSources: context
-        )
-
-        XCTAssertEqual(decision.targetMode, .lastTranscription)
-        XCTAssertEqual(decision.promptLabel, "my last transcription")
-    }
-
-    /// Regression: "make that last transcript sound like a pirate" must route to the
-    /// last transcription. Before the "transcript" synonyms were added, only
-    /// "transcription" matched, so this command injected no context and the model
-    /// hallucinated a generic reply instead of transforming the dictation.
-    func test_externalTextSourceClassifier_routesLastTranscriptPirateCommand() {
-        let context = ExternalTextSourceContext(
-            selectedTextAvailable: false,
-            clipboardTextAvailable: false,
-            lastTranscriptionAvailable: true
-        )
-
-        let decision = ExternalTextSourceClassifier.classify(
-            message: "Buddy, can you make that last transcript sound like a pirate instead of me?",
-            availableSources: context
-        )
-
-        XCTAssertEqual(decision.targetMode, .lastTranscription)
-        XCTAssertEqual(decision.decisionSource, .explicitFastPath)
-        XCTAssertEqual(decision.promptLabel, "last transcript")
-    }
-
-    /// Guardrail: expanded phrase tables must not hijack an everyday request that
-    /// names no source.
-    func test_externalTextSourceClassifier_expandedPhrasesDoNotCauseFalsePositive() {
-        let context = ExternalTextSourceContext(
-            selectedTextAvailable: true,
-            clipboardTextAvailable: true,
-            lastTranscriptionAvailable: true
-        )
-
-        for message in [
-            "Buddy, write me a short professional email about the launch",
-            "Buddy, give me a checklist for onboarding a new hire",
-            "Buddy, make this more concise and to the point",
-        ] {
-            let decision = ExternalTextSourceClassifier.classify(
-                message: message,
-                availableSources: context
-            )
-
-            XCTAssertEqual(
-                decision.targetMode,
-                .none,
-                "\"\(message)\" should not route to any source"
-            )
-            XCTAssertEqual(decision.decisionSource, .noDeterministicMatch)
-            XCTAssertTrue(decision.matchedSources.isEmpty)
-        }
-    }
-
-    /// Structural invariant: every first-person self-reference phrase in the
-    /// deterministic tables ("the text i selected", "what i've copied") must appear in
-    /// its full contraction/tense set. Speech-to-text emits these variants
-    /// interchangeably, so a half-filled family is a real routing gap. This catches the
-    /// asymmetry mechanically instead of by eyeballing parity across the three lists.
-    func test_selfReferencePhrases_haveCompleteContractionForms() {
-        // Forms that must travel together. A framed reference ("the text i ...") keeps
-        // the bare "i" form because the determiner disambiguates it; an unframed one
-        // ("i copied") drops bare "i" on purpose — it collides with everyday speech
-        // ("I copied my friend") — so only the have/contraction forms are required.
-        let framedRequired: Set<String> = ["i", "i have", "i've", "ive"]
-        let unframedRequired: Set<String> = ["i have", "i've", "ive"]
-
-        let exemptFamilies = Self.exemptSelfReferenceFamilies()
-
-        var formsByFamily: [PhraseFamily: Set<String>] = [:]
-        let allPhrases = ExternalTextSourceClassifier.selectedPhrases
-            + ExternalTextSourceClassifier.clipboardPhrases
-            + ExternalTextSourceClassifier.transcriptionPhrases
-        for phrase in allPhrases {
-            guard let (family, form) = Self.decomposeSelfReference(phrase) else { continue }
-            formsByFamily[family, default: []].insert(form)
-        }
-
-        func missingForms(_ family: PhraseFamily, _ forms: Set<String>) -> [String] {
-            let required = family.frame.isEmpty ? unframedRequired : framedRequired
-            return required.subtracting(forms).sorted()
-        }
-
-        var violations: [String] = []
-        for (family, forms) in formsByFamily {
-            let missing = missingForms(family, forms)
-            guard !missing.isEmpty, exemptFamilies[family] == nil else { continue }
-            let frameDesc = family.frame.isEmpty ? "(unframed)" : "\"\(family.frame) i ...\""
-            violations.append("\(frameDesc) + \"\(family.verb)\" missing \(missing)")
-        }
-        XCTAssertTrue(
-            violations.isEmpty,
-            "Self-reference phrases missing contraction/tense siblings — add them or "
-                + "document an exemption:\n" + violations.sorted().joined(separator: "\n")
-        )
-
-        // Keep the exemption list honest: an exemption is stale if its family is now
-        // complete OR no longer matches any phrase (e.g. a typo'd frame). Flagging the
-        // latter also guards against a vacuous pass — if the decomposer matched nothing,
-        // every exemption would read as absent and this assertion would fail.
-        let staleExemptions = exemptFamilies.keys.filter { family in
-            guard let forms = formsByFamily[family] else { return true }
-            return missingForms(family, forms).isEmpty
-        }
-        XCTAssertTrue(
-            staleExemptions.isEmpty,
-            "Stale self-reference exemptions (now complete/absent) — remove them:\n"
-                + staleExemptions
-                    .map { "\"\($0.frame)\" / \($0.verb)" }
-                    .sorted()
-                    .joined(separator: "\n")
-        )
-    }
-
-    /// Structural guards for the routing tables as they grow: no phrase may belong to
-    /// two sources (that would silently route one command into multiple contexts), and
-    /// no phrase may be a bare everyday word that hijacks unrelated commands.
-    func test_routingPhraseTables_haveNoCollisionsOrGenericWords() {
-        let selected = Set(ExternalTextSourceClassifier.selectedPhrases)
-        let clipboard = Set(ExternalTextSourceClassifier.clipboardPhrases)
-        let transcription = Set(ExternalTextSourceClassifier.transcriptionPhrases)
-
-        XCTAssertTrue(
-            selected.isDisjoint(with: clipboard),
-            "Phrase(s) in both selected and clipboard: \(selected.intersection(clipboard).sorted())"
-        )
-        XCTAssertTrue(
-            selected.isDisjoint(with: transcription),
-            "Phrase(s) in both selected and transcription: \(selected.intersection(transcription).sorted())"
-        )
-        XCTAssertTrue(
-            clipboard.isDisjoint(with: transcription),
-            "Phrase(s) in both clipboard and transcription: \(clipboard.intersection(transcription).sorted())"
-        )
-
-        // Bare everyday words would match unrelated commands and hijack them. The
-        // domain keywords clipboard/transcript/transcription are specific enough to keep.
-        let bannedGenericWords: Set<String> = [
-            "this", "that", "text", "copied", "said", "thing", "content",
-            "selected", "highlighted", "it", "the", "my", "what",
-        ]
-        let offenders = selected.union(clipboard).union(transcription)
-            .filter { bannedGenericWords.contains($0) }
-        XCTAssertTrue(
-            offenders.isEmpty,
-            "Too-generic single-word phrases present: \(offenders.sorted())"
-        )
-    }
-
-    struct PhraseFamily: Hashable {
-        let frame: String
-        let verb: String
-    }
-
-    /// Splits a phrase like "the text i've selected" into its (frame, verb) family and
-    /// the subject form used ("i" / "i have" / "i've" / "ive"). Returns nil for phrases
-    /// that are not a first-person self-reference, or that use the orthogonal "just"
-    /// axis ("what i just copied"), which is not part of the contraction quartet.
-    static func decomposeSelfReference(_ phrase: String) -> (PhraseFamily, String)? {
-        // Longest/most-specific first so "i have"/"i've"/"ive" win over bare "i".
-        for form in ["i have", "i've", "ive", "i just", "i"] {
-            let escaped = NSRegularExpression.escapedPattern(for: form)
-            let pattern = "^(?:(.+?) )?\(escaped) ([a-z]+)$"
-            guard let regex = try? NSRegularExpression(pattern: pattern) else { continue }
-            let range = NSRange(phrase.startIndex..<phrase.endIndex, in: phrase)
-            guard let match = regex.firstMatch(in: phrase, options: [], range: range) else {
-                continue
-            }
-            if form == "i just" { return nil }
-            let frame: String
-            if let frameRange = Range(match.range(at: 1), in: phrase) {
-                frame = String(phrase[frameRange])
-            } else {
-                frame = ""
-            }
-            guard let verbRange = Range(match.range(at: 2), in: phrase) else { return nil }
-            return (PhraseFamily(frame: frame, verb: String(phrase[verbRange])), form)
-        }
-        return nil
-    }
-
-    /// (frame, verb) families we knowingly leave bare-only, each with the reason. This
-    /// is the live worklist of deferred quartet completions — the parity test fails if
-    /// any entry here is actually complete, forcing the list to stay accurate.
-    static func exemptSelfReferenceFamilies() -> [PhraseFamily: String] {
-        var exemptions: [PhraseFamily: String] = [:]
-
-        // Bespoke selected/highlighted noun frames: only ever added in bare past tense,
-        // and unlike "the text"/"the thing" they have no cross-source precedent. The ~60
-        // contraction variants are deferred to a batched triage pass (a candidate for
-        // template generation rather than hand-entry).
-        let nounFrames = [
-            "the part", "the chunk", "the bit", "the words", "the section",
-            "the paragraph", "the snippet", "the line", "the passage", "the excerpt",
-        ]
-        for frame in nounFrames {
-            for verb in ["selected", "highlighted"] {
-                exemptions[PhraseFamily(frame: frame, verb: verb)] =
-                    "bare-only noun frame; quartet completion deferred to batched triage"
-            }
-        }
-
-        // Irregular verb: the participle is "spoken", so "i have spoke" / "i've spoke"
-        // are ungrammatical. "what i spoke" stays bare-only by design.
-        exemptions[PhraseFamily(frame: "what", verb: "spoke")] =
-            "irregular verb: participle is 'spoken', so have/contraction forms don't apply"
-
-        return exemptions
-    }
 
     func test_route_noneTarget_producesDirectAssistantPrompt() {
         let body = ExternalTextPromptBuilder.buildBody(
@@ -3148,7 +2726,7 @@ extension ActivationStoreTests {
             clipboardText: "Some clipboard text",
             routingDecision: AssistantContextRoutingDecision(
                 targetMode: .none,
-                decisionSource: .noDeterministicMatch
+                decisionSource: .modelClassifier
             )
         )
 
@@ -3165,8 +2743,7 @@ extension ActivationStoreTests {
             clipboardText: "Some clipboard text",
             routingDecision: AssistantContextRoutingDecision(
                 targetMode: .selectedText,
-                decisionSource: .explicitFastPath,
-                promptLabel: "what's selected"
+                decisionSource: .modelClassifier
             )
         )
 
@@ -3174,10 +2751,12 @@ extension ActivationStoreTests {
             body,
             """
             User request:
-            Buddy, make the selected context provided below more professional
+            Buddy, make what's selected more professional
 
             Use the selected context provided below as the exact text to transform.
             Apply the user request directly to that text itself.
+            The request may mention the clipboard, copied text, selected or highlighted text, the screen, or an earlier dictation. All of that text was already captured and is included in full below.
+            Never say you cannot access, see, read, or open the clipboard, selection, screen, or audio, and never ask the user to paste or provide the text. Everything needed is already provided below.
             Rewrite it to sound more professional and polished.
             Keep the original meaning and preserve concrete facts, names, numbers, dates, deadlines, owners, and next steps unless the user asks to change them.
             Do not invent new information, describe the change, or return the source text unchanged.
@@ -3187,7 +2766,8 @@ extension ActivationStoreTests {
             "hey thanks for the food it was rly good"
             """
         )
-        XCTAssertFalse(body.contains("clipboard"))
+        XCTAssertFalse(body.contains("Some clipboard text"))
+        XCTAssertFalse(body.contains("copied context provided below:"))
     }
 
     func test_route_clipboardTarget_wrapsUserRequestAndSourceContext() {
@@ -3197,12 +2777,11 @@ extension ActivationStoreTests {
             clipboardText: "Meeting notes from tuesday: action items - follow up with design team, update roadmap",
             routingDecision: AssistantContextRoutingDecision(
                 targetMode: .clipboard,
-                decisionSource: .explicitFastPath,
-                promptLabel: "what i copied"
+                decisionSource: .modelClassifier
             )
         )
 
-        XCTAssertTrue(body.contains("User request:\nBuddy, format the copied context provided below"))
+        XCTAssertTrue(body.contains("User request:\nBuddy, format what I copied"))
         XCTAssertTrue(body.contains("Use the copied context provided below as the exact text to transform."))
         XCTAssertTrue(body.contains("Apply the user request directly to that text itself."))
         XCTAssertTrue(body.contains("Preserve concrete facts unless the user asks to change them."))
@@ -3220,20 +2799,19 @@ extension ActivationStoreTests {
             lastTranscription: "i went too the store and buyed some groceries",
             routingDecision: AssistantContextRoutingDecision(
                 targetMode: .lastTranscription,
-                decisionSource: .explicitFastPath,
-                promptLabel: "my last transcription"
+                decisionSource: .modelClassifier
             )
         )
 
-        XCTAssertTrue(body.contains("User request:\nBuddy, can you fix the transcript context provided below"))
+        XCTAssertTrue(body.contains("User request:\nBuddy, can you fix my last transcription"))
         XCTAssertTrue(body.contains("Use the transcript context provided below as the exact text to transform."))
         XCTAssertTrue(body.contains("Apply the user request directly to that text itself."))
         XCTAssertTrue(body.contains("Preserve concrete facts unless the user asks to change them."))
         XCTAssertTrue(body.contains("Do not describe the change or return the source text unchanged."))
         XCTAssertTrue(body.contains("Return only the transformed text."))
         XCTAssertTrue(body.contains("transcript context provided below:\n\"i went too the store and buyed some groceries\""))
-        XCTAssertFalse(body.contains("selected text"))
-        XCTAssertFalse(body.contains("clipboard"))
+        XCTAssertFalse(body.contains("selected context provided below:"))
+        XCTAssertFalse(body.contains("copied context provided below:"))
     }
 
     func test_route_selectedTextLanguageCleanup_usesDedicatedInstructionBlock() {
@@ -3243,8 +2821,7 @@ extension ActivationStoreTests {
             clipboardText: nil,
             routingDecision: AssistantContextRoutingDecision(
                 targetMode: .selectedText,
-                decisionSource: .explicitFastPath,
-                promptLabel: "what's selected"
+                decisionSource: .modelClassifier
             )
         )
 
@@ -3252,10 +2829,12 @@ extension ActivationStoreTests {
             body,
             """
             User request:
-            Buddy, check the grammar in the selected context provided below
+            Buddy, check the grammar in what's selected
 
             Use the selected context provided below as the exact text to transform.
             Apply the user request directly to that text itself.
+            The request may mention the clipboard, copied text, selected or highlighted text, the screen, or an earlier dictation. All of that text was already captured and is included in full below.
+            Never say you cannot access, see, read, or open the clipboard, selection, screen, or audio, and never ask the user to paste or provide the text. Everything needed is already provided below.
             Correct grammar, spelling, punctuation, wording, and sentence clarity.
             Keep the original meaning and preserve concrete facts, names, numbers, dates, deadlines, owners, and next steps unless the user asks to change them.
             Do not invent new information, describe the change, or return the source text unchanged.
@@ -3274,8 +2853,7 @@ extension ActivationStoreTests {
             clipboardText: nil,
             routingDecision: AssistantContextRoutingDecision(
                 targetMode: .selectedText,
-                decisionSource: .explicitFastPath,
-                promptLabel: "what's selected"
+                decisionSource: .modelClassifier
             )
         )
 
@@ -3283,10 +2861,12 @@ extension ActivationStoreTests {
             body,
             """
             User request:
-            Buddy, check the grammar in the selected context provided below and make it more professional
+            Buddy, check the grammar in what's selected and make it more professional
 
             Use the selected context provided below as the exact text to transform.
             Apply the user request directly to that text itself.
+            The request may mention the clipboard, copied text, selected or highlighted text, the screen, or an earlier dictation. All of that text was already captured and is included in full below.
+            Never say you cannot access, see, read, or open the clipboard, selection, screen, or audio, and never ask the user to paste or provide the text. Everything needed is already provided below.
             Correct grammar, spelling, punctuation, wording, and sentence clarity.
             Rewrite it to sound more professional and polished.
             Keep the original meaning and preserve concrete facts, names, numbers, dates, deadlines, owners, and next steps unless the user asks to change them.
@@ -3307,8 +2887,7 @@ extension ActivationStoreTests {
             lastTranscription: "this deck is a mess and we need to talk right now",
             routingDecision: AssistantContextRoutingDecision(
                 targetMode: .lastTranscription,
-                decisionSource: .explicitFastPath,
-                promptLabel: "my last transcription"
+                decisionSource: .modelClassifier
             )
         )
 
@@ -3316,10 +2895,12 @@ extension ActivationStoreTests {
             body,
             """
             User request:
-            Buddy, make the transcript context provided below nicer and shorter
+            Buddy, make my last transcription nicer and shorter
 
             Use the transcript context provided below as the exact text to transform.
             Apply the user request directly to that text itself.
+            The request may mention the clipboard, copied text, selected or highlighted text, the screen, or an earlier dictation. All of that text was already captured and is included in full below.
+            Never say you cannot access, see, read, or open the clipboard, selection, screen, or audio, and never ask the user to paste or provide the text. Everything needed is already provided below.
             Rewrite it so it becomes much kinder and more professional while still communicating the same point.
             Keep the same core point, criticism, and urgency unless the user asks to change them.
             Remove insults, profanity, mockery, and personal attacks.
@@ -3343,8 +2924,7 @@ extension ActivationStoreTests {
             clipboardText: nil,
             routingDecision: AssistantContextRoutingDecision(
                 targetMode: .selectedText,
-                decisionSource: .explicitFastPath,
-                promptLabel: "what's selected"
+                decisionSource: .modelClassifier
             )
         )
 
@@ -3352,10 +2932,12 @@ extension ActivationStoreTests {
             body,
             """
             User request:
-            Buddy, turn the selected context provided below into bullets and then make it one sentence
+            Buddy, turn what's selected into bullets and then make it one sentence
 
             Use the selected context provided below as the exact text to transform.
             Apply the user request directly to that text itself.
+            The request may mention the clipboard, copied text, selected or highlighted text, the screen, or an earlier dictation. All of that text was already captured and is included in full below.
+            Never say you cannot access, see, read, or open the clipboard, selection, screen, or audio, and never ask the user to paste or provide the text. Everything needed is already provided below.
             Condense it into one direct sentence.
             Keep the original meaning and preserve concrete facts, names, numbers, dates, deadlines, owners, and next steps unless the user asks to change them.
             Do not invent new information, describe the change, or return the source text unchanged.
@@ -3374,8 +2956,7 @@ extension ActivationStoreTests {
             clipboardText: nil,
             routingDecision: AssistantContextRoutingDecision(
                 targetMode: .selectedText,
-                decisionSource: .explicitFastPath,
-                promptLabel: "what's selected"
+                decisionSource: .modelClassifier
             )
         )
 
@@ -3383,10 +2964,12 @@ extension ActivationStoreTests {
             body,
             """
             User request:
-            Buddy, make the selected context provided below one sentence and then turn it into three bullets
+            Buddy, make what's selected one sentence and then turn it into three bullets
 
             Use the selected context provided below as the exact text to transform.
             Apply the user request directly to that text itself.
+            The request may mention the clipboard, copied text, selected or highlighted text, the screen, or an earlier dictation. All of that text was already captured and is included in full below.
+            Never say you cannot access, see, read, or open the clipboard, selection, screen, or audio, and never ask the user to paste or provide the text. Everything needed is already provided below.
             Rewrite it as 3 short bullet points.
             Each bullet should contain one concrete point from the source text.
             Keep the original meaning and preserve concrete facts, names, numbers, dates, deadlines, owners, and next steps unless the user asks to change them.
@@ -3408,19 +2991,16 @@ extension ActivationStoreTests {
             routingDecision: AssistantContextRoutingDecision(
                 matchedSources: [
                     AssistantContextMatchedSource(
-                        targetMode: .lastTranscription,
-                        promptLabel: "my last transcription"
+                        targetMode: .lastTranscription
                     ),
                     AssistantContextMatchedSource(
-                        targetMode: .clipboard,
-                        promptLabel: "what i copied"
+                        targetMode: .clipboard
                     ),
                     AssistantContextMatchedSource(
-                        targetMode: .selectedText,
-                        promptLabel: "what's selected"
+                        targetMode: .selectedText
                     ),
                 ],
-                decisionSource: .explicitFastPath
+                decisionSource: .modelClassifier
             )
         )
 
@@ -3428,10 +3008,12 @@ extension ActivationStoreTests {
             body,
             """
             User request:
-            Buddy, compare the selected context provided below with the copied context provided below and the transcript context provided below
+            Buddy, compare what's selected with what I copied and my last transcription
 
             Use the provided sections below as the source text for the user request above.
             Apply the request directly to that source material.
+            The request may mention the clipboard, copied text, selected or highlighted text, the screen, or an earlier dictation. All of that text was already captured and is included in full below.
+            Never say you cannot access, see, read, or open the clipboard, selection, screen, or audio, and never ask the user to paste or provide the text. Everything needed is already provided below.
             Preserve concrete facts from each section unless the user asks to change them.
             Rewrite, compare, merge, summarize, or combine the provided sections as needed.
             Return only the final transformed result.
@@ -3467,6 +3049,7 @@ extension ActivationStoreTests {
             permissionsAuthorized: true,
             transcriber: transcriber,
             localRewriter: mockRewriter,
+            contextRouter: ScriptedContextRouter(modes: [.lastTranscription]),
             preferences: preferences
         )
 
@@ -3482,9 +3065,7 @@ extension ActivationStoreTests {
 
         let finalPrompt = try XCTUnwrap(mockRewriter.generatePrompts.last)
         XCTAssertTrue(
-            finalPrompt.contains(
-                "User request:\nbuddy make the transcript context provided below sound much more polite"
-            )
+            finalPrompt.contains("User request:\nbuddy make my last transcription sound much more polite")
         )
         XCTAssertTrue(finalPrompt.contains("Use the transcript context provided below as the exact text to transform."))
         XCTAssertTrue(finalPrompt.contains("Apply the user request directly to that text itself."))
@@ -3527,6 +3108,9 @@ extension ActivationStoreTests {
             postEventAuthorized: true,
             transcriber: transcriber,
             localRewriter: mockRewriter,
+            contextRouter: ScriptedContextRouter(
+                modes: [.lastTranscription, .clipboard, .selectedText]
+            ),
             clipboard: mockClipboard,
             pasteService: pasteStub,
             preferences: preferences
@@ -3548,10 +3132,12 @@ extension ActivationStoreTests {
             finalPrompt,
             """
             User request:
-            buddy combine the transcript context provided below with the copied context provided below and the selected context provided below
+            buddy combine my last transcription with what I copied and what's selected
 
             Use the provided sections below as the source text for the user request above.
             Apply the request directly to that source material.
+            The request may mention the clipboard, copied text, selected or highlighted text, the screen, or an earlier dictation. All of that text was already captured and is included in full below.
+            Never say you cannot access, see, read, or open the clipboard, selection, screen, or audio, and never ask the user to paste or provide the text. Everything needed is already provided below.
             Preserve concrete facts from each section unless the user asks to change them.
             Rewrite, compare, merge, summarize, or combine the provided sections as needed.
             Return only the final transformed result.
@@ -3566,6 +3152,47 @@ extension ActivationStoreTests {
             "selected text context"
             """
         )
+    }
+
+    func test_externalTextRouter_possessiveSelectedTextRequestInjectsCapturedSelection() async throws {
+        let preferences = makePreferencesWithTriggerStore()
+        preferences.setCustomTrigger(primary: "Buddy")
+        try await Task.sleep(nanoseconds: 80_000_000)
+
+        let transcript = "Buddy, can you take the text I've got selected and condense it a little more? It needs to be like a sentence."
+        let selectedText = "The next call should be a deep dive on the data-source definitions, alias assignment, and OpenLineage mappings that make our cross-cloud connections possible."
+        let transcriber = ActivationStoreMockTranscriber(result: .success(transcript))
+        let mockRewriter = MockRewriter(result: .success("One-sentence focus point"))
+        let mockClipboard = ActivationStoreMockClipboard()
+        let pasteStub = StubSelectionAwarePasteService(
+            clipboard: mockClipboard,
+            queuedCopyResults: [
+                .dispatched(selectedText),
+                .dispatched(selectedText),
+            ]
+        )
+        let store = makeStore(
+            permissionsAuthorized: true,
+            postEventAuthorized: true,
+            transcriber: transcriber,
+            localRewriter: mockRewriter,
+            contextRouter: ScriptedContextRouter(modes: [.selectedText]),
+            clipboard: mockClipboard,
+            pasteService: pasteStub,
+            preferences: preferences
+        )
+
+        store.arm()
+        store.finish()
+        let succeeded = try await waitForSuccess(of: store)
+        XCTAssertTrue(succeeded)
+
+        let finalPrompt = try XCTUnwrap(mockRewriter.lastGeneratePrompt)
+        XCTAssertTrue(finalPrompt.contains("User request:\nBuddy, can you take the text I've got selected and condense it a little more? It needs to be like a sentence."))
+        XCTAssertTrue(finalPrompt.contains("Use the selected context provided below as the exact text to transform."))
+        XCTAssertTrue(finalPrompt.contains("Condense it into one direct sentence."))
+        XCTAssertTrue(finalPrompt.contains("Return exactly one sentence."))
+        XCTAssertTrue(finalPrompt.contains("selected context provided below:\n\"\(selectedText)\""))
     }
 
     func test_externalTextRouter_tryThatAgainDoesNotReusePriorAssistantOutput() async throws {
@@ -3672,6 +3299,7 @@ extension ActivationStoreTests {
             postEventAuthorized: true,
             transcriber: transcriber,
             localRewriter: mockRewriter,
+            contextRouter: ScriptedContextRouter(modes: [.clipboard]),
             clipboard: mockClipboard,
             pasteService: pasteStub,
             preferences: preferences
@@ -3684,7 +3312,7 @@ extension ActivationStoreTests {
 
         XCTAssertEqual(mockRewriter.generateCallCount, 1)
         let finalPrompt = try XCTUnwrap(mockRewriter.generatePrompts.last)
-        XCTAssertTrue(finalPrompt.contains("User request:\nbuddy use the copied context provided below to improve this"))
+        XCTAssertTrue(finalPrompt.contains("User request:\nbuddy use what I copied to improve this"))
         XCTAssertTrue(finalPrompt.contains("Use the copied context provided below as the exact text to transform."))
         XCTAssertTrue(finalPrompt.contains("Apply the user request directly to that text itself."))
         XCTAssertTrue(finalPrompt.contains("Preserve concrete facts unless the user asks to change them."))
@@ -3716,6 +3344,7 @@ extension ActivationStoreTests {
             postEventAuthorized: true,
             transcriber: transcriber,
             localRewriter: mockRewriter,
+            contextRouter: ScriptedContextRouter(modes: [.selectedText]),
             clipboard: mockClipboard,
             pasteService: pasteStub,
             preferences: preferences
@@ -3747,17 +3376,18 @@ extension ActivationStoreTests {
                 lastTranscription: "previous transcription should stay unused",
                 expectedMatchedSources: [
                     AssistantContextMatchedSource(
-                        targetMode: .selectedText,
-                        promptLabel: "what's selected"
+                        targetMode: .selectedText
                     )
                 ],
-                expectedDecisionSource: .explicitFastPath,
+                expectedDecisionSource: .modelClassifier,
                 expectedPromptBody: """
                 User request:
-                Buddy, make the selected context provided below sound more professional
+                Buddy, make what's selected sound more professional
 
                 Use the selected context provided below as the exact text to transform.
                 Apply the user request directly to that text itself.
+                The request may mention the clipboard, copied text, selected or highlighted text, the screen, or an earlier dictation. All of that text was already captured and is included in full below.
+                Never say you cannot access, see, read, or open the clipboard, selection, screen, or audio, and never ask the user to paste or provide the text. Everything needed is already provided below.
                 Rewrite it to sound more professional and polished.
                 Keep the original meaning and preserve concrete facts, names, numbers, dates, deadlines, owners, and next steps unless the user asks to change them.
                 Do not invent new information, describe the change, or return the source text unchanged.
@@ -3775,17 +3405,18 @@ extension ActivationStoreTests {
                 lastTranscription: nil,
                 expectedMatchedSources: [
                     AssistantContextMatchedSource(
-                        targetMode: .clipboard,
-                        promptLabel: "what i copied"
+                        targetMode: .clipboard
                     )
                 ],
-                expectedDecisionSource: .explicitFastPath,
+                expectedDecisionSource: .modelClassifier,
                 expectedPromptBody: """
                 User request:
-                Buddy, turn the copied context provided below into a tighter Slack update
+                Buddy, turn what I copied into a tighter Slack update
 
                 Use the copied context provided below as the exact text to transform.
                 Apply the user request directly to that text itself.
+                The request may mention the clipboard, copied text, selected or highlighted text, the screen, or an earlier dictation. All of that text was already captured and is included in full below.
+                Never say you cannot access, see, read, or open the clipboard, selection, screen, or audio, and never ask the user to paste or provide the text. Everything needed is already provided below.
                 Rewrite it as a short Slack-ready update.
                 Keep it concise, natural, and professional.
                 Keep the original meaning and preserve concrete facts, names, numbers, dates, deadlines, owners, and next steps unless the user asks to change them.
@@ -3804,17 +3435,18 @@ extension ActivationStoreTests {
                 lastTranscription: "hey Sarah this deck is a mess",
                 expectedMatchedSources: [
                     AssistantContextMatchedSource(
-                        targetMode: .lastTranscription,
-                        promptLabel: "my last transcription"
+                        targetMode: .lastTranscription
                     )
                 ],
-                expectedDecisionSource: .explicitFastPath,
+                expectedDecisionSource: .modelClassifier,
                 expectedPromptBody: """
                 User request:
-                Buddy, fix the transcript context provided below and make it polite
+                Buddy, fix my last transcription and make it polite
 
                 Use the transcript context provided below as the exact text to transform.
                 Apply the user request directly to that text itself.
+                The request may mention the clipboard, copied text, selected or highlighted text, the screen, or an earlier dictation. All of that text was already captured and is included in full below.
+                Never say you cannot access, see, read, or open the clipboard, selection, screen, or audio, and never ask the user to paste or provide the text. Everything needed is already provided below.
                 Rewrite it so it becomes much kinder and more professional while still communicating the same point.
                 Keep the same core point, criticism, and urgency unless the user asks to change them.
                 Remove insults, profanity, mockery, and personal attacks.
@@ -3835,17 +3467,18 @@ extension ActivationStoreTests {
                 lastTranscription: nil,
                 expectedMatchedSources: [
                     AssistantContextMatchedSource(
-                        targetMode: .selectedText,
-                        promptLabel: "what's selected"
+                        targetMode: .selectedText
                     )
                 ],
-                expectedDecisionSource: .explicitFastPath,
+                expectedDecisionSource: .modelClassifier,
                 expectedPromptBody: """
                 User request:
-                Buddy, check the grammar in the selected context provided below
+                Buddy, check the grammar in what's selected
 
                 Use the selected context provided below as the exact text to transform.
                 Apply the user request directly to that text itself.
+                The request may mention the clipboard, copied text, selected or highlighted text, the screen, or an earlier dictation. All of that text was already captured and is included in full below.
+                Never say you cannot access, see, read, or open the clipboard, selection, screen, or audio, and never ask the user to paste or provide the text. Everything needed is already provided below.
                 Correct grammar, spelling, punctuation, wording, and sentence clarity.
                 Keep the original meaning and preserve concrete facts, names, numbers, dates, deadlines, owners, and next steps unless the user asks to change them.
                 Do not invent new information, describe the change, or return the source text unchanged.
@@ -3863,17 +3496,18 @@ extension ActivationStoreTests {
                 lastTranscription: nil,
                 expectedMatchedSources: [
                     AssistantContextMatchedSource(
-                        targetMode: .selectedText,
-                        promptLabel: "what's selected"
+                        targetMode: .selectedText
                     )
                 ],
-                expectedDecisionSource: .explicitFastPath,
+                expectedDecisionSource: .modelClassifier,
                 expectedPromptBody: """
                 User request:
-                Buddy, check the grammar in the selected context provided below and make it more professional
+                Buddy, check the grammar in what's selected and make it more professional
 
                 Use the selected context provided below as the exact text to transform.
                 Apply the user request directly to that text itself.
+                The request may mention the clipboard, copied text, selected or highlighted text, the screen, or an earlier dictation. All of that text was already captured and is included in full below.
+                Never say you cannot access, see, read, or open the clipboard, selection, screen, or audio, and never ask the user to paste or provide the text. Everything needed is already provided below.
                 Correct grammar, spelling, punctuation, wording, and sentence clarity.
                 Rewrite it to sound more professional and polished.
                 Keep the original meaning and preserve concrete facts, names, numbers, dates, deadlines, owners, and next steps unless the user asks to change them.
@@ -3892,17 +3526,18 @@ extension ActivationStoreTests {
                 lastTranscription: "this deck is a mess and we need to talk right now",
                 expectedMatchedSources: [
                     AssistantContextMatchedSource(
-                        targetMode: .lastTranscription,
-                        promptLabel: "my last transcription"
+                        targetMode: .lastTranscription
                     )
                 ],
-                expectedDecisionSource: .explicitFastPath,
+                expectedDecisionSource: .modelClassifier,
                 expectedPromptBody: """
                 User request:
-                Buddy, make the transcript context provided below nicer and shorter
+                Buddy, make my last transcription nicer and shorter
 
                 Use the transcript context provided below as the exact text to transform.
                 Apply the user request directly to that text itself.
+                The request may mention the clipboard, copied text, selected or highlighted text, the screen, or an earlier dictation. All of that text was already captured and is included in full below.
+                Never say you cannot access, see, read, or open the clipboard, selection, screen, or audio, and never ask the user to paste or provide the text. Everything needed is already provided below.
                 Rewrite it so it becomes much kinder and more professional while still communicating the same point.
                 Keep the same core point, criticism, and urgency unless the user asks to change them.
                 Remove insults, profanity, mockery, and personal attacks.
@@ -3925,17 +3560,18 @@ extension ActivationStoreTests {
                 lastTranscription: nil,
                 expectedMatchedSources: [
                     AssistantContextMatchedSource(
-                        targetMode: .selectedText,
-                        promptLabel: "what's selected"
+                        targetMode: .selectedText
                     )
                 ],
-                expectedDecisionSource: .explicitFastPath,
+                expectedDecisionSource: .modelClassifier,
                 expectedPromptBody: """
                 User request:
-                Buddy, fix wording in the selected context provided below and turn it into three bullets
+                Buddy, fix wording in what's selected and turn it into three bullets
 
                 Use the selected context provided below as the exact text to transform.
                 Apply the user request directly to that text itself.
+                The request may mention the clipboard, copied text, selected or highlighted text, the screen, or an earlier dictation. All of that text was already captured and is included in full below.
+                Never say you cannot access, see, read, or open the clipboard, selection, screen, or audio, and never ask the user to paste or provide the text. Everything needed is already provided below.
                 Correct grammar, spelling, punctuation, wording, and sentence clarity.
                 Rewrite it as 3 short bullet points.
                 Each bullet should contain one concrete point from the source text.
@@ -3955,17 +3591,18 @@ extension ActivationStoreTests {
                 lastTranscription: nil,
                 expectedMatchedSources: [
                     AssistantContextMatchedSource(
-                        targetMode: .selectedText,
-                        promptLabel: "what's selected"
+                        targetMode: .selectedText
                     )
                 ],
-                expectedDecisionSource: .explicitFastPath,
+                expectedDecisionSource: .modelClassifier,
                 expectedPromptBody: """
                 User request:
-                Buddy, turn the selected context provided below into bullets and then make it one sentence
+                Buddy, turn what's selected into bullets and then make it one sentence
 
                 Use the selected context provided below as the exact text to transform.
                 Apply the user request directly to that text itself.
+                The request may mention the clipboard, copied text, selected or highlighted text, the screen, or an earlier dictation. All of that text was already captured and is included in full below.
+                Never say you cannot access, see, read, or open the clipboard, selection, screen, or audio, and never ask the user to paste or provide the text. Everything needed is already provided below.
                 Condense it into one direct sentence.
                 Keep the original meaning and preserve concrete facts, names, numbers, dates, deadlines, owners, and next steps unless the user asks to change them.
                 Do not invent new information, describe the change, or return the source text unchanged.
@@ -3983,25 +3620,24 @@ extension ActivationStoreTests {
                 lastTranscription: "Last transcription source.",
                 expectedMatchedSources: [
                     AssistantContextMatchedSource(
-                        targetMode: .lastTranscription,
-                        promptLabel: "my last transcription"
+                        targetMode: .lastTranscription
                     ),
                     AssistantContextMatchedSource(
-                        targetMode: .clipboard,
-                        promptLabel: "what i copied"
+                        targetMode: .clipboard
                     ),
                     AssistantContextMatchedSource(
-                        targetMode: .selectedText,
-                        promptLabel: "what's selected"
+                        targetMode: .selectedText
                     ),
                 ],
-                expectedDecisionSource: .explicitFastPath,
+                expectedDecisionSource: .modelClassifier,
                 expectedPromptBody: """
                 User request:
-                Buddy, compare the selected context provided below with the copied context provided below and the transcript context provided below
+                Buddy, compare what's selected with what I copied and my last transcription
 
                 Use the provided sections below as the source text for the user request above.
                 Apply the request directly to that source material.
+                The request may mention the clipboard, copied text, selected or highlighted text, the screen, or an earlier dictation. All of that text was already captured and is included in full below.
+                Never say you cannot access, see, read, or open the clipboard, selection, screen, or audio, and never ask the user to paste or provide the text. Everything needed is already provided below.
                 Preserve concrete facts from each section unless the user asks to change them.
                 Rewrite, compare, merge, summarize, or combine the provided sections as needed.
                 Return only the final transformed result.
@@ -4023,7 +3659,7 @@ extension ActivationStoreTests {
                 clipboardText: "clipboard fallback",
                 lastTranscription: nil,
                 expectedMatchedSources: [],
-                expectedDecisionSource: .noDeterministicMatch,
+                expectedDecisionSource: .modelClassifier,
                 expectedPromptBody: "Buddy, make this cleaner and easier to read"
             ),
             ExternalTextRoutingScenario(
@@ -4033,7 +3669,7 @@ extension ActivationStoreTests {
                 clipboardText: "clipboard text should not be injected",
                 lastTranscription: "last transcription should not be injected",
                 expectedMatchedSources: [],
-                expectedDecisionSource: .noDeterministicMatch,
+                expectedDecisionSource: .modelClassifier,
                 expectedPromptBody: "Buddy, draft a thank-you note for the team dinner"
             ),
             ExternalTextRoutingScenario(
@@ -4043,7 +3679,7 @@ extension ActivationStoreTests {
                 clipboardText: "clipboard text should stay unused",
                 lastTranscription: "previous dictated text should stay unused",
                 expectedMatchedSources: [],
-                expectedDecisionSource: .noDeterministicMatch,
+                expectedDecisionSource: .modelClassifier,
                 expectedPromptBody: "Buddy, try that again"
             ),
         ]
@@ -4240,8 +3876,8 @@ extension ActivationStoreTests {
                 lastTranscription: scenario.lastTranscription
             )
 
-            let decision = ExternalTextSourceClassifier.classify(
-                message: scenario.dictatedContent,
+            let decision = try await LocalModelAssistantContextRouter.shared.route(
+                request: scenario.dictatedContent,
                 availableSources: context
             )
 
@@ -4315,8 +3951,8 @@ extension ActivationStoreTests {
             clipboardText: nil,
             lastTranscription: priorTranscript
         )
-        let decision = ExternalTextSourceClassifier.classify(
-            message: dictatedRequest,
+        let decision = try await LocalModelAssistantContextRouter.shared.route(
+            request: dictatedRequest,
             availableSources: context
         )
         let productionPrompt = ExternalTextPromptBuilder.buildBody(
@@ -4435,15 +4071,9 @@ extension ActivationStoreTests {
     private func runExternalTextRoutingScenario(
         _ scenario: ExternalTextRoutingScenario
     ) async -> ExternalTextRoutingScenarioOutcome {
-        let availableSources = ExternalTextSourceContext(
-            selectedText: scenario.selectedText,
-            clipboardText: scenario.clipboardText,
-            lastTranscription: scenario.lastTranscription
-        )
-
-        let decision = ExternalTextSourceClassifier.classify(
-            message: scenario.dictatedContent,
-            availableSources: availableSources
+        let decision = AssistantContextRoutingDecision(
+            matchedSources: scenario.expectedMatchedSources,
+            decisionSource: scenario.expectedDecisionSource
         )
 
         let promptBody = ExternalTextPromptBuilder.buildBody(
@@ -4485,7 +4115,7 @@ private struct ExternalTextRoutingScenarioOutcome {
         let matchedSourcesSection = decision.matchedSources.isEmpty
             ? "  <none>"
             : decision.matchedSources.map { matchedSource in
-                "  \(matchedSource.targetMode.rawValue): \(matchedSource.promptLabel ?? "<nil>")"
+                "  \(matchedSource.targetMode.rawValue)"
             }.joined(separator: "\n")
 
         return """
@@ -4536,7 +4166,7 @@ private struct RealModelPromptVariantEvalReport {
         }
 
         return routingDecision.matchedSources.map { matchedSource in
-            "  \(matchedSource.targetMode.rawValue): \(matchedSource.promptLabel ?? "<nil>")"
+            "  \(matchedSource.targetMode.rawValue)"
         }.joined(separator: "\n")
     }
 
@@ -4622,7 +4252,7 @@ private struct RealModelRoutingEvalReport {
         }
 
         return decision.matchedSources.map { matchedSource in
-            "  \(matchedSource.targetMode.rawValue): \(matchedSource.promptLabel ?? "<nil>")"
+            "  \(matchedSource.targetMode.rawValue)"
         }.joined(separator: "\n")
     }
 
@@ -5290,6 +4920,36 @@ final class DelayedRewriter: Rewriting, @unchecked Sendable {
         _lastCompletionUptimeNanoseconds = DispatchTime.now().uptimeNanoseconds
         timingLock.unlock()
         return output
+    }
+}
+
+private actor NoContextRouter: AssistantContextRouting {
+    func route(
+        request _: String,
+        availableSources: ExternalTextSourceContext
+    ) async throws -> AssistantContextRoutingDecision {
+        AssistantContextRoutingDecision(
+            matchedSources: [],
+            decisionSource: availableSources.hasAvailableSource ? .modelClassifier : .noAvailableContext
+        )
+    }
+}
+
+private actor ScriptedContextRouter: AssistantContextRouting {
+    private let modes: [AssistantContextTargetMode]
+
+    init(modes: [AssistantContextTargetMode]) {
+        self.modes = modes
+    }
+
+    func route(
+        request _: String,
+        availableSources _: ExternalTextSourceContext
+    ) async throws -> AssistantContextRoutingDecision {
+        AssistantContextRoutingDecision(
+            matchedSources: modes.map { AssistantContextMatchedSource(targetMode: $0) },
+            decisionSource: .modelClassifier
+        )
     }
 }
 

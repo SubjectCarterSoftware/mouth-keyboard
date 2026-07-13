@@ -88,12 +88,14 @@ enum SetupWindowMode: Equatable {
 
 enum OnboardingStep: String, CaseIterable, Identifiable {
     // Order drives the onboarding flow (via CaseIterable): permissions first
-    // (microphone → accessibility), then preferences, then the Try It Out payoff.
+    // (microphone → accessibility), then preferences, then shortcuts —
+    // second-to-last so the keybind quick-test can gate on model readiness —
+    // then the Try It Out payoff.
     case microphone
     case accessibility
-    case shortcuts
     case pillPosition
     case vocabularyPacks
+    case shortcuts
     case speechEngine
 
     var id: String {
@@ -122,7 +124,7 @@ enum OnboardingStep: String, CaseIterable, Identifiable {
         case .microphone:
             return "Grant microphone access first, then choose the input device TypeLessBuddy should use."
         case .shortcuts:
-            return "Configure the shortcuts now so they are ready as soon as setup finishes."
+            return "Set your shortcuts, then click into the test box below and try them right away."
         case .pillPosition:
             return "Pick where the recording pill should appear on screen."
         case .accessibility:
@@ -165,7 +167,7 @@ enum OnboardingStep: String, CaseIterable, Identifiable {
         case .microphone:
             return "Approve microphone access first, then choose the input device you want TypeLessBuddy to use."
         case .shortcuts:
-            return "Set the shortcuts now so they are ready as soon as the remaining permissions are granted."
+            return "Shortcuts save as you set them. The quick test unlocks once your local models are ready."
         case .pillPosition:
             return "Choose a position that stays visible without covering the apps you use most."
         case .accessibility:
@@ -231,6 +233,7 @@ struct SetupWindowView: View {
     @State var tryoutStep: Int = 0
     @State var tryoutMaxReachedStep: Int = 0
     @State var tryoutBoxText: String = ""
+    @State var shortcutTestBoxText: String = ""
     @State var didCopyTryoutSample: Bool = false
     @State var tryoutAdvanceTask: Task<Void, Never>?
     @FocusState var isTryoutBoxFocused: Bool

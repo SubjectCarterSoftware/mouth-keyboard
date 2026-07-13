@@ -116,7 +116,7 @@ extension RewritePipelineBenchmarkTests {
             clipboardText: clipboardText,
             routingDecision: AssistantContextRoutingDecision(
                 targetMode: targetMode,
-                decisionSource: .explicitFastPath
+                decisionSource: .modelClassifier
             )
         )
         let promptWordCount = wordCount(body)

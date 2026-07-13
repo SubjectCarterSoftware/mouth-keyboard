@@ -119,14 +119,14 @@ extension SetupWindowView {
         return nil
     }
 
-    /// Brings global activation online for the tryout. During onboarding the app
-    /// keeps the hotkey/hold/mouse listeners disabled (see
+    /// Brings global activation online for the in-onboarding tests (the keybind
+    /// quick-test on the shortcuts step and the final tryout). During onboarding
+    /// the app keeps the hotkey/hold/mouse listeners disabled (see
     /// `AppDelegate.suppressesAutomaticPermissionPrompts`), so without this the
-    /// trigger keys do nothing on the final step. By the time the tryout is
-    /// visible both required permissions are granted, so it is safe to start.
-    /// `start()` is idempotent, and the AppDelegate re-runs it after onboarding
-    /// completes.
-    func startActivationForTryout() {
+    /// trigger keys do nothing. Both steps come after the permission steps and
+    /// gate on model readiness, so it is safe to start. `start()` is idempotent,
+    /// and the AppDelegate re-runs it after onboarding completes.
+    func startOnboardingActivationIfReady() {
         guard areOnboardingModelsReady, isMicrophoneAuthorized, isAccessibilityAuthorized else { return }
         HotkeyService.shared.start()
     }
@@ -326,10 +326,10 @@ extension SetupWindowView {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .onAppear {
-            startActivationForTryout()
+            startOnboardingActivationIfReady()
         }
         .onChange(of: areOnboardingModelsReady) { _, ready in
-            if ready { startActivationForTryout() }
+            if ready { startOnboardingActivationIfReady() }
         }
         .onChange(of: activationStore.state) { _, newState in
             handleTryoutActivationStateChange(newState)

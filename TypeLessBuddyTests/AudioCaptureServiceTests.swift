@@ -252,6 +252,75 @@ final class AudioCaptureServiceTests: XCTestCase {
         XCTAssertEqual(level, 0.5, accuracy: 0.01)
     }
 
+    func testDisplayLevelGatesSteadyBackgroundNoise() async throws {
+        let monitor = await MainActor.run { AudioLevelMonitor() }
+
+        // Constant -45 dB "room noise": the noise floor anchors to it, so the
+        // display level stays flat even though the raw level reads mid-scale.
+        let noiseBuffer = makeBuffer(sampleValue: 0.005623413)
+        for _ in 0..<5 {
+            monitor.process(buffer: noiseBuffer)
+            try await Task.sleep(nanoseconds: 20_000_000)
+        }
+
+        let level = await MainActor.run { monitor.level }
+        let displayLevel = await MainActor.run { monitor.displayLevel }
+        XCTAssertEqual(level, 0.5, accuracy: 0.01)
+        XCTAssertEqual(displayLevel, 0)
+    }
+
+    func testDisplayLevelTracksSpeechAboveNoiseFloorAndReleases() async throws {
+        var currentTime = Date()
+        let monitor = await MainActor.run { AudioLevelMonitor(now: { currentTime }) }
+
+        // -60 dB ambient anchors the noise floor.
+        let quietBuffer = makeBuffer(sampleValue: 0.001)
+        monitor.process(buffer: quietBuffer)
+        try await Task.sleep(nanoseconds: 20_000_000)
+
+        let quietDisplay = await MainActor.run { monitor.displayLevel }
+        XCTAssertEqual(quietDisplay, 0)
+
+        // -25 dB speech clears the gate and extends the meter instantly.
+        monitor.process(buffer: makeBuffer(sampleValue: 0.05623413))
+        try await Task.sleep(nanoseconds: 20_000_000)
+
+        let speechDisplay = await MainActor.run { monitor.displayLevel }
+        XCTAssertGreaterThan(speechDisplay, 0.9)
+
+        // A brief dip below the gate (50ms, half the release half-life)
+        // decays partway rather than snapping flat.
+        currentTime = currentTime.addingTimeInterval(0.05)
+        monitor.process(buffer: quietBuffer)
+        try await Task.sleep(nanoseconds: 20_000_000)
+
+        let dippedDisplay = await MainActor.run { monitor.displayLevel }
+        XCTAssertGreaterThan(dippedDisplay, 0.4)
+        XCTAssertLessThan(dippedDisplay, speechDisplay)
+
+        // After a sustained pause the meter settles back to rest.
+        currentTime = currentTime.addingTimeInterval(1.0)
+        monitor.process(buffer: quietBuffer)
+        try await Task.sleep(nanoseconds: 20_000_000)
+
+        let releasedDisplay = await MainActor.run { monitor.displayLevel }
+        XCTAssertEqual(releasedDisplay, 0)
+    }
+
+    @MainActor
+    func testDisplayLevelResets() async throws {
+        let monitor = AudioLevelMonitor()
+
+        monitor.process(buffer: makeBuffer(sampleValue: 0.001))
+        try await Task.sleep(nanoseconds: 20_000_000)
+        monitor.process(buffer: makeBuffer(sampleValue: 0.05623413))
+        try await Task.sleep(nanoseconds: 20_000_000)
+        XCTAssertGreaterThan(monitor.displayLevel, 0)
+
+        monitor.reset()
+        XCTAssertEqual(monitor.displayLevel, 0)
+    }
+
     func testSilenceWarningFlagActivatesAndClears() async throws {
         var currentTime = Date()
         let monitor = await MainActor.run {

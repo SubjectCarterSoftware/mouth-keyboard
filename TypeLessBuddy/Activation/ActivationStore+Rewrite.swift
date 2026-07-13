@@ -115,7 +115,7 @@ extension ActivationStore {
         let decisionUsed = AssistantContextRoutingDecision(
             matchedSources: matchedSources,
             decisionSource: matchedSources.isEmpty
-                ? (decision.decisionSource == .noAvailableContext ? .noAvailableContext : .noDeterministicMatch)
+                ? (decision.decisionSource == .noAvailableContext ? .noAvailableContext : .modelClassifier)
                 : decision.decisionSource
         )
 

@@ -57,6 +57,7 @@ final class ActivationStore: ObservableObject {
     let whisperModelLoadState: any WhisperModelLoadStateProviding
     let whisperService: any WhisperTranscribing
     let localRewriteService: any Rewriting
+    let contextRouter: any AssistantContextRouting
     let noteCaptureService: any NoteCapturing
     let historyCaptureService: any HistoryCapturing
     private let clipboardService: ClipboardService
@@ -86,7 +87,10 @@ final class ActivationStore: ObservableObject {
     static let minimumDirectAssistantPromptWordLimit = 1_500
     private static let lastTranscriptionContextMaxAge: TimeInterval = 30 * 60
     private static let clipboardRestoreDelay: UInt64 = 150_000_000
-    private static let selectedTextCaptureTimeout: UInt64 = 120_000_000
+    // Copy is delivered asynchronously to the foreground app. 120 ms was short
+    // enough to miss valid selections when the target app or macOS was briefly
+    // busy, leaving an otherwise explicit selection request without its source.
+    private static let selectedTextCaptureTimeout: UInt64 = 500_000_000
     private static let selectedTextCapturePollInterval: UInt64 = 15_000_000
     private static let minimumStartSoundInterval: TimeInterval = 0.15
     private static let successDismissDelay: UInt64 = 10_000_000_000
@@ -145,6 +149,7 @@ final class ActivationStore: ObservableObject {
         whisperModelLoadState: any WhisperModelLoadStateProviding = WhisperModelLoadState.shared,
         whisperService: any WhisperTranscribing = WhisperService(),
         localRewriteService: any Rewriting = LocalRewriteService.shared,
+        contextRouter: any AssistantContextRouting = LocalModelAssistantContextRouter.shared,
         noteCaptureService: any NoteCapturing = NoteCaptureService(),
         historyCaptureService: any HistoryCapturing = HistoryCaptureService(),
         clipboardService: ClipboardService = ClipboardService(),
@@ -159,6 +164,7 @@ final class ActivationStore: ObservableObject {
         self.whisperModelLoadState = whisperModelLoadState
         self.whisperService = whisperService
         self.localRewriteService = localRewriteService
+        self.contextRouter = contextRouter
         self.noteCaptureService = noteCaptureService
         self.historyCaptureService = historyCaptureService
         self.clipboardService = clipboardService
@@ -656,10 +662,34 @@ final class ActivationStore: ObservableObject {
                 || externalTextInputs.clipboardImageContent != nil,
             lastTranscriptionAvailable: externalTextInputs.lastTranscription != nil
         )
-        let routingDecision = ExternalTextSourceClassifier.classify(
-            message: dictatedAssistantPrompt,
-            availableSources: routingContext
-        )
+        let routingDecision: AssistantContextRoutingDecision
+        do {
+            routingDecision = try await runWithTimeout(
+                nanoseconds: Self.rewriteTimeout,
+                step: "Context routing"
+            ) { [contextRouter] in
+                try await contextRouter.route(
+                    request: dictatedAssistantPrompt,
+                    availableSources: routingContext
+                )
+            }
+        } catch {
+            // Do not silently continue with a direct prompt if the narrow classifier
+            // fails. That recreates the original failure mode: the final model would
+            // receive no selected/captured text and could only guess what to edit.
+            guard isCurrentSession(sessionID) else { return false }
+            let errorDescription = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
+            NSLog("TypeLessBuddy: context routing failed — \(errorDescription)")
+            recordLastTranscription(processed)
+            if !didPaste {
+                clipboardService.writeToClipboard(processed)
+            }
+            clearSuccessDismissTiming()
+            state = .failure(reason: .modelError("Context routing failed: \(errorDescription)"))
+            playFailureSoundIfNeeded()
+            scheduleDismissToIdle(afterNanoseconds: 2_000_000_000, sessionID: sessionID)
+            return false
+        }
 
         let promptConfiguration = buildRewritePromptBody(
             dictatedContent: dictatedAssistantPrompt,

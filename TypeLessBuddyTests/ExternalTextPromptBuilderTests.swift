@@ -3,14 +3,13 @@ import XCTest
 
 final class ExternalTextPromptBuilderTests: XCTestCase {
     private func singleSourceDecision(
-        _ targetMode: AssistantContextTargetMode,
-        label: String
+        _ targetMode: AssistantContextTargetMode
     ) -> AssistantContextRoutingDecision {
         AssistantContextRoutingDecision(
             matchedSources: [
-                AssistantContextMatchedSource(targetMode: targetMode, promptLabel: label)
+                AssistantContextMatchedSource(targetMode: targetMode)
             ],
-            decisionSource: .explicitFastPath
+            decisionSource: .modelClassifier
         )
     }
 
@@ -21,7 +20,7 @@ final class ExternalTextPromptBuilderTests: XCTestCase {
             dictatedContent: "rewrite my clipboard in an informal way",
             selectedText: nil,
             clipboardText: "Hey team, big news.",
-            routingDecision: singleSourceDecision(.clipboard, label: "my clipboard")
+            routingDecision: singleSourceDecision(.clipboard)
         )
 
         XCTAssertFalse(body.contains("more professional and polished"))
@@ -32,7 +31,7 @@ final class ExternalTextPromptBuilderTests: XCTestCase {
             dictatedContent: "explain what my clipboard means",
             selectedText: nil,
             clipboardText: "API rate limit exceeded.",
-            routingDecision: singleSourceDecision(.clipboard, label: "my clipboard")
+            routingDecision: singleSourceDecision(.clipboard)
         )
 
         XCTAssertFalse(body.contains("kinder"))
@@ -44,7 +43,7 @@ final class ExternalTextPromptBuilderTests: XCTestCase {
             dictatedContent: "summarize my clipboard about people slacking off",
             selectedText: nil,
             clipboardText: "Notes about the team.",
-            routingDecision: singleSourceDecision(.clipboard, label: "my clipboard")
+            routingDecision: singleSourceDecision(.clipboard)
         )
 
         XCTAssertFalse(body.contains("Slack-ready update"))
@@ -93,15 +92,13 @@ final class ExternalTextPromptBuilderTests: XCTestCase {
         let decision = AssistantContextRoutingDecision(
             matchedSources: [
                 AssistantContextMatchedSource(
-                    targetMode: .lastTranscription,
-                    promptLabel: "my last transcription"
+                    targetMode: .lastTranscription
                 ),
                 AssistantContextMatchedSource(
-                    targetMode: .clipboard,
-                    promptLabel: "my clipboard"
+                    targetMode: .clipboard
                 ),
             ],
-            decisionSource: .explicitFastPath
+            decisionSource: .modelClassifier
         )
 
         let body = ExternalTextPromptBuilder.buildBody(
@@ -125,11 +122,72 @@ final class ExternalTextPromptBuilderTests: XCTestCase {
             selectedText: nil,
             clipboardText: nil,
             lastTranscription: "Finance already cleared the export blocker, so do not list that as open.",
-            routingDecision: singleSourceDecision(.lastTranscription, label: "my last transcription")
+            routingDecision: singleSourceDecision(.lastTranscription)
         )
 
         XCTAssertTrue(body.contains("Only include actions that are still open or need follow-up."))
         XCTAssertTrue(body.contains("Do not include completed, resolved, cleared, already-done, informational, or explicitly excluded items as action items."))
         XCTAssertTrue(body.contains("If the source says not to list something as open, omit that item entirely."))
+    }
+
+    func testPossessiveSelectedTextRequestBecomesAnExplicitOneSentenceTransformation() {
+        let dictation = "Buddy, can you take the text I've got selected and condense it a little more? It needs to be like a sentence."
+        let decision = AssistantContextRoutingDecision(
+            matchedSources: [AssistantContextMatchedSource(targetMode: .selectedText)],
+            decisionSource: .modelClassifier
+        )
+
+        let body = ExternalTextPromptBuilder.buildBody(
+            dictatedContent: dictation,
+            selectedText: "The next call should focus on how our data-source definitions, aliases, and lineage mappings work across clouds.",
+            clipboardText: nil,
+            routingDecision: decision
+        )
+
+        XCTAssertTrue(body.contains("User request:\nBuddy, can you take the text I've got selected and condense it a little more? It needs to be like a sentence."))
+        XCTAssertTrue(body.contains("Use the selected context provided below as the exact text to transform."))
+        XCTAssertTrue(body.contains("Condense it into one direct sentence."))
+        XCTAssertTrue(body.contains("Return exactly one sentence."))
+        XCTAssertTrue(body.contains("selected context provided below:\n\"The next call should focus"))
+    }
+
+    // MARK: - Captured-context grounding
+
+    /// The LLM router routes any phrasing, so the raw request — including
+    /// access-implying wording like "read my clipboard" — reaches the rewrite
+    /// model verbatim. The grounding lines must always accompany injected
+    /// context so the model never claims it lacks access to the source.
+    func testAccessImpliedRequestStaysVerbatimAndCarriesGroundingLines() {
+        let body = ExternalTextPromptBuilder.buildBody(
+            dictatedContent: "Buddy, read my clipboard and fix the grammar",
+            selectedText: nil,
+            clipboardText: "we shipped teh fix yesterday",
+            routingDecision: singleSourceDecision(.clipboard)
+        )
+
+        XCTAssertTrue(body.contains("User request:\nBuddy, read my clipboard and fix the grammar"))
+        XCTAssertTrue(body.contains("All of that text was already captured and is included in full below."))
+        XCTAssertTrue(body.contains("Never say you cannot access, see, read, or open the clipboard, selection, screen, or audio, and never ask the user to paste or provide the text."))
+    }
+
+    func testMultiSourceBodyCarriesGroundingLines() {
+        let decision = AssistantContextRoutingDecision(
+            matchedSources: [
+                AssistantContextMatchedSource(targetMode: .clipboard),
+                AssistantContextMatchedSource(targetMode: .selectedText),
+            ],
+            decisionSource: .modelClassifier
+        )
+
+        let body = ExternalTextPromptBuilder.buildBody(
+            dictatedContent: "Buddy, compare what I highlighted with what's on my clipboard",
+            selectedText: "Launch stays on Friday.",
+            clipboardText: "Launch moved to Monday.",
+            routingDecision: decision
+        )
+
+        XCTAssertTrue(body.contains("User request:\nBuddy, compare what I highlighted with what's on my clipboard"))
+        XCTAssertTrue(body.contains("All of that text was already captured and is included in full below."))
+        XCTAssertTrue(body.contains("Never say you cannot access, see, read, or open the clipboard, selection, screen, or audio, and never ask the user to paste or provide the text."))
     }
 }

@@ -184,6 +184,7 @@ enum ExternalTextPromptBuilder {
         "one sentence",
         "single sentence",
         "one direct sentence",
+        "like a sentence",
     ]
 
     private static let shorterDirectPhrases = [
@@ -223,11 +224,6 @@ enum ExternalTextPromptBuilder {
         guard routingDecision.injectsExternalText else {
             return trimmedDictation
         }
-
-        let modelFacingRequest = sanitizedUserRequest(
-            trimmedDictation,
-            matchedSources: routingDecision.matchedSources
-        )
 
         func content(for targetMode: AssistantContextTargetMode) -> String? {
             switch targetMode {
@@ -273,15 +269,15 @@ enum ExternalTextPromptBuilder {
 
         var promptComponents: [String] = []
 
-        if !modelFacingRequest.isEmpty {
-            promptComponents.append("User request:\n\(modelFacingRequest)")
+        if !trimmedDictation.isEmpty {
+            promptComponents.append("User request:\n\(trimmedDictation)")
         }
 
         promptComponents.append(
             contextUsageInstruction(
                 includedSources: includedSources,
                 oversizeSources: oversizeMatched,
-                dictatedContent: modelFacingRequest
+                dictatedContent: trimmedDictation
             )
         )
         promptComponents.append(contentsOf: sourceSections)
@@ -486,6 +482,16 @@ enum ExternalTextPromptBuilder {
         }
     }
 
+    /// Grounding lines emitted whenever captured source text is injected. The
+    /// request reaches the model verbatim, so phrasing like "my clipboard" or
+    /// "what's selected" would otherwise read as something the model must go
+    /// access. These lines map every such mention to the included sections and
+    /// forbid no-access disclaimers, independent of how the user phrased it.
+    private static let capturedContextGroundingLines = [
+        "The request may mention the clipboard, copied text, selected or highlighted text, the screen, or an earlier dictation. All of that text was already captured and is included in full below.",
+        "Never say you cannot access, see, read, or open the clipboard, selection, screen, or audio, and never ask the user to paste or provide the text. Everything needed is already provided below.",
+    ]
+
     private static func singleSourceInstruction(
         for shape: ComposedSingleSourceRequestShape,
         sourceLabel: String
@@ -494,6 +500,8 @@ enum ExternalTextPromptBuilder {
             "Use the \(sourceLabel) as the exact text to transform.",
             "Apply the user request directly to that text itself.",
         ]
+
+        instructionLines.append(contentsOf: capturedContextGroundingLines)
 
         instructionLines.append(contentsOf: requestShapeInstructionLines(for: shape))
 
@@ -518,9 +526,13 @@ enum ExternalTextPromptBuilder {
         var instructionLines = [
             "Use the provided sections below as the source text for the user request above.",
             "Apply the request directly to that source material.",
+        ]
+
+        instructionLines.append(contentsOf: capturedContextGroundingLines)
+        instructionLines.append(contentsOf: [
             "Preserve concrete facts from each section unless the user asks to change them.",
             "Rewrite, compare, merge, summarize, or combine the provided sections as needed.",
-        ]
+        ])
 
         instructionLines.append(contentsOf: requestShapeInstructionLines(for: shape))
 
@@ -792,49 +804,6 @@ enum ExternalTextPromptBuilder {
                 matchLength: $0.range.length
             )
         }
-    }
-
-    private static func sanitizedUserRequest(
-        _ dictatedContent: String,
-        matchedSources: [AssistantContextMatchedSource]
-    ) -> String {
-        matchedSources
-            .sorted { ($0.promptLabel?.count ?? 0) > ($1.promptLabel?.count ?? 0) }
-            .reduce(dictatedContent) { partialResult, matchedSource in
-                guard let promptLabel = matchedSource.promptLabel else {
-                    return partialResult
-                }
-
-                return replacingCaseInsensitiveOccurrences(
-                    of: promptLabel,
-                    in: partialResult,
-                    with: "the \(neutralSectionLabel(for: matchedSource.targetMode))"
-                )
-            }
-    }
-
-    private static func replacingCaseInsensitiveOccurrences(
-        of pattern: String,
-        in text: String,
-        with replacement: String
-    ) -> String {
-        guard !pattern.isEmpty else { return text }
-
-        let escapedPattern = "\\b\(NSRegularExpression.escapedPattern(for: pattern))\\b"
-        guard let regex = try? NSRegularExpression(
-            pattern: escapedPattern,
-            options: [.caseInsensitive]
-        ) else {
-            return text
-        }
-
-        let fullRange = NSRange(text.startIndex..<text.endIndex, in: text)
-        return regex.stringByReplacingMatches(
-            in: text,
-            options: [],
-            range: fullRange,
-            withTemplate: replacement
-        )
     }
 
     private static func normalizedText(_ text: String?) -> String? {

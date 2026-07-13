@@ -1,0 +1,443 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Attached context receipt</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", sans-serif;
+      --surface: #1c1c21;
+      --purple: #8b2fca;
+      --purple-bright: #b85ee9;
+      --green: #31c967;
+      --muted: #9b95a2;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      min-height: 100vh;
+      margin: 0;
+      display: grid;
+      place-items: center;
+      background: #0b0a0e;
+      color: #f6f3fa;
+    }
+
+    button { font: inherit; }
+
+    main {
+      width: min(1080px, calc(100vw - 48px));
+      padding: 28px 0;
+    }
+
+    .controls {
+      min-height: 38px;
+      margin-bottom: 18px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+    }
+
+    .controls button {
+      height: 32px;
+      padding: 0 12px;
+      border: 1px solid #36313d;
+      border-radius: 8px;
+      background: #17151b;
+      color: var(--muted);
+      cursor: pointer;
+      font-size: 12px;
+    }
+
+    .controls button[aria-pressed="true"] {
+      border-color: #735087;
+      background: #35283d;
+      color: white;
+    }
+
+    .controls .replay {
+      width: 32px;
+      padding: 0;
+      color: white;
+      font-size: 16px;
+    }
+
+    .duration {
+      margin-right: 6px;
+      color: #cfc8d5;
+      font-size: 11px;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .desktop {
+      height: 310px;
+      position: relative;
+      overflow: hidden;
+      border: 1px solid #29262f;
+      border-radius: 16px;
+      background:
+        radial-gradient(circle at 72% 22%, rgba(78, 49, 103, .36), transparent 34%),
+        linear-gradient(150deg, #23202a, #121116 70%);
+    }
+
+    .window {
+      position: absolute;
+      inset: 28px 80px 64px;
+      border: 1px solid rgba(255,255,255,.08);
+      border-radius: 10px;
+      background: rgba(20, 19, 24, .68);
+      box-shadow: 0 18px 40px rgba(0,0,0,.2);
+    }
+
+    .window::before {
+      content: "";
+      position: absolute;
+      left: 24px;
+      top: 30px;
+      width: 46%;
+      height: 7px;
+      border-radius: 5px;
+      background: rgba(255,255,255,.09);
+      box-shadow:
+        0 19px rgba(255,255,255,.055),
+        0 38px rgba(255,255,255,.055),
+        0 57px rgba(255,255,255,.035);
+    }
+
+    .state {
+      position: absolute;
+      top: 18px;
+      left: 50%;
+      transform: translateX(-50%);
+      color: #b9b3bd;
+      font-size: 11px;
+      letter-spacing: .02em;
+    }
+
+    .stage {
+      position: absolute;
+      left: 50%;
+      bottom: 23px;
+      transform: translateX(-50%);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+
+    .receipt {
+      width: 220px;
+      height: 42px;
+      margin-bottom: -3px;
+      padding: 6px 10px 7px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 2px;
+      border: 1px solid rgba(184,94,233,.58);
+      border-radius: 9px 9px 0 0;
+      background: #25212a;
+      box-shadow: 0 0 14px rgba(139,47,202,.25);
+      color: #f4edf8;
+      font-size: 10px;
+      white-space: nowrap;
+      transition: opacity .18s ease, transform .18s ease;
+    }
+
+    .receipt.hidden {
+      opacity: 0;
+      transform: translateY(5px);
+      pointer-events: none;
+    }
+
+    .check {
+      color: #d88cf3;
+      font-size: 11px;
+      font-weight: 800;
+    }
+
+    .receipt-summary {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      color: #f4edf8;
+      font-size: 10px;
+      font-weight: 650;
+    }
+
+    .source-list {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      color: #aaa3af;
+      font-size: 9.5px;
+    }
+
+    .source-list .plus { color: #655e6a; }
+
+    .pill {
+      width: 220px;
+      height: 44px;
+      position: relative;
+      z-index: 2;
+      display: grid;
+      grid-template-columns: 34px 34px 1fr 34px 34px;
+      align-items: center;
+      gap: 5px;
+      padding: 0 10px;
+      overflow: hidden;
+      border: 1.5px solid rgba(184, 94, 233, .9);
+      border-radius: 999px;
+      background: var(--surface);
+      box-shadow: 0 0 14px rgba(139,47,202,.5), 0 7px 20px rgba(0,0,0,.42);
+      transition: border-color .2s ease, box-shadow .2s ease;
+    }
+
+    .pill.success {
+      border-color: rgba(69, 212, 118, .92);
+      background: linear-gradient(90deg, #156838, #1d5438 60%, #313037);
+      box-shadow: 0 0 14px rgba(49,201,103,.42), 0 7px 20px rgba(0,0,0,.42);
+    }
+
+    .action {
+      width: 22px;
+      height: 22px;
+      margin: auto;
+      display: grid;
+      place-items: center;
+      border-radius: 50%;
+      font-size: 13px;
+      font-weight: 750;
+      line-height: 1;
+    }
+
+    .cancel { background: #fa4150; }
+    .append { border: 1px solid #4a4650; color: #77717c; }
+    .note { background: var(--purple); font-size: 11px; }
+    .copy { border: 1px solid #403c45; color: #625b68; font-size: 12px; }
+    .pill.success .append { border: 0; background: #2f7cf6; color: white; }
+    .pill.success .copy { border-color: rgba(255,255,255,.35); color: white; }
+
+    .meter {
+      height: 28px;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      gap: 3px;
+    }
+
+    .meter i {
+      width: 3px;
+      height: var(--h);
+      display: block;
+      border-radius: 2px;
+      background: var(--purple-bright);
+      animation: pulse .78s ease-in-out infinite alternate;
+      animation-delay: var(--d);
+    }
+
+    .success-copy {
+      display: none;
+      text-align: center;
+      font-size: 13px;
+      font-weight: 650;
+    }
+
+    .pill.success .meter { display: none; }
+    .pill.success .success-copy { display: block; }
+
+    @keyframes pulse {
+      to { transform: scaleY(.42); opacity: .72; }
+    }
+
+    .receipt-progress {
+      width: 220px;
+      height: 2px;
+      margin-top: 9px;
+      overflow: hidden;
+      border-radius: 2px;
+      background: #302c34;
+    }
+
+    .receipt-progress i {
+      width: 100%;
+      height: 100%;
+      display: block;
+      transform-origin: left;
+      background: #a94cdd;
+    }
+
+    .receipt-progress.running i {
+      animation: drain 4s linear forwards;
+    }
+
+    @keyframes drain { to { transform: scaleX(0); } }
+
+    .combinations {
+      margin-top: 22px;
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 10px;
+    }
+
+    .combo {
+      min-height: 88px;
+      padding: 10px;
+      display: grid;
+      place-items: center;
+      border: 1px solid #2b2830;
+      border-radius: 11px;
+      background: #141217;
+      cursor: pointer;
+    }
+
+    .combo:last-child {
+      grid-column: 2 / span 2;
+    }
+
+    .combo:hover,
+    .combo.active {
+      border-color: #60466e;
+      background: #19151d;
+    }
+
+    .combo .receipt {
+      margin: 0;
+      border-radius: 9px;
+      box-shadow: none;
+    }
+
+    @media (max-width: 820px) {
+      .window { inset-inline: 24px; }
+      .combinations { grid-template-columns: 1fr 1fr; }
+      .combo:last-child { grid-column: 1 / span 2; }
+      .controls { flex-wrap: wrap; }
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <div class="controls">
+      <span class="duration">Receipt 4.0s</span>
+      <button type="button" data-speed="500" aria-pressed="true">Fast success · 0.5s</button>
+      <button type="button" data-speed="2000" aria-pressed="false">Normal · 2s</button>
+      <button type="button" data-speed="6000" aria-pressed="false">Slow · 6s</button>
+      <button type="button" class="replay" aria-label="Replay">↻</button>
+    </div>
+
+    <section class="desktop">
+      <div class="window"></div>
+      <div class="state">PROCESSING</div>
+      <div class="stage">
+        <div class="receipt hero-receipt">
+          <span class="receipt-summary">
+            <span class="check">✓</span>
+            <span class="count-copy">1 source included</span>
+          </span>
+          <span class="source-list"></span>
+        </div>
+        <div class="pill">
+          <span class="action cancel">×</span>
+          <span class="action append">＋</span>
+          <span class="meter">
+            <i style="--h:12px;--d:-.2s"></i><i style="--h:18px;--d:-.4s"></i>
+            <i style="--h:23px;--d:-.1s"></i><i style="--h:16px;--d:-.5s"></i>
+            <i style="--h:21px;--d:-.3s"></i><i style="--h:14px;--d:-.6s"></i>
+            <i style="--h:19px;--d:-.15s"></i>
+          </span>
+          <span class="success-copy">Pasted</span>
+          <span class="action note">▰</span>
+          <span class="action copy">▣</span>
+        </div>
+        <div class="receipt-progress"><i></i></div>
+      </div>
+    </section>
+
+    <section class="combinations" aria-label="Source combinations">
+      <button type="button" class="combo active" data-sources="Selected text"></button>
+      <button type="button" class="combo" data-sources="Clipboard"></button>
+      <button type="button" class="combo" data-sources="Last transcript"></button>
+      <button type="button" class="combo" data-sources="Selected text|Clipboard"></button>
+      <button type="button" class="combo" data-sources="Selected text|Last transcript"></button>
+      <button type="button" class="combo" data-sources="Clipboard|Last transcript"></button>
+      <button type="button" class="combo" data-sources="Selected text|Clipboard|Last transcript"></button>
+    </section>
+  </main>
+
+  <script>
+    const receiptDuration = 4000;
+    const state = document.querySelector('.state');
+    const pill = document.querySelector('.pill');
+    const heroReceipt = document.querySelector('.hero-receipt');
+    const heroSourceList = heroReceipt.querySelector('.source-list');
+    const progress = document.querySelector('.receipt-progress');
+    const speedButtons = [...document.querySelectorAll('[data-speed]')];
+    const comboButtons = [...document.querySelectorAll('.combo')];
+    const replayButton = document.querySelector('.replay');
+    let successDelay = 500;
+    let successTimer;
+    let receiptTimer;
+
+    function sourceMarkup(sources) {
+      return sources.map((source, index) =>
+        `${index ? '<span class="plus">+</span>' : ''}<span>${source}</span>`
+      ).join('');
+    }
+
+    for (const combo of comboButtons) {
+      const sources = combo.dataset.sources.split('|');
+      const countCopy = `${sources.length} ${sources.length === 1 ? 'source' : 'sources'} included`;
+      combo.innerHTML = `
+        <span class="receipt">
+          <span class="receipt-summary">
+            <span class="check">✓</span>
+            <span>${countCopy}</span>
+          </span>
+          <span class="source-list">${sourceMarkup(sources)}</span>
+        </span>`;
+      combo.addEventListener('click', () => {
+        comboButtons.forEach(item => item.classList.toggle('active', item === combo));
+        heroReceipt.querySelector('.count-copy').textContent = countCopy;
+        heroSourceList.innerHTML = sourceMarkup(sources);
+        replay();
+      });
+    }
+
+    function replay() {
+      clearTimeout(successTimer);
+      clearTimeout(receiptTimer);
+      state.textContent = 'PROCESSING';
+      pill.classList.remove('success');
+      heroReceipt.classList.remove('hidden');
+      progress.classList.remove('running');
+      void progress.offsetWidth;
+      progress.classList.add('running');
+
+      successTimer = setTimeout(() => {
+        state.textContent = 'SUCCESS';
+        pill.classList.add('success');
+      }, successDelay);
+
+      receiptTimer = setTimeout(() => {
+        heroReceipt.classList.add('hidden');
+      }, receiptDuration);
+    }
+
+    speedButtons.forEach(button => {
+      button.addEventListener('click', () => {
+        speedButtons.forEach(item => item.setAttribute('aria-pressed', String(item === button)));
+        successDelay = Number(button.dataset.speed);
+        replay();
+      });
+    });
+
+    replayButton.addEventListener('click', replay);
+    heroSourceList.innerHTML = sourceMarkup(['Selected text']);
+    replay();
+  </script>
+</body>
+</html>

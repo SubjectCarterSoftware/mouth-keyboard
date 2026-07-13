@@ -96,6 +96,12 @@ final class ExternalTextScenarioMatrixEvaluationTests: XCTestCase {
                     pipeline.finalText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
                     "Pipeline returned empty output for scenario: \(scenario.id)"
                 )
+                if evaluation.productionDecision.injectsExternalText,
+                   let refusal = ExternalTextQualityCheck.accessRefusalFragment(in: pipeline.finalText) {
+                    XCTFail(
+                        "Output claims missing access ('\(refusal)') despite injected context for scenario: \(scenario.id)"
+                    )
+                }
             }
         }
 
@@ -121,23 +127,17 @@ final class ExternalTextScenarioMatrixEvaluationTests: XCTestCase {
     private func evaluatePrompt(
         for scenario: ExternalTextScenario
     ) -> ExternalTextPromptEvaluation {
-        let actualContext = ExternalTextSourceContext(
-            selectedText: scenario.selectedText,
-            clipboardText: scenario.clipboardText,
-            lastTranscription: scenario.lastTranscription
+        let productionDecision = AssistantContextRoutingDecision(
+            matchedSources: scenario.expectedProductionModes.map {
+                AssistantContextMatchedSource(targetMode: $0)
+            },
+            decisionSource: .modelClassifier
         )
-        let phraseOnlyContext = ExternalTextSourceContext(
-            selectedTextAvailable: true,
-            clipboardTextAvailable: true,
-            lastTranscriptionAvailable: true
-        )
-        let productionDecision = ExternalTextSourceClassifier.classify(
-            message: scenario.dictatedContent,
-            availableSources: actualContext
-        )
-        let phraseOnlyDecision = ExternalTextSourceClassifier.classify(
-            message: scenario.dictatedContent,
-            availableSources: phraseOnlyContext
+        let phraseOnlyDecision = AssistantContextRoutingDecision(
+            matchedSources: scenario.expectedPhraseOnlyModes.map {
+                AssistantContextMatchedSource(targetMode: $0)
+            },
+            decisionSource: .modelClassifier
         )
 
         let promptBody: String
@@ -413,6 +413,540 @@ final class ExternalTextScenarioMatrixEvaluationTests: XCTestCase {
     }()
 }
 
+/// Opt-in acceptance suite for the local-model context router. The classifier sees
+/// only the dictated request and source availability — never selected, clipboard, or
+/// transcript contents. The frozen scenario matrix intentionally includes ordinary
+/// assistant drafting requests, unavailable-source traps, and multi-source requests,
+/// because false positives expose unrelated private context to the rewrite prompt.
+///
+/// Run by creating `/tmp/run_model_context_routing_eval` before invoking the normal
+/// `TypeLessBuddy` unit-test scheme. A Markdown report is written under `build/` even
+/// if some evaluation cases fail, so prompt changes remain auditable.
+final class ModelAssistedContextRoutingEvaluationTests: XCTestCase {
+    private static let markerURL = FileManager.default.temporaryDirectory
+        .appendingPathComponent("run_model_context_routing_eval")
+
+    private static let orderedModes: [AssistantContextTargetMode] = [
+        .lastTranscription,
+        .clipboard,
+        .selectedText,
+    ]
+
+    override func setUp() async throws {
+        try await super.setUp()
+        try XCTSkipUnless(
+            FileManager.default.fileExists(atPath: Self.markerURL.path),
+            "Model-assisted routing evaluation is opt-in. Create \(Self.markerURL.path) to run."
+        )
+    }
+
+    func testLocalModelClassifiesUnseenContextReferences() async throws {
+        let tier = RewriteModelTier.standard4B
+        let service = LocalRewriteService(tier: tier)
+        defer { Task { await service.unload() } }
+
+        try await service.prewarm()
+
+        var results: [EvaluationResult] = []
+        for scenario in Self.scenarios {
+            let availableSources = ExternalTextSourceContext(
+                selectedTextAvailable: scenario.availableModes.contains(.selectedText),
+                clipboardTextAvailable: scenario.availableModes.contains(.clipboard),
+                lastTranscriptionAvailable: scenario.availableModes.contains(.lastTranscription)
+            )
+            let startedAt = Date()
+            let rawResponse = try await service.generate(
+                prompt: LocalModelAssistantContextRouter.userPrompt(
+                    request: scenario.request,
+                    availableSources: availableSources
+                ),
+                systemPrompt: LocalModelAssistantContextRouter.systemPrompt
+            )
+            let parsedOutput: ParsedClassifierOutput
+            do {
+                parsedOutput = ParsedClassifierOutput(
+                    modes: Set(
+                        try LocalModelAssistantContextRouter.parseModes(
+                            from: rawResponse,
+                            availableSources: availableSources
+                        )
+                    ),
+                    isValid: true
+                )
+            } catch {
+                parsedOutput = .invalid
+            }
+            results.append(
+                EvaluationResult(
+                    scenario: scenario,
+                    parsedOutput: parsedOutput,
+                    rawResponse: rawResponse,
+                    duration: Date().timeIntervalSince(startedAt)
+                )
+            )
+        }
+
+        let reportURL = try Self.writeReport(results: results, tier: tier)
+        print("Saved model-assisted context-routing report to: \(reportURL.path)")
+
+        for result in results {
+            XCTAssertTrue(
+                result.parsedOutput.isValid,
+                "\(result.scenario.id): classifier did not return the required one-line contract\nraw response: \(result.rawResponse)"
+            )
+            XCTAssertEqual(
+                result.parsedOutput.modes,
+                result.scenario.expectedModes,
+                "\(result.scenario.id): \(result.scenario.request)\nraw response: \(result.rawResponse)"
+            )
+        }
+    }
+
+    private static func writeReport(
+        results: [EvaluationResult],
+        tier: RewriteModelTier
+    ) throws -> URL {
+        let root = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .appendingPathComponent("build", isDirectory: true)
+            .appendingPathComponent("model-context-routing-eval", isDirectory: true)
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+
+        let formatter = DateFormatter()
+        formatter.dateFormat = "yyyyMMdd-HHmmss"
+        let reportURL = root.appendingPathComponent("\(formatter.string(from: Date())).md")
+        let passedCount = results.filter {
+            $0.parsedOutput.isValid && $0.parsedOutput.modes == $0.scenario.expectedModes
+        }.count
+        let rows = results.map { result in
+            "| \(result.scenario.category) | \(result.scenario.id) | \(result.scenario.request) | \(describe(result.scenario.expectedModes)) | \(describe(result.parsedOutput.modes)) | \(result.parsedOutput.isValid ? "yes" : "no") | \(String(format: "%.2f", result.duration)) s | `\(result.rawResponse.replacingOccurrences(of: "|", with: "\\\\|"))` |"
+        }
+
+        let body = """
+        # Model-Assisted Context Routing Evaluation
+
+        - Tier: \(tier.rawValue)
+        - Result: \(passedCount)/\(results.count) correct
+        - The model received only source availability, never source contents.
+
+        | Category | Case | Spoken request | Expected | Actual | Valid | Duration | Raw classifier response |
+        |---|---|---|---|---|---|---:|---|
+        \(rows.joined(separator: "\n"))
+        """
+        try body.write(to: reportURL, atomically: true, encoding: .utf8)
+        return reportURL
+    }
+
+    private static func describe(_ modes: Set<AssistantContextTargetMode>) -> String {
+        let labels = orderedModes.filter { modes.contains($0) }.map(\.rawValue)
+        return labels.isEmpty ? "NONE" : labels.joined(separator: ", ")
+    }
+
+    private struct EvaluationScenario {
+        let category: String
+        let id: String
+        let request: String
+        let availableModes: Set<AssistantContextTargetMode>
+        let expectedModes: Set<AssistantContextTargetMode>
+    }
+
+    private struct EvaluationResult {
+        let scenario: EvaluationScenario
+        let parsedOutput: ParsedClassifierOutput
+        let rawResponse: String
+        let duration: TimeInterval
+    }
+
+    private struct ParsedClassifierOutput {
+        let modes: Set<AssistantContextTargetMode>
+        let isValid: Bool
+
+        static let invalid = Self(modes: [], isValid: false)
+    }
+
+    private static let scenarios: [EvaluationScenario] = [
+        .init(
+            category: "selected",
+            id: "selected-user-reported",
+            request: "Buddy, can you take the text I've got selected and condense it a little more? It needs to be like a sentence.",
+            availableModes: [.selectedText, .clipboard, .lastTranscription],
+            expectedModes: [.selectedText]
+        ),
+        .init(
+            category: "selected",
+            id: "selected-under-cursor",
+            request: "Could you tighten up the passage under my cursor?",
+            availableModes: [.selectedText],
+            expectedModes: [.selectedText]
+        ),
+        .init(
+            category: "selected",
+            id: "selected-highlighted-blurb",
+            request: "Turn the highlighted blurb into a short update.",
+            availableModes: [.selectedText, .clipboard],
+            expectedModes: [.selectedText]
+        ),
+        .init(
+            category: "selected",
+            id: "selected-marked-words",
+            request: "Make the words I marked sound more confident.",
+            availableModes: [.selectedText, .clipboard, .lastTranscription],
+            expectedModes: [.selectedText]
+        ),
+        .init(
+            category: "selected",
+            id: "selected-current-paragraph",
+            request: "Reduce the current paragraph to three bullets.",
+            availableModes: [.selectedText],
+            expectedModes: [.selectedText]
+        ),
+        .init(
+            category: "selected",
+            id: "selected-highlighted-excerpt",
+            request: "Can you proofread the highlighted excerpt?",
+            availableModes: [.selectedText, .lastTranscription],
+            expectedModes: [.selectedText]
+        ),
+        .init(
+            category: "selected",
+            id: "selected-current-selection",
+            request: "Turn my current selection into a friendlier Slack update.",
+            availableModes: [.selectedText, .clipboard],
+            expectedModes: [.selectedText]
+        ),
+        .init(
+            category: "selected",
+            id: "selected-selected-snippet",
+            request: "Give the selected snippet a clearer opening sentence.",
+            availableModes: [.selectedText],
+            expectedModes: [.selectedText]
+        ),
+        .init(
+            category: "selected",
+            id: "selected-highlighted-copy",
+            request: "Rewrite the copy I highlighted for a customer email.",
+            availableModes: [.selectedText, .clipboard, .lastTranscription],
+            expectedModes: [.selectedText]
+        ),
+        .init(
+            category: "selected",
+            id: "selected-marked-section",
+            request: "Summarize the section I have marked in one sentence.",
+            availableModes: [.selectedText],
+            expectedModes: [.selectedText]
+        ),
+        .init(
+            category: "clipboard",
+            id: "selected-copy-punchier",
+            request: "Can you make the copy on my clipboard punchier?",
+            availableModes: [.clipboard],
+            expectedModes: [.clipboard]
+        ),
+        .init(
+            category: "clipboard",
+            id: "clipboard-pasteboard",
+            request: "Please clean up the thing in my pasteboard.",
+            availableModes: [.clipboard],
+            expectedModes: [.clipboard]
+        ),
+        .init(
+            category: "clipboard",
+            id: "clipboard-just-put",
+            request: "Make the stuff I just put in here friendlier.",
+            availableModes: [.clipboard],
+            expectedModes: [.clipboard]
+        ),
+        .init(
+            category: "clipboard",
+            id: "clipboard-copied-snippet",
+            request: "Turn the snippet I copied into a concise status update.",
+            availableModes: [.clipboard, .selectedText],
+            expectedModes: [.clipboard]
+        ),
+        .init(
+            category: "clipboard",
+            id: "clipboard-copy-buffer",
+            request: "Proofread what is in my copy buffer.",
+            availableModes: [.clipboard],
+            expectedModes: [.clipboard]
+        ),
+        .init(
+            category: "clipboard",
+            id: "clipboard-paragraph-i-copied",
+            request: "Summarize the paragraph I copied a moment ago.",
+            availableModes: [.clipboard, .lastTranscription],
+            expectedModes: [.clipboard]
+        ),
+        .init(
+            category: "clipboard",
+            id: "clipboard-clipboard-contents",
+            request: "Make my clipboard contents more professional.",
+            availableModes: [.clipboard],
+            expectedModes: [.clipboard]
+        ),
+        .init(
+            category: "clipboard",
+            id: "clipboard-copied-text",
+            request: "Convert the text I copied into an action list.",
+            availableModes: [.clipboard, .selectedText],
+            expectedModes: [.clipboard]
+        ),
+        .init(
+            category: "clipboard",
+            id: "clipboard-pasted-copy",
+            request: "Can you soften the wording in the copy I pasted?",
+            availableModes: [.clipboard],
+            expectedModes: [.clipboard]
+        ),
+        .init(
+            category: "clipboard",
+            id: "clipboard-what-i-copied",
+            request: "Shorten what I copied without losing the dates.",
+            availableModes: [.clipboard, .lastTranscription],
+            expectedModes: [.clipboard]
+        ),
+        .init(
+            category: "transcript",
+            id: "transcript-voice-input",
+            request: "Can you polish the previous voice input?",
+            availableModes: [.lastTranscription],
+            expectedModes: [.lastTranscription]
+        ),
+        .init(
+            category: "transcript",
+            id: "transcript-just-dictated",
+            request: "Shorten the thing I just dictated.",
+            availableModes: [.lastTranscription, .selectedText],
+            expectedModes: [.lastTranscription]
+        ),
+        .init(
+            category: "transcript",
+            id: "transcript-last-thing-i-said",
+            request: "Make the last thing I said more concise.",
+            availableModes: [.lastTranscription, .clipboard],
+            expectedModes: [.lastTranscription]
+        ),
+        .init(
+            category: "transcript",
+            id: "transcript-earlier-voice-note",
+            request: "Pull the action items out of my earlier voice note.",
+            availableModes: [.lastTranscription],
+            expectedModes: [.lastTranscription]
+        ),
+        .init(
+            category: "transcript",
+            id: "transcript-last-dictation",
+            request: "Fix the grammar in my last dictation.",
+            availableModes: [.lastTranscription, .selectedText],
+            expectedModes: [.lastTranscription]
+        ),
+        .init(
+            category: "transcript",
+            id: "transcript-words-i-spoke",
+            request: "Turn the words I just spoke into a client-ready note.",
+            availableModes: [.lastTranscription],
+            expectedModes: [.lastTranscription]
+        ),
+        .init(
+            category: "transcript",
+            id: "transcript-previous-recording",
+            request: "Give my previous recording a calmer tone.",
+            availableModes: [.lastTranscription, .clipboard],
+            expectedModes: [.lastTranscription]
+        ),
+        .init(
+            category: "transcript",
+            id: "transcript-prior-spoken-version",
+            request: "Rewrite the prior spoken version as a short email.",
+            availableModes: [.lastTranscription],
+            expectedModes: [.lastTranscription]
+        ),
+        .init(
+            category: "transcript",
+            id: "transcript-recent-transcript",
+            request: "Summarize my most recent transcript for the team.",
+            availableModes: [.lastTranscription, .selectedText],
+            expectedModes: [.lastTranscription]
+        ),
+        .init(
+            category: "multi-source",
+            id: "multi-highlighted-prior-speech",
+            request: "Compare what's highlighted with the prior thing I said.",
+            availableModes: [.selectedText, .lastTranscription],
+            expectedModes: [.selectedText, .lastTranscription]
+        ),
+        .init(
+            category: "multi-source",
+            id: "multi-copied-selected",
+            request: "Fold the copied snippet together with the selected bit.",
+            availableModes: [.selectedText, .clipboard],
+            expectedModes: [.selectedText, .clipboard]
+        ),
+        .init(
+            category: "multi-source",
+            id: "multi-clipboard-transcript",
+            request: "Compare my clipboard text with the last thing I dictated.",
+            availableModes: [.clipboard, .lastTranscription],
+            expectedModes: [.clipboard, .lastTranscription]
+        ),
+        .init(
+            category: "multi-source",
+            id: "multi-all-three",
+            request: "Create a brief that reconciles the highlighted paragraph, the copied notes, and my prior transcript.",
+            availableModes: [.selectedText, .clipboard, .lastTranscription],
+            expectedModes: [.selectedText, .clipboard, .lastTranscription]
+        ),
+        .init(
+            category: "multi-source",
+            id: "multi-selected-clipboard-contrast",
+            request: "Show me the differences between the selected copy and what I copied.",
+            availableModes: [.selectedText, .clipboard, .lastTranscription],
+            expectedModes: [.selectedText, .clipboard]
+        ),
+        .init(
+            category: "multi-source",
+            id: "multi-selected-transcript-merge",
+            request: "Blend the highlighted notes with my most recent dictation.",
+            availableModes: [.selectedText, .lastTranscription],
+            expectedModes: [.selectedText, .lastTranscription]
+        ),
+        .init(
+            category: "multi-source",
+            id: "multi-clipboard-transcript-summary",
+            request: "Use the copied passage and the earlier voice input to make one summary.",
+            availableModes: [.clipboard, .lastTranscription, .selectedText],
+            expectedModes: [.clipboard, .lastTranscription]
+        ),
+        .init(
+            category: "multi-source",
+            id: "multi-selected-clipboard-transcript",
+            request: "Turn the selected excerpt, clipboard notes, and last transcription into a single update.",
+            availableModes: [.selectedText, .clipboard, .lastTranscription],
+            expectedModes: [.selectedText, .clipboard, .lastTranscription]
+        ),
+        .init(
+            category: "direct",
+            id: "direct-new-draft",
+            request: "Draft a brief email to reschedule next week's call.",
+            availableModes: [.selectedText, .clipboard, .lastTranscription],
+            expectedModes: []
+        ),
+        .init(
+            category: "direct",
+            id: "direct-selection-process",
+            request: "Write a concise summary of the selection process.",
+            availableModes: [.selectedText, .clipboard, .lastTranscription],
+            expectedModes: []
+        ),
+        .init(
+            category: "direct",
+            id: "direct-clipboard-api",
+            request: "Draft a note about the clipboard API.",
+            availableModes: [.selectedText, .clipboard, .lastTranscription],
+            expectedModes: []
+        ),
+        .init(
+            category: "direct",
+            id: "direct-onboarding-copy",
+            request: "Make the onboarding text more concise.",
+            availableModes: [.selectedText, .clipboard],
+            expectedModes: []
+        ),
+        .init(
+            category: "direct",
+            id: "direct-transcript-policy",
+            request: "Write two bullets describing our transcript retention policy.",
+            availableModes: [.selectedText, .clipboard, .lastTranscription],
+            expectedModes: []
+        ),
+        .init(
+            category: "direct",
+            id: "direct-selection-screen",
+            request: "Draft onboarding copy for the selection screen.",
+            availableModes: [.selectedText, .clipboard],
+            expectedModes: []
+        ),
+        .init(
+            category: "direct",
+            id: "direct-generic-this",
+            request: "Make this pitch more concise for a new customer.",
+            availableModes: [.selectedText, .clipboard, .lastTranscription],
+            expectedModes: []
+        ),
+        .init(
+            category: "direct",
+            id: "direct-generic-that",
+            request: "Turn that idea into a three-step rollout plan.",
+            availableModes: [.selectedText, .clipboard, .lastTranscription],
+            expectedModes: []
+        ),
+        .init(
+            category: "direct",
+            id: "direct-new-subject-lines",
+            request: "Give me five subject lines for a customer renewal email.",
+            availableModes: [.selectedText, .clipboard, .lastTranscription],
+            expectedModes: []
+        ),
+        .init(
+            category: "direct",
+            id: "direct-new-meeting-agenda",
+            request: "Create a meeting agenda for a quarterly planning session.",
+            availableModes: [.selectedText, .clipboard],
+            expectedModes: []
+        ),
+        .init(
+            category: "direct",
+            id: "direct-explicitly-new",
+            request: "Do not use any text I have selected; write a fresh opening for a launch announcement.",
+            availableModes: [.selectedText, .clipboard, .lastTranscription],
+            expectedModes: []
+        ),
+        .init(
+            category: "unavailable",
+            id: "unavailable-highlighted",
+            request: "Use the highlighted passage to write a short summary.",
+            availableModes: [.clipboard],
+            expectedModes: []
+        ),
+        .init(
+            category: "unavailable",
+            id: "unavailable-voice-input",
+            request: "Make the previous voice input shorter.",
+            availableModes: [.selectedText, .clipboard],
+            expectedModes: []
+        ),
+        .init(
+            category: "unavailable",
+            id: "unavailable-clipboard",
+            request: "Turn the thing on my clipboard into bullets.",
+            availableModes: [.selectedText, .lastTranscription],
+            expectedModes: []
+        ),
+        .init(
+            category: "unavailable",
+            id: "unavailable-selected-with-transcript",
+            request: "Proofread the selected paragraph.",
+            availableModes: [.clipboard, .lastTranscription],
+            expectedModes: []
+        ),
+        .init(
+            category: "unavailable",
+            id: "unavailable-transcript-with-selected",
+            request: "Clean up my last dictation.",
+            availableModes: [.selectedText, .clipboard],
+            expectedModes: []
+        ),
+        .init(
+            category: "unavailable",
+            id: "unavailable-multi-source",
+            request: "Compare the copied notes with the highlighted excerpt.",
+            availableModes: [.lastTranscription],
+            expectedModes: []
+        ),
+    ]
+}
+
 private struct ExternalTextScenario: Sendable {
     let id: String
     let name: String
@@ -537,6 +1071,32 @@ private struct ExternalTextQualityCheck: Sendable {
                     ) != nil
                 }
                 .count >= minimum
+        }
+    }
+
+    /// Fragments that indicate the model hallucinated a missing capability
+    /// instead of using the source text already included in the prompt.
+    static let accessRefusalFragments = [
+        "cannot access", "can't access", "can not access", "cannot directly access",
+        "don't have access", "do not have access", "no access to",
+        "unable to access", "not able to access",
+        "cannot see", "can't see", "unable to see", "not able to see",
+        "cannot read", "can't read", "unable to read",
+        "cannot open", "can't open", "unable to open",
+        "cannot view", "can't view", "unable to view",
+        "as an ai", "as a language model",
+    ]
+
+    static func accessRefusalFragment(in output: String) -> String? {
+        let lowered = output.lowercased()
+        return accessRefusalFragments.first { lowered.contains($0) }
+    }
+
+    static func doesNotClaimNoAccess() -> ExternalTextQualityCheck {
+        ExternalTextQualityCheck(
+            description: "Does not claim it lacks access to the clipboard, selection, screen, or audio"
+        ) { output in
+            accessRefusalFragment(in: output) == nil
         }
     }
 
@@ -692,6 +1252,13 @@ private struct ExternalTextScenarioEvalResult {
 
         if generationError != nil {
             warnings.append("generation error")
+        }
+
+        // Every context-injected scenario must produce a transformation, never a
+        // claim that the model lacks access to the already-included source text.
+        if promptEvaluation.productionDecision.injectsExternalText,
+           let refusal = ExternalTextQualityCheck.accessRefusalFragment(in: pipelineEvaluation.finalText) {
+            warnings.append("output claims missing access: '\(refusal)'")
         }
 
         for evaluation in qualityEvaluations where !evaluation.passed {
@@ -1934,6 +2501,141 @@ private extension ExternalTextScenarioMatrixEvaluationTests {
                 .omits("legal"),
                 .omits("Buddy", description: "Does not sign or speak as Buddy"),
                 .wordCountAtMost(80),
+            ]
+        ),
+        ExternalTextScenario(
+            id: "43-access-read-clipboard-grammar",
+            name: "Access-implying clipboard read request",
+            category: "access grounding",
+            dictatedContent: "Buddy, read my clipboard and fix the grammar",
+            selectedText: "Unrelated selected text: the offsite agenda still needs a room.",
+            clipboardText: "we shipped teh fix yesterday and the custmer confirmed it work fine now",
+            expectedBehavior: "Treat 'read my clipboard' as referring to the included clipboard text and return a corrected version, never an access disclaimer.",
+            reviewFocus: [
+                "The output should be the corrected clipboard sentence.",
+                "It must not claim it cannot access or read the clipboard.",
+                "It should ignore the unrelated selected text.",
+            ],
+            expectedProductionModes: [.clipboard],
+            expectedPhraseOnlyModes: [.clipboard],
+            qualityChecks: [
+                .contains("shipped"),
+                .contains("customer"),
+                .omits("teh", description: "Fixes the 'teh' typo"),
+                .omits("offsite"),
+                .doesNotClaimNoAccess(),
+                .doesNotAskForMoreInput(),
+            ]
+        ),
+        ExternalTextScenario(
+            id: "44-access-look-at-selection",
+            name: "Access-implying selection look request",
+            category: "access grounding",
+            dictatedContent: "Buddy, look at the text I have selected and make it sound more professional",
+            selectedText: "hey Priya the numbers in this report are kinda all over the place, can u sort them out b4 the review",
+            clipboardText: "Unrelated clipboard: cafeteria menu rotates on Monday.",
+            expectedBehavior: "Rewrite the selected text professionally instead of claiming it cannot see the selection.",
+            reviewFocus: [
+                "The output should be a professional rewrite that keeps Priya and the review.",
+                "It must not claim it cannot see or access the selection or screen.",
+            ],
+            expectedProductionModes: [.selectedText],
+            expectedPhraseOnlyModes: [.selectedText],
+            qualityChecks: [
+                .contains("Priya"),
+                .contains("review"),
+                .omits("cafeteria"),
+                .doesNotClaimNoAccess(),
+                .doesNotAskForMoreInput(),
+            ]
+        ),
+        ExternalTextScenario(
+            id: "45-access-can-you-see-copied",
+            name: "Access-implying visibility question about copied text",
+            category: "access grounding",
+            dictatedContent: "Buddy, can you see what I copied? Turn it into two bullets for the standup",
+            clipboardText: "The data import finished overnight without errors. QA still needs to verify the dashboard totals before we enable alerts.",
+            lastTranscription: "Unrelated prior dictation: remember to renew the parking pass.",
+            expectedBehavior: "Answer with the two bullets built from clipboard text, not with a statement about whether it can see the clipboard.",
+            reviewFocus: [
+                "The output should be bullets covering the import success and the pending QA verification.",
+                "It must not answer the literal visibility question or claim it cannot see the clipboard.",
+            ],
+            expectedProductionModes: [.clipboard],
+            expectedPhraseOnlyModes: [.clipboard],
+            qualityChecks: [
+                .bulletCountAtLeast(2),
+                .contains("import"),
+                .contains("QA"),
+                .omits("parking"),
+                .doesNotClaimNoAccess(),
+                .doesNotAskForMoreInput(),
+            ]
+        ),
+        ExternalTextScenario(
+            id: "46-access-open-clipboard-one-sentence",
+            name: "Access-implying clipboard open request",
+            category: "access grounding",
+            dictatedContent: "Buddy, open my clipboard and summarize it in one sentence",
+            selectedText: "Unrelated selected text: draft slogan ideas for the booth banner.",
+            clipboardText: "Support escalations dropped 40 percent after the macro rollout, response times are under two minutes, and the remaining backlog is scheduled to clear by Thursday.",
+            expectedBehavior: "Summarize the included clipboard text in one sentence instead of treating 'open my clipboard' as an action it cannot perform.",
+            reviewFocus: [
+                "The output should be exactly one sentence.",
+                "It should preserve the 40 percent drop or the Thursday backlog date.",
+                "It must not claim it cannot open or access the clipboard.",
+            ],
+            expectedProductionModes: [.clipboard],
+            expectedPhraseOnlyModes: [.clipboard],
+            qualityChecks: [
+                .exactlyOneSentence(),
+                .containsAny(["40", "forty"], description: "Preserves the 40 percent drop"),
+                .omits("banner"),
+                .doesNotClaimNoAccess(),
+                .doesNotAskForMoreInput(),
+            ]
+        ),
+        ExternalTextScenario(
+            id: "47-access-screen-highlighted-tighten",
+            name: "Access-implying screen highlight request",
+            category: "access grounding",
+            dictatedContent: "Buddy, grab the highlighted text on my screen and tighten it up",
+            selectedText: "So basically what I am trying to say here is that we should really consider maybe moving the launch date because honestly the current timeline does not leave any room at all for the security review that legal keeps asking us about.",
+            expectedBehavior: "Tighten the selected text instead of claiming it cannot see the user's screen.",
+            reviewFocus: [
+                "The output should be a shorter version that keeps the launch date move and the security review.",
+                "It must not claim it cannot see or access the screen.",
+            ],
+            expectedProductionModes: [.selectedText],
+            expectedPhraseOnlyModes: [.selectedText],
+            qualityChecks: [
+                .contains("launch"),
+                .containsAny(["security review", "security"], description: "Keeps the security review"),
+                .wordCountAtMost(45),
+                .doesNotClaimNoAccess(),
+                .doesNotAskForMoreInput(),
+            ]
+        ),
+        ExternalTextScenario(
+            id: "48-access-listen-last-dictation",
+            name: "Access-implying listen-back request",
+            category: "access grounding",
+            dictatedContent: "Buddy, listen to what I said a moment ago and make it shorter",
+            selectedText: "Unrelated selected text: the invoice template needs a new footer.",
+            lastTranscription: "I think we should probably tell the vendor that the contract renewal is on hold until procurement finishes their audit of the licensing terms sometime next month.",
+            expectedBehavior: "Shorten the prior dictation instead of claiming it cannot listen to audio.",
+            reviewFocus: [
+                "The output should be a shorter version keeping the vendor, the hold, and the procurement audit.",
+                "It must not claim it cannot listen to or access audio.",
+            ],
+            expectedProductionModes: [.lastTranscription],
+            expectedPhraseOnlyModes: [.lastTranscription],
+            qualityChecks: [
+                .containsAny(["renewal", "contract"], description: "Keeps the contract renewal hold"),
+                .containsAny(["procurement", "audit"], description: "Keeps the procurement audit"),
+                .omits("invoice"),
+                .doesNotClaimNoAccess(),
+                .doesNotAskForMoreInput(),
             ]
         ),
     ]

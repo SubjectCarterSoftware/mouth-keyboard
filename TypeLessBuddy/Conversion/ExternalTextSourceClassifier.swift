@@ -9,26 +9,23 @@ enum AssistantContextTargetMode: String, Sendable, Equatable, CaseIterable {
     var injectsExternalText: Bool {
         switch self {
         case .selectedText, .clipboard, .lastTranscription:
-            return true
+            true
         case .none:
-            return false
+            false
         }
     }
 }
 
 enum RoutingDecisionSource: Sendable, Equatable {
-    case explicitFastPath
-    case noDeterministicMatch
+    case modelClassifier
     case noAvailableContext
 }
 
 struct AssistantContextMatchedSource: Sendable, Equatable {
     let targetMode: AssistantContextTargetMode
-    let promptLabel: String?
 
-    init(targetMode: AssistantContextTargetMode, promptLabel: String?) {
+    init(targetMode: AssistantContextTargetMode) {
         self.targetMode = targetMode
-        self.promptLabel = promptLabel
     }
 }
 
@@ -41,19 +38,13 @@ struct AssistantContextRoutingDecision: Sendable, Equatable {
         self.decisionSource = decisionSource
     }
 
-    /// Convenience initializer for a single deterministic target (or no target).
     init(
         targetMode: AssistantContextTargetMode,
-        decisionSource: RoutingDecisionSource,
-        promptLabel: String? = nil
+        decisionSource: RoutingDecisionSource
     ) {
-        if targetMode == .none {
-            self.matchedSources = []
-        } else {
-            self.matchedSources = [
-                AssistantContextMatchedSource(targetMode: targetMode, promptLabel: promptLabel)
-            ]
-        }
+        matchedSources = targetMode == .none
+            ? []
+            : [AssistantContextMatchedSource(targetMode: targetMode)]
         self.decisionSource = decisionSource
     }
 
@@ -61,14 +52,8 @@ struct AssistantContextRoutingDecision: Sendable, Equatable {
         matchedSources.map(\.targetMode)
     }
 
-    /// The single matched target when exactly one source matched, otherwise `.none`.
     var targetMode: AssistantContextTargetMode {
         matchedSources.count == 1 ? matchedSources[0].targetMode : .none
-    }
-
-    /// The single matched prompt label when exactly one source matched, otherwise `nil`.
-    var promptLabel: String? {
-        matchedSources.count == 1 ? matchedSources[0].promptLabel : nil
     }
 
     var injectsExternalText: Bool {
@@ -90,25 +75,21 @@ struct ExternalTextSourceContext: Sendable, Equatable {
         clipboardTextAvailable: Bool,
         lastTranscriptionAvailable: Bool
     ) {
-        self.selectedText = nil
-        self.clipboardText = nil
-        self.lastTranscription = nil
-        self.selectedTextAvailableOverride = selectedTextAvailable
-        self.clipboardTextAvailableOverride = clipboardTextAvailable
-        self.lastTranscriptionAvailableOverride = lastTranscriptionAvailable
+        selectedText = nil
+        clipboardText = nil
+        lastTranscription = nil
+        selectedTextAvailableOverride = selectedTextAvailable
+        clipboardTextAvailableOverride = clipboardTextAvailable
+        lastTranscriptionAvailableOverride = lastTranscriptionAvailable
     }
 
-    init(
-        selectedText: String?,
-        clipboardText: String?,
-        lastTranscription: String?
-    ) {
+    init(selectedText: String?, clipboardText: String?, lastTranscription: String?) {
         self.selectedText = selectedText
         self.clipboardText = clipboardText
         self.lastTranscription = lastTranscription
-        self.selectedTextAvailableOverride = nil
-        self.clipboardTextAvailableOverride = nil
-        self.lastTranscriptionAvailableOverride = nil
+        selectedTextAvailableOverride = nil
+        clipboardTextAvailableOverride = nil
+        lastTranscriptionAvailableOverride = nil
     }
 
     var selectedTextAvailable: Bool {
@@ -128,15 +109,83 @@ struct ExternalTextSourceContext: Sendable, Equatable {
     }
 }
 
-/// Deterministic, synchronous router that decides which available text source(s) a
-/// dictated assistant command refers to. Matching is whole-word and phrase-table based;
-/// there is no model call. When the command names multiple sources, they are returned in
-/// the stable order last transcription → clipboard → selected text.
-struct ExternalTextSourceClassifier {
-    static func classify(
-        message: String,
+protocol AssistantContextRouting: Sendable {
+    func route(
+        request: String,
         availableSources: ExternalTextSourceContext
-    ) -> AssistantContextRoutingDecision {
+    ) async throws -> AssistantContextRoutingDecision
+}
+
+enum AssistantContextRoutingError: LocalizedError, Equatable {
+    case invalidModelResponse
+
+    var errorDescription: String? {
+        switch self {
+        case .invalidModelResponse:
+            "The on-device context classifier returned an invalid response. Please try again."
+        }
+    }
+}
+
+/// A narrow, local-only routing step that identifies which already-captured source
+/// text a request needs. It is intentionally a dedicated 4B model instance so a
+/// user-selected 2B rewrite model cannot silently downgrade routing accuracy. The
+/// router gets availability and the request only; source contents are never sent in
+/// this preliminary call.
+actor LocalModelAssistantContextRouter: AssistantContextRouting {
+    static let routingTier: RewriteModelTier = .standard4B
+    static let shared = LocalModelAssistantContextRouter()
+
+    static let orderedModes: [AssistantContextTargetMode] = [
+        .lastTranscription,
+        .clipboard,
+        .selectedText,
+    ]
+
+    static let systemPrompt = """
+    You classify which already-captured private context a voice assistant should attach to answer a request.
+
+    You receive the spoken request and only whether each context source is available. You never receive the context contents.
+
+    Select a source only when the user clearly asks to transform, summarize, compare, explain, or otherwise work with text from that captured source. Never select a source just because it is available. A request to draft new content, or to discuss a selection page, selection process, clipboard API, or transcript policy, needs no source text.
+
+    Default to NONE. Choose the smallest possible source set. You may choose more than one source only if the request clearly needs more than one. If the named source is unavailable, choose NONE; do not substitute a different available source. A vague word such as "this", "that", "it", or "the copy" alone is not enough to select a source.
+
+    Critical safety rule: output labels must be a subset of the source labels marked AVAILABLE in the user message. A source marked UNAVAILABLE does not exist for this request. If the request names any unavailable source, output SOURCES: NONE instead of naming it or substituting another source.
+
+    Examples:
+    - All sources available; "Draft a brief email to reschedule next week's call." → SOURCES: NONE
+    - Selected text and clipboard available; "Turn the highlighted blurb into a short update." → SOURCES: SELECTED_TEXT
+    - Selected text available; "Tighten the words I marked." → SOURCES: SELECTED_TEXT
+    - Selected text available; "Reduce the current paragraph to three bullets." → SOURCES: SELECTED_TEXT
+    - Clipboard available; "Please clean up the thing in my pasteboard." → SOURCES: CLIPBOARD
+    - Clipboard available; "Summarize the paragraph I copied a moment ago." → SOURCES: CLIPBOARD
+    - Last transcription available; "Make the last thing I said more concise." → SOURCES: LAST_TRANSCRIPTION
+    - Selected text and last transcription available; "Compare what's highlighted with the prior thing I said." → SOURCES: SELECTED_TEXT, LAST_TRANSCRIPTION
+    - Clipboard available; "Use the highlighted passage to write a short summary." → SOURCES: NONE
+    - Selected text and clipboard available, last transcription unavailable; "Make the previous voice input shorter." → SOURCES: NONE
+    - Selected text and clipboard available, last transcription unavailable; "Clean up my last dictation." → SOURCES: NONE
+    - All sources available; "Write a concise summary of the selection process." → SOURCES: NONE
+    - All sources available; "Make this pitch more concise." → SOURCES: NONE
+
+    Reply with exactly one line in this form and nothing else:
+    SOURCES: NONE
+    or
+    SOURCES: SELECTED_TEXT, CLIPBOARD, LAST_TRANSCRIPTION
+
+    The only valid labels are SELECTED_TEXT, CLIPBOARD, and LAST_TRANSCRIPTION. Never choose a source marked unavailable.
+    """
+
+    private let generator: any Rewriting
+
+    init(generator: any Rewriting = LocalRewriteService(tier: routingTier)) {
+        self.generator = generator
+    }
+
+    func route(
+        request: String,
+        availableSources: ExternalTextSourceContext
+    ) async throws -> AssistantContextRoutingDecision {
         guard availableSources.hasAvailableSource else {
             return AssistantContextRoutingDecision(
                 matchedSources: [],
@@ -144,321 +193,104 @@ struct ExternalTextSourceClassifier {
             )
         }
 
-        let matchedSources = explicitMatchedSources(in: message, availableSources: availableSources)
-        if !matchedSources.isEmpty {
-            return AssistantContextRoutingDecision(
-                matchedSources: matchedSources,
-                decisionSource: .explicitFastPath
-            )
+        // This is a dedicated routing model, not the user's rewrite-model instance.
+        // Release it shortly after the decision so selecting a 9B rewrite tier does
+        // not leave both model weight sets resident indefinitely.
+        defer {
+            Task { [generator] in
+                await generator.scheduleIdleUnload(afterNanoseconds: LocalRewriteService.idleUnloadDelayNanoseconds)
+            }
         }
-
+        let response = try await generator.generate(
+            prompt: Self.userPrompt(request: request, availableSources: availableSources),
+            systemPrompt: Self.systemPrompt
+        )
+        let modes = try Self.parseModes(from: response, availableSources: availableSources)
         return AssistantContextRoutingDecision(
-            matchedSources: [],
-            decisionSource: .noDeterministicMatch
+            matchedSources: modes.map { AssistantContextMatchedSource(targetMode: $0) },
+            decisionSource: .modelClassifier
         )
     }
 
-    /// Stable order: last transcription, clipboard, selected text. Each source contributes
-    /// at most one match, labelled with the longest phrase that matched it.
-    private static func explicitMatchedSources(
-        in message: String,
+    func prewarm() async throws {
+        try await generator.prewarm()
+    }
+
+    func scheduleIdleUnload(afterNanoseconds duration: UInt64) async {
+        await generator.scheduleIdleUnload(afterNanoseconds: duration)
+    }
+
+    func cancelScheduledUnload() async {
+        await generator.cancelScheduledUnload()
+    }
+
+    static func userPrompt(
+        request: String,
         availableSources: ExternalTextSourceContext
-    ) -> [AssistantContextMatchedSource] {
-        let lowered = message.lowercased()
-        var matched: [AssistantContextMatchedSource] = []
+    ) -> String {
+        let allowedLabels = orderedModes
+            .filter { isAvailable($0, in: availableSources) }
+            .map(\.rawValue)
+            .joined(separator: ", ")
+        return """
+        Source availability:
+        - SELECTED_TEXT: \(availableSources.selectedTextAvailable ? "available" : "unavailable")
+        - CLIPBOARD: \(availableSources.clipboardTextAvailable ? "available" : "unavailable")
+        - LAST_TRANSCRIPTION: \(availableSources.lastTranscriptionAvailable ? "available" : "unavailable")
 
-        if availableSources.lastTranscriptionAvailable,
-           let label = longestWholeWordMatch(in: lowered, phrases: transcriptionPhrases) {
-            matched.append(AssistantContextMatchedSource(targetMode: .lastTranscription, promptLabel: label))
-        }
+        The only labels you are permitted to output for this request are:
+        \(allowedLabels.isEmpty ? "(none; answer SOURCES: NONE)" : allowedLabels)
 
-        if availableSources.clipboardTextAvailable,
-           let label = longestWholeWordMatch(in: lowered, phrases: clipboardPhrases) {
-            matched.append(AssistantContextMatchedSource(targetMode: .clipboard, promptLabel: label))
-        }
-
-        if availableSources.selectedTextAvailable,
-           let label = longestWholeWordMatch(in: lowered, phrases: selectedPhrases) {
-            if !isSelectionNounFalsePositive(label: label, in: lowered) {
-                matched.append(AssistantContextMatchedSource(targetMode: .selectedText, promptLabel: label))
-            }
-        }
-
-        return matched
+        Spoken request:
+        \(request)
+        """
     }
 
-    /// Returns the longest phrase from `phrases` that occurs in `lowered` as a whole word.
-    private static func longestWholeWordMatch(in lowered: String, phrases: [String]) -> String? {
-        var best: String?
-        for phrase in phrases where containsWholeWord(phrase, in: lowered) {
-            if best == nil || phrase.count > (best?.count ?? 0) {
-                best = phrase
-            }
+    static func parseModes(
+        from response: String,
+        availableSources: ExternalTextSourceContext
+    ) throws -> [AssistantContextTargetMode] {
+        let normalized = response.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !normalized.contains(where: \.isNewline),
+              normalized.uppercased().hasPrefix("SOURCES:") else {
+            throw AssistantContextRoutingError.invalidModelResponse
         }
-        return best
+
+        let labels = normalized.dropFirst("SOURCES:".count)
+            .split(separator: ",")
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines).uppercased() }
+        guard !labels.isEmpty else {
+            throw AssistantContextRoutingError.invalidModelResponse
+        }
+        if labels == ["NONE"] {
+            return []
+        }
+
+        let modes = labels.compactMap { label in
+            orderedModes.first(where: { $0.rawValue == label })
+        }
+        let uniqueModes = Set(modes)
+        guard modes.count == labels.count,
+              uniqueModes.count == modes.count,
+              uniqueModes.allSatisfy({ isAvailable($0, in: availableSources) }) else {
+            throw AssistantContextRoutingError.invalidModelResponse
+        }
+        return orderedModes.filter { uniqueModes.contains($0) }
     }
 
-    /// Whole-word containment so "the selection" does not match "the selections" and
-    /// "transcription" does not match "transcriptions".
-    private static func containsWholeWord(_ phrase: String, in lowered: String) -> Bool {
-        guard !phrase.isEmpty else { return false }
-        let pattern = "\\b\(NSRegularExpression.escapedPattern(for: phrase))\\b"
-        guard let regex = try? NSRegularExpression(pattern: pattern) else { return false }
-        let range = NSRange(lowered.startIndex..<lowered.endIndex, in: lowered)
-        return regex.firstMatch(in: lowered, options: [], range: range) != nil
+    private static func isAvailable(
+        _ mode: AssistantContextTargetMode,
+        in sources: ExternalTextSourceContext
+    ) -> Bool {
+        switch mode {
+        case .selectedText:
+            sources.selectedTextAvailable
+        case .clipboard:
+            sources.clipboardTextAvailable
+        case .lastTranscription:
+            sources.lastTranscriptionAvailable
+        case .none:
+            false
+        }
     }
-
-    private static func isSelectionNounFalsePositive(label: String, in lowered: String) -> Bool {
-        guard ambiguousSelectionNounLabels.contains(label) else { return false }
-        return selectionNounFalsePositivePhrases.contains { containsWholeWord($0, in: lowered) }
-    }
-
-    private static let ambiguousSelectionNounLabels: Set<String> = [
-        "the selection",
-        "my selection",
-        "the current selection",
-        "that selection",
-    ]
-
-    private static let selectionNounFalsePositivePhrases = [
-        "selection page",
-        "selection screen",
-        "selection view",
-        "selection flow",
-        "selection menu",
-        "selection list",
-        "selection state",
-    ]
-
-    // Exposed (internal) so structural parity tests can verify the phrase grid.
-    static let selectedPhrases = [
-        // explicit selection references
-        "selected text",
-        "the selected text",
-        "selected paragraph",
-        "selected draft",
-        "selected content",
-        "selected portion",
-        "the selection",
-        "my selection",
-        "currently selected",
-        "the current selection",
-        "what's selected",
-        "whats selected",
-        "what is selected",
-        "what i've selected",
-        "what ive selected",
-        "what i have selected",
-        "what i selected",
-        "this text that i selected",
-        "this text that i have selected",
-        "this text that i've selected",
-        "this text that ive selected",
-        // highlighted references (common synonym for selected)
-        "highlighted text",
-        "the highlighted text",
-        "highlighted content",
-        "highlighted paragraph",
-        "highlighted portion",
-        "the highlighted",
-        "currently highlighted",
-        "what i highlighted",
-        "what's highlighted",
-        "whats highlighted",
-        "what is highlighted",
-        "what i have highlighted",
-        "what i've highlighted",
-        "what ive highlighted",
-        "i have highlighted",
-        "i've highlighted",
-        "ive highlighted",
-        "this text that i highlighted",
-        "this text that i have highlighted",
-        "this text that i've highlighted",
-        "this text that ive highlighted",
-        // "this X" references (pointing at visible/selected content)
-        "this text",
-        "this sentence",
-        "this paragraph",
-        "this section",
-        "this passage",
-        "this excerpt",
-        "this content",
-        "this draft",
-        "this writing",
-        "this block",
-        // "that X" references (speech-to-text often produces "that" instead of "this")
-        "that text",
-        "that sentence",
-        "that paragraph",
-        "that section",
-        "that passage",
-        "that excerpt",
-        "that content",
-        "that draft",
-        "that writing",
-        "that block",
-        "that selection",
-        "that selected text",
-        "that highlighted text",
-        // informal "the thing I" references
-        "the thing i selected",
-        "the thing i have selected",
-        "the thing i've selected",
-        "the thing ive selected",
-        "the thing i highlighted",
-        "the thing i have highlighted",
-        "the thing i've highlighted",
-        "the thing ive highlighted",
-        // "the X I selected/highlighted" patterns
-        "the text i selected",
-        "the text i have selected",
-        "the text i've selected",
-        "the text ive selected",
-        "the text i highlighted",
-        "the text i have highlighted",
-        "the text i've highlighted",
-        "the text ive highlighted",
-        "the part i selected",
-        "the part i highlighted",
-        "the chunk i selected",
-        "the chunk i highlighted",
-        "the bit i selected",
-        "the bit i highlighted",
-        "the words i selected",
-        "the words i highlighted",
-        "the section i selected",
-        "the section i highlighted",
-        "the paragraph i selected",
-        "the paragraph i highlighted",
-        "the snippet i selected",
-        "the snippet i highlighted",
-        "the line i selected",
-        "the line i highlighted",
-        "the passage i selected",
-        "the passage i highlighted",
-        "the excerpt i selected",
-        "the excerpt i highlighted"
-    ]
-
-    static let clipboardPhrases = [
-        // explicit clipboard references
-        "clipboard",
-        "my clipboard",
-        "from my clipboard",
-        "from the clipboard",
-        "on my clipboard",
-        "on the clipboard",
-        "in the clipboard",
-        "what's in my clipboard",
-        "whats in my clipboard",
-        "what is in my clipboard",
-        "what's on my clipboard",
-        "whats on my clipboard",
-        "what is on my clipboard",
-        // natural "copied" references that don't say clipboard
-        "what i copied",
-        "what i just copied",
-        "i just copied",
-        "what was copied",
-        "that i copied",
-        "the copied text",
-        "the text i copied",
-        "the thing i copied",
-        "the text i just copied",
-        "the thing i just copied",
-        "copied to clipboard",
-        "copied to the clipboard",
-        // "have copied" / contraction variants (speech-to-text commonly produces these)
-        "i have copied",
-        "i've copied",
-        "ive copied",
-        "what i have copied",
-        "what i've copied",
-        "what ive copied",
-        "that i have copied",
-        "that i've copied",
-        "that ive copied",
-        "the text i have copied",
-        "the text i've copied",
-        "the text ive copied",
-        "the thing i have copied",
-        "the thing i've copied",
-        "the thing ive copied"
-    ]
-
-    static let transcriptionPhrases = [
-        // explicit transcription references
-        "transcription",
-        "the transcription",
-        "last transcription",
-        "the last transcription",
-        "my last transcription",
-        "transcribed text",
-        "what was transcribed",
-        // transcript (shorter synonym people commonly use)
-        "transcript",
-        "the transcript",
-        "my transcript",
-        "last transcript",
-        "my last transcript",
-        // dictation references
-        "my dictation",
-        "what i dictated",
-        "my last dictation",
-        "what i just dictated",
-        "what i have dictated",
-        "what i've dictated",
-        "what ive dictated",
-        // speech/voice references
-        "what i said",
-        "what i just said",
-        "i just said",
-        "what i have said",
-        "what i've said",
-        "what ive said",
-        "what i spoke",
-        "my voice note",
-        "the voice note",
-        "my voice memo",
-        "the voice memo",
-        // recording references
-        "my recording",
-        "the recording",
-        "my last recording",
-        "last recording",
-        "latest recording",
-        "recent recording",
-        "previous recording",
-        "what i recorded",
-        "what i have recorded",
-        "what i've recorded",
-        "what ive recorded",
-        // dictation time variants
-        "the dictation",
-        "last dictation",
-        "latest dictation",
-        "recent dictation",
-        "previous dictation",
-        "my latest dictation",
-        "my recent dictation",
-        "my previous dictation",
-        // transcription time variants
-        "latest transcription",
-        "recent transcription",
-        "previous transcription",
-        // informal "the thing I" references
-        "the thing i said",
-        "the thing i have said",
-        "the thing i've said",
-        "the thing ive said",
-        "the thing i dictated",
-        "the thing i have dictated",
-        "the thing i've dictated",
-        "the thing ive dictated",
-        "the thing i recorded",
-        "the thing i have recorded",
-        "the thing i've recorded",
-        "the thing ive recorded"
-    ]
 }

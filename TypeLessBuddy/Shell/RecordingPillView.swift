@@ -305,13 +305,13 @@ struct RecordingPillView: View {
         // Only smooth the audio-level stream for the recording meter. In
         // processing/rewriting the bars are driven per-frame by TimelineView,
         // so this implicit tween would fight those values and look stuttery.
-        .animation(mode == .recording ? .easeInOut(duration: 0.1) : nil, value: levelMonitor.level)
+        .animation(mode == .recording ? .easeInOut(duration: 0.1) : nil, value: levelMonitor.displayLevel)
     }
 
     private func barHeight(for scale: CGFloat, index: Int) -> CGFloat {
         let minimumHeight: CGFloat = 4
         let maximumHeight: CGFloat = 28
-        let level = max(0, min(CGFloat(levelMonitor.level), 1))
+        let level = max(0, min(CGFloat(levelMonitor.displayLevel), 1))
         let modulation = (CGFloat(index) * 0.05) + (index.isMultiple(of: 2) ? 0.08 : 0.0)
         let effectiveLevel = min(1, (level * scale) + (level * modulation))
         return minimumHeight + ((maximumHeight - minimumHeight) * effectiveLevel)

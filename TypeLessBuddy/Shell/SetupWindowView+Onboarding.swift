@@ -4,11 +4,19 @@ import SwiftUI
 // MARK: - Onboarding flow
 
 extension SetupWindowView {
-    /// The "Try It Out" step's subtitle reflects whether the local models are
-    /// still preparing, since the tryout itself is gated on readiness.
+    /// The shortcuts and "Try It Out" steps' subtitles reflect whether the local
+    /// models are still preparing, since the keybind quick-test and the tryout
+    /// are both gated on readiness.
     var currentOnboardingSubtitle: String {
-        if onboardingStep == .speechEngine, !areOnboardingModelsReady {
-            return "Hang tight — getting your local models ready. You can try it out the moment they're done."
+        if !areOnboardingModelsReady {
+            switch onboardingStep {
+            case .shortcuts:
+                return "Set your shortcuts now — the quick test below unlocks the moment your local models are ready."
+            case .speechEngine:
+                return "Hang tight — getting your local models ready. You can try it out the moment they're done."
+            default:
+                break
+            }
         }
         return onboardingStep.subtitle
     }
@@ -17,11 +25,11 @@ extension SetupWindowView {
         switch step {
         case .microphone:
             return isMicrophoneAuthorized
-        case .shortcuts, .pillPosition, .vocabularyPacks:
+        case .pillPosition, .vocabularyPacks:
             return true
         case .accessibility:
             return isAccessibilityAuthorized
-        case .speechEngine:
+        case .shortcuts, .speechEngine:
             return areOnboardingModelsReady
         }
     }
@@ -96,11 +104,11 @@ extension SetupWindowView {
         switch onboardingStep {
         case .microphone:
             return isMicrophoneAuthorized
-        case .shortcuts, .pillPosition, .vocabularyPacks:
+        case .pillPosition, .vocabularyPacks:
             return true
         case .accessibility:
             return isAccessibilityAuthorized
-        case .speechEngine:
+        case .shortcuts, .speechEngine:
             return areOnboardingModelsReady
         }
     }
@@ -183,10 +191,6 @@ extension SetupWindowView {
 
     var onboardingShortcutsStep: some View {
         VStack(alignment: .leading, spacing: 18) {
-            OnboardingNoteBanner(
-                text: "Configure the shortcuts now so they are ready as soon as setup finishes."
-            )
-
             OnboardingFeatureCard(
                 systemImage: "command",
                 title: "Shortcut Assignment",
@@ -254,7 +258,73 @@ extension SetupWindowView {
                     KeyboardShortcutsRow(preferences: preferences)
                 }
             }
+
+            onboardingShortcutTestCard
         }
+        .onAppear {
+            startOnboardingActivationIfReady()
+        }
+        .onChange(of: areOnboardingModelsReady) { _, ready in
+            if ready { startOnboardingActivationIfReady() }
+        }
+    }
+
+    /// Quick keybind test below the recorders. The box is a real auto-paste
+    /// target (same trick as the tryout box), so triggering a shortcut and
+    /// speaking lands the transcript right in it. Locked until the local models
+    /// are ready, because until then a trigger press can't produce anything.
+    var onboardingShortcutTestCard: some View {
+        OnboardingFeatureCard(
+            systemImage: "waveform",
+            title: "Test Your Shortcuts",
+            badgeTitle: areOnboardingModelsReady ? "Ready" : "Preparing models…",
+            badgeTone: areOnboardingModelsReady ? .success : .warning
+        ) {
+            if areOnboardingModelsReady {
+                Text("Click into the box, trigger a shortcut you just set, and say a few words — your transcript appears right here.")
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
+
+                shortcutTestTextBox
+            } else {
+                VStack(alignment: .leading, spacing: 8) {
+                    HStack(spacing: 8) {
+                        ProgressView()
+                            .controlSize(.small)
+                        Text("Getting your local models ready — the test box unlocks the moment they're done.")
+                            .font(.callout)
+                            .foregroundStyle(.secondary)
+                    }
+                    if let progress = tryoutModelPrepProgress {
+                        ProgressView(value: progress)
+                            .progressViewStyle(.linear)
+                    }
+                }
+            }
+        }
+    }
+
+    var shortcutTestTextBox: some View {
+        TextEditor(text: $shortcutTestBoxText)
+            .font(.body)
+            .scrollContentBackground(.hidden)
+            .padding(8)
+            .frame(maxWidth: .infinity, minHeight: 90, maxHeight: .infinity)
+            .background(
+                Color.black.opacity(0.25),
+                in: RoundedRectangle(cornerRadius: 12, style: .continuous)
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                    .strokeBorder(Color.white.opacity(0.12), lineWidth: 1)
+            )
+            .overlay {
+                if shortcutTestBoxText.isEmpty {
+                    tryoutHoldHint
+                        .allowsHitTesting(false)
+                }
+            }
+            .accessibilityIdentifier("onboarding.shortcuts.testBox")
     }
 
     var onboardingPillPositionStep: some View {
