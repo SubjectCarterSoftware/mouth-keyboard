@@ -1,6 +1,6 @@
 # Third-Party License Review
 
-This project currently resolves the following Swift Package Manager dependencies via [Package.resolved](TypeLessBuddy.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved).
+This project currently resolves the following Swift Package Manager dependencies via [Package.resolved](MouthKeyboard.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved).
 
 ## Summary
 

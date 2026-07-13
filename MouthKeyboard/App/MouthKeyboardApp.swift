@@ -2,7 +2,7 @@ import SwiftUI
 
 @main
 @MainActor
-struct TypeLessBuddyApp: App {
+struct MouthKeyboardApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
 
     var body: some Scene {

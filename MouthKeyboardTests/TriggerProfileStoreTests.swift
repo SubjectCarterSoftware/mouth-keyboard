@@ -1,5 +1,5 @@
 import XCTest
-@testable import TypeLessBuddy
+@testable import MouthKeyboard
 
 final class TriggerProfileStoreTests: XCTestCase {
     func testDefaultProfileReturnedWhenStorageMissing() async {

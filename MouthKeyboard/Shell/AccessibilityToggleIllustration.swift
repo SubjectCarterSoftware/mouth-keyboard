@@ -58,7 +58,7 @@ struct AccessibilityToggleIllustration: View {
                 .interpolation(.high)
                 .frame(width: 30, height: 30)
 
-            Text("TypeLessBuddy")
+            Text("Mouth Keyboard")
                 .font(.callout.weight(.semibold))
                 .foregroundStyle(.primary)
 

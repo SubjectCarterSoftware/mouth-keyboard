@@ -48,7 +48,7 @@ final class ReadinessStore: ObservableObject {
         )
 
         if previousState != .ready, newSnapshot.state == .ready {
-            readyConfirmation = "Permissions restored. TypeLessBuddy is ready."
+            readyConfirmation = "Permissions restored. Mouth Keyboard is ready."
         } else if newSnapshot.state != .ready {
             readyConfirmation = nil
         }

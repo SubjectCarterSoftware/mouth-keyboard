@@ -10,6 +10,8 @@
 	<string>$(PRODUCT_BUNDLE_IDENTIFIER)</string>
 	<key>CFBundleInfoDictionaryVersion</key>
 	<string>6.0</string>
+	<key>CFBundleDisplayName</key>
+	<string>Mouth Keyboard</string>
 	<key>CFBundleName</key>
 	<string>$(PRODUCT_NAME)</string>
 	<key>CFBundlePackageType</key>
@@ -23,9 +25,9 @@
 	<key>NSHighResolutionCapable</key>
 	<true/>
 	<key>NSMicrophoneUsageDescription</key>
-	<string>TypeLessBuddy records your voice when you activate dictation with the configured hotkey. Audio is processed locally and never leaves your device.</string>
+	<string>Mouth Keyboard records your voice when you activate dictation with the configured hotkey. Audio is processed locally and never leaves your device.</string>
 	<key>NSAccessibilityUsageDescription</key>
-	<string>TypeLessBuddy monitors the keyboard shortcut you configure so it can start recording when you activate it. No other input is read or stored.</string>
+	<string>Mouth Keyboard monitors the keyboard shortcut you configure so it can start recording when you activate it. No other input is read or stored.</string>
 	<key>NSPrincipalClass</key>
 	<string>NSApplication</string>
 </dict>

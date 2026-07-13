@@ -117,7 +117,7 @@ struct MouseButtonBindingSet: Codable, Equatable {
 @MainActor
 final class ShellPreferences: ObservableObject {
     enum Keys {
-        static let suiteName = "com.elicarter.TypeLessBuddy.shell"
+        static let suiteName = "com.elicarter.MouthKeyboard.shell"
         static let hasCompletedInitialSetup = "hasCompletedInitialSetup"
         static let completedOnboardingBuildIdentifier = "completedOnboardingBuildIdentifier"
         static let onboardingResumeToken = "onboardingResumeToken"
@@ -701,7 +701,7 @@ final class ShellPreferences: ObservableObject {
                 try SMAppService.mainApp.unregister()
             }
         } catch {
-            NSLog("TypeLessBuddy: failed to update launch-at-login: \(error.localizedDescription)")
+            NSLog("MouthKeyboard: failed to update launch-at-login: \(error.localizedDescription)")
         }
         launchAtLogin = SMAppService.mainApp.status == .enabled
     }
@@ -759,7 +759,7 @@ final class ShellPreferences: ObservableObject {
             activeDictionaryData = data
             return true
         } catch {
-            NSLog("TypeLessBuddy: failed to persist dictionary data: \(error.localizedDescription)")
+            NSLog("MouthKeyboard: failed to persist dictionary data: \(error.localizedDescription)")
             return false
         }
     }
@@ -804,7 +804,7 @@ final class ShellPreferences: ObservableObject {
             activeTriggerProfile = normalizedProfile
             return true
         } catch {
-            NSLog("TypeLessBuddy: failed to persist \(logContext): \(error.localizedDescription)")
+            NSLog("MouthKeyboard: failed to persist \(logContext): \(error.localizedDescription)")
             return false
         }
     }
@@ -925,7 +925,7 @@ final class ShellPreferences: ObservableObject {
             // Use an isolated, temporary trigger-profile store for UI tests so
             // they never read or mutate the developer's real Application Support store.
             let tempDir = FileManager.default.temporaryDirectory
-                .appendingPathComponent("TypeLessBuddy.UITests", isDirectory: true)
+                .appendingPathComponent("MouthKeyboard.UITests", isDirectory: true)
             try? FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
             let testStoreURL = tempDir.appendingPathComponent("TriggerProfileStore.json")
             // Remove leftover file from a previous test run so each launch is clean.

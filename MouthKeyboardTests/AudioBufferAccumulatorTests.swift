@@ -1,6 +1,6 @@
 import AVFoundation
 import XCTest
-@testable import TypeLessBuddy
+@testable import MouthKeyboard
 
 final class AudioBufferAccumulatorTests: XCTestCase {
     private let windowSampleCount = 1_600

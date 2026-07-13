@@ -1,5 +1,5 @@
 import XCTest
-@testable import TypeLessBuddy
+@testable import MouthKeyboard
 
 // MARK: - CloudLLMProvider Tests
 
@@ -508,7 +508,7 @@ final class CloudModelListServiceTests: XCTestCase {
 final class CloudLLMConfigPersistenceTests: XCTestCase {
     @MainActor
     func testCloudLLMConfigPersistsAndRestores() {
-        let suiteName = "com.elicarter.TypeLessBuddy.shell.cloudtest.\(UUID().uuidString)"
+        let suiteName = "com.elicarter.MouthKeyboard.shell.cloudtest.\(UUID().uuidString)"
         let defaults = UserDefaults(suiteName: suiteName)!
         defer { defaults.removePersistentDomain(forName: suiteName) }
 

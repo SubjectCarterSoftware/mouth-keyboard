@@ -2,7 +2,7 @@ import AppKit
 import Combine
 import MLXLMCommon
 import XCTest
-@testable import TypeLessBuddy
+@testable import MouthKeyboard
 
 @MainActor
 final class ActivationStoreTests: XCTestCase {
@@ -2643,12 +2643,12 @@ final class ActivationStoreTests: XCTestCase {
         switch mode {
         case .newFile:
             preferences.assistantNoteFolderPath = FileManager.default.temporaryDirectory
-                .appendingPathComponent("TypeLessBuddyNotes")
+                .appendingPathComponent("MouthKeyboardNotes")
                 .appendingPathComponent(UUID().uuidString)
                 .path
         case .appendToFile:
             preferences.assistantNoteAppendFilePath = FileManager.default.temporaryDirectory
-                .appendingPathComponent("TypeLessBuddyNotes")
+                .appendingPathComponent("MouthKeyboardNotes")
                 .appendingPathComponent(UUID().uuidString)
                 .appendingPathExtension("md")
                 .path

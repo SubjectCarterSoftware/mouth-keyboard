@@ -487,12 +487,12 @@ actor WhisperService: WhisperTranscribing {
             create: true
         ) {
             return appSupport
-                .appendingPathComponent("TypeLessBuddy", isDirectory: true)
+                .appendingPathComponent("MouthKeyboard", isDirectory: true)
                 .appendingPathComponent("WhisperModel", isDirectory: true)
         }
 
         return fileManager.temporaryDirectory
-            .appendingPathComponent("TypeLessBuddy", isDirectory: true)
+            .appendingPathComponent("MouthKeyboard", isDirectory: true)
             .appendingPathComponent("WhisperModel", isDirectory: true)
     }
 

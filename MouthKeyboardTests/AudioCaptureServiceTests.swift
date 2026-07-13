@@ -1,6 +1,6 @@
 import AVFoundation
 import XCTest
-@testable import TypeLessBuddy
+@testable import MouthKeyboard
 
 final class AudioCaptureServiceTests: XCTestCase {
     @MainActor

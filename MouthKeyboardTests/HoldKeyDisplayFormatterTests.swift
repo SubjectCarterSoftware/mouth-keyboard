@@ -1,5 +1,5 @@
 import XCTest
-@testable import TypeLessBuddy
+@testable import MouthKeyboard
 
 @MainActor
 final class HoldKeyDisplayFormatterTests: XCTestCase {

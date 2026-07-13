@@ -8,9 +8,9 @@
 # during the Phase 3 split. Add more rules as the code is cleaned up.
 
 included:
-  - TypeLessBuddy
-  - TypeLessBuddyTests
-  - TypeLessBuddyUITests
+  - MouthKeyboard
+  - MouthKeyboardTests
+  - MouthKeyboardUITests
 
 excluded:
   - build

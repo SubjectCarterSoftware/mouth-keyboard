@@ -1,6 +1,6 @@
 # Contributing
 
-Thanks for considering a contribution to TypeLessBuddy.
+Thanks for considering a contribution to Mouth Keyboard.
 
 ## Setup
 
@@ -10,8 +10,8 @@ Requirements:
 - Xcode with macOS app development support
 - Swift Package Manager access to the dependencies pinned in `Package.resolved`
 
-Clone the repository, open `TypeLessBuddy.xcodeproj`, and use the shared
-`TypeLessBuddy` scheme for normal development.
+Clone the repository, open `MouthKeyboard.xcodeproj`, and use the shared
+`MouthKeyboard` scheme for normal development.
 
 ## Signing
 
@@ -37,7 +37,7 @@ Use the repository build script:
 The debug app is written to:
 
 ```text
-build/DerivedData-app/Build/Products/Debug/TypeLessBuddy.app
+build/DerivedData-app/Build/Products/Debug/MouthKeyboard.app
 ```
 
 Build products under `build/` and release artifacts under `dist/` are local
@@ -45,18 +45,18 @@ artifacts and should not be committed.
 
 ## Tests
 
-Run the normal unit suite with the `TypeLessBuddy` scheme:
+Run the normal unit suite with the `MouthKeyboard` scheme:
 
 ```bash
-xcodebuild test -scheme TypeLessBuddy
+xcodebuild test -scheme MouthKeyboard
 ```
 
-The default scheme runs `TypeLessBuddyTests` only. It is dependency-injected and
+The default scheme runs `MouthKeyboardTests` only. It is dependency-injected and
 does not trigger microphone, accessibility, or automation OS prompts.
 
 Do not run UI tests as part of normal development or CI. They launch the real
 app and may require approving OS prompts. Run them only at a machine where you
-can approve prompts, using the `TypeLessBuddyManualUI` scheme.
+can approve prompts, using the `MouthKeyboardManualUI` scheme.
 
 Real model integration tests are slow and require local model assets. They skip
 unless `RUN_MODEL_INTEGRATION_TESTS=1` is set.

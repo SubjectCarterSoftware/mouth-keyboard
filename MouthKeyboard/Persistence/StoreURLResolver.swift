@@ -11,11 +11,11 @@ enum StoreURLResolver {
                 create: true
             )
             return appSupport
-                .appendingPathComponent("TypeLessBuddy", isDirectory: true)
+                .appendingPathComponent("MouthKeyboard", isDirectory: true)
                 .appendingPathComponent(fileName)
         } catch {
             NSLog(
-                "TypeLessBuddy: Failed to resolve Application Support directory for %@ (%@); falling back to temporary storage.",
+                "MouthKeyboard: Failed to resolve Application Support directory for %@ (%@); falling back to temporary storage.",
                 fileName,
                 error.localizedDescription
             )

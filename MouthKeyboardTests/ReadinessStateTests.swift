@@ -1,5 +1,5 @@
 import XCTest
-@testable import TypeLessBuddy
+@testable import MouthKeyboard
 
 @MainActor
 final class ReadinessStateTests: XCTestCase {
@@ -78,7 +78,7 @@ final class ReadinessStateTests: XCTestCase {
         store.refresh()
 
         XCTAssertEqual(store.snapshot.state, .ready)
-        XCTAssertEqual(store.readyConfirmation, "Permissions restored. TypeLessBuddy is ready.")
+        XCTAssertEqual(store.readyConfirmation, "Permissions restored. Mouth Keyboard is ready.")
     }
 
     private func makePreferences(file: StaticString = #filePath, line: UInt = #line) -> ShellPreferences {

@@ -3,13 +3,13 @@ import Combine
 import Foundation
 import MLXLMCommon
 import XCTest
-@testable import TypeLessBuddy
+@testable import MouthKeyboard
 
 /// Opt-in diagnostic suite for external-text assistant prompts.
 ///
 /// Run with:
-/// RUN_EXTERNAL_TEXT_SCENARIO_EVAL_TESTS=1 xcodebuild test -scheme TypeLessBuddy \
-///   -only-testing:TypeLessBuddyTests/ExternalTextScenarioMatrixEvaluationTests
+/// RUN_EXTERNAL_TEXT_SCENARIO_EVAL_TESTS=1 xcodebuild test -scheme MouthKeyboard \
+///   -only-testing:MouthKeyboardTests/ExternalTextScenarioMatrixEvaluationTests
 ///
 /// Optional:
 /// - EXTERNAL_TEXT_EVAL_OUTPUT_DIR=/absolute/path
@@ -420,7 +420,7 @@ final class ExternalTextScenarioMatrixEvaluationTests: XCTestCase {
 /// because false positives expose unrelated private context to the rewrite prompt.
 ///
 /// Run by creating `/tmp/run_model_context_routing_eval` before invoking the normal
-/// `TypeLessBuddy` unit-test scheme. A Markdown report is written under `build/` even
+/// `MouthKeyboard` unit-test scheme. A Markdown report is written under `build/` even
 /// if some evaluation cases fail, so prompt changes remain auditable.
 final class ModelAssistedContextRoutingEvaluationTests: XCTestCase {
     private static let markerURL = FileManager.default.temporaryDirectory

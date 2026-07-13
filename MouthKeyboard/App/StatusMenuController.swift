@@ -55,7 +55,7 @@ final class StatusMenuController: NSObject, NSMenuDelegate {
         switch state {
         case .idle:
             pillColor = nil
-            description = "TypeLessBuddy"
+            description = "Mouth Keyboard"
         case .recording:
             pillColor = .systemOrange
             description = "Recording"
@@ -264,7 +264,7 @@ final class StatusMenuController: NSObject, NSMenuDelegate {
         menu.addItem(.separator())
         menu.addItem(
             actionItem(
-                title: "Quit TypeLessBuddy",
+                title: "Quit Mouth Keyboard",
                 action: #selector(quitFromMenu),
                 shortcut: KeyboardShortcuts.Shortcut(.q, modifiers: [.command]),
                 enabled: true,

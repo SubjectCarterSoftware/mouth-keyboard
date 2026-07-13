@@ -2,7 +2,7 @@ name: CI
 
 # Protects the deterministic unit suite (Phase 1, Workstream A): runs the
 # dependency-injected unit scheme on every push to main and every PR, and fails
-# the build on any test failure. The unit `TypeLessBuddy` scheme never triggers
+# the build on any test failure. The unit `MouthKeyboard` scheme never triggers
 # mic / accessibility / automation OS prompts, so it is safe in CI (see AGENTS.md).
 # UI tests (RUN_UI_TESTS) and real-model integration tests
 # (RUN_MODEL_INTEGRATION_TESTS) are intentionally NOT run here.
@@ -18,7 +18,7 @@ concurrency:
 
 jobs:
   unit-tests:
-    name: Unit tests (TypeLessBuddy scheme)
+    name: Unit tests (MouthKeyboard scheme)
     runs-on: macos-15
     steps:
       - uses: actions/checkout@v4
@@ -51,8 +51,8 @@ jobs:
         # first, or a failing test build will be masked by the formatter's exit 0.
         run: |
           xcodebuild test \
-            -project TypeLessBuddy.xcodeproj \
-            -scheme TypeLessBuddy \
+            -project MouthKeyboard.xcodeproj \
+            -scheme MouthKeyboard \
             -configuration Debug \
             -destination 'platform=macOS' \
             -derivedDataPath build/DerivedData-ci \

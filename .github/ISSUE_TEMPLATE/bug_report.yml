@@ -27,7 +27,7 @@ body:
   - type: input
     id: version
     attributes:
-      label: TypeLessBuddy version
+      label: Mouth Keyboard version
       placeholder: "0.1.0"
   - type: input
     id: macos

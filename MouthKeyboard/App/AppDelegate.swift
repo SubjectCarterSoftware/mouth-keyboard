@@ -69,7 +69,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         do {
             try WhisperService.deleteLegacyUnsupportedModelFiles()
         } catch {
-            NSLog("TypeLessBuddy: failed to delete legacy Whisper files: \(error.localizedDescription)")
+            NSLog("MouthKeyboard: failed to delete legacy Whisper files: \(error.localizedDescription)")
         }
 
         // Keep the selected Whisper model downloaded and prewarmed for first use.
@@ -340,7 +340,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         )
         window.center()
         window.delegate = self
-        window.identifier = NSUserInterfaceItemIdentifier("TypeLessBuddySetupWindow")
+        window.identifier = NSUserInterfaceItemIdentifier("MouthKeyboardSetupWindow")
         window.isReleasedWhenClosed = false
         window.contentMinSize = NSSize(
             width: SetupWindowMetrics.width,
@@ -364,7 +364,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
 
     private func configureSetupWindow(_ window: NSWindow, mode: SetupWindowMode) {
         setupWindowMode = mode
-        window.title = mode == .onboarding ? "TypeLessBuddy Setup" : "TypeLessBuddy Settings"
+        window.title = mode == .onboarding ? "Mouth Keyboard Setup" : "Mouth Keyboard Settings"
         window.contentViewController = NSHostingController(
             rootView: SetupWindowView(
                 preferences: preferences,
@@ -410,7 +410,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         )
         window.center()
         window.delegate = self
-        window.identifier = NSUserInterfaceItemIdentifier("TypeLessBuddyGuideWindow")
+        window.identifier = NSUserInterfaceItemIdentifier("MouthKeyboardGuideWindow")
         window.isReleasedWhenClosed = false
         window.title = "Guides"
         window.contentMinSize = NSSize(

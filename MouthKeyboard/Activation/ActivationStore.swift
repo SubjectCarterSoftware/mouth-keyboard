@@ -679,7 +679,7 @@ final class ActivationStore: ObservableObject {
             // receive no selected/captured text and could only guess what to edit.
             guard isCurrentSession(sessionID) else { return false }
             let errorDescription = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
-            NSLog("TypeLessBuddy: context routing failed — \(errorDescription)")
+            NSLog("MouthKeyboard: context routing failed — \(errorDescription)")
             recordLastTranscription(processed)
             if !didPaste {
                 clipboardService.writeToClipboard(processed)
@@ -752,7 +752,7 @@ final class ActivationStore: ObservableObject {
             // clipboard instead.
             guard isCurrentSession(sessionID) else { return false }
             let errorDescription = (error as? RewriteError)?.errorDescription ?? error.localizedDescription
-            NSLog("TypeLessBuddy: assistant rewrite failed — \(errorDescription)")
+            NSLog("MouthKeyboard: assistant rewrite failed — \(errorDescription)")
             recordLastTranscription(processed)
             if !didPaste {
                 clipboardService.writeToClipboard(processed)

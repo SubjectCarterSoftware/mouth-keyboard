@@ -45,7 +45,7 @@ extension ActivationStore {
             _ = try noteCaptureService.saveNote(content: titledContent, configuration: configuration)
             return true
         } catch {
-            NSLog("TypeLessBuddy: failed to save note: \(error.localizedDescription)")
+            NSLog("MouthKeyboard: failed to save note: \(error.localizedDescription)")
             return false
         }
     }
@@ -61,7 +61,7 @@ extension ActivationStore {
             do {
                 _ = try historyCaptureService.saveEntry(content: content, configuration: configuration)
             } catch {
-                NSLog("TypeLessBuddy: failed to save history entry: \(error.localizedDescription)")
+                NSLog("MouthKeyboard: failed to save history entry: \(error.localizedDescription)")
             }
         }
     }
@@ -113,7 +113,7 @@ extension ActivationStore {
             }
             return normalizedGeneratedNoteTitle(generatedTitle)
         } catch {
-            NSLog("TypeLessBuddy: note title generation failed — \(error.localizedDescription)")
+            NSLog("MouthKeyboard: note title generation failed — \(error.localizedDescription)")
             return nil
         }
     }

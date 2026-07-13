@@ -28,7 +28,7 @@
 		933C00422F6C862500B5BB12 /* MLXLLM in Frameworks */ = {isa = PBXBuildFile; productRef = A00000130000000000000003 /* MLXLLM */; };
 		933C00432F6C862500B5BB12 /* MLXLMCommon in Frameworks */ = {isa = PBXBuildFile; productRef = A00000130000000000000004 /* MLXLMCommon */; };
 		933C00442F6C862500B5BB12 /* ShellPreferencesModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000020000000000000030 /* ShellPreferencesModelTests.swift */; };
-		A00000010000000000000001 /* TypeLessBuddyApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000020000000000000001 /* TypeLessBuddyApp.swift */; };
+		A00000010000000000000001 /* MouthKeyboardApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000020000000000000001 /* MouthKeyboardApp.swift */; };
 		A00000010000000000000002 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000020000000000000002 /* AppDelegate.swift */; };
 		A00000010000000000000004 /* SetupWindowView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000020000000000000006 /* SetupWindowView.swift */; };
 		A00000010000000000000125 /* CloudLLMSettingsViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000020000000000000125 /* CloudLLMSettingsViewModel.swift */; };
@@ -136,14 +136,14 @@
 			containerPortal = A00000080000000000000001 /* Project object */;
 			proxyType = 1;
 			remoteGlobalIDString = A00000050000000000000001;
-			remoteInfo = TypeLessBuddy;
+			remoteInfo = MouthKeyboard;
 		};
 		A00000110000000000000002 /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
 			containerPortal = A00000080000000000000001 /* Project object */;
 			proxyType = 1;
 			remoteGlobalIDString = A00000050000000000000001;
-			remoteInfo = TypeLessBuddy;
+			remoteInfo = MouthKeyboard;
 		};
 /* End PBXContainerItemProxy section */
 
@@ -166,10 +166,10 @@
 		A00000020000000000000115 /* ReplacementPackServiceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReplacementPackServiceTests.swift; sourceTree = "<group>"; };
 		A00000020000000000000133 /* RewriteModelLimitsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RewriteModelLimitsTests.swift; sourceTree = "<group>"; };
 		A00000020000000000000134 /* RewriteContextLengthIntegrationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RewriteContextLengthIntegrationTests.swift; sourceTree = "<group>"; };
-		A00000020000000000000001 /* TypeLessBuddyApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TypeLessBuddyApp.swift; sourceTree = "<group>"; };
+		A00000020000000000000001 /* MouthKeyboardApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MouthKeyboardApp.swift; sourceTree = "<group>"; };
 		A00000020000000000000002 /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
 		A00000020000000000000003 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
-		A00000020000000000000004 /* TypeLessBuddy.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = TypeLessBuddy.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		A00000020000000000000004 /* MouthKeyboard.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = MouthKeyboard.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		A00000020000000000000006 /* SetupWindowView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SetupWindowView.swift; sourceTree = "<group>"; };
 		A00000020000000000000125 /* CloudLLMSettingsViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CloudLLMSettingsViewModel.swift; sourceTree = "<group>"; };
 		A00000020000000000000126 /* CloudLLMSettingsSectionView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CloudLLMSettingsSectionView.swift; sourceTree = "<group>"; };
@@ -195,8 +195,8 @@
 		A00000020000000000000010 /* ReadinessStateTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReadinessStateTests.swift; sourceTree = "<group>"; };
 		A00000020000000000000011 /* MenuBarShellSmokeTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MenuBarShellSmokeTests.swift; sourceTree = "<group>"; };
 		A00000020000000000000012 /* PermissionRecoveryFlowTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PermissionRecoveryFlowTests.swift; sourceTree = "<group>"; };
-		A00000020000000000000013 /* TypeLessBuddyTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = TypeLessBuddyTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
-		A00000020000000000000014 /* TypeLessBuddyUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = TypeLessBuddyUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		A00000020000000000000013 /* MouthKeyboardTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = MouthKeyboardTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		A00000020000000000000014 /* MouthKeyboardUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = MouthKeyboardUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		A00000020000000000000015 /* ActivationStoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ActivationStoreTests.swift; sourceTree = "<group>"; };
 		A00000020000000000000016 /* ShellPreferencesPhase2Tests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShellPreferencesPhase2Tests.swift; sourceTree = "<group>"; };
 		A00000020000000000000017 /* ActivationStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ActivationStore.swift; sourceTree = "<group>"; };
@@ -212,7 +212,7 @@
 		A00000020000000000000021 /* RecordingPillPanel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecordingPillPanel.swift; sourceTree = "<group>"; };
 		A00000020000000000000022 /* ObjCExceptionCatcher.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = ObjCExceptionCatcher.h; sourceTree = "<group>"; };
 		A00000020000000000000023 /* ObjCExceptionCatcher.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = ObjCExceptionCatcher.m; sourceTree = "<group>"; };
-		A00000020000000000000024 /* TypeLessBuddy-Bridging-Header.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = "TypeLessBuddy-Bridging-Header.h"; sourceTree = "<group>"; };
+		A00000020000000000000024 /* MouthKeyboard-Bridging-Header.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = "MouthKeyboard-Bridging-Header.h"; sourceTree = "<group>"; };
 		A00000020000000000000025 /* TranscriptionResult.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TranscriptionResult.swift; sourceTree = "<group>"; };
 		A00000020000000000000026 /* WhisperService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WhisperService.swift; sourceTree = "<group>"; };
 		A00000020000000000000027 /* AudioBufferAccumulator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudioBufferAccumulator.swift; sourceTree = "<group>"; };
@@ -306,9 +306,9 @@
 		A00000040000000000000001 = {
 			isa = PBXGroup;
 			children = (
-				A00000040000000000000002 /* TypeLessBuddy */,
-				A00000040000000000000009 /* TypeLessBuddyTests */,
-				A0000004000000000000000A /* TypeLessBuddyUITests */,
+				A00000040000000000000002 /* MouthKeyboard */,
+				A00000040000000000000009 /* MouthKeyboardTests */,
+				A0000004000000000000000A /* MouthKeyboardUITests */,
 				A00000040000000000000010 /* Config */,
 				A00000040000000000000003 /* Products */,
 			);
@@ -322,7 +322,7 @@
 			path = Config;
 			sourceTree = "<group>";
 		};
-		A00000040000000000000002 /* TypeLessBuddy */ = {
+		A00000040000000000000002 /* MouthKeyboard */ = {
 			isa = PBXGroup;
 			children = (
 				A00000040000000000000004 /* App */,
@@ -336,18 +336,18 @@
 				A00000040000000000000007 /* Permissions */,
 				A00000040000000000000008 /* Readiness */,
 				A00000020000000000000003 /* Info.plist */,
-				A00000020000000000000024 /* TypeLessBuddy-Bridging-Header.h */,
+				A00000020000000000000024 /* MouthKeyboard-Bridging-Header.h */,
 				A000000200000000000000FF /* Assets.xcassets */,
 			);
-			path = TypeLessBuddy;
+			path = MouthKeyboard;
 			sourceTree = "<group>";
 		};
 		A00000040000000000000003 /* Products */ = {
 			isa = PBXGroup;
 			children = (
-				A00000020000000000000004 /* TypeLessBuddy.app */,
-				A00000020000000000000013 /* TypeLessBuddyTests.xctest */,
-				A00000020000000000000014 /* TypeLessBuddyUITests.xctest */,
+				A00000020000000000000004 /* MouthKeyboard.app */,
+				A00000020000000000000013 /* MouthKeyboardTests.xctest */,
+				A00000020000000000000014 /* MouthKeyboardUITests.xctest */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -355,7 +355,7 @@
 		A00000040000000000000004 /* App */ = {
 			isa = PBXGroup;
 			children = (
-				A00000020000000000000001 /* TypeLessBuddyApp.swift */,
+				A00000020000000000000001 /* MouthKeyboardApp.swift */,
 				A00000020000000000000002 /* AppDelegate.swift */,
 				A00000020000000000000081 /* StatusMenuController.swift */,
 			);
@@ -425,7 +425,7 @@
 			path = Readiness;
 			sourceTree = "<group>";
 		};
-		A00000040000000000000009 /* TypeLessBuddyTests */ = {
+		A00000040000000000000009 /* MouthKeyboardTests */ = {
 			isa = PBXGroup;
 			children = (
 				A00000020000000000000015 /* ActivationStoreTests.swift */,
@@ -462,17 +462,17 @@
 				A00000020000000000000133 /* RewriteModelLimitsTests.swift */,
 				A00000020000000000000134 /* RewriteContextLengthIntegrationTests.swift */,
 			);
-			path = TypeLessBuddyTests;
+			path = MouthKeyboardTests;
 			sourceTree = "<group>";
 		};
-		A0000004000000000000000A /* TypeLessBuddyUITests */ = {
+		A0000004000000000000000A /* MouthKeyboardUITests */ = {
 			isa = PBXGroup;
 			children = (
 				A00000020000000000000011 /* MenuBarShellSmokeTests.swift */,
 				A00000020000000000000012 /* PermissionRecoveryFlowTests.swift */,
 				A00000020000000000000057 /* AIAssistantSettingsFlowTests.swift */,
 			);
-			path = TypeLessBuddyUITests;
+			path = MouthKeyboardUITests;
 			sourceTree = "<group>";
 		};
 		A0000004000000000000000B /* Activation */ = {
@@ -554,9 +554,9 @@
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
-		A00000050000000000000001 /* TypeLessBuddy */ = {
+		A00000050000000000000001 /* MouthKeyboard */ = {
 			isa = PBXNativeTarget;
-			buildConfigurationList = A00000070000000000000001 /* Build configuration list for PBXNativeTarget "TypeLessBuddy" */;
+			buildConfigurationList = A00000070000000000000001 /* Build configuration list for PBXNativeTarget "MouthKeyboard" */;
 			buildPhases = (
 				A00000060000000000000001 /* Sources */,
 				A00000030000000000000001 /* Frameworks */,
@@ -566,20 +566,20 @@
 			);
 			dependencies = (
 			);
-			name = TypeLessBuddy;
+			name = MouthKeyboard;
 			packageProductDependencies = (
 				A00000130000000000000001 /* KeyboardShortcuts */,
 				A00000130000000000000002 /* WhisperKit */,
 				A00000130000000000000003 /* MLXLLM */,
 				A00000130000000000000004 /* MLXLMCommon */,
 			);
-			productName = TypeLessBuddy;
-			productReference = A00000020000000000000004 /* TypeLessBuddy.app */;
+			productName = MouthKeyboard;
+			productReference = A00000020000000000000004 /* MouthKeyboard.app */;
 			productType = "com.apple.product-type.application";
 		};
-		A00000050000000000000002 /* TypeLessBuddyTests */ = {
+		A00000050000000000000002 /* MouthKeyboardTests */ = {
 			isa = PBXNativeTarget;
-			buildConfigurationList = A00000070000000000000003 /* Build configuration list for PBXNativeTarget "TypeLessBuddyTests" */;
+			buildConfigurationList = A00000070000000000000003 /* Build configuration list for PBXNativeTarget "MouthKeyboardTests" */;
 			buildPhases = (
 				A00000060000000000000003 /* Sources */,
 				A00000030000000000000002 /* Frameworks */,
@@ -590,14 +590,14 @@
 			dependencies = (
 				A00000120000000000000001 /* PBXTargetDependency */,
 			);
-			name = TypeLessBuddyTests;
-			productName = TypeLessBuddyTests;
-			productReference = A00000020000000000000013 /* TypeLessBuddyTests.xctest */;
+			name = MouthKeyboardTests;
+			productName = MouthKeyboardTests;
+			productReference = A00000020000000000000013 /* MouthKeyboardTests.xctest */;
 			productType = "com.apple.product-type.bundle.unit-test";
 		};
-		A00000050000000000000003 /* TypeLessBuddyUITests */ = {
+		A00000050000000000000003 /* MouthKeyboardUITests */ = {
 			isa = PBXNativeTarget;
-			buildConfigurationList = A00000070000000000000004 /* Build configuration list for PBXNativeTarget "TypeLessBuddyUITests" */;
+			buildConfigurationList = A00000070000000000000004 /* Build configuration list for PBXNativeTarget "MouthKeyboardUITests" */;
 			buildPhases = (
 				A00000060000000000000005 /* Sources */,
 				A00000030000000000000003 /* Frameworks */,
@@ -608,9 +608,9 @@
 			dependencies = (
 				A00000120000000000000002 /* PBXTargetDependency */,
 			);
-			name = TypeLessBuddyUITests;
-			productName = TypeLessBuddyUITests;
-			productReference = A00000020000000000000014 /* TypeLessBuddyUITests.xctest */;
+			name = MouthKeyboardUITests;
+			productName = MouthKeyboardUITests;
+			productReference = A00000020000000000000014 /* MouthKeyboardUITests.xctest */;
 			productType = "com.apple.product-type.bundle.ui-testing";
 		};
 /* End PBXNativeTarget section */
@@ -622,7 +622,7 @@
 				BuildIndependentTargetsInParallel = 1;
 				LastSwiftUpdateCheck = 1600;
 				LastUpgradeCheck = 1600;
-				ORGANIZATIONNAME = TypeLessBuddy;
+				ORGANIZATIONNAME = MouthKeyboard;
 				TargetAttributes = {
 					A00000050000000000000001 = {
 						CreatedOnToolsVersion = 16.0;
@@ -637,7 +637,7 @@
 					};
 				};
 			};
-			buildConfigurationList = A00000070000000000000002 /* Build configuration list for PBXProject "TypeLessBuddy" */;
+			buildConfigurationList = A00000070000000000000002 /* Build configuration list for PBXProject "MouthKeyboard" */;
 			compatibilityVersion = "Xcode 15.0";
 			developmentRegion = en;
 			hasScannedForEncodings = 0;
@@ -655,9 +655,9 @@
 			projectDirPath = "";
 			projectRoot = "";
 			targets = (
-				A00000050000000000000001 /* TypeLessBuddy */,
-				A00000050000000000000002 /* TypeLessBuddyTests */,
-				A00000050000000000000003 /* TypeLessBuddyUITests */,
+				A00000050000000000000001 /* MouthKeyboard */,
+				A00000050000000000000002 /* MouthKeyboardTests */,
+				A00000050000000000000003 /* MouthKeyboardUITests */,
 			);
 		};
 /* End PBXProject section */
@@ -753,7 +753,7 @@
 				A00000010000000000000122 /* OnboardingComponents.swift in Sources */,
 				A00000010000000000000123 /* HistoryViews.swift in Sources */,
 				A00000010000000000000124 /* PillAndSheets.swift in Sources */,
-				A00000010000000000000001 /* TypeLessBuddyApp.swift in Sources */,
+				A00000010000000000000001 /* MouthKeyboardApp.swift in Sources */,
 				A00000010000000000000020 /* TranscriptionResult.swift in Sources */,
 				A00000010000000000000021 /* WhisperService.swift in Sources */,
 				A0000001000000000000002B /* WhisperModelChoice.swift in Sources */,
@@ -828,12 +828,12 @@
 /* Begin PBXTargetDependency section */
 		A00000120000000000000001 /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;
-			target = A00000050000000000000001 /* TypeLessBuddy */;
+			target = A00000050000000000000001 /* MouthKeyboard */;
 			targetProxy = A00000110000000000000001 /* PBXContainerItemProxy */;
 		};
 		A00000120000000000000002 /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;
-			target = A00000050000000000000001 /* TypeLessBuddy */;
+			target = A00000050000000000000001 /* MouthKeyboard */;
 			targetProxy = A00000110000000000000002 /* PBXContainerItemProxy */;
 		};
 /* End PBXTargetDependency section */
@@ -878,8 +878,7 @@
 				CURRENT_PROJECT_VERSION = 1;
 				ENABLE_TESTABILITY = YES;
 				GENERATE_INFOPLIST_FILE = NO;
-				INFOPLIST_FILE = TypeLessBuddy/Info.plist;
-				INFOPLIST_KEY_CFBundleDisplayName = "Type Less Buddy";
+				INFOPLIST_FILE = MouthKeyboard/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/../Frameworks",
@@ -887,12 +886,12 @@
 				MACOSX_DEPLOYMENT_TARGET = 14.0;
 				MARKETING_VERSION = 0.1;
 				ONLY_ACTIVE_ARCH = YES;
-				PRODUCT_BUNDLE_IDENTIFIER = com.elicarter.TypeLessBuddy;
+				PRODUCT_BUNDLE_IDENTIFIER = com.elicarter.MouthKeyboard;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = macosx;
 				SUPPORTED_PLATFORMS = macosx;
 				SWIFT_EMIT_LOC_STRINGS = YES;
-				SWIFT_OBJC_BRIDGING_HEADER = "TypeLessBuddy/TypeLessBuddy-Bridging-Header.h";
+				SWIFT_OBJC_BRIDGING_HEADER = "MouthKeyboard/MouthKeyboard-Bridging-Header.h";
 				SWIFT_VERSION = 5.0;
 			};
 			name = Debug;
@@ -905,20 +904,19 @@
 				ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS = YES;
 				CURRENT_PROJECT_VERSION = 1;
 				GENERATE_INFOPLIST_FILE = NO;
-				INFOPLIST_FILE = TypeLessBuddy/Info.plist;
-				INFOPLIST_KEY_CFBundleDisplayName = "Type Less Buddy";
+				INFOPLIST_FILE = MouthKeyboard/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 14.0;
 				MARKETING_VERSION = 0.1;
-				PRODUCT_BUNDLE_IDENTIFIER = com.elicarter.TypeLessBuddy;
+				PRODUCT_BUNDLE_IDENTIFIER = com.elicarter.MouthKeyboard;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = macosx;
 				SUPPORTED_PLATFORMS = macosx;
 				SWIFT_EMIT_LOC_STRINGS = YES;
-				SWIFT_OBJC_BRIDGING_HEADER = "TypeLessBuddy/TypeLessBuddy-Bridging-Header.h";
+				SWIFT_OBJC_BRIDGING_HEADER = "MouthKeyboard/MouthKeyboard-Bridging-Header.h";
 				SWIFT_VERSION = 5.0;
 			};
 			name = Release;
@@ -937,13 +935,13 @@
 				);
 				MACOSX_DEPLOYMENT_TARGET = 14.0;
 				ONLY_ACTIVE_ARCH = YES;
-				PRODUCT_BUNDLE_IDENTIFIER = com.elicarter.TypeLessBuddyTests;
+				PRODUCT_BUNDLE_IDENTIFIER = com.elicarter.MouthKeyboardTests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = macosx;
 				SUPPORTED_PLATFORMS = macosx;
 				SWIFT_VERSION = 5.0;
-				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/TypeLessBuddy.app/Contents/MacOS/TypeLessBuddy";
-				TEST_TARGET_NAME = TypeLessBuddy;
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/MouthKeyboard.app/Contents/MacOS/MouthKeyboard";
+				TEST_TARGET_NAME = MouthKeyboard;
 			};
 			name = Debug;
 		};
@@ -960,13 +958,13 @@
 					"@loader_path/../Frameworks",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 14.0;
-				PRODUCT_BUNDLE_IDENTIFIER = com.elicarter.TypeLessBuddyTests;
+				PRODUCT_BUNDLE_IDENTIFIER = com.elicarter.MouthKeyboardTests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = macosx;
 				SUPPORTED_PLATFORMS = macosx;
 				SWIFT_VERSION = 5.0;
-				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/TypeLessBuddy.app/Contents/MacOS/TypeLessBuddy";
-				TEST_TARGET_NAME = TypeLessBuddy;
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/MouthKeyboard.app/Contents/MacOS/MouthKeyboard";
+				TEST_TARGET_NAME = MouthKeyboard;
 			};
 			name = Release;
 		};
@@ -983,12 +981,12 @@
 				);
 				MACOSX_DEPLOYMENT_TARGET = 14.0;
 				ONLY_ACTIVE_ARCH = YES;
-				PRODUCT_BUNDLE_IDENTIFIER = com.elicarter.TypeLessBuddyUITests;
+				PRODUCT_BUNDLE_IDENTIFIER = com.elicarter.MouthKeyboardUITests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = macosx;
 				SUPPORTED_PLATFORMS = macosx;
 				SWIFT_VERSION = 5.0;
-				TEST_TARGET_NAME = TypeLessBuddy;
+				TEST_TARGET_NAME = MouthKeyboard;
 			};
 			name = Debug;
 		};
@@ -1004,19 +1002,19 @@
 					"@loader_path/../Frameworks",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 14.0;
-				PRODUCT_BUNDLE_IDENTIFIER = com.elicarter.TypeLessBuddyUITests;
+				PRODUCT_BUNDLE_IDENTIFIER = com.elicarter.MouthKeyboardUITests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = macosx;
 				SUPPORTED_PLATFORMS = macosx;
 				SWIFT_VERSION = 5.0;
-				TEST_TARGET_NAME = TypeLessBuddy;
+				TEST_TARGET_NAME = MouthKeyboard;
 			};
 			name = Release;
 		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
-		A00000070000000000000001 /* Build configuration list for PBXNativeTarget "TypeLessBuddy" */ = {
+		A00000070000000000000001 /* Build configuration list for PBXNativeTarget "MouthKeyboard" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				A00000090000000000000003 /* Debug */,
@@ -1025,7 +1023,7 @@
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
-		A00000070000000000000002 /* Build configuration list for PBXProject "TypeLessBuddy" */ = {
+		A00000070000000000000002 /* Build configuration list for PBXProject "MouthKeyboard" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				A00000090000000000000001 /* Debug */,
@@ -1034,7 +1032,7 @@
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
-		A00000070000000000000003 /* Build configuration list for PBXNativeTarget "TypeLessBuddyTests" */ = {
+		A00000070000000000000003 /* Build configuration list for PBXNativeTarget "MouthKeyboardTests" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				A00000090000000000000005 /* Debug */,
@@ -1043,7 +1041,7 @@
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
-		A00000070000000000000004 /* Build configuration list for PBXNativeTarget "TypeLessBuddyUITests" */ = {
+		A00000070000000000000004 /* Build configuration list for PBXNativeTarget "MouthKeyboardUITests" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				A00000090000000000000007 /* Debug */,

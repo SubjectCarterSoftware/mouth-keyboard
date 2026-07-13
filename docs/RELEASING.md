@@ -1,4 +1,4 @@
-# Releasing TypeLessBuddy
+# Releasing Mouth Keyboard
 
 ## Build A Drag-To-Applications DMG
 
@@ -12,43 +12,43 @@ chmod +x scripts/build-dmg.sh
 That script does four things:
 
 1. Builds the Release app bundle with Xcode.
-2. Copies `TypeLessBuddy.app` into a staging folder.
+2. Copies `MouthKeyboard.app` into a staging folder.
 3. Adds an `Applications` shortcut beside it.
-4. Wraps that layout in `dist/TypeLessBuddy.dmg`.
+4. Wraps that layout in `dist/MouthKeyboard.dmg`.
 
 The result is the normal macOS install flow where the disk image opens and shows:
 
-- `TypeLessBuddy.app`
+- `MouthKeyboard.app`
 - `Applications`
 
 The user drags the app onto the Applications shortcut.
 
 ## Output Paths
 
-- App bundle: `dist/TypeLessBuddy.app`
-- Disk image: `dist/TypeLessBuddy.dmg`
+- App bundle: `dist/MouthKeyboard.app`
+- Disk image: `dist/MouthKeyboard.dmg`
 
 These are local build artifacts only. They should not be committed into Git.
 
 ## Recommended GitHub Distribution Flow
 
 1. Commit source code, docs, screenshots, and release scripts.
-2. Build `dist/TypeLessBuddy.dmg` locally (signed + notarized — see "Internet Distribution" below).
+2. Build `dist/MouthKeyboard.dmg` locally (signed + notarized — see "Internet Distribution" below).
 3. Create a GitHub Release such as `v0.1.0`.
-4. Upload the DMG as a release asset, keeping the asset name exactly `TypeLessBuddy.dmg`.
+4. Upload the DMG as a release asset, keeping the asset name exactly `MouthKeyboard.dmg`.
 5. The README download button and install link already point at the stable "latest" URL:
 
    ```text
-   https://github.com/subjectCarterSoftware/typelessbuddy/releases/latest/download/TypeLessBuddy.dmg
+   https://github.com/SubjectCarterSoftware/mouth-keyboard/releases/latest/download/MouthKeyboard.dmg
    ```
 
-   This always resolves to the newest release's `TypeLessBuddy.dmg`, so it never needs
+   This always resolves to the newest release's `MouthKeyboard.dmg`, so it never needs
    updating per release — as long as the uploaded asset keeps that exact name.
 
 You can publish a release from the command line with the GitHub CLI:
 
 ```bash
-gh release create v0.1.0 dist/TypeLessBuddy.dmg \
+gh release create v0.1.0 dist/MouthKeyboard.dmg \
   --title "v0.1.0" \
   --notes "First public release."
 ```
@@ -63,8 +63,8 @@ Recommended repo contents:
 
 Do not store these in the repo:
 
-- `dist/TypeLessBuddy.dmg`
-- `dist/TypeLessBuddy.app`
+- `dist/MouthKeyboard.dmg`
+- `dist/MouthKeyboard.app`
 - Temporary build output
 
 ## Internet Distribution

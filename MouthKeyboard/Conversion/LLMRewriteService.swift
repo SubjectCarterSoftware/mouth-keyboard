@@ -730,7 +730,7 @@ actor LocalRewriteService: Rewriting {
                     }
                     continuation.finish()
                 } catch {
-                    NSLog("TypeLessBuddy: assistant rewrite stream failed: \(error.localizedDescription)")
+                    NSLog("MouthKeyboard: assistant rewrite stream failed: \(error.localizedDescription)")
                     continuation.finish(throwing: error)
                 }
             }
@@ -792,7 +792,7 @@ actor LocalRewriteService: Rewriting {
                     }
                     continuation.finish()
                 } catch {
-                    NSLog("TypeLessBuddy: raw generation stream failed: \(error.localizedDescription)")
+                    NSLog("MouthKeyboard: raw generation stream failed: \(error.localizedDescription)")
                     continuation.finish(throwing: error)
                 }
             }
@@ -1050,7 +1050,7 @@ actor LocalRewriteService: Rewriting {
             create: true
         )
         return appSupport
-            .appendingPathComponent("TypeLessBuddy", isDirectory: true)
+            .appendingPathComponent("MouthKeyboard", isDirectory: true)
             .appendingPathComponent("RewriteModel", isDirectory: true)
     }
 
@@ -1116,7 +1116,7 @@ actor LocalRewriteService: Rewriting {
     }
 
     private static func preparedMarkerURL(for directory: URL) -> URL {
-        directory.appendingPathComponent(".typelessbuddy-prepared", isDirectory: false)
+        directory.appendingPathComponent(".mouthkeyboard-prepared", isDirectory: false)
     }
 
     private func completedProgress() -> Progress {

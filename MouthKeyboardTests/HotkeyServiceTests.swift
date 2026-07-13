@@ -1,7 +1,7 @@
 import CoreGraphics
 import XCTest
 import KeyboardShortcuts
-@testable import TypeLessBuddy
+@testable import MouthKeyboard
 
 @MainActor
 final class HotkeyServiceTests: XCTestCase {

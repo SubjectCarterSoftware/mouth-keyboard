@@ -167,8 +167,8 @@ struct AccessibilitySetupGuide: View {
 
             VStack(alignment: .leading, spacing: 12) {
                 SetupStep(number: 1, text: "Click the + button at the bottom of the app list")
-                SetupStep(number: 2, text: "Find TypeLessBuddy in Applications and click Open")
-                SetupStep(number: 3, text: "Return to TypeLessBuddy. The Accessibility tile should turn green without restarting the app.")
+                SetupStep(number: 2, text: "Find Mouth Keyboard in Applications and click Open")
+                SetupStep(number: 3, text: "Return to Mouth Keyboard. The Accessibility tile should turn green without restarting the app.")
             }
 
             Button("Open Settings") {

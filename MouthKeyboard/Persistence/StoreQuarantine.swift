@@ -16,9 +16,9 @@ struct StoreQuarantine {
                 attributes: nil
             )
             try FileManager.default.moveItem(at: storeURL, to: quarantinedURL)
-            NSLog("TypeLessBuddy: Quarantined corrupt \(label) store to \(quarantinedURL.path)")
+            NSLog("MouthKeyboard: Quarantined corrupt \(label) store to \(quarantinedURL.path)")
         } catch {
-            NSLog("TypeLessBuddy: Failed to quarantine corrupt \(label) store at \(storeURL.path): \(error.localizedDescription)")
+            NSLog("MouthKeyboard: Failed to quarantine corrupt \(label) store at \(storeURL.path): \(error.localizedDescription)")
         }
     }
 }

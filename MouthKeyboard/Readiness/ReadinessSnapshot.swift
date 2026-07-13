@@ -59,7 +59,7 @@ enum PermissionKind: String, CaseIterable, Identifiable {
     func message(for status: PermissionGrantState) -> String {
         switch (self, status) {
         case (.microphone, .authorized):
-            return "TypeLessBuddy can preflight audio capture before recording exists."
+            return "Mouth Keyboard can preflight audio capture before recording exists."
         case (.microphone, .notDetermined):
             return "Allow microphone access now so the first recording attempt does not surprise the user later."
         case (.microphone, .denied):
@@ -139,7 +139,7 @@ struct ReadinessSnapshot: Equatable {
             return Self(
                 state: .blocked,
                 title: "Setup Blocked",
-                message: "TypeLessBuddy still needs permission recovery before it can be considered ready.",
+                message: "Mouth Keyboard still needs permission recovery before it can be considered ready.",
                 permissions: permissions
             )
         }
@@ -148,7 +148,7 @@ struct ReadinessSnapshot: Equatable {
             return Self(
                 state: .needsSetup,
                 title: "Setup Needed",
-                message: "Complete the remaining setup items so TypeLessBuddy can confirm it is ready before recording exists.",
+                message: "Complete the remaining setup items so Mouth Keyboard can confirm it is ready before recording exists.",
                 permissions: permissions
             )
         }
@@ -156,7 +156,7 @@ struct ReadinessSnapshot: Equatable {
         return Self(
             state: .ready,
             title: "Shell Ready",
-            message: "TypeLessBuddy can stay quiet in the menu bar until you trigger recording, with background Escape available for recovery.",
+            message: "Mouth Keyboard can stay quiet in the menu bar until you trigger recording, with background Escape available for recovery.",
             permissions: permissions
         )
     }

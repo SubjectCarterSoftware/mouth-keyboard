@@ -1,5 +1,5 @@
 import XCTest
-@testable import TypeLessBuddy
+@testable import MouthKeyboard
 
 final class NoteCaptureServiceTests: XCTestCase {
     private lazy var fixedDate = Date(timeIntervalSince1970: 1_716_390_645)

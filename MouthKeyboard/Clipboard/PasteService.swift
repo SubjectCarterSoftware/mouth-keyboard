@@ -63,6 +63,6 @@ struct PasteService: PasteServicing {
     }
 
     private func logPostEventFailure(actionDescription: String, reason: String) {
-        NSLog("TypeLessBuddy: Synthetic %@ failure (%@).", actionDescription, reason)
+        NSLog("MouthKeyboard: Synthetic %@ failure (%@).", actionDescription, reason)
     }
 }

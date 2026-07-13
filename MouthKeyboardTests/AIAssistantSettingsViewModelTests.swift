@@ -1,6 +1,6 @@
 import Combine
 import XCTest
-@testable import TypeLessBuddy
+@testable import MouthKeyboard
 
 @MainActor
 private func makePreferences(

@@ -25,7 +25,7 @@ xcuserdata/
 Packages/
 Package.resolved
 # Track the Xcode-managed Package.resolved for reproducible builds
-!TypeLessBuddy.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved
+!MouthKeyboard.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved
 
 # macOS
 .DS_Store

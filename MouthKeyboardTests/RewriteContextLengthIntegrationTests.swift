@@ -1,5 +1,5 @@
 import XCTest
-@testable import TypeLessBuddy
+@testable import MouthKeyboard
 
 /// End-to-end tests that drive the real local MLX model with inputs sized past
 /// the old hardcoded caps (1000–2000 words / 1024–2048 output tokens) to confirm

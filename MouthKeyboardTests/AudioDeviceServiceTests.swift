@@ -1,6 +1,6 @@
 import AVFoundation
 import XCTest
-@testable import TypeLessBuddy
+@testable import MouthKeyboard
 
 @MainActor
 final class AudioDeviceServiceTests: XCTestCase {

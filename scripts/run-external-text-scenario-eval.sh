@@ -5,8 +5,8 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 
-SCHEME="TypeLessBuddy"
-PROJECT_PATH="${REPO_ROOT}/TypeLessBuddy.xcodeproj"
+SCHEME="MouthKeyboard"
+PROJECT_PATH="${REPO_ROOT}/MouthKeyboard.xcodeproj"
 DERIVED_DATA_DIR="${REPO_ROOT}/build/DerivedData-tests"
 OUTPUT_DIR="${EXTERNAL_TEXT_EVAL_OUTPUT_DIR:-${REPO_ROOT}/build/external-text-scenario-eval}"
 MARKER_PATH="${TMPDIR:-/tmp}/run_external_text_scenario_eval_tests"
@@ -50,5 +50,5 @@ xcodebuild \
   -scheme "${SCHEME}" \
   -destination 'platform=macOS' \
   -derivedDataPath "${DERIVED_DATA_DIR}" \
-  -only-testing:TypeLessBuddyTests/ExternalTextScenarioMatrixEvaluationTests \
+  -only-testing:MouthKeyboardTests/ExternalTextScenarioMatrixEvaluationTests \
   test

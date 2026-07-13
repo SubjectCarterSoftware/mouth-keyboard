@@ -1,6 +1,6 @@
 import AppKit
 import XCTest
-@testable import TypeLessBuddy
+@testable import MouthKeyboard
 
 final class ClipboardServiceTests: XCTestCase {
 
@@ -10,7 +10,7 @@ final class ClipboardServiceTests: XCTestCase {
     override func setUp() {
         super.setUp()
         // Use a unique named pasteboard for isolation
-        testPasteboard = NSPasteboard(name: .init("com.typelessbuddy.test.\(UUID().uuidString)"))
+        testPasteboard = NSPasteboard(name: .init("com.mouthkeyboard.test.\(UUID().uuidString)"))
         testPasteboard.clearContents()
         service = ClipboardService(pasteboard: testPasteboard)
     }

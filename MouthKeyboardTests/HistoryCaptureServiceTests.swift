@@ -1,5 +1,5 @@
 import XCTest
-@testable import TypeLessBuddy
+@testable import MouthKeyboard
 
 final class HistoryCaptureServiceTests: XCTestCase {
     private var currentDate = Date(timeIntervalSince1970: 1_716_390_645)

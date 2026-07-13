@@ -122,7 +122,7 @@ enum OnboardingStep: String, CaseIterable, Identifiable {
     var subtitle: String {
         switch self {
         case .microphone:
-            return "Grant microphone access first, then choose the input device TypeLessBuddy should use."
+            return "Grant microphone access first, then choose the input device Mouth Keyboard should use."
         case .shortcuts:
             return "Set your shortcuts, then click into the test box below and try them right away."
         case .pillPosition:
@@ -132,7 +132,7 @@ enum OnboardingStep: String, CaseIterable, Identifiable {
         case .vocabularyPacks:
             return "Pick the roles that fit you. We'll auto-correct the jargon, tools, and brand names you say most — like \"TypeScript\" or \"Figma\"."
         case .speechEngine:
-            return "Take TypeLessBuddy for a quick spin — just hold your key and speak."
+            return "Take Mouth Keyboard for a quick spin — just hold your key and speak."
         }
     }
 
@@ -165,7 +165,7 @@ enum OnboardingStep: String, CaseIterable, Identifiable {
     var footerNote: String {
         switch self {
         case .microphone:
-            return "Approve microphone access first, then choose the input device you want TypeLessBuddy to use."
+            return "Approve microphone access first, then choose the input device you want Mouth Keyboard to use."
         case .shortcuts:
             return "Shortcuts save as you set them. The quick test unlocks once your local models are ready."
         case .pillPosition:
@@ -670,7 +670,7 @@ struct SetupWindowView: View {
 
     func configureSetupWindowSize() {
         guard let window = NSApp.windows.first(where: {
-            $0.identifier == NSUserInterfaceItemIdentifier("TypeLessBuddySetupWindow")
+            $0.identifier == NSUserInterfaceItemIdentifier("MouthKeyboardSetupWindow")
         }) else {
             return
         }

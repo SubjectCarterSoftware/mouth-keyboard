@@ -1,12 +1,12 @@
 # Privacy
 
-TypeLessBuddy is designed as a local-first macOS voice writing app.
+Mouth Keyboard is designed as a local-first macOS voice writing app.
 
 ## Microphone Audio
 
 Audio is captured only when you activate dictation with the configured shortcut.
 The app uses local Whisper models for transcription. Audio is not sent to a
-cloud service for transcription by TypeLessBuddy.
+cloud service for transcription by Mouth Keyboard.
 
 ## Text And Clipboard
 

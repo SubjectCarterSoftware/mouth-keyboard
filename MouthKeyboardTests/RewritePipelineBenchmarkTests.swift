@@ -1,5 +1,5 @@
 import XCTest
-@testable import TypeLessBuddy
+@testable import MouthKeyboard
 
 /// Opt-in benchmark suite for the rewrite pipeline under realistic deterministic
 /// external-context loads.

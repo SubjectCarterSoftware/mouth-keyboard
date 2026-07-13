@@ -549,7 +549,7 @@ extension SetupWindowView {
         VStack(spacing: 0) {
             VStack(alignment: .leading, spacing: 20) {
                 HStack(alignment: .firstTextBaseline, spacing: 12) {
-                    Text("TypeLessBuddy Settings")
+                    Text("Mouth Keyboard Settings")
                         .font(.title2.weight(.semibold))
                         .accessibilityIdentifier("setupWindow.title")
 

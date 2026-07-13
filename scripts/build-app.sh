@@ -5,9 +5,9 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 
-APP_NAME="TypeLessBuddy"
-SCHEME="TypeLessBuddy"
-PROJECT_PATH="${REPO_ROOT}/TypeLessBuddy.xcodeproj"
+APP_NAME="MouthKeyboard"
+SCHEME="MouthKeyboard"
+PROJECT_PATH="${REPO_ROOT}/MouthKeyboard.xcodeproj"
 CONFIGURATION="${CONFIGURATION:-Debug}"
 DERIVED_DATA_DIR="${REPO_ROOT}/build/DerivedData-app"
 APP_PATH="${DERIVED_DATA_DIR}/Build/Products/${CONFIGURATION}/${APP_NAME}.app"

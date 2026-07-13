@@ -2,7 +2,7 @@ import CoreImage
 import XCTest
 import Hub
 import MLXLMCommon
-@testable import TypeLessBuddy
+@testable import MouthKeyboard
 
 private struct StubError: Error {}
 
@@ -609,7 +609,7 @@ final class LocalRewriteServiceTests: XCTestCase {
         try Data("{}".utf8).write(to: modelDirectory.appendingPathComponent("processor_config.json"))
         try Data("weights".utf8).write(to: modelDirectory.appendingPathComponent("model.safetensors"))
         fileManager.createFile(
-            atPath: modelDirectory.appendingPathComponent(".typelessbuddy-prepared").path,
+            atPath: modelDirectory.appendingPathComponent(".mouthkeyboard-prepared").path,
             contents: Data(),
             attributes: nil
         )

@@ -2,7 +2,7 @@ import Foundation
 import Security
 
 enum CloudLLMKeychain {
-    private static let servicePrefix = "com.elicarter.TypeLessBuddy.cloudLLM"
+    private static let servicePrefix = "com.elicarter.MouthKeyboard.cloudLLM"
 
     static func saveAPIKey(_ key: String, for provider: CloudLLMProvider) -> Bool {
         guard let data = key.data(using: .utf8) else { return false }

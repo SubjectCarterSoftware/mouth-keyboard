@@ -15,9 +15,9 @@
             <BuildableReference
                BuildableIdentifier = "primary"
                BlueprintIdentifier = "A00000050000000000000001"
-               BuildableName = "TypeLessBuddy.app"
-               BlueprintName = "TypeLessBuddy"
-               ReferencedContainer = "container:TypeLessBuddy.xcodeproj">
+               BuildableName = "MouthKeyboard.app"
+               BlueprintName = "MouthKeyboard"
+               ReferencedContainer = "container:MouthKeyboard.xcodeproj">
             </BuildableReference>
          </BuildActionEntry>
       </BuildActionEntries>
@@ -31,9 +31,9 @@
          <BuildableReference
             BuildableIdentifier = "primary"
             BlueprintIdentifier = "A00000050000000000000001"
-            BuildableName = "TypeLessBuddy.app"
-            BlueprintName = "TypeLessBuddy"
-            ReferencedContainer = "container:TypeLessBuddy.xcodeproj">
+            BuildableName = "MouthKeyboard.app"
+            BlueprintName = "MouthKeyboard"
+            ReferencedContainer = "container:MouthKeyboard.xcodeproj">
          </BuildableReference>
       </MacroExpansion>
       <Testables>
@@ -42,9 +42,9 @@
             <BuildableReference
                BuildableIdentifier = "primary"
                BlueprintIdentifier = "A00000050000000000000002"
-               BuildableName = "TypeLessBuddyTests.xctest"
-               BlueprintName = "TypeLessBuddyTests"
-               ReferencedContainer = "container:TypeLessBuddy.xcodeproj">
+               BuildableName = "MouthKeyboardTests.xctest"
+               BlueprintName = "MouthKeyboardTests"
+               ReferencedContainer = "container:MouthKeyboard.xcodeproj">
             </BuildableReference>
          </TestableReference>
       </Testables>
@@ -64,9 +64,9 @@
          <BuildableReference
             BuildableIdentifier = "primary"
             BlueprintIdentifier = "A00000050000000000000001"
-            BuildableName = "TypeLessBuddy.app"
-            BlueprintName = "TypeLessBuddy"
-            ReferencedContainer = "container:TypeLessBuddy.xcodeproj">
+            BuildableName = "MouthKeyboard.app"
+            BlueprintName = "MouthKeyboard"
+            ReferencedContainer = "container:MouthKeyboard.xcodeproj">
          </BuildableReference>
       </BuildableProductRunnable>
    </LaunchAction>
@@ -81,9 +81,9 @@
          <BuildableReference
             BuildableIdentifier = "primary"
             BlueprintIdentifier = "A00000050000000000000001"
-            BuildableName = "TypeLessBuddy.app"
-            BlueprintName = "TypeLessBuddy"
-            ReferencedContainer = "container:TypeLessBuddy.xcodeproj">
+            BuildableName = "MouthKeyboard.app"
+            BlueprintName = "MouthKeyboard"
+            ReferencedContainer = "container:MouthKeyboard.xcodeproj">
          </BuildableReference>
       </BuildableProductRunnable>
    </ProfileAction>

@@ -1,7 +1,7 @@
 import AppKit
 import KeyboardShortcuts
 import XCTest
-@testable import TypeLessBuddy
+@testable import MouthKeyboard
 
 @MainActor
 final class ShortcutBindingPolicyTests: XCTestCase {

@@ -1,4 +1,4 @@
-@testable import TypeLessBuddy
+@testable import MouthKeyboard
 import XCTest
 
 final class ReplacementPackServiceTests: XCTestCase {

@@ -154,7 +154,7 @@ extension SetupWindowView {
                 OnboardingPermissionCard(
                     item: microphonePermissionItem,
                     headline: "Microphone Permission",
-                    message: "TypeLessBuddy only records when you trigger it. Audio stays on-device, and this permission is required before anything else can work.",
+                    message: "Mouth Keyboard only records when you trigger it. Audio stays on-device, and this permission is required before anything else can work.",
                     actionTitle: microphoneActionTitle(for: microphonePermissionItem.status),
                     requestPermission: requestPermission,
                     openRecovery: openPermissionRecovery
@@ -168,7 +168,7 @@ extension SetupWindowView {
                 badgeTone: isMicrophoneAuthorized ? .neutral : .warning
             ) {
                 if isMicrophoneAuthorized {
-                    Text("Choose the input TypeLessBuddy should prefer whenever it is available.")
+                    Text("Choose the input Mouth Keyboard should prefer whenever it is available.")
                         .font(.callout)
                         .foregroundStyle(.secondary)
 
@@ -392,7 +392,7 @@ extension SetupWindowView {
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .background(Color.green.opacity(0.12), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
         } else {
-            Text("TypeLessBuddy needs Accessibility access for cross-app control and auto-paste. macOS only lets you turn this on yourself in System Settings.")
+            Text("Mouth Keyboard needs Accessibility access for cross-app control and auto-paste. macOS only lets you turn this on yourself in System Settings.")
                 .font(.callout)
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
@@ -416,7 +416,7 @@ extension SetupWindowView {
             ProgressView()
                 .controlSize(.small)
             VStack(alignment: .leading, spacing: 4) {
-                Text("Find TypeLessBuddy in the list and turn its switch on.")
+                Text("Find Mouth Keyboard in the list and turn its switch on.")
                     .font(.callout.weight(.medium))
                 Text("This page updates on its own — no need to come back and click anything.")
                     .font(.caption)

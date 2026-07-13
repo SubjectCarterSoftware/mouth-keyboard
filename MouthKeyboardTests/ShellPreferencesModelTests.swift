@@ -2,7 +2,7 @@ import AppKit
 import Combine
 import ServiceManagement
 import XCTest
-@testable import TypeLessBuddy
+@testable import MouthKeyboard
 
 @MainActor
 final class ShellPreferencesModelTests: XCTestCase {
