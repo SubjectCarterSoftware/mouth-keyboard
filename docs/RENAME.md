@@ -46,9 +46,10 @@ The new bundle ID makes macOS treat this as a brand-new app:
 
 ## Post-rename checklist
 
-- [ ] GitHub: rename repo to `mouth-keyboard` (Settings → General; old URLs redirect)
+- [x] GitHub: rename repo to `mouth-keyboard` (Settings → General; old URLs redirect)
 - [ ] GitHub: update repo description + topics (`macos`, `dictation`, `speech-to-text`, `whisper`, `voice-typing`, `swiftui`)
-- [ ] Local: `git remote set-url origin git@github.com-personal:SubjectCarterSoftware/mouth-keyboard.git`
-- [ ] Local: rename working directory `~/Workspace/TypeLessBuddy` → `~/Workspace/mouth-keyboard`
+- [x] Local: `git remote set-url origin git@github.com-personal:SubjectCarterSoftware/mouth-keyboard.git`
+- [x] Local: rename working directory `~/Workspace/TypeLessBuddy` → `~/Workspace/mouth-keyboard`
+- [x] Local: copy Claude Code project memory to the new path key (`~/.claude/projects/-Users-elicarter-Workspace-mouth-keyboard/memory/`)
 - [ ] Local: replace `/Applications/TypeLessBuddy.app` with the new `MouthKeyboard.app`, re-grant permissions
 - [ ] First release under the new name: DMG asset is now `MouthKeyboard.dmg` (README download badge already points at it)
