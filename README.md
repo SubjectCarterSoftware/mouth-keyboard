@@ -9,6 +9,10 @@ Local-first voice writing with a built-in buddy for macOS.
 
 Mouth Keyboard turns speech into text anywhere on your Mac. Use it as plain dictation when you want a raw transcript, or say "buddy" to route the transcript through the built-in assistant for cleanup and rewriting.
 
+## Demo
+
+[![Watch the Mouth Keyboard demo on YouTube](https://img.youtube.com/vi/mV1iYwyAS8I/maxresdefault.jpg)](https://youtu.be/mV1iYwyAS8I)
+
 <p align="center">
   <a href="https://github.com/SubjectCarterSoftware/mouth-keyboard/releases/latest/download/MouthKeyboard.dmg">
     <img src="https://img.shields.io/badge/Download-MouthKeyboard.dmg-2ea44f?style=for-the-badge&logo=apple&logoColor=white" alt="Download MouthKeyboard.dmg">
