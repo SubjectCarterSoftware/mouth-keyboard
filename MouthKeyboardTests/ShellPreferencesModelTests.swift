@@ -374,6 +374,128 @@ final class ShellPreferencesModelTests: XCTestCase {
         )
     }
 
+    func testRecordingPillPanelPositioningFrameGrowsUpwardKeepingBottomLeftFixed() {
+        let visibleFrame = CGRect(x: 100, y: 200, width: 1000, height: 700)
+        let capsuleSize = NSSize(width: 220, height: 44)
+        let topMargin: CGFloat = 12
+
+        for position in RecordingPillPosition.allCases {
+            let capsuleOrigin = RecordingPillPanelPositioning.origin(for: position, in: visibleFrame, panelSize: capsuleSize)
+            let grownFrame = RecordingPillPanelPositioning.frame(
+                for: position,
+                in: visibleFrame,
+                capsuleSize: capsuleSize,
+                topMargin: topMargin
+            )
+
+            // The capsule's bottom-left corner must not move: growth is
+            // purely additional height stacked upward from that fixed point.
+            XCTAssertEqual(grownFrame.origin, capsuleOrigin, "bottom-left moved for \(position)")
+            XCTAssertEqual(grownFrame.width, capsuleSize.width, "width changed for \(position)")
+            XCTAssertEqual(grownFrame.height, capsuleSize.height + topMargin, "height didn't grow by the margin for \(position)")
+        }
+    }
+
+    func testRecordingPillPanelPositioningFrameWithZeroMarginMatchesCapsuleFrame() {
+        let visibleFrame = CGRect(x: 100, y: 200, width: 1000, height: 700)
+        let capsuleSize = NSSize(width: 220, height: 44)
+
+        for position in RecordingPillPosition.allCases {
+            let capsuleOrigin = RecordingPillPanelPositioning.origin(for: position, in: visibleFrame, panelSize: capsuleSize)
+            let frame = RecordingPillPanelPositioning.frame(
+                for: position,
+                in: visibleFrame,
+                capsuleSize: capsuleSize,
+                topMargin: 0
+            )
+
+            XCTAssertEqual(frame, CGRect(origin: capsuleOrigin, size: capsuleSize), "unexpected frame for \(position)")
+        }
+    }
+
+    func testScreenshotBadgeVisibleReflectsStateAndCount() {
+        XCTAssertFalse(RecordingPillView.screenshotBadgeVisible(state: .recording, feedback: nil, screenshotCount: 0))
+        XCTAssertTrue(RecordingPillView.screenshotBadgeVisible(state: .recording, feedback: nil, screenshotCount: 1))
+        XCTAssertTrue(RecordingPillView.screenshotBadgeVisible(state: .processing, feedback: nil, screenshotCount: 1))
+        XCTAssertFalse(RecordingPillView.screenshotBadgeVisible(state: .rewriting, feedback: nil, screenshotCount: 1))
+        // The badge is only interactive before the paste has happened, so it
+        // never shows on the success/Done pill, whether or not the session
+        // was rewritten.
+        XCTAssertFalse(
+            RecordingPillView.screenshotBadgeVisible(
+                state: .success(text: "hi", pasted: true, rewritten: false),
+                feedback: nil,
+                screenshotCount: 1
+            )
+        )
+        XCTAssertFalse(
+            RecordingPillView.screenshotBadgeVisible(
+                state: .success(text: "hi", pasted: true, rewritten: true),
+                feedback: nil,
+                screenshotCount: 1
+            )
+        )
+        XCTAssertFalse(RecordingPillView.screenshotBadgeVisible(state: .recording, feedback: .restarted, screenshotCount: 1))
+        XCTAssertFalse(RecordingPillView.screenshotBadgeVisible(state: .failure(reason: .noSpeechDetected), feedback: nil, screenshotCount: 1))
+    }
+
+    func testScreenshotBadgeKindSymbolNameReflectsIncludesFiles() {
+        XCTAssertEqual(
+            RecordingPillView.screenshotBadgeKindSymbolName(includesImages: true, includesFiles: false),
+            "photo"
+        )
+        XCTAssertEqual(
+            RecordingPillView.screenshotBadgeKindSymbolName(includesImages: false, includesFiles: true),
+            "doc.fill"
+        )
+        XCTAssertEqual(
+            RecordingPillView.screenshotBadgeKindSymbolName(includesImages: true, includesFiles: true),
+            "paperclip"
+        )
+    }
+
+    func testScreenshotBadgeLeftIconSymbolNameSwapsToMinusOnBadgeHover() {
+        XCTAssertEqual(
+            RecordingPillView.screenshotBadgeLeftIconSymbolName(includesImages: true, includesFiles: false, isHoveringBadge: false),
+            "photo"
+        )
+        XCTAssertEqual(
+            RecordingPillView.screenshotBadgeLeftIconSymbolName(includesImages: true, includesFiles: true, isHoveringBadge: false),
+            "paperclip"
+        )
+        // Hovering anywhere on the badge swaps the left icon to the
+        // remove-last glyph, regardless of the attachment kind.
+        XCTAssertEqual(
+            RecordingPillView.screenshotBadgeLeftIconSymbolName(includesImages: true, includesFiles: false, isHoveringBadge: true),
+            "minus"
+        )
+        XCTAssertEqual(
+            RecordingPillView.screenshotBadgeLeftIconSymbolName(includesImages: true, includesFiles: true, isHoveringBadge: true),
+            "minus"
+        )
+    }
+
+    func testScreenshotBadgeCloseGlyphStyleReflectsHoverPrecedence() {
+        XCTAssertEqual(
+            RecordingPillView.screenshotBadgeCloseGlyphStyle(isHoveringBadge: false, isHoveringClose: false),
+            .rest
+        )
+        XCTAssertEqual(
+            RecordingPillView.screenshotBadgeCloseGlyphStyle(isHoveringBadge: true, isHoveringClose: false),
+            .badgeHovered
+        )
+        // Hovering the ✕ itself wins even though that also counts as
+        // hovering the badge.
+        XCTAssertEqual(
+            RecordingPillView.screenshotBadgeCloseGlyphStyle(isHoveringBadge: true, isHoveringClose: true),
+            .selfHovered
+        )
+        XCTAssertEqual(
+            RecordingPillView.screenshotBadgeCloseGlyphStyle(isHoveringBadge: false, isHoveringClose: true),
+            .selfHovered
+        )
+    }
+
     func testRewriteSystemPromptPrefixDefaultsToBuiltInPrompt() {
         let (_, preferences) = makePreferences()
         XCTAssertEqual(

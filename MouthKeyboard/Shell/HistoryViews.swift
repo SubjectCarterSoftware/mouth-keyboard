@@ -60,6 +60,27 @@ struct HistoryModeBadge: View {
     }
 }
 
+/// A subtle icon + count badge shown on a history row when the entry has
+/// saved screenshots and/or attached files. Pulled out as a pure function so
+/// the "which icons, in what order" logic is unit-testable without SwiftUI.
+struct HistoryAttachmentIndicator: Equatable {
+    let systemImage: String
+    let count: Int
+}
+
+enum HistoryAttachmentIndicators {
+    static func indicators(screenshotCount: Int, attachedFileCount: Int) -> [HistoryAttachmentIndicator] {
+        var result: [HistoryAttachmentIndicator] = []
+        if screenshotCount > 0 {
+            result.append(HistoryAttachmentIndicator(systemImage: "camera.fill", count: screenshotCount))
+        }
+        if attachedFileCount > 0 {
+            result.append(HistoryAttachmentIndicator(systemImage: "paperclip", count: attachedFileCount))
+        }
+        return result
+    }
+}
+
 struct HistoryEntryRow: View {
     let entry: HistoryEntry
     let isSelected: Bool
@@ -83,6 +104,21 @@ struct HistoryEntryRow: View {
                     Text(HistoryFormat.time(for: entry.createdAt))
                         .font(.caption2)
                         .foregroundStyle(isSelected ? .white.opacity(0.8) : .secondary)
+
+                    ForEach(
+                        HistoryAttachmentIndicators.indicators(
+                            screenshotCount: entry.screenshotCount,
+                            attachedFileCount: entry.attachedFileCount
+                        ),
+                        id: \.systemImage
+                    ) { indicator in
+                        HStack(spacing: 2) {
+                            Image(systemName: indicator.systemImage)
+                            Text("\(indicator.count)")
+                        }
+                        .font(.caption2)
+                        .foregroundStyle(isSelected ? .white.opacity(0.8) : .secondary)
+                    }
                 }
             }
             .padding(.horizontal, 10)
@@ -181,6 +217,8 @@ struct HistoryDetailPane: View {
     let detail: HistoryEntryDetail?
     let copyLabel: String
     let copyAction: () -> Void
+    let copyWithAttachmentsLabel: String
+    let copyWithAttachmentsAction: () -> Void
     let revealAction: () -> Void
     let deleteAction: () -> Void
 
@@ -228,6 +266,13 @@ struct HistoryDetailPane: View {
 
             Spacer(minLength: 8)
 
+            if !detail.screenshotURLs.isEmpty || !detail.attachedFilePaths.isEmpty {
+                Button(copyWithAttachmentsLabel, action: copyWithAttachmentsAction)
+                    .buttonStyle(.bordered)
+                    .controlSize(.small)
+                    .accessibilityIdentifier("setupWindow.history.copyWithAttachments")
+            }
+
             Button(copyLabel, action: copyAction)
                 .buttonStyle(.bordered)
                 .controlSize(.small)
@@ -251,17 +296,63 @@ struct HistoryDetailPane: View {
 
     @ViewBuilder
     private func body(_ detail: HistoryEntryDetail) -> some View {
-        if let assistant = detail.assistantOutput, !detail.rawTranscription.isEmpty {
-            VStack(alignment: .leading, spacing: 14) {
+        VStack(alignment: .leading, spacing: 14) {
+            if let assistant = detail.assistantOutput, !detail.rawTranscription.isEmpty {
                 section(label: "Original", text: detail.rawTranscription, secondary: true)
                 section(label: "Result", text: assistant, secondary: false)
+            } else {
+                Text(detail.primaryText)
+                    .font(.callout)
+                    .foregroundStyle(.primary)
+                    .textSelection(.enabled)
+                    .frame(maxWidth: .infinity, alignment: .leading)
             }
-        } else {
-            Text(detail.primaryText)
-                .font(.callout)
-                .foregroundStyle(.primary)
-                .textSelection(.enabled)
-                .frame(maxWidth: .infinity, alignment: .leading)
+
+            if !detail.screenshotURLs.isEmpty {
+                screenshotsSection(detail.screenshotURLs)
+            }
+
+            if !detail.attachedFilePaths.isEmpty {
+                attachedFilesSection(detail.attachedFilePaths)
+            }
+        }
+    }
+
+    private func screenshotsSection(_ urls: [URL]) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text("IMAGES")
+                .font(.system(size: 10, weight: .bold))
+                .tracking(0.4)
+                .foregroundStyle(.tertiary)
+
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 8) {
+                    ForEach(urls, id: \.self) { url in
+                        Button {
+                            NSWorkspace.shared.open(url)
+                        } label: {
+                            HistoryScreenshotThumbnail(url: url)
+                        }
+                        .buttonStyle(.plain)
+                        .help(url.lastPathComponent)
+                    }
+                }
+            }
+        }
+    }
+
+    private func attachedFilesSection(_ paths: [String]) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text("FILES")
+                .font(.system(size: 10, weight: .bold))
+                .tracking(0.4)
+                .foregroundStyle(.tertiary)
+
+            VStack(alignment: .leading, spacing: 4) {
+                ForEach(paths, id: \.self) { path in
+                    HistoryAttachedFileRow(path: path)
+                }
+            }
         }
     }
 
@@ -292,5 +383,72 @@ struct HistoryDetailPane: View {
                     .frame(maxWidth: .infinity, alignment: .leading)
             }
         }
+    }
+}
+
+/// Small aspect-fit preview of a saved screenshot PNG. Clicking the button
+/// this is wrapped in opens the file in the user's default image viewer.
+private struct HistoryScreenshotThumbnail: View {
+    let url: URL
+
+    private var thumbnailImage: NSImage? {
+        NSImage(contentsOf: url)
+    }
+
+    var body: some View {
+        Group {
+            if let thumbnailImage {
+                Image(nsImage: thumbnailImage)
+                    .resizable()
+                    .aspectRatio(contentMode: .fit)
+            } else {
+                Image(systemName: "photo")
+                    .foregroundStyle(.secondary)
+            }
+        }
+        .frame(width: 64, height: 64)
+        .background(
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .fill(Color.black.opacity(0.15))
+        )
+        .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .stroke(SetupColorPalette.controlBorder, lineWidth: 0.75)
+        )
+    }
+}
+
+/// A single attached-file row in the history detail pane: file name, with the
+/// full path as a tooltip. Clicking reveals it in Finder, unless the file has
+/// since moved or been deleted, in which case the row is dimmed and inert.
+private struct HistoryAttachedFileRow: View {
+    let path: String
+
+    private var exists: Bool {
+        FileManager.default.fileExists(atPath: path)
+    }
+
+    private var fileName: String {
+        (path as NSString).lastPathComponent
+    }
+
+    var body: some View {
+        Button {
+            NSWorkspace.shared.activateFileViewerSelecting([URL(fileURLWithPath: path)])
+        } label: {
+            HStack(spacing: 6) {
+                Image(systemName: "doc")
+                    .font(.caption)
+                    .foregroundStyle(exists ? .secondary : .tertiary)
+                Text(exists ? fileName : "\(fileName) (moved or deleted)")
+                    .font(.caption)
+                    .foregroundStyle(exists ? .primary : .tertiary)
+                    .lineLimit(1)
+            }
+        }
+        .buttonStyle(.plain)
+        .disabled(!exists)
+        .help(path)
     }
 }

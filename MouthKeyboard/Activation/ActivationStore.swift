@@ -49,6 +49,28 @@ final class ActivationStore: ObservableObject {
     @Published private(set) var successDismissStartedAt: Date?
     @Published private(set) var successDismissDeadline: Date?
     @Published private(set) var successNoteSaveState: SuccessNoteSaveState?
+    // Pill state for attachments (images and files) collected during the
+    // current/most recent session. Count/full stay visible through processing
+    // and success, and are reset at the next `beginRecording` and on
+    // cancel/teardown (but NOT on `restartCurrentSession`, which keeps the
+    // collector and its counts). Names kept as "screenshot" since the pill's
+    // wiring already uses them; they now count all attachments.
+    @Published private(set) var sessionScreenshotCount = 0
+    @Published private(set) var sessionScreenshotsFull = false
+    /// Incremented (never reset mid-session) each time a duplicate copy is
+    /// seen, so the pill can trigger a one-shot shake animation off the change.
+    @Published private(set) var screenshotDuplicateTick = 0
+    /// True once this session has collected a `.file` attachment that isn't
+    /// itself an image (a PDF, zip, etc), so the pill can swap its icon.
+    @Published private(set) var sessionAttachmentsIncludeFiles = false
+    /// Companion to `sessionAttachmentsIncludeFiles`: together they tell the
+    /// pill badge whether this session holds images, files, or both.
+    @Published private(set) var sessionAttachmentsIncludeImages = false
+    /// The most recently finished session's attachments, independent of
+    /// history — kept so they can still be recovered when history (or the
+    /// screenshot-history toggle) is off. Replaced only when a session ending
+    /// with at least one attachment finishes.
+    @Published private(set) var lastSessionAttachments: [CollectedAttachment] = []
 
     // These dependencies are `internal` (not `private`) so the `+Pipeline`-style
     // extensions in ActivationStore+Models / +Notes / +Rewrite can reach them.
@@ -61,6 +83,7 @@ final class ActivationStore: ObservableObject {
     let noteCaptureService: any NoteCapturing
     let historyCaptureService: any HistoryCapturing
     private let clipboardService: ClipboardService
+    private let screenshotCollector: RecordingScreenshotCollector
     private let pasteService: any PasteServicing
     private let dateProvider: () -> Date
     private let sleeper: any Sleeping
@@ -87,6 +110,14 @@ final class ActivationStore: ObservableObject {
     static let minimumDirectAssistantPromptWordLimit = 1_500
     private static let lastTranscriptionContextMaxAge: TimeInterval = 30 * 60
     private static let clipboardRestoreDelay: UInt64 = 150_000_000
+    // Pastes with attachments carry files, which target apps take longer to
+    // read off the pasteboard than plain text — a short restore delay here
+    // risked swapping the clipboard back before the paste had actually landed.
+    private static let clipboardRestoreDelayWithImages: UInt64 = 500_000_000
+    // Real-app paste testing (wave 3b) found target apps only reliably pick up
+    // file-URL attachments alongside plain text when delivered as two
+    // separate Cmd+V pastes with a short gap, rather than one combined write.
+    private static let attachmentPasteGap: UInt64 = 400_000_000
     // Copy is delivered asynchronously to the foreground app. 120 ms was short
     // enough to miss valid selections when the target app or macOS was briefly
     // busy, leaving an otherwise explicit selection request without its source.
@@ -127,6 +158,28 @@ final class ActivationStore: ObservableObject {
     private var initialSelectedCaptureTask: Task<SelectedClipboardCapture, Never>?
     private var downloadGateCancellable: AnyCancellable?
     private var lastStartSoundAt: Date?
+    // Attachments collected during the session in progress (or just finished —
+    // `finish()` stops the collector before the async pipeline runs). Kept
+    // separate from `lastSessionAttachments`, which only updates on exit.
+    //
+    // Single source of truth split: while `state == .recording`, this array is
+    // stale (last synced at `beginRecording`/`restartCurrentSession`) — the
+    // live collector is the source of truth, and this is only refreshed from
+    // it by `stop()`. Once `finish()` calls `stop()` and moves to
+    // `.processing`, the collector is gone and this array becomes the source
+    // of truth for the rest of the pipeline. `removeLastCollectedAttachment`/
+    // `clearCollectedAttachments` follow the same split. The delivery methods
+    // below (`deliverPassthroughSuccess`, `rewriteAndDeliver`) read this array
+    // at the latest possible point — right before/at the paste or clipboard
+    // write — rather than capturing it into a local earlier, so a clear that
+    // lands mid-processing (even mid-`await`) still drops items from what's
+    // actually delivered, saved to history, and left in `lastSessionAttachments`
+    // / the success Copy button.
+    private var sessionAttachments: [CollectedAttachment] = []
+    // The attachments (if any) delivered alongside the current success text,
+    // so the success-pill copy button can reproduce the same delivery.
+    private var currentSuccessAttachments: [CollectedAttachment] = []
+    private var screenshotCollectionTask: Task<Void, Never>?
 
     convenience init(preferences: ShellPreferences, readinessStore: ReadinessStore) {
         self.init(
@@ -157,7 +210,8 @@ final class ActivationStore: ObservableObject {
         bufferAccumulator: AudioBufferAccumulator = AudioBufferAccumulator(),
         dateProvider: @escaping () -> Date = { Date() },
         sleeper: any Sleeping = SystemSleeper(),
-        resetSessionMonitoring: @escaping @MainActor () -> Void = {}
+        resetSessionMonitoring: @escaping @MainActor () -> Void = {},
+        screenshotCollector: RecordingScreenshotCollector? = nil
     ) {
         self.preferences = preferences
         self.readinessProvider = readinessProvider
@@ -173,6 +227,23 @@ final class ActivationStore: ObservableObject {
         self.dateProvider = dateProvider
         self.sleeper = sleeper
         self.resetSessionMonitoring = resetSessionMonitoring
+        self.screenshotCollector = screenshotCollector ?? RecordingScreenshotCollector(
+            clipboard: clipboardService,
+            sleeper: sleeper
+        )
+
+        self.screenshotCollector.onChange = { [weak self] count, includesFiles in
+            guard let self else { return }
+            self.sessionScreenshotCount = count
+            self.sessionAttachmentsIncludeFiles = includesFiles
+            self.sessionAttachmentsIncludeImages = self.screenshotCollector.includesImages
+        }
+        self.screenshotCollector.onDuplicate = { [weak self] in
+            self?.screenshotDuplicateTick += 1
+        }
+        self.screenshotCollector.onFull = { [weak self] in
+            self?.sessionScreenshotsFull = true
+        }
     }
 
     /// Returns the cloud service when cloud LLM is enabled, otherwise the local on-device service.
@@ -245,19 +316,33 @@ final class ActivationStore: ObservableObject {
             return
         }
 
-        invalidateActiveSession()
+        let attachments = invalidateActiveSession()
         bufferAccumulator.reset()
         recoveryFeedback = nil
         state = .idle
         scheduleWhisperModelIdleUnload()
         scheduleRewriteModelIdleUnload()
+        finalizeSessionAttachments(
+            attachments: attachments,
+            rawTranscription: "",
+            onlyIfAttachmentsPresent: true
+        )
     }
 
     func restartCurrentSession() {
         guard state == .recording else { return }
 
         let currentOrigin = activeActivationOrigin
-        invalidateActiveSession()
+        // Captured before `invalidateActiveSession` cancels/nils it out and
+        // reassigns `activeSessionID` — if collection was still waiting on
+        // this (the collector hasn't started yet), the pending start below
+        // needs the same underlying task so the still-in-flight Cmd+C /
+        // clipboard restore is still respected, just under the new session.
+        let pendingCapture = initialSelectedCaptureTask
+        // Restart discards the recorded audio but keeps recording — screenshots
+        // are about what was copied, not the audio, so keep the collector
+        // running and its images/count intact (decision 6).
+        _ = invalidateActiveSession(stoppingAttachments: false)
         activeActivationOrigin = currentOrigin
         bufferAccumulator.reset()
         resetSessionMonitoring()
@@ -265,6 +350,16 @@ final class ActivationStore: ObservableObject {
         state = .recording
         beginWhisperModelWarmup()
         beginRewriteModelWarmup()
+
+        // If the collector hadn't started yet (restart landed while still
+        // waiting on the initial selected-text capture), the task that was
+        // going to start it captured the OLD session ID and will now no-op
+        // against the new one — start a fresh one so collection isn't
+        // silently dropped. `start()` resets the collector's images, but
+        // since it was never running there are none to lose.
+        if preferences.collectScreenshotsWhileRecording, !screenshotCollector.isRunning {
+            beginScreenshotCollection(sessionID: activeSessionID, capture: pendingCapture)
+        }
     }
 
     /// Copies the last transcription to the clipboard.
@@ -283,8 +378,66 @@ final class ActivationStore: ObservableObject {
 
     func copyCurrentSuccessResult() {
         guard let successText = currentSuccessText else { return }
-        clipboardService.writeToClipboard(successText)
+        if currentSuccessAttachments.isEmpty {
+            clipboardService.writeToClipboard(successText)
+        } else {
+            clipboardService.writeTextAndAttachments(text: successText, attachments: currentSuccessAttachments)
+        }
         refreshSuccessDismissTimer()
+    }
+
+    /// Recovers the most recent session's attachments onto the clipboard, for
+    /// when history (or the screenshot-history toggle) is off and the pill's
+    /// own delivery already happened or never had text to pair them with.
+    func copyLastSessionAttachments() {
+        guard !lastSessionAttachments.isEmpty else { return }
+        clipboardService.writeAttachments(lastSessionAttachments)
+    }
+
+    /// Drops the newest attachment collected this session, so copying the
+    /// same image or file again re-adds it. Allowed only in `.recording`
+    /// (acts on the live collector, the source of truth while it's running)
+    /// and `.processing` (acts on `sessionAttachments`, which `finish()`
+    /// already froze by stopping the collector) — a no-op in every other
+    /// state. See `sessionAttachments`' doc comment for why these two states
+    /// read from different places.
+    func removeLastCollectedAttachment() {
+        switch state {
+        case .recording:
+            guard screenshotCollector.removeLast() != nil else { return }
+        case .processing:
+            guard sessionAttachments.popLast() != nil else { return }
+            applyAttachmentFlags(from: sessionAttachments)
+        default:
+            return
+        }
+        sessionScreenshotsFull = false
+    }
+
+    /// Clears every attachment collected this session and forgets every
+    /// dedupe key, so re-copying anything already seen re-adds it. Same
+    /// recording/processing split (and same no-op elsewhere) as
+    /// `removeLastCollectedAttachment`.
+    func clearCollectedAttachments() {
+        switch state {
+        case .recording:
+            screenshotCollector.clearCollected()
+        case .processing:
+            sessionAttachments = []
+            applyAttachmentFlags(from: sessionAttachments)
+        default:
+            return
+        }
+        sessionScreenshotsFull = false
+    }
+
+    /// Recomputes the published count/includes-files flags from `attachments`.
+    /// Only needed for the `.processing` branch above — while `.recording`,
+    /// the collector's own `onChange` callback keeps them in sync instead.
+    private func applyAttachmentFlags(from attachments: [CollectedAttachment]) {
+        sessionScreenshotCount = attachments.count
+        sessionAttachmentsIncludeFiles = RecordingScreenshotCollector.includesNonImageFile(in: attachments)
+        sessionAttachmentsIncludeImages = RecordingScreenshotCollector.includesImage(in: attachments)
     }
 
     func requestCurrentSessionResultAsNote() {
@@ -335,6 +488,7 @@ final class ActivationStore: ObservableObject {
         clearSuccessDismissTiming()
         successNoteSaveState = nil
         currentSuccessNoteContent = nil
+        currentSuccessAttachments = []
         recoveryFeedback = nil
         state = .idle
         scheduleWhisperModelIdleUnload()
@@ -351,6 +505,13 @@ final class ActivationStore: ObservableObject {
     /// Finish recording: stops capture and runs the transcription -> clipboard -> dismiss flow.
     func finish() {
         guard state == .recording else { return }
+        // Stop collecting before anything else — in particular before
+        // `state = .processing`, which precedes the final `captureSelectedContent()`
+        // Cmd+C in `transcribeForSession`. That Cmd+C (and its clipboard restore)
+        // must never be picked up as a "screenshot".
+        screenshotCollectionTask?.cancel()
+        screenshotCollectionTask = nil
+        sessionAttachments = screenshotCollector.stop()
         if shouldGuideForMissingAutoPastePermission {
             onPastePermissionNeeded()
         }
@@ -375,7 +536,7 @@ final class ActivationStore: ObservableObject {
     }
 
     func handleCaptureFailure(_ error: AudioCaptureError) {
-        invalidateActiveSession()
+        let attachments = invalidateActiveSession()
         bufferAccumulator.reset()
         recoveryFeedback = nil
 
@@ -383,6 +544,11 @@ final class ActivationStore: ObservableObject {
         state = .failure(reason: failureReason(for: error))
         playFailureSoundIfNeeded()
         scheduleDismissToIdle(afterNanoseconds: 2_000_000_000, sessionID: failureSessionID)
+        finalizeSessionAttachments(
+            attachments: attachments,
+            rawTranscription: "",
+            onlyIfAttachmentsPresent: true
+        )
     }
 
     // MARK: - Private transcription flow
@@ -404,6 +570,7 @@ final class ActivationStore: ObservableObject {
             clearSuccessDismissTiming()
             successNoteSaveState = nil
             currentSuccessNoteContent = nil
+            currentSuccessAttachments = []
             state = .idle
         }
 
@@ -432,11 +599,13 @@ final class ActivationStore: ObservableObject {
         activeSessionID = UUID()
         successNoteSaveState = nil
         currentSuccessNoteContent = nil
+        currentSuccessAttachments = []
         sessionClipboardSnapshot = clipboardService.snapshotCurrentClipboard()
         initialSelectedCapture = nil
         finalSelectedCapture = nil
         initialSelectedCaptureTask?.cancel()
         initialSelectedCaptureTask = nil
+        resetScreenshotState()
         activeActivationOrigin = origin
         bufferAccumulator.reset()
         successNoteSaveState = configuredSuccessNoteSaveState(noteWasSaved: false)
@@ -444,6 +613,9 @@ final class ActivationStore: ObservableObject {
         beginWhisperModelWarmup()
         beginRewriteModelWarmup()
         beginInitialSelectedTextCapture(sessionID: activeSessionID)
+        if preferences.collectScreenshotsWhileRecording {
+            beginScreenshotCollection(sessionID: activeSessionID, capture: initialSelectedCaptureTask)
+        }
 
         // Auto-stop after 5 minutes to prevent runaway recordings.
         let sessionID = activeSessionID
@@ -493,24 +665,44 @@ final class ActivationStore: ObservableObject {
             state = .failure(reason: .noSpeechDetected)
             playFailureSoundIfNeeded()
             scheduleDismissToIdle(afterNanoseconds: 2_000_000_000, sessionID: sessionID)
+            finalizeSessionAttachments(
+                attachments: sessionAttachments,
+                rawTranscription: "",
+                onlyIfAttachmentsPresent: true
+            )
         } catch AudioBufferAccumulatorError.emptyBuffers {
             guard isCurrentSession(sessionID) else { return }
             clearSuccessDismissTiming()
             state = .failure(reason: .noSpeechDetected)
             playFailureSoundIfNeeded()
             scheduleDismissToIdle(afterNanoseconds: 2_000_000_000, sessionID: sessionID)
+            finalizeSessionAttachments(
+                attachments: sessionAttachments,
+                rawTranscription: "",
+                onlyIfAttachmentsPresent: true
+            )
         } catch AudioBufferAccumulatorError.overflow {
             guard isCurrentSession(sessionID) else { return }
             clearSuccessDismissTiming()
             state = .failure(reason: .wordLimitExceeded)
             playFailureSoundIfNeeded()
             scheduleDismissToIdle(afterNanoseconds: 2_000_000_000, sessionID: sessionID)
+            finalizeSessionAttachments(
+                attachments: sessionAttachments,
+                rawTranscription: "",
+                onlyIfAttachmentsPresent: true
+            )
         } catch {
             guard isCurrentSession(sessionID) else { return }
             clearSuccessDismissTiming()
             state = .failure(reason: .modelError(error.localizedDescription))
             playFailureSoundIfNeeded()
             scheduleDismissToIdle(afterNanoseconds: 2_000_000_000, sessionID: sessionID)
+            finalizeSessionAttachments(
+                attachments: sessionAttachments,
+                rawTranscription: "",
+                onlyIfAttachmentsPresent: true
+            )
         }
 
         if sessionID == activeSessionID {
@@ -589,12 +781,36 @@ final class ActivationStore: ObservableObject {
             ? await saveNoteIfPossible(content: noteContent)
             : false
         currentSuccessNoteContent = noteContent
+        // Read `sessionAttachments` fresh at each write below rather than
+        // capturing it into a local up front — a clear/removeLast during
+        // `.processing` (including one that lands mid-`await`, e.g. during
+        // the note save just above or the paste gap inside
+        // `pasteTextThenAttachments`) must still be reflected in what's
+        // actually delivered. `deliveredAttachments` ends up holding exactly
+        // that: the set as of the moment of the write, which is also what
+        // gets saved to history and left in `lastSessionAttachments`/the
+        // success Copy button below.
         var syntheticPasteSucceeded = false
+        let deliveredAttachments: [CollectedAttachment]
         if didPaste {
-            syntheticPasteSucceeded = await pasteWithClipboardProtection(text: processed)
+            if sessionAttachments.isEmpty {
+                syntheticPasteSucceeded = await pasteWithClipboardProtection(text: processed)
+                deliveredAttachments = []
+            } else {
+                let (pasted, delivered) = await pasteTextThenAttachments(text: processed)
+                syntheticPasteSucceeded = pasted
+                deliveredAttachments = delivered
+            }
         } else {
-            clipboardService.writeToClipboard(processed)
+            let attachmentsToWrite = sessionAttachments
+            if attachmentsToWrite.isEmpty {
+                clipboardService.writeToClipboard(processed)
+            } else {
+                clipboardService.writeTextAndAttachments(text: processed, attachments: attachmentsToWrite)
+            }
+            deliveredAttachments = attachmentsToWrite
         }
+        currentSuccessAttachments = deliveredAttachments
         successNoteSaveState = configuredSuccessNoteSaveState(noteWasSaved: queuedNoteWasSaved)
         state = .success(
             text: processed,
@@ -602,12 +818,7 @@ final class ActivationStore: ObservableObject {
             rewritten: false,
             noMatchPassthrough: false
         )
-        persistHistoryIfEnabled(
-            HistoryCaptureContent(
-                rawTranscription: processed,
-                assistantOutput: nil
-            )
-        )
+        finalizeSessionAttachments(attachments: deliveredAttachments, rawTranscription: processed)
         if queuedNoteWasSaved {
             playSuccessThenNoteSavedSoundIfNeeded()
         } else {
@@ -688,6 +899,11 @@ final class ActivationStore: ObservableObject {
             state = .failure(reason: .modelError("Context routing failed: \(errorDescription)"))
             playFailureSoundIfNeeded()
             scheduleDismissToIdle(afterNanoseconds: 2_000_000_000, sessionID: sessionID)
+            finalizeSessionAttachments(
+                attachments: sessionAttachments,
+                rawTranscription: processed,
+                onlyIfAttachmentsPresent: true
+            )
             return false
         }
 
@@ -726,6 +942,11 @@ final class ActivationStore: ObservableObject {
             state = .failure(reason: .wordLimitExceeded)
             playFailureSoundIfNeeded()
             scheduleDismissToIdle(afterNanoseconds: 2_000_000_000, sessionID: failureSessionID)
+            finalizeSessionAttachments(
+                attachments: sessionAttachments,
+                rawTranscription: processed,
+                onlyIfAttachmentsPresent: true
+            )
             return false
         }
 
@@ -761,6 +982,11 @@ final class ActivationStore: ObservableObject {
             state = .failure(reason: .modelError("Rewrite failed: \(errorDescription)"))
             playFailureSoundIfNeeded()
             scheduleDismissToIdle(afterNanoseconds: 2_000_000_000, sessionID: sessionID)
+            finalizeSessionAttachments(
+                attachments: sessionAttachments,
+                rawTranscription: processed,
+                onlyIfAttachmentsPresent: true
+            )
             return false
         }
 
@@ -781,6 +1007,8 @@ final class ActivationStore: ObservableObject {
         let queuedNoteWasSaved = successNoteSaveState == .queued
             ? await saveNoteIfPossible(content: noteContent)
             : false
+        // Images are plain-dictation only (decision 3) — assistant mode never
+        // pastes them, regardless of how many were collected.
         var syntheticPasteSucceeded = false
         if didPaste {
             syntheticPasteSucceeded = await pasteWithClipboardProtection(text: rewritten)
@@ -790,6 +1018,7 @@ final class ActivationStore: ObservableObject {
         recordLastTranscription(processed)
         lastRewrittenTranscription = rewritten
         currentSuccessNoteContent = noteContent
+        currentSuccessAttachments = []
         successNoteSaveState = configuredSuccessNoteSaveState(
             noteWasSaved: queuedNoteWasSaved
         )
@@ -799,11 +1028,10 @@ final class ActivationStore: ObservableObject {
             rewritten: true,
             externalTextInjected: externalTextWasInjected
         )
-        persistHistoryIfEnabled(
-            HistoryCaptureContent(
-                rawTranscription: processed,
-                assistantOutput: rewritten
-            )
+        finalizeSessionAttachments(
+            attachments: sessionAttachments,
+            rawTranscription: processed,
+            assistantOutput: rewritten
         )
         if queuedNoteWasSaved {
             playSuccessThenNoteSavedSoundIfNeeded()
@@ -814,11 +1042,18 @@ final class ActivationStore: ObservableObject {
         return true
     }
 
-    private func invalidateActiveSession() {
+    /// Tears down the active session. Returns whatever attachments were
+    /// collected so callers (cancel, capture failure) can route them to
+    /// history/`lastSessionAttachments` themselves. `restartCurrentSession`
+    /// passes `stoppingAttachments: false` so the collector — and its
+    /// attachments and pill count — survive the restart (decision 6).
+    @discardableResult
+    private func invalidateActiveSession(stoppingAttachments: Bool = true) -> [CollectedAttachment] {
         requestsPasteOnCompletion = false
         sessionClipboardSnapshot = nil
         successNoteSaveState = nil
         currentSuccessNoteContent = nil
+        currentSuccessAttachments = []
         initialSelectedCapture = nil
         finalSelectedCapture = nil
         initialSelectedCaptureTask?.cancel()
@@ -829,6 +1064,17 @@ final class ActivationStore: ObservableObject {
         transcriptionTask?.cancel()
         transcriptionTask = nil
         invalidateScheduledWork()
+
+        guard stoppingAttachments else { return sessionAttachments }
+
+        screenshotCollectionTask?.cancel()
+        screenshotCollectionTask = nil
+        sessionAttachments = screenshotCollector.stop()
+        sessionScreenshotCount = 0
+        sessionScreenshotsFull = false
+        sessionAttachmentsIncludeFiles = false
+        sessionAttachmentsIncludeImages = false
+        return sessionAttachments
     }
 
     private func invalidateScheduledWork() {
@@ -890,6 +1136,128 @@ final class ActivationStore: ObservableObject {
 
         _ = clipboardService.restoreClipboard(from: originalClipboard, ifUnchangedSince: receipt)
         return outcome == .pasted
+    }
+
+    /// Delivers dictated text and its attachments as two separate Cmd+V
+    /// pastes rather than one combined write: real-app paste testing (wave
+    /// 3b) found target apps only reliably pick up file-URL attachments
+    /// alongside plain text when they arrive as two pastes with a short gap.
+    /// The text paste happens first; its success is what's returned (per
+    /// decision, the text paste counts even if the attachments write/paste
+    /// fails). The original clipboard, if snapshotted, is restored only once,
+    /// after the second paste, and only if the clipboard is unchanged since
+    /// that second write (falling back to the text write's receipt when
+    /// there were no attachments to write).
+    ///
+    /// `sessionAttachments` is read fresh right before the attachments write —
+    /// not passed in — so a clear/removeLast that lands during the gap sleep
+    /// above still takes effect; once that write has happened, whatever was
+    /// just read is what's "delivered" and is returned to the caller for its
+    /// own bookkeeping (history, `lastSessionAttachments`, the success Copy
+    /// button), immune to any further clear during the trailing restore delay.
+    private func pasteTextThenAttachments(text: String) async -> (pasted: Bool, delivered: [CollectedAttachment]) {
+        let originalClipboard = shouldRestorePreviousClipboardAfterAutoPaste
+            ? clipboardService.snapshotCurrentClipboard()
+            : nil
+        guard let textReceipt = clipboardService.writeTemporaryText(text) else {
+            return (false, [])
+        }
+        let textOutcome = pasteService.pasteCurrentClipboard()
+        let textPasted = textOutcome == .pasted
+
+        try? await Task.sleep(nanoseconds: Self.attachmentPasteGap)
+
+        let deliveredAttachments = sessionAttachments
+        var restoreReceipt = textReceipt
+        if !deliveredAttachments.isEmpty,
+           let attachmentsReceipt = clipboardService.writeAttachments(deliveredAttachments) {
+            restoreReceipt = attachmentsReceipt
+            pasteService.pasteCurrentClipboard()
+        }
+
+        if let originalClipboard {
+            try? await Task.sleep(nanoseconds: Self.clipboardRestoreDelayWithImages)
+            _ = clipboardService.restoreClipboard(from: originalClipboard, ifUnchangedSince: restoreReceipt)
+        }
+        return (textPasted, deliveredAttachments)
+    }
+
+    /// Clears collector/pill state ahead of a new recording. Not used by
+    /// `restartCurrentSession`, which keeps the collector running.
+    private func resetScreenshotState() {
+        screenshotCollectionTask?.cancel()
+        screenshotCollectionTask = nil
+        screenshotCollector.reset()
+        sessionAttachments = []
+        sessionScreenshotCount = 0
+        sessionScreenshotsFull = false
+        sessionAttachmentsIncludeFiles = false
+        sessionAttachmentsIncludeImages = false
+        screenshotDuplicateTick = 0
+    }
+
+    /// Starts the screenshot collector once it's safe to do so — after the
+    /// start-of-recording selected-text grab (Cmd+C + clipboard restore) has
+    /// finished, so that capture is never mistaken for a collectable
+    /// screenshot (decision 2). The baseline change count is read only after
+    /// that capture completes; if there's no capture task (post-event
+    /// permission not granted), it starts immediately. `capture` is passed in
+    /// (rather than read from `initialSelectedCaptureTask`) so a restart that
+    /// lands mid-capture can hand this the same pending task under the new
+    /// session ID instead of losing it.
+    private func beginScreenshotCollection(
+        sessionID: UUID,
+        capture: Task<SelectedClipboardCapture, Never>?
+    ) {
+        guard let capture else {
+            screenshotCollector.start(baselineChangeCount: clipboardService.changeCount)
+            return
+        }
+
+        screenshotCollectionTask = Task { [weak self] in
+            _ = await capture.value
+            guard let self, self.isCurrentSession(sessionID), self.state == .recording else { return }
+            self.screenshotCollector.start(baselineChangeCount: self.clipboardService.changeCount)
+        }
+    }
+
+    /// Routes a session's attachments to `lastSessionAttachments` (decision 5,
+    /// independent of history) and, when history is enabled and
+    /// `saveScreenshotsToHistory` is on, to history alongside `rawTranscription`.
+    /// Success paths already have a transcript and save history unconditionally
+    /// (`onlyIfAttachmentsPresent: false`); failure/cancel paths pass an empty
+    /// transcript and `onlyIfAttachmentsPresent: true` so an otherwise-empty
+    /// history entry is never created just to carry nothing (decision 4).
+    private func finalizeSessionAttachments(
+        attachments: [CollectedAttachment],
+        rawTranscription: String,
+        assistantOutput: String? = nil,
+        onlyIfAttachmentsPresent: Bool = false
+    ) {
+        if !attachments.isEmpty {
+            lastSessionAttachments = attachments
+        }
+
+        let attachmentsToPersist = preferences.saveScreenshotsToHistory ? attachments : []
+        guard !onlyIfAttachmentsPresent || !attachmentsToPersist.isEmpty else { return }
+
+        let images: [Data] = attachmentsToPersist.compactMap { attachment in
+            if case .image(let data) = attachment { return data }
+            return nil
+        }
+        let filePaths: [String] = attachmentsToPersist.compactMap { attachment in
+            if case .file(let url) = attachment { return url.path }
+            return nil
+        }
+
+        persistHistoryIfEnabled(
+            HistoryCaptureContent(
+                rawTranscription: rawTranscription,
+                assistantOutput: assistantOutput,
+                screenshots: images,
+                attachedFilePaths: filePaths
+            )
+        )
     }
 
     private func beginInitialSelectedTextCapture(sessionID: UUID) {

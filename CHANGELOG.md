@@ -4,6 +4,19 @@ All notable public release changes should be documented here.
 
 ## Unreleased
 
+- Images copied while a recording is running (e.g. a Cmd+Ctrl+Shift+4
+  screenshot) and files copied in Finder are now pasted together right after
+  your dictated text, with a short badge on the recording pill showing how
+  many are queued. Hovering the badge while recording or processing lets you
+  drop just the newest item or clear the whole queue with the ✕ — cleared
+  items are never pasted, saved to history, or offered from "Copy Last
+  Images & Files". This only happens for plain dictation, not assistant
+  rewrites. Screenshots are saved alongside the transcript in history as PNG
+  copies (other files are recorded by path only), viewable and clickable from
+  the history detail view, with a "Copy with images" action alongside the
+  existing copy. Controlled by a new "Paste copied images" preference in
+  Settings > General (on by default) and a "Save copied images" preference in
+  Settings > Historical Transcripts (on by default).
 - The app now quietly restarts itself during natural away windows (screen
   lock, screensaver, or 30+ minutes without input) once it has been running
   for at least 4 hours, so long sessions always start from a clean slate.

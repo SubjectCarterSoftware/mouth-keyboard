@@ -1628,7 +1628,7 @@ private final class ExternalTextEvalClipboard: ClipboardService {
     private(set) var temporaryWriteTexts: [String] = []
     private(set) var restoreCount = 0
     var stubbedPlainText: String?
-    private var changeCount = 1
+    private var fakeChangeCount = 1
 
     init() {
         let pasteboard = NSPasteboard(
@@ -1639,7 +1639,7 @@ private final class ExternalTextEvalClipboard: ClipboardService {
 
     override func snapshotCurrentClipboard() -> ClipboardSnapshot {
         ClipboardSnapshot.empty(
-            changeCount: changeCount,
+            changeCount: fakeChangeCount,
             plainText: stubbedPlainText,
             imageContent: nil
         )
@@ -1649,15 +1649,15 @@ private final class ExternalTextEvalClipboard: ClipboardService {
     override func writeToClipboard(_ text: String) -> Bool {
         lastWrittenText = text
         stubbedPlainText = text
-        changeCount += 1
+        fakeChangeCount += 1
         return true
     }
 
     override func writeTemporaryText(_ text: String) -> ClipboardWriteReceipt? {
         temporaryWriteTexts.append(text)
         stubbedPlainText = text
-        changeCount += 1
-        return ClipboardWriteReceipt(changeCount: changeCount)
+        fakeChangeCount += 1
+        return ClipboardWriteReceipt(changeCount: fakeChangeCount)
     }
 
     override func restoreClipboard(
@@ -1666,7 +1666,7 @@ private final class ExternalTextEvalClipboard: ClipboardService {
     ) -> Bool {
         restoreCount += 1
         stubbedPlainText = snapshot.plainText
-        changeCount += 1
+        fakeChangeCount += 1
         return true
     }
 
@@ -1676,7 +1676,7 @@ private final class ExternalTextEvalClipboard: ClipboardService {
 
     func simulateSelectionCopy(_ text: String?) {
         stubbedPlainText = text
-        changeCount += 1
+        fakeChangeCount += 1
     }
 
     func resetWrites() {

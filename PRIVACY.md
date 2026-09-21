@@ -18,6 +18,20 @@ are not read or persisted.
 Depending on app settings and feature use, generated text, notes, preferences,
 and related app state may be stored locally in Application Support.
 
+## Copied Images And Files
+
+While a recording is running, images (like screenshots) and files copied in
+Finder are read from the clipboard so they can be pasted alongside your
+dictated text — this only happens during an active recording, and copies
+marked as concealed (e.g. password manager entries) are always ignored.
+Copied images are held in memory and briefly written to a temporary folder
+solely so they can be pasted as files; that folder is cleaned up automatically
+after an hour. Other copied files are never read or duplicated — only their
+location on disk is referenced. These images and files are saved with a
+transcript in history only when both history and the "Save copied images"
+setting are on, and even then only images are copied into history (other
+files remain a path reference). None of this is sent to any model or network.
+
 ## Cloud Conversion
 
 No cloud request is made unless you explicitly configure and enable a cloud

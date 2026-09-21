@@ -241,6 +241,24 @@ final class StatusMenuController: NSObject, NSMenuDelegate {
                     symbolNames: ["doc.on.doc", "doc.on.clipboard"]
                 )
             )
+            let lastSessionAttachments = activationStore.lastSessionAttachments
+            if !lastSessionAttachments.isEmpty {
+                let allImages = lastSessionAttachments.allSatisfy { attachment in
+                    if case .image = attachment { return true }
+                    return false
+                }
+                let title = allImages
+                    ? "Copy Last Screenshots (\(lastSessionAttachments.count))"
+                    : "Copy Last Images & Files (\(lastSessionAttachments.count))"
+                menu.addItem(
+                    actionItem(
+                        title: title,
+                        action: #selector(copyLastSessionAttachmentsFromMenu),
+                        enabled: true,
+                        symbolNames: ["camera.on.rectangle", "photo.on.rectangle"]
+                    )
+                )
+            }
             menu.addItem(.separator())
             menu.addItem(
                 actionItem(
@@ -542,6 +560,11 @@ final class StatusMenuController: NSObject, NSMenuDelegate {
     @objc
     private func copyLastTranscriptionFromMenu() {
         activationStore.copyLastTranscription()
+    }
+
+    @objc
+    private func copyLastSessionAttachmentsFromMenu() {
+        activationStore.copyLastSessionAttachments()
     }
 
     @objc

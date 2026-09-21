@@ -71,6 +71,8 @@
 		A0000001000000000000013A /* SystemAudioDuckingServiceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0000002000000000000013A /* SystemAudioDuckingServiceTests.swift */; };
 		A0000001000000000000013B /* AutoRestartService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0000002000000000000013B /* AutoRestartService.swift */; };
 		A0000001000000000000013C /* AutoRestartServiceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0000002000000000000013C /* AutoRestartServiceTests.swift */; };
+		A0000001000000000000013D /* RecordingScreenshotCollector.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0000002000000000000013D /* RecordingScreenshotCollector.swift */; };
+		A0000001000000000000013E /* RecordingScreenshotCollectorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0000002000000000000013E /* RecordingScreenshotCollectorTests.swift */; };
 		A0000001000000000000001D /* RecordingPillView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000020000000000000020 /* RecordingPillView.swift */; };
 		A0000001000000000000001E /* RecordingPillPanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000020000000000000021 /* RecordingPillPanel.swift */; };
 		A0000001000000000000001F /* ObjCExceptionCatcher.m in Sources */ = {isa = PBXBuildFile; fileRef = A00000020000000000000023 /* ObjCExceptionCatcher.m */; };
@@ -216,6 +218,8 @@
 		A0000002000000000000013A /* SystemAudioDuckingServiceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SystemAudioDuckingServiceTests.swift; sourceTree = "<group>"; };
 		A0000002000000000000013B /* AutoRestartService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AutoRestartService.swift; sourceTree = "<group>"; };
 		A0000002000000000000013C /* AutoRestartServiceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AutoRestartServiceTests.swift; sourceTree = "<group>"; };
+		A0000002000000000000013D /* RecordingScreenshotCollector.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecordingScreenshotCollector.swift; sourceTree = "<group>"; };
+		A0000002000000000000013E /* RecordingScreenshotCollectorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecordingScreenshotCollectorTests.swift; sourceTree = "<group>"; };
 		A00000020000000000000020 /* RecordingPillView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecordingPillView.swift; sourceTree = "<group>"; };
 		A00000020000000000000021 /* RecordingPillPanel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecordingPillPanel.swift; sourceTree = "<group>"; };
 		A00000020000000000000022 /* ObjCExceptionCatcher.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = ObjCExceptionCatcher.h; sourceTree = "<group>"; };
@@ -468,6 +472,7 @@
 				A00000020000000000000113 /* NoteCaptureServiceTests.swift */,
 				A0000002000000000000013A /* SystemAudioDuckingServiceTests.swift */,
 				A0000002000000000000013C /* AutoRestartServiceTests.swift */,
+				A0000002000000000000013E /* RecordingScreenshotCollectorTests.swift */,
 				A00000020000000000000114 /* ReplacementPackCatalogTests.swift */,
 				A00000020000000000000115 /* ReplacementPackServiceTests.swift */,
 				A00000020000000000000133 /* RewriteModelLimitsTests.swift */,
@@ -539,6 +544,7 @@
 			children = (
 				A00000020000000000000028 /* ClipboardService.swift */,
 				A00000020000000000000036 /* PasteService.swift */,
+				A0000002000000000000013D /* RecordingScreenshotCollector.swift */,
 			);
 			path = Clipboard;
 			sourceTree = "<group>";
@@ -719,6 +725,7 @@
 				A0000001000000000000013B /* AutoRestartService.swift in Sources */,
 				A0000001000000000000001A /* AudioLevelMonitor.swift in Sources */,
 				A00000010000000000000023 /* ClipboardService.swift in Sources */,
+				A0000001000000000000013D /* RecordingScreenshotCollector.swift in Sources */,
 				A0000001000000000000003C /* LLMRewriteService.swift in Sources */,
 				A00000010000000000000059 /* RewriteModelTier.swift in Sources */,
 				A00000010000000000000060 /* RewriteModelLoadState.swift in Sources */,
@@ -822,6 +829,7 @@
 				A00000010000000000000113 /* NoteCaptureServiceTests.swift in Sources */,
 				A0000001000000000000013A /* SystemAudioDuckingServiceTests.swift in Sources */,
 				A0000001000000000000013C /* AutoRestartServiceTests.swift in Sources */,
+				A0000001000000000000013E /* RecordingScreenshotCollectorTests.swift in Sources */,
 				A00000010000000000000114 /* ReplacementPackCatalogTests.swift in Sources */,
 				A00000010000000000000115 /* ReplacementPackServiceTests.swift in Sources */,
 				A00000010000000000000133 /* RewriteModelLimitsTests.swift in Sources */,

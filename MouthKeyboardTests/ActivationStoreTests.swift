@@ -2565,7 +2565,8 @@ final class ActivationStoreTests: XCTestCase {
         dateProvider: (() -> Date)? = nil,
         sleeper: (any Sleeping)? = nil,
         resetSessionMonitoring: (@MainActor () -> Void)? = nil,
-        preferences: ShellPreferences? = nil
+        preferences: ShellPreferences? = nil,
+        screenshotCollector: RecordingScreenshotCollector? = nil
     ) -> ActivationStore {
         let suiteName = "ActivationStoreTests.\(UUID().uuidString)"
         let defaults = UserDefaults(suiteName: suiteName) ?? .standard
@@ -2589,7 +2590,8 @@ final class ActivationStoreTests: XCTestCase {
             bufferAccumulator: bufferAccumulator ?? StubBufferAccumulator(),
             dateProvider: dateProvider ?? { Date() },
             sleeper: sleeper ?? SystemSleeper(),
-            resetSessionMonitoring: resetSessionMonitoring ?? {}
+            resetSessionMonitoring: resetSessionMonitoring ?? {},
+            screenshotCollector: screenshotCollector
         )
         // Silence real system sounds during the suite. Tests that assert on sound
         // playback override `store.soundPlayer` with their own counting player.
@@ -4603,6 +4605,42 @@ actor FinalizationAwareWhisperTranscriber: WhisperTranscribing {
     }
 }
 
+/// A `WhisperTranscribing` mock whose `transcribe(samples:)` suspends on a
+/// continuation until the test calls `release(with:)`, so tests can pause the
+/// pipeline mid-`.processing` (deterministically, via `waitUntilStarted()`)
+/// and act — e.g. clear collected attachments — before letting it continue.
+actor GatedWhisperTranscriber: WhisperTranscribing {
+    private var continuation: CheckedContinuation<String, Error>?
+    private var startContinuation: CheckedContinuation<Void, Never>?
+    private var hasStarted = false
+
+    func transcribe(samples: [Float]) async throws -> String {
+        hasStarted = true
+        startContinuation?.resume()
+        startContinuation = nil
+        return try await withCheckedThrowingContinuation { continuation in
+            self.continuation = continuation
+        }
+    }
+
+    /// Suspends until `transcribe` has actually been entered, so a caller can
+    /// be sure the pipeline has reached the transcription step (and, since
+    /// `finish()` sets `.processing` synchronously before that step runs,
+    /// that `state` has already settled there) before inspecting state or
+    /// calling `release`.
+    func waitUntilStarted() async {
+        if hasStarted { return }
+        await withCheckedContinuation { continuation in
+            self.startContinuation = continuation
+        }
+    }
+
+    func release(with text: String) {
+        continuation?.resume(returning: text)
+        continuation = nil
+    }
+}
+
 final class StubNoteCaptureService: NoteCapturing, @unchecked Sendable {
     enum StubError: Error {
         case failed
@@ -4686,6 +4724,19 @@ class ActivationStoreMockClipboard: ClipboardService {
     var stubbedSnapshotChangeCount = 1
     var didRestoreOriginalClipboard = false
 
+    /// Backs the overridden `changeCount`, so tests can script clipboard arrivals
+    /// for `RecordingScreenshotCollector` without a real pasteboard.
+    var stubbedChangeCount = 0
+    /// The attachments the next `readCollectableAttachments()` call returns;
+    /// cleared after being read once, so a test sets it again per poll.
+    var stubbedCollectableAttachments: [CollectedAttachment] = []
+    private(set) var attachmentsOnlyWrites: [[CollectedAttachment]] = []
+    private(set) var textAndAttachmentsWrites: [(text: String, attachments: [CollectedAttachment])] = []
+    /// Records writes and pastes (the latter appended by a paste-service stub
+    /// that's handed this clipboard) in call order, so tests can assert the
+    /// two-paste sequence `ActivationStore.pasteTextThenAttachments` performs.
+    private(set) var writeSequence: [String] = []
+
     init() {
         // Use a named pasteboard to avoid polluting the general pasteboard
         let pb = NSPasteboard(name: NSPasteboard.Name("ActivationStoreMockClipboard.\(UUID().uuidString)"))
@@ -4728,6 +4779,33 @@ class ActivationStoreMockClipboard: ClipboardService {
         stubbedClipboardContent
     }
 
+    override var changeCount: Int {
+        stubbedChangeCount
+    }
+
+    override func readCollectableAttachments() -> [CollectedAttachment] {
+        guard !stubbedCollectableAttachments.isEmpty else { return [] }
+        let result = stubbedCollectableAttachments
+        stubbedCollectableAttachments = []
+        return result
+    }
+
+    @discardableResult
+    override func writeAttachments(_ attachments: [CollectedAttachment]) -> ClipboardWriteReceipt? {
+        attachmentsOnlyWrites.append(attachments)
+        writeSequence.append("attachments")
+        stubbedSnapshotChangeCount += 1
+        return ClipboardWriteReceipt(changeCount: stubbedSnapshotChangeCount)
+    }
+
+    @discardableResult
+    override func writeTextAndAttachments(text: String, attachments: [CollectedAttachment]) -> ClipboardWriteReceipt? {
+        textAndAttachmentsWrites.append((text: text, attachments: attachments))
+        writeSequence.append("textAndAttachments")
+        stubbedSnapshotChangeCount += 1
+        return ClipboardWriteReceipt(changeCount: stubbedSnapshotChangeCount)
+    }
+
     func clearWriteCount() {
         writeCount = 0
         lastWrittenText = nil
@@ -4741,6 +4819,36 @@ class ActivationStoreMockClipboard: ClipboardService {
     func simulateClipboardChange(to text: String?) {
         stubbedClipboardContent = text
         stubbedSnapshotChangeCount += 1
+    }
+
+    /// Called by `SequenceRecordingPasteService` so a dispatched paste shows up
+    /// in `writeSequence` alongside the clipboard writes it's interleaved with.
+    func recordPaste() {
+        writeSequence.append("paste")
+    }
+}
+
+/// A `PasteServicing` stub that logs each dispatched paste into the mock
+/// clipboard's `writeSequence`, so tests can assert the exact interleaving of
+/// writes and pastes performed by `ActivationStore.pasteTextThenAttachments`.
+final class SequenceRecordingPasteService: PasteServicing {
+    private let clipboard: ActivationStoreMockClipboard
+    private let outcome: PasteOutcome
+    private(set) var pasteCount = 0
+
+    init(clipboard: ActivationStoreMockClipboard, outcome: PasteOutcome = .pasted) {
+        self.clipboard = clipboard
+        self.outcome = outcome
+    }
+
+    func pasteCurrentClipboard() -> PasteOutcome {
+        pasteCount += 1
+        clipboard.recordPaste()
+        return outcome
+    }
+
+    func copySelectedTextToClipboard() -> PostEventOutcome {
+        .unavailable
     }
 }
 
@@ -5022,5 +5130,1009 @@ final class StubSelectionAwarePasteService: PasteServicing {
             clipboard.simulateClipboardChange(to: text)
             return .dispatched
         }
+    }
+}
+
+
+// MARK: - Attachment collection (wave 3b)
+
+extension ActivationStoreTests {
+    /// Distinct raw bytes per `seed`, standing in for a collected screenshot —
+    /// the mock clipboard hands these back verbatim from
+    /// `readCollectableAttachments()`, so they don't need to be real image data
+    /// for these tests.
+    private func makeDistinctImageData(_ seed: UInt8) -> Data {
+        Data([0xAA, 0xBB, seed])
+    }
+
+    /// A distinct fake file URL standing in for a Finder-copied file. These
+    /// tests drive `ActivationStore` through the mock clipboard's stubbed
+    /// `readCollectableAttachments()`, so the URL never needs to resolve to a
+    /// real file on disk.
+    private func makeDistinctFileURL(_ seed: Int, extension ext: String = "pdf") -> URL {
+        URL(fileURLWithPath: "/tmp/ActivationStoreTests-attachment-\(seed).\(ext)")
+    }
+
+    /// Builds a `RecordingScreenshotCollector` wired to `clipboard` with a tiny
+    /// real poll interval, so tests can drive collection by mutating the mock's
+    /// `stubbedChangeCount` / `stubbedCollectableAttachments` and then polling
+    /// for the effect via `waitUntil`, instead of waiting out the collector's
+    /// real 250ms default.
+    private func makeFastCollector(
+        clipboard: ActivationStoreMockClipboard,
+        maxCount: Int = 20
+    ) -> RecordingScreenshotCollector {
+        RecordingScreenshotCollector(
+            clipboard: clipboard,
+            sleeper: SystemSleeper(),
+            pollInterval: 0.01,
+            maxCount: maxCount
+        )
+    }
+
+    func test_preExistingClipboardImage_isNeverCollected() async throws {
+        let clipboard = ActivationStoreMockClipboard()
+        clipboard.stubbedChangeCount = 7
+        clipboard.stubbedCollectableAttachments = [.image(makeDistinctImageData(1))]
+        let store = makeStore(
+            permissionsAuthorized: true,
+            transcriber: ActivationStoreMockTranscriber(result: .success("hello world")),
+            clipboard: clipboard,
+            screenshotCollector: makeFastCollector(clipboard: clipboard)
+        )
+
+        store.arm()
+        await settle()
+
+        // The baseline was taken at the clipboard's already-elevated change
+        // count, so the image that was already there is never "new".
+        XCTAssertEqual(store.sessionScreenshotCount, 0)
+
+        store.finish()
+        let didSucceed = try await waitForSuccess(of: store)
+        XCTAssertTrue(didSucceed)
+        XCTAssertTrue(store.lastSessionAttachments.isEmpty)
+    }
+
+    func test_screenshotCollection_baselineIsReadAfterInitialSelectedCaptureCompletes() async throws {
+        let clipboard = ActivationStoreMockClipboard()
+        // A change count bump that happens during the initial Cmd+C capture
+        // window (before collection's baseline is read) must be folded into
+        // that baseline rather than ever being treated as a new screenshot.
+        clipboard.stubbedChangeCount = 10
+        let pasteStub = StubSelectionAwarePasteService(
+            clipboard: clipboard,
+            queuedCopyResults: [.dispatched("selected text")]
+        )
+        let store = makeStore(
+            permissionsAuthorized: true,
+            postEventAuthorized: true,
+            transcriber: ActivationStoreMockTranscriber(result: .success("hello world")),
+            clipboard: clipboard,
+            pasteService: pasteStub,
+            screenshotCollector: makeFastCollector(clipboard: clipboard)
+        )
+
+        store.arm()
+
+        // Give the initial selected-text capture — and the screenshot
+        // collection start that awaits it — time to finish.
+        await settle()
+        await settle()
+
+        XCTAssertEqual(pasteStub.selectionCopyCount, 1)
+        XCTAssertEqual(store.sessionScreenshotCount, 0)
+
+        // A genuinely new copy after collection has started is picked up.
+        clipboard.stubbedChangeCount = 11
+        clipboard.stubbedCollectableAttachments = [.image(makeDistinctImageData(2))]
+        let didCollect = try await waitUntil(timeoutNanoseconds: 2_000_000_000) {
+            await MainActor.run { store.sessionScreenshotCount == 1 }
+        }
+        XCTAssertTrue(didCollect)
+
+        store.finish()
+        let didSucceed = try await waitForSuccess(of: store)
+        XCTAssertTrue(didSucceed)
+    }
+
+    func test_passthroughWithoutAttachments_behavesUnchanged() async throws {
+        let mockClipboard = ActivationStoreMockClipboard()
+        let store = makeStore(
+            permissionsAuthorized: true,
+            transcriber: ActivationStoreMockTranscriber(result: .success("hello world")),
+            clipboard: mockClipboard
+        )
+
+        store.arm()
+        store.finish()
+
+        let didSucceed = try await waitForSuccess(of: store)
+        XCTAssertTrue(didSucceed)
+        XCTAssertTrue(mockClipboard.attachmentsOnlyWrites.isEmpty)
+        XCTAssertTrue(mockClipboard.textAndAttachmentsWrites.isEmpty)
+        XCTAssertEqual(mockClipboard.lastWrittenText, "hello world")
+    }
+
+    func test_passthroughWithTwoImagesAndAutoPaste_pastesTextThenAttachmentsInOrder() async throws {
+        let preferences = makePreferencesWithTriggerStore()
+        preferences.alwaysAutoPaste = true
+        let clipboard = ActivationStoreMockClipboard()
+        let pasteStub = SequenceRecordingPasteService(clipboard: clipboard)
+        let image1 = makeDistinctImageData(3)
+        let image2 = makeDistinctImageData(4)
+        let store = makeStore(
+            permissionsAuthorized: true,
+            postEventAuthorized: true,
+            transcriber: ActivationStoreMockTranscriber(result: .success("hello world")),
+            clipboard: clipboard,
+            pasteService: pasteStub,
+            preferences: preferences,
+            screenshotCollector: makeFastCollector(clipboard: clipboard)
+        )
+
+        store.arm()
+        // Post-event permission is granted, so screenshot collection waits on
+        // the initial selected-text capture (which resolves near-instantly
+        // here, since the stub reports the copy as unavailable) before
+        // reading its baseline — give that a moment to finish before scripting
+        // clipboard arrivals, or they'd be folded into the baseline instead.
+        await settle()
+        clipboard.stubbedChangeCount = 1
+        clipboard.stubbedCollectableAttachments = [.image(image1)]
+        let didCollectFirst = try await waitUntil(timeoutNanoseconds: 2_000_000_000) {
+            await MainActor.run { store.sessionScreenshotCount == 1 }
+        }
+        XCTAssertTrue(didCollectFirst)
+
+        clipboard.stubbedChangeCount = 2
+        clipboard.stubbedCollectableAttachments = [.image(image2)]
+        let didCollectSecond = try await waitUntil(timeoutNanoseconds: 2_000_000_000) {
+            await MainActor.run { store.sessionScreenshotCount == 2 }
+        }
+        XCTAssertTrue(didCollectSecond)
+
+        store.finish()
+        // The text-then-attachments delivery sleeps ~400ms between pastes and
+        // ~500ms before the (skipped, since restore-after-paste is off by
+        // default here) clipboard restore, so give this a longer budget than
+        // the default 2s used elsewhere.
+        let didSucceed = try await waitForSuccess(of: store, timeoutNanoseconds: 4_000_000_000)
+        XCTAssertTrue(didSucceed)
+
+        XCTAssertEqual(clipboard.temporaryWriteTexts, ["hello world"])
+        XCTAssertEqual(clipboard.attachmentsOnlyWrites.count, 1)
+        XCTAssertEqual(clipboard.attachmentsOnlyWrites.first, [.image(image1), .image(image2)])
+        XCTAssertEqual(pasteStub.pasteCount, 2)
+        XCTAssertEqual(clipboard.writeSequence, ["text", "paste", "attachments", "paste"])
+        if case .success(_, let pasted, let rewritten, _, _) = store.state {
+            XCTAssertTrue(pasted)
+            XCTAssertFalse(rewritten)
+        } else {
+            XCTFail("Expected .success state")
+        }
+    }
+
+    func test_passthroughWithTwoImagesCopyOnly_writesTextAndAttachmentsWithoutPasting() async throws {
+        let clipboard = ActivationStoreMockClipboard()
+        let pasteStub = StubSuccessfulPasteService()
+        let image1 = makeDistinctImageData(5)
+        let image2 = makeDistinctImageData(6)
+        let store = makeStore(
+            permissionsAuthorized: true,
+            transcriber: ActivationStoreMockTranscriber(result: .success("hello world")),
+            clipboard: clipboard,
+            pasteService: pasteStub,
+            screenshotCollector: makeFastCollector(clipboard: clipboard)
+        )
+
+        store.arm()
+        clipboard.stubbedChangeCount = 1
+        clipboard.stubbedCollectableAttachments = [.image(image1)]
+        _ = try await waitUntil(timeoutNanoseconds: 2_000_000_000) {
+            await MainActor.run { store.sessionScreenshotCount == 1 }
+        }
+
+        clipboard.stubbedChangeCount = 2
+        clipboard.stubbedCollectableAttachments = [.image(image2)]
+        let didCollectSecond = try await waitUntil(timeoutNanoseconds: 2_000_000_000) {
+            await MainActor.run { store.sessionScreenshotCount == 2 }
+        }
+        XCTAssertTrue(didCollectSecond)
+
+        store.finish()
+        let didSucceed = try await waitForSuccess(of: store)
+        XCTAssertTrue(didSucceed)
+
+        XCTAssertEqual(clipboard.textAndAttachmentsWrites.count, 1)
+        XCTAssertEqual(clipboard.textAndAttachmentsWrites.first?.text, "hello world")
+        XCTAssertEqual(clipboard.textAndAttachmentsWrites.first?.attachments, [.image(image1), .image(image2)])
+        XCTAssertTrue(clipboard.attachmentsOnlyWrites.isEmpty)
+        XCTAssertEqual(pasteStub.pasteCount, 0)
+    }
+
+    func test_assistantModeWithImages_doesNotPasteOrRouteAttachmentsButSavesHistory() async throws {
+        let preferences = makePreferencesWithTriggerStore()
+        preferences.historyEnabled = true
+        preferences.historyFolderPath = FileManager.default.temporaryDirectory
+            .appendingPathComponent("ActivationStoreTests.History")
+            .appendingPathComponent(UUID().uuidString)
+            .path
+        let historyCaptureService = StubHistoryCaptureService()
+        let mockRewriter = MockRewriter(result: .success("Professional rewrite"))
+        let clipboard = ActivationStoreMockClipboard()
+        let image = makeDistinctImageData(7)
+        let store = makeStore(
+            permissionsAuthorized: true,
+            transcriber: ActivationStoreMockTranscriber(
+                result: .success("Buddy rewrite this professionally")
+            ),
+            localRewriter: mockRewriter,
+            historyCaptureService: historyCaptureService,
+            clipboard: clipboard,
+            preferences: preferences,
+            screenshotCollector: makeFastCollector(clipboard: clipboard)
+        )
+
+        store.arm()
+        clipboard.stubbedChangeCount = 1
+        clipboard.stubbedCollectableAttachments = [.image(image)]
+        let didCollect = try await waitUntil(timeoutNanoseconds: 2_000_000_000) {
+            await MainActor.run { store.sessionScreenshotCount == 1 }
+        }
+        XCTAssertTrue(didCollect)
+
+        store.finish()
+        let didSucceed = try await waitForSuccess(of: store)
+        XCTAssertTrue(didSucceed)
+
+        XCTAssertTrue(clipboard.attachmentsOnlyWrites.isEmpty)
+        XCTAssertTrue(clipboard.textAndAttachmentsWrites.isEmpty)
+        XCTAssertEqual(mockRewriter.lastGenerateImageCount, 0)
+
+        let didPersist = try await waitUntil(timeoutNanoseconds: 2_000_000_000) {
+            await MainActor.run { historyCaptureService.savedContents.count == 1 }
+        }
+        XCTAssertTrue(didPersist)
+        XCTAssertEqual(historyCaptureService.savedContents.first?.screenshots, [image])
+        XCTAssertEqual(historyCaptureService.savedContents.first?.assistantOutput, "Professional rewrite")
+    }
+
+    func test_rewriteFailureWithImages_savesHistoryWithTranscriptAndScreenshots() async throws {
+        let preferences = makePreferencesWithTriggerStore()
+        preferences.historyEnabled = true
+        preferences.historyFolderPath = FileManager.default.temporaryDirectory
+            .appendingPathComponent("ActivationStoreTests.History")
+            .appendingPathComponent(UUID().uuidString)
+            .path
+        let historyCaptureService = StubHistoryCaptureService()
+        let clipboard = ActivationStoreMockClipboard()
+        let image = makeDistinctImageData(18)
+        let store = makeStore(
+            permissionsAuthorized: true,
+            transcriber: ActivationStoreMockTranscriber(
+                result: .success("Buddy rewrite this professionally")
+            ),
+            localRewriter: MockRewriter(result: .failure(RewriteError.generationFailed)),
+            historyCaptureService: historyCaptureService,
+            clipboard: clipboard,
+            preferences: preferences,
+            screenshotCollector: makeFastCollector(clipboard: clipboard)
+        )
+
+        store.arm()
+        clipboard.stubbedChangeCount = 1
+        clipboard.stubbedCollectableAttachments = [.image(image)]
+        let didCollect = try await waitUntil(timeoutNanoseconds: 2_000_000_000) {
+            await MainActor.run { store.sessionScreenshotCount == 1 }
+        }
+        XCTAssertTrue(didCollect)
+
+        store.finish()
+        let didFail = try await waitForFailure(
+            of: store,
+            reason: .modelError("Rewrite failed: Rewrite generation failed.")
+        )
+        XCTAssertTrue(didFail)
+
+        let didPersist = try await waitUntil(timeoutNanoseconds: 2_000_000_000) {
+            await MainActor.run { historyCaptureService.savedContents.count == 1 }
+        }
+        XCTAssertTrue(didPersist)
+        XCTAssertEqual(
+            historyCaptureService.savedContents.first?.rawTranscription,
+            "Buddy rewrite this professionally"
+        )
+        XCTAssertEqual(historyCaptureService.savedContents.first?.screenshots, [image])
+        XCTAssertEqual(store.lastSessionAttachments, [.image(image)])
+    }
+
+    func test_noSpeechFailureWithImages_savesHistoryEntryWithScreenshots() async throws {
+        let preferences = makePreferencesWithTriggerStore()
+        preferences.historyEnabled = true
+        preferences.historyFolderPath = FileManager.default.temporaryDirectory
+            .appendingPathComponent("ActivationStoreTests.History")
+            .appendingPathComponent(UUID().uuidString)
+            .path
+        let historyCaptureService = StubHistoryCaptureService()
+        let clipboard = ActivationStoreMockClipboard()
+        let image = makeDistinctImageData(8)
+        let store = makeStore(
+            permissionsAuthorized: true,
+            transcriber: ActivationStoreMockTranscriber(result: .success("")),
+            historyCaptureService: historyCaptureService,
+            clipboard: clipboard,
+            preferences: preferences,
+            screenshotCollector: makeFastCollector(clipboard: clipboard)
+        )
+
+        store.arm()
+        clipboard.stubbedChangeCount = 1
+        clipboard.stubbedCollectableAttachments = [.image(image)]
+        let didCollect = try await waitUntil(timeoutNanoseconds: 2_000_000_000) {
+            await MainActor.run { store.sessionScreenshotCount == 1 }
+        }
+        XCTAssertTrue(didCollect)
+
+        store.finish()
+        let didFail = try await waitForFailure(of: store, reason: .noSpeechDetected)
+        XCTAssertTrue(didFail)
+
+        let didPersist = try await waitUntil(timeoutNanoseconds: 2_000_000_000) {
+            await MainActor.run { historyCaptureService.savedContents.count == 1 }
+        }
+        XCTAssertTrue(didPersist)
+        XCTAssertEqual(historyCaptureService.savedContents.first?.screenshots, [image])
+        XCTAssertEqual(historyCaptureService.savedContents.first?.rawTranscription, "")
+        XCTAssertEqual(store.lastSessionAttachments, [.image(image)])
+    }
+
+    func test_noSpeechFailureWithoutImages_savesNothing() async throws {
+        let preferences = makePreferencesWithTriggerStore()
+        preferences.historyEnabled = true
+        preferences.historyFolderPath = FileManager.default.temporaryDirectory
+            .appendingPathComponent("ActivationStoreTests.History")
+            .appendingPathComponent(UUID().uuidString)
+            .path
+        let historyCaptureService = StubHistoryCaptureService()
+        let store = makeStore(
+            permissionsAuthorized: true,
+            transcriber: ActivationStoreMockTranscriber(result: .success("")),
+            historyCaptureService: historyCaptureService,
+            preferences: preferences
+        )
+
+        store.arm()
+        store.finish()
+
+        let didFail = try await waitForFailure(of: store, reason: .noSpeechDetected)
+        XCTAssertTrue(didFail)
+
+        await settle()
+        XCTAssertTrue(historyCaptureService.savedContents.isEmpty)
+    }
+
+    func test_historyReceivesImageDataAndAttachedFilePaths() async throws {
+        let preferences = makePreferencesWithTriggerStore()
+        preferences.historyEnabled = true
+        preferences.historyFolderPath = FileManager.default.temporaryDirectory
+            .appendingPathComponent("ActivationStoreTests.History")
+            .appendingPathComponent(UUID().uuidString)
+            .path
+        let historyCaptureService = StubHistoryCaptureService()
+        let clipboard = ActivationStoreMockClipboard()
+        let image = makeDistinctImageData(21)
+        let fileURL = makeDistinctFileURL(1)
+        let store = makeStore(
+            permissionsAuthorized: true,
+            transcriber: ActivationStoreMockTranscriber(result: .success("hello world")),
+            historyCaptureService: historyCaptureService,
+            clipboard: clipboard,
+            preferences: preferences,
+            screenshotCollector: makeFastCollector(clipboard: clipboard)
+        )
+
+        store.arm()
+        clipboard.stubbedChangeCount = 1
+        clipboard.stubbedCollectableAttachments = [.image(image), .file(fileURL)]
+        let didCollect = try await waitUntil(timeoutNanoseconds: 2_000_000_000) {
+            await MainActor.run { store.sessionScreenshotCount == 2 }
+        }
+        XCTAssertTrue(didCollect)
+
+        store.finish()
+        let didSucceed = try await waitForSuccess(of: store)
+        XCTAssertTrue(didSucceed)
+
+        let didPersist = try await waitUntil(timeoutNanoseconds: 2_000_000_000) {
+            await MainActor.run { historyCaptureService.savedContents.count == 1 }
+        }
+        XCTAssertTrue(didPersist)
+        XCTAssertEqual(historyCaptureService.savedContents.first?.screenshots, [image])
+        XCTAssertEqual(historyCaptureService.savedContents.first?.attachedFilePaths, [fileURL.path])
+        XCTAssertEqual(store.lastSessionAttachments, [.image(image), .file(fileURL)])
+    }
+
+    func test_sessionAttachmentsIncludeFiles_trueOnlyOnceANonImageFileIsCollected() async throws {
+        let clipboard = ActivationStoreMockClipboard()
+        let image = makeDistinctImageData(22)
+        let fileURL = makeDistinctFileURL(2)
+        let store = makeStore(
+            permissionsAuthorized: true,
+            transcriber: ActivationStoreMockTranscriber(result: .success("hello world")),
+            clipboard: clipboard,
+            screenshotCollector: makeFastCollector(clipboard: clipboard)
+        )
+
+        store.arm()
+        clipboard.stubbedChangeCount = 1
+        clipboard.stubbedCollectableAttachments = [.image(image)]
+        let didCollectImage = try await waitUntil(timeoutNanoseconds: 2_000_000_000) {
+            await MainActor.run { store.sessionScreenshotCount == 1 }
+        }
+        XCTAssertTrue(didCollectImage)
+        XCTAssertFalse(store.sessionAttachmentsIncludeFiles)
+
+        clipboard.stubbedChangeCount = 2
+        clipboard.stubbedCollectableAttachments = [.file(fileURL)]
+        let didCollectFile = try await waitUntil(timeoutNanoseconds: 2_000_000_000) {
+            await MainActor.run { store.sessionAttachmentsIncludeFiles }
+        }
+        XCTAssertTrue(didCollectFile)
+        XCTAssertEqual(store.sessionScreenshotCount, 2)
+
+        store.finish()
+        _ = try await waitForSuccess(of: store)
+
+        // A fresh recording resets the flag.
+        store.arm()
+        XCTAssertFalse(store.sessionAttachmentsIncludeFiles)
+    }
+
+    func test_cancelWithImages_savesHistoryAndSetsLastSessionAttachments() async throws {
+        let preferences = makePreferencesWithTriggerStore()
+        preferences.historyEnabled = true
+        preferences.historyFolderPath = FileManager.default.temporaryDirectory
+            .appendingPathComponent("ActivationStoreTests.History")
+            .appendingPathComponent(UUID().uuidString)
+            .path
+        let historyCaptureService = StubHistoryCaptureService()
+        let clipboard = ActivationStoreMockClipboard()
+        let image = makeDistinctImageData(9)
+        let store = makeStore(
+            permissionsAuthorized: true,
+            historyCaptureService: historyCaptureService,
+            clipboard: clipboard,
+            preferences: preferences,
+            screenshotCollector: makeFastCollector(clipboard: clipboard)
+        )
+
+        store.arm()
+        clipboard.stubbedChangeCount = 1
+        clipboard.stubbedCollectableAttachments = [.image(image)]
+        let didCollect = try await waitUntil(timeoutNanoseconds: 2_000_000_000) {
+            await MainActor.run { store.sessionScreenshotCount == 1 }
+        }
+        XCTAssertTrue(didCollect)
+
+        store.cancelCurrentSession()
+
+        XCTAssertEqual(store.state, .idle)
+        XCTAssertEqual(store.lastSessionAttachments, [.image(image)])
+
+        let didPersist = try await waitUntil(timeoutNanoseconds: 2_000_000_000) {
+            await MainActor.run { historyCaptureService.savedContents.count == 1 }
+        }
+        XCTAssertTrue(didPersist)
+        XCTAssertEqual(historyCaptureService.savedContents.first?.screenshots, [image])
+    }
+
+    func test_saveScreenshotsToHistoryOff_omitsScreenshotsFromHistoryButKeepsLastSession() async throws {
+        let preferences = makePreferencesWithTriggerStore()
+        preferences.historyEnabled = true
+        preferences.historyFolderPath = FileManager.default.temporaryDirectory
+            .appendingPathComponent("ActivationStoreTests.History")
+            .appendingPathComponent(UUID().uuidString)
+            .path
+        preferences.saveScreenshotsToHistory = false
+        let historyCaptureService = StubHistoryCaptureService()
+        let clipboard = ActivationStoreMockClipboard()
+        let image = makeDistinctImageData(10)
+        let store = makeStore(
+            permissionsAuthorized: true,
+            transcriber: ActivationStoreMockTranscriber(result: .success("hello world")),
+            historyCaptureService: historyCaptureService,
+            clipboard: clipboard,
+            preferences: preferences,
+            screenshotCollector: makeFastCollector(clipboard: clipboard)
+        )
+
+        store.arm()
+        clipboard.stubbedChangeCount = 1
+        clipboard.stubbedCollectableAttachments = [.image(image)]
+        let didCollect = try await waitUntil(timeoutNanoseconds: 2_000_000_000) {
+            await MainActor.run { store.sessionScreenshotCount == 1 }
+        }
+        XCTAssertTrue(didCollect)
+
+        store.finish()
+        let didSucceed = try await waitForSuccess(of: store)
+        XCTAssertTrue(didSucceed)
+
+        let didPersist = try await waitUntil(timeoutNanoseconds: 2_000_000_000) {
+            await MainActor.run { historyCaptureService.savedContents.count == 1 }
+        }
+        XCTAssertTrue(didPersist)
+        XCTAssertEqual(historyCaptureService.savedContents.first?.screenshots, [])
+        XCTAssertEqual(store.lastSessionAttachments, [.image(image)])
+    }
+
+    func test_collectScreenshotsWhileRecordingOff_neverStartsCollector() async throws {
+        let preferences = makePreferencesWithTriggerStore()
+        preferences.collectScreenshotsWhileRecording = false
+        let clipboard = ActivationStoreMockClipboard()
+        let collector = makeFastCollector(clipboard: clipboard)
+        let store = makeStore(
+            permissionsAuthorized: true,
+            transcriber: ActivationStoreMockTranscriber(result: .success("hello world")),
+            clipboard: clipboard,
+            preferences: preferences,
+            screenshotCollector: collector
+        )
+
+        store.arm()
+        XCTAssertFalse(collector.isRunning)
+
+        clipboard.stubbedChangeCount = 1
+        clipboard.stubbedCollectableAttachments = [.image(makeDistinctImageData(11))]
+        await settle()
+        XCTAssertEqual(store.sessionScreenshotCount, 0)
+
+        store.finish()
+        let didSucceed = try await waitForSuccess(of: store)
+        XCTAssertTrue(didSucceed)
+        XCTAssertTrue(store.lastSessionAttachments.isEmpty)
+    }
+
+    func test_restartCurrentSession_keepsScreenshotsAndCount() async throws {
+        let clipboard = ActivationStoreMockClipboard()
+        let collector = makeFastCollector(clipboard: clipboard)
+        let store = makeStore(
+            permissionsAuthorized: true,
+            clipboard: clipboard,
+            screenshotCollector: collector
+        )
+
+        store.arm()
+        clipboard.stubbedChangeCount = 1
+        clipboard.stubbedCollectableAttachments = [.image(makeDistinctImageData(12))]
+        let didCollect = try await waitUntil(timeoutNanoseconds: 2_000_000_000) {
+            await MainActor.run { store.sessionScreenshotCount == 1 }
+        }
+        XCTAssertTrue(didCollect)
+
+        store.restartCurrentSession()
+
+        XCTAssertEqual(store.state, .recording)
+        XCTAssertEqual(store.sessionScreenshotCount, 1)
+        XCTAssertTrue(collector.isRunning)
+
+        // An attachment collected after the restart still adds to the same count.
+        clipboard.stubbedChangeCount = 2
+        clipboard.stubbedCollectableAttachments = [.image(makeDistinctImageData(13))]
+        let didCollectSecond = try await waitUntil(timeoutNanoseconds: 2_000_000_000) {
+            await MainActor.run { store.sessionScreenshotCount == 2 }
+        }
+        XCTAssertTrue(didCollectSecond)
+    }
+
+    func test_restartDuringPendingInitialCapture_stillStartsCollectionAfterCaptureResolves() async throws {
+        let clipboard = ActivationStoreMockClipboard()
+        let pasteStub = StubSelectionAwarePasteService(
+            clipboard: clipboard,
+            queuedCopyResults: [.dispatched("selected text")]
+        )
+        let store = makeStore(
+            permissionsAuthorized: true,
+            postEventAuthorized: true,
+            clipboard: clipboard,
+            pasteService: pasteStub,
+            screenshotCollector: makeFastCollector(clipboard: clipboard)
+        )
+
+        store.arm()
+        // Restart back-to-back with arm(), with no `await` in between, so the
+        // initial selected-text capture task (and the screenshot-collection
+        // start awaiting it) hasn't had a chance to run at all yet — the
+        // collector is still not running when restart lands.
+        store.restartCurrentSession()
+
+        XCTAssertEqual(store.state, .recording)
+
+        // Let the pending capture resolve (under the new session) and
+        // collection start.
+        await settle()
+        await settle()
+
+        let image = makeDistinctImageData(20)
+        clipboard.stubbedChangeCount = 1
+        clipboard.stubbedCollectableAttachments = [.image(image)]
+        let didCollect = try await waitUntil(timeoutNanoseconds: 2_000_000_000) {
+            await MainActor.run { store.sessionScreenshotCount == 1 }
+        }
+        XCTAssertTrue(didCollect)
+    }
+
+    func test_pillPublishedState_countFullDuplicateAndResetOnNewRecording() async throws {
+        let clipboard = ActivationStoreMockClipboard()
+        let collector = makeFastCollector(clipboard: clipboard, maxCount: 2)
+        let store = makeStore(
+            permissionsAuthorized: true,
+            transcriber: ActivationStoreMockTranscriber(result: .success("hello world")),
+            clipboard: clipboard,
+            screenshotCollector: collector
+        )
+
+        store.arm()
+        let image1 = makeDistinctImageData(14)
+        clipboard.stubbedChangeCount = 1
+        clipboard.stubbedCollectableAttachments = [.image(image1)]
+        let didCollectFirst = try await waitUntil(timeoutNanoseconds: 2_000_000_000) {
+            await MainActor.run { store.sessionScreenshotCount == 1 }
+        }
+        XCTAssertTrue(didCollectFirst)
+
+        // A duplicate copy of the same image shakes the pill but doesn't count.
+        clipboard.stubbedChangeCount = 2
+        clipboard.stubbedCollectableAttachments = [.image(image1)]
+        let didDuplicate = try await waitUntil(timeoutNanoseconds: 2_000_000_000) {
+            await MainActor.run { store.screenshotDuplicateTick == 1 }
+        }
+        XCTAssertTrue(didDuplicate)
+        XCTAssertEqual(store.sessionScreenshotCount, 1)
+
+        // A second distinct image reaches the (small, injected) cap.
+        clipboard.stubbedChangeCount = 3
+        clipboard.stubbedCollectableAttachments = [.image(makeDistinctImageData(15))]
+        let didCollectSecond = try await waitUntil(timeoutNanoseconds: 2_000_000_000) {
+            await MainActor.run { store.sessionScreenshotCount == 2 }
+        }
+        XCTAssertTrue(didCollectSecond)
+        XCTAssertFalse(store.sessionScreenshotsFull)
+
+        // A third, distinct image is past the cap.
+        clipboard.stubbedChangeCount = 4
+        clipboard.stubbedCollectableAttachments = [.image(makeDistinctImageData(16))]
+        let didHitCap = try await waitUntil(timeoutNanoseconds: 2_000_000_000) {
+            await MainActor.run { store.sessionScreenshotsFull }
+        }
+        XCTAssertTrue(didHitCap)
+        XCTAssertEqual(store.sessionScreenshotCount, 2)
+
+        store.finish()
+        _ = try await waitForSuccess(of: store)
+
+        // A fresh recording resets all pill state.
+        store.arm()
+        XCTAssertEqual(store.sessionScreenshotCount, 0)
+        XCTAssertFalse(store.sessionScreenshotsFull)
+    }
+
+    func test_copyLastSessionAttachments_writesAttachments() async throws {
+        let clipboard = ActivationStoreMockClipboard()
+
+        let emptyStore = makeStore(permissionsAuthorized: true, clipboard: clipboard)
+        emptyStore.copyLastSessionAttachments()
+        XCTAssertTrue(clipboard.attachmentsOnlyWrites.isEmpty)
+
+        let image = makeDistinctImageData(17)
+        let store = makeStore(
+            permissionsAuthorized: true,
+            transcriber: ActivationStoreMockTranscriber(result: .success("hello world")),
+            clipboard: clipboard,
+            screenshotCollector: makeFastCollector(clipboard: clipboard)
+        )
+
+        store.arm()
+        clipboard.stubbedChangeCount = 1
+        clipboard.stubbedCollectableAttachments = [.image(image)]
+        let didCollect = try await waitUntil(timeoutNanoseconds: 2_000_000_000) {
+            await MainActor.run { store.sessionScreenshotCount == 1 }
+        }
+        XCTAssertTrue(didCollect)
+
+        store.finish()
+        let didSucceed = try await waitForSuccess(of: store)
+        XCTAssertTrue(didSucceed)
+        XCTAssertEqual(store.lastSessionAttachments, [.image(image)])
+
+        let writesBeforeCopy = clipboard.attachmentsOnlyWrites.count
+        store.copyLastSessionAttachments()
+        XCTAssertEqual(clipboard.attachmentsOnlyWrites.count, writesBeforeCopy + 1)
+        XCTAssertEqual(clipboard.attachmentsOnlyWrites.last, [.image(image)])
+    }
+}
+
+// MARK: - Badge clearing (wave A)
+
+extension ActivationStoreTests {
+    func test_removeLastCollectedAttachment_whileRecording_dropsNewestAndReCopyingReAddsIt() async throws {
+        let clipboard = ActivationStoreMockClipboard()
+        let image1 = makeDistinctImageData(30)
+        let image2 = makeDistinctImageData(31)
+        let store = makeStore(
+            permissionsAuthorized: true,
+            transcriber: ActivationStoreMockTranscriber(result: .success("hello world")),
+            clipboard: clipboard,
+            screenshotCollector: makeFastCollector(clipboard: clipboard)
+        )
+
+        store.arm()
+        clipboard.stubbedChangeCount = 1
+        clipboard.stubbedCollectableAttachments = [.image(image1)]
+        _ = try await waitUntil(timeoutNanoseconds: 2_000_000_000) {
+            await MainActor.run { store.sessionScreenshotCount == 1 }
+        }
+        clipboard.stubbedChangeCount = 2
+        clipboard.stubbedCollectableAttachments = [.image(image2)]
+        _ = try await waitUntil(timeoutNanoseconds: 2_000_000_000) {
+            await MainActor.run { store.sessionScreenshotCount == 2 }
+        }
+
+        store.removeLastCollectedAttachment()
+        XCTAssertEqual(store.sessionScreenshotCount, 1)
+
+        // Its dedupe key was forgotten, so copying it again re-adds it.
+        clipboard.stubbedChangeCount = 3
+        clipboard.stubbedCollectableAttachments = [.image(image2)]
+        let didRecollect = try await waitUntil(timeoutNanoseconds: 2_000_000_000) {
+            await MainActor.run { store.sessionScreenshotCount == 2 }
+        }
+        XCTAssertTrue(didRecollect)
+
+        store.finish()
+        let didSucceed = try await waitForSuccess(of: store)
+        XCTAssertTrue(didSucceed)
+        XCTAssertEqual(store.lastSessionAttachments, [.image(image1), .image(image2)])
+    }
+
+    func test_clearCollectedAttachments_whileRecording_resetsFlagsAndAllowsReCollection() async throws {
+        let clipboard = ActivationStoreMockClipboard()
+        let image = makeDistinctImageData(32)
+        let fileURL = makeDistinctFileURL(30)
+        let store = makeStore(
+            permissionsAuthorized: true,
+            transcriber: ActivationStoreMockTranscriber(result: .success("hello world")),
+            clipboard: clipboard,
+            screenshotCollector: makeFastCollector(clipboard: clipboard)
+        )
+
+        store.arm()
+        clipboard.stubbedChangeCount = 1
+        clipboard.stubbedCollectableAttachments = [.image(image), .file(fileURL)]
+        _ = try await waitUntil(timeoutNanoseconds: 2_000_000_000) {
+            await MainActor.run { store.sessionScreenshotCount == 2 }
+        }
+        XCTAssertTrue(store.sessionAttachmentsIncludeFiles)
+
+        store.clearCollectedAttachments()
+        XCTAssertEqual(store.sessionScreenshotCount, 0)
+        XCTAssertFalse(store.sessionAttachmentsIncludeFiles)
+        XCTAssertEqual(store.state, .recording)
+
+        // Both dedupe keys were forgotten, so re-copying either is collected again.
+        clipboard.stubbedChangeCount = 2
+        clipboard.stubbedCollectableAttachments = [.file(fileURL)]
+        let didRecollect = try await waitUntil(timeoutNanoseconds: 2_000_000_000) {
+            await MainActor.run { store.sessionScreenshotCount == 1 }
+        }
+        XCTAssertTrue(didRecollect)
+        XCTAssertTrue(store.sessionAttachmentsIncludeFiles)
+
+        store.finish()
+        let didSucceed = try await waitForSuccess(of: store)
+        XCTAssertTrue(didSucceed)
+        XCTAssertEqual(store.lastSessionAttachments, [.file(fileURL)])
+    }
+
+    func test_removeLastCollectedAttachment_resetsFullFlagWhenCountDropsBelowCap() async throws {
+        let clipboard = ActivationStoreMockClipboard()
+        let collector = makeFastCollector(clipboard: clipboard, maxCount: 2)
+        let store = makeStore(
+            permissionsAuthorized: true,
+            transcriber: ActivationStoreMockTranscriber(result: .success("hello world")),
+            clipboard: clipboard,
+            screenshotCollector: collector
+        )
+
+        store.arm()
+        clipboard.stubbedChangeCount = 1
+        clipboard.stubbedCollectableAttachments = [.image(makeDistinctImageData(33))]
+        _ = try await waitUntil(timeoutNanoseconds: 2_000_000_000) {
+            await MainActor.run { store.sessionScreenshotCount == 1 }
+        }
+        clipboard.stubbedChangeCount = 2
+        clipboard.stubbedCollectableAttachments = [.image(makeDistinctImageData(34))]
+        _ = try await waitUntil(timeoutNanoseconds: 2_000_000_000) {
+            await MainActor.run { store.sessionScreenshotCount == 2 }
+        }
+        clipboard.stubbedChangeCount = 3
+        clipboard.stubbedCollectableAttachments = [.image(makeDistinctImageData(35))]
+        let didHitCap = try await waitUntil(timeoutNanoseconds: 2_000_000_000) {
+            await MainActor.run { store.sessionScreenshotsFull }
+        }
+        XCTAssertTrue(didHitCap)
+
+        store.removeLastCollectedAttachment()
+        XCTAssertEqual(store.sessionScreenshotCount, 1)
+        XCTAssertFalse(store.sessionScreenshotsFull)
+    }
+
+    func test_removeLastCollectedAttachment_whileProcessing_dropsNewestFromDeliveryBeforePasteHappens() async throws {
+        let preferences = makePreferencesWithTriggerStore()
+        preferences.historyEnabled = true
+        preferences.historyFolderPath = FileManager.default.temporaryDirectory
+            .appendingPathComponent("ActivationStoreTests.History")
+            .appendingPathComponent(UUID().uuidString)
+            .path
+        let historyCaptureService = StubHistoryCaptureService()
+        let clipboard = ActivationStoreMockClipboard()
+        let image = makeDistinctImageData(36)
+        let fileURL = makeDistinctFileURL(31)
+        let transcriber = GatedWhisperTranscriber()
+        let store = makeStore(
+            permissionsAuthorized: true,
+            transcriber: transcriber,
+            historyCaptureService: historyCaptureService,
+            clipboard: clipboard,
+            preferences: preferences,
+            screenshotCollector: makeFastCollector(clipboard: clipboard)
+        )
+
+        store.arm()
+        clipboard.stubbedChangeCount = 1
+        clipboard.stubbedCollectableAttachments = [.image(image), .file(fileURL)]
+        _ = try await waitUntil(timeoutNanoseconds: 2_000_000_000) {
+            await MainActor.run { store.sessionScreenshotCount == 2 }
+        }
+        XCTAssertTrue(store.sessionAttachmentsIncludeFiles)
+
+        store.finish()
+        // `finish()` stops the collector and freezes `sessionAttachments`
+        // before the async pipeline runs — waiting for the gated transcriber
+        // to actually be entered guarantees the pipeline has reached
+        // `.processing` and is now reading from that frozen array, not the
+        // (already-stopped) collector.
+        await transcriber.waitUntilStarted()
+        XCTAssertEqual(store.state, .processing)
+
+        // Drop the newest (the file) while the pipeline is still parked on
+        // transcription — before any delivery/paste has happened.
+        store.removeLastCollectedAttachment()
+        XCTAssertEqual(store.sessionScreenshotCount, 1)
+        XCTAssertFalse(store.sessionAttachmentsIncludeFiles)
+
+        await transcriber.release(with: "hello world")
+        let didSucceed = try await waitForSuccess(of: store)
+        XCTAssertTrue(didSucceed)
+
+        // Only the surviving image reaches the clipboard, history, and
+        // `lastSessionAttachments` — the dropped file never does.
+        XCTAssertEqual(clipboard.textAndAttachmentsWrites.count, 1)
+        XCTAssertEqual(clipboard.textAndAttachmentsWrites.first?.attachments, [.image(image)])
+        XCTAssertEqual(store.lastSessionAttachments, [.image(image)])
+
+        let didPersist = try await waitUntil(timeoutNanoseconds: 2_000_000_000) {
+            await MainActor.run { historyCaptureService.savedContents.count == 1 }
+        }
+        XCTAssertTrue(didPersist)
+        XCTAssertEqual(historyCaptureService.savedContents.first?.screenshots, [image])
+        XCTAssertEqual(historyCaptureService.savedContents.first?.attachedFilePaths, [])
+    }
+
+    func test_clearCollectedAttachments_whileProcessing_deliversTextOnlyAndSavesNoScreenshots() async throws {
+        let preferences = makePreferencesWithTriggerStore()
+        preferences.historyEnabled = true
+        preferences.historyFolderPath = FileManager.default.temporaryDirectory
+            .appendingPathComponent("ActivationStoreTests.History")
+            .appendingPathComponent(UUID().uuidString)
+            .path
+        let historyCaptureService = StubHistoryCaptureService()
+        let clipboard = ActivationStoreMockClipboard()
+        let image1 = makeDistinctImageData(37)
+        let image2 = makeDistinctImageData(38)
+        let transcriber = GatedWhisperTranscriber()
+        let store = makeStore(
+            permissionsAuthorized: true,
+            transcriber: transcriber,
+            historyCaptureService: historyCaptureService,
+            clipboard: clipboard,
+            preferences: preferences,
+            screenshotCollector: makeFastCollector(clipboard: clipboard)
+        )
+
+        store.arm()
+        clipboard.stubbedChangeCount = 1
+        clipboard.stubbedCollectableAttachments = [.image(image1)]
+        _ = try await waitUntil(timeoutNanoseconds: 2_000_000_000) {
+            await MainActor.run { store.sessionScreenshotCount == 1 }
+        }
+        clipboard.stubbedChangeCount = 2
+        clipboard.stubbedCollectableAttachments = [.image(image2)]
+        _ = try await waitUntil(timeoutNanoseconds: 2_000_000_000) {
+            await MainActor.run { store.sessionScreenshotCount == 2 }
+        }
+
+        store.finish()
+        await transcriber.waitUntilStarted()
+        XCTAssertEqual(store.state, .processing)
+
+        store.clearCollectedAttachments()
+        XCTAssertEqual(store.sessionScreenshotCount, 0)
+        XCTAssertFalse(store.sessionAttachmentsIncludeFiles)
+        XCTAssertFalse(store.sessionScreenshotsFull)
+
+        await transcriber.release(with: "hello world")
+        let didSucceed = try await waitForSuccess(of: store)
+        XCTAssertTrue(didSucceed)
+
+        // No attachment-carrying write of any kind — a plain text-only
+        // delivery, as if nothing had ever been collected.
+        XCTAssertTrue(clipboard.textAndAttachmentsWrites.isEmpty)
+        XCTAssertTrue(clipboard.attachmentsOnlyWrites.isEmpty)
+        XCTAssertEqual(clipboard.lastWrittenText, "hello world")
+
+        // Nothing carries over to `lastSessionAttachments` — a fully cleared
+        // session leaves it untouched (still empty, for this fresh store).
+        XCTAssertTrue(store.lastSessionAttachments.isEmpty)
+
+        let didPersist = try await waitUntil(timeoutNanoseconds: 2_000_000_000) {
+            await MainActor.run { historyCaptureService.savedContents.count == 1 }
+        }
+        XCTAssertTrue(didPersist)
+        XCTAssertTrue(historyCaptureService.savedContents.first?.screenshots.isEmpty ?? false)
+        XCTAssertTrue(historyCaptureService.savedContents.first?.attachedFilePaths.isEmpty ?? false)
+        XCTAssertEqual(historyCaptureService.savedContents.first?.rawTranscription, "hello world")
+    }
+
+    func test_removeLastAndClearCollectedAttachments_areNoOpsOutsideRecordingAndProcessing() async throws {
+        let clipboard = ActivationStoreMockClipboard()
+        let image = makeDistinctImageData(39)
+        let store = makeStore(
+            permissionsAuthorized: true,
+            transcriber: ActivationStoreMockTranscriber(result: .success("hello world")),
+            clipboard: clipboard,
+            screenshotCollector: makeFastCollector(clipboard: clipboard)
+        )
+
+        // Idle: nothing to act on, but must not crash or otherwise misbehave.
+        XCTAssertEqual(store.state, .idle)
+        store.removeLastCollectedAttachment()
+        store.clearCollectedAttachments()
+        XCTAssertEqual(store.sessionScreenshotCount, 0)
+
+        store.arm()
+        clipboard.stubbedChangeCount = 1
+        clipboard.stubbedCollectableAttachments = [.image(image)]
+        _ = try await waitUntil(timeoutNanoseconds: 2_000_000_000) {
+            await MainActor.run { store.sessionScreenshotCount == 1 }
+        }
+
+        store.finish()
+        let didSucceed = try await waitForSuccess(of: store)
+        XCTAssertTrue(didSucceed)
+
+        // Success: the delivered attachment is already committed to
+        // `currentSuccessAttachments`/history — clearing now must not touch it.
+        let successAttachmentsBefore = store.lastSessionAttachments
+        store.removeLastCollectedAttachment()
+        store.clearCollectedAttachments()
+        XCTAssertEqual(store.lastSessionAttachments, successAttachmentsBefore)
+        XCTAssertEqual(store.sessionScreenshotCount, 1)
+
+        let writesBeforeNoOp = clipboard.textAndAttachmentsWrites.count
+        store.copyCurrentSuccessResult()
+        XCTAssertEqual(clipboard.textAndAttachmentsWrites.count, writesBeforeNoOp + 1)
+        XCTAssertEqual(clipboard.textAndAttachmentsWrites.last?.attachments, [.image(image)])
     }
 }

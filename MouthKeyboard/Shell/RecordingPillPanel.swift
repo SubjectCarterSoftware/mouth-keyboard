@@ -9,7 +9,25 @@ final class RecordingPillPanel: NSPanel {
     private static let recoverySize = NSSize(width: 180, height: 44)
     private static let failureSize = NSSize(width: 220, height: 44)
 
-    private var currentSize: NSSize = RecordingPillPanel.defaultSize
+    /// Extra transparent height reserved above the capsule so the screenshot
+    /// badge tab isn't clipped. Only added to the window's frame while the
+    /// badge is actually visible, so normal recordings never grow a click-
+    /// swallowing strip above the pill.
+    private static let screenshotBadgeTopMargin: CGFloat = 12
+
+    /// How long the badge's exit transition takes (`RecordingPillView`'s
+    /// removal transition). The window keeps reserving the badge's top
+    /// margin for this long after the badge stops being visible, so the
+    /// shrink doesn't clip the badge mid-animation.
+    private static let screenshotBadgeExitDuration: TimeInterval = 0.22
+
+    /// The capsule's own size (used for corner radius and for computing the
+    /// on-screen origin). Distinct from `currentTotalSize`, which may be
+    /// taller to make room for the screenshot badge.
+    private var currentCapsuleSize: NSSize = RecordingPillPanel.defaultSize
+    private var currentTotalSize: NSSize = RecordingPillPanel.defaultSize
+    private var badgeWasVisible = false
+    private var pendingBadgeShrinkTask: Task<Void, Never>?
     private var screenObserver: NSObjectProtocol?
     private var stateObserver: AnyCancellable?
     private var positionObserver: AnyCancellable?
@@ -17,10 +35,11 @@ final class RecordingPillPanel: NSPanel {
 
     private let hostingView: NSHostingView<RecordingPillViewWrapper>
     private let containerView: NSVisualEffectView
+    private let rootView: NSView
     private let preferences: ShellPreferences
 
     init(levelMonitor: AudioLevelMonitor, activationStore: ActivationStore, preferences: ShellPreferences) {
-        let initialSize = RecordingPillPanel.defaultSize
+        let initialCapsuleSize = RecordingPillPanel.defaultSize
         self.preferences = preferences
 
         let wrapper = RecordingPillViewWrapper(
@@ -28,22 +47,37 @@ final class RecordingPillPanel: NSPanel {
             activationStore: activationStore
         )
         hostingView = NSHostingView(rootView: wrapper)
-        hostingView.frame = NSRect(origin: .zero, size: initialSize)
+        hostingView.frame = NSRect(origin: .zero, size: initialCapsuleSize)
         hostingView.autoresizingMask = [.width, .height]
+        // NSHostingView is opaque by default on macOS; without this the
+        // transparent strip above the capsule (reserved for the badge) would
+        // paint as an opaque rectangle instead of letting the desktop show
+        // through.
+        hostingView.wantsLayer = true
+        hostingView.layer?.backgroundColor = NSColor.clear.cgColor
 
-        containerView = NSVisualEffectView(frame: NSRect(origin: .zero, size: initialSize))
+        containerView = NSVisualEffectView(frame: NSRect(origin: .zero, size: initialCapsuleSize))
         containerView.material = .hudWindow
         containerView.blendingMode = .withinWindow
         containerView.state = .active
         containerView.appearance = NSAppearance(named: .darkAqua)
         containerView.wantsLayer = true
-        containerView.layer?.cornerRadius = initialSize.height / 2
+        containerView.layer?.cornerRadius = initialCapsuleSize.height / 2
         containerView.layer?.masksToBounds = true
         containerView.layer?.borderWidth = 0
-        containerView.addSubview(hostingView)
+        // Pinned to the bottom edge, full width, fixed (capsule) height: the
+        // top margin absorbs any extra window height added for the badge.
+        containerView.autoresizingMask = [.width, .maxYMargin]
+
+        rootView = NSView(frame: NSRect(origin: .zero, size: initialCapsuleSize))
+        rootView.wantsLayer = true
+        rootView.layer?.backgroundColor = NSColor.clear.cgColor
+        rootView.autoresizesSubviews = true
+        rootView.addSubview(containerView)
+        rootView.addSubview(hostingView)
 
         super.init(
-            contentRect: NSRect(origin: .zero, size: initialSize),
+            contentRect: NSRect(origin: .zero, size: initialCapsuleSize),
             styleMask: [.nonactivatingPanel, .hudWindow, .utilityWindow],
             backing: .buffered,
             defer: false
@@ -60,7 +94,11 @@ final class RecordingPillPanel: NSPanel {
         titlebarAppearsTransparent = true
         hidesOnDeactivate = false
         ignoresMouseEvents = true
-        contentView = containerView
+        // Non-activating panels don't accept mouse-moved events by default,
+        // which SwiftUI's `.onHover` (used by the screenshot badge) relies on
+        // to track entered/exited state while the cursor moves within it.
+        acceptsMouseMovedEvents = true
+        contentView = rootView
 
         updatePosition()
 
@@ -75,15 +113,17 @@ final class RecordingPillPanel: NSPanel {
             }
         }
 
-        // Observe both lifecycle and recovery feedback so confirmation can stay
-        // visible after the store has already returned to idle.
-        stateObserver = Publishers.CombineLatest(
+        // Observe lifecycle, recovery feedback, and the screenshot count so
+        // confirmation can stay visible after the store has returned to
+        // idle, and so the badge's extra height is added/removed promptly.
+        stateObserver = Publishers.CombineLatest3(
             activationStore.$state,
-            activationStore.$recoveryFeedback
+            activationStore.$recoveryFeedback,
+            activationStore.$sessionScreenshotCount
         )
             .receive(on: DispatchQueue.main)
-            .sink { [weak self] state, feedback in
-                self?.updatePresentation(state: state, feedback: feedback)
+            .sink { [weak self] state, feedback, screenshotCount in
+                self?.updatePresentation(state: state, feedback: feedback, screenshotCount: screenshotCount)
             }
 
         positionObserver = preferences.$recordingPillPosition
@@ -105,8 +145,45 @@ final class RecordingPillPanel: NSPanel {
 
     // MARK: - State-driven updates
 
-    func updatePresentation(state: RecordingState, feedback: RecordingState.RecoveryFeedback?) {
-        let targetSize = panelSize(for: state, feedback: feedback)
+    func updatePresentation(
+        state: RecordingState,
+        feedback: RecordingState.RecoveryFeedback?,
+        screenshotCount: Int
+    ) {
+        let targetCapsuleSize = panelSize(for: state, feedback: feedback)
+        let badgeVisible = RecordingPillView.screenshotBadgeVisible(
+            state: state,
+            feedback: feedback,
+            screenshotCount: screenshotCount
+        )
+
+        if badgeVisible {
+            pendingBadgeShrinkTask?.cancel()
+            pendingBadgeShrinkTask = nil
+        } else if badgeWasVisible && pendingBadgeShrinkTask == nil {
+            // The badge just stopped being visible (e.g. the state left
+            // processing for success). Let its exit transition finish before
+            // shrinking the window back down, so it isn't clipped mid-animation.
+            pendingBadgeShrinkTask = Task { @MainActor [weak self] in
+                try? await Task.sleep(nanoseconds: UInt64(Self.screenshotBadgeExitDuration * 1_000_000_000))
+                guard let self, !Task.isCancelled else { return }
+                self.pendingBadgeShrinkTask = nil
+                let shrunkSize = self.currentCapsuleSize
+                if self.currentTotalSize != shrunkSize {
+                    self.currentTotalSize = shrunkSize
+                    self.updatePosition()
+                }
+            }
+        }
+        badgeWasVisible = badgeVisible
+
+        // Keep reserving the badge's top margin while it's visible, and for
+        // as long as a shrink is still pending (i.e. its exit animation is
+        // still playing).
+        let reservesBadgeMargin = badgeVisible || pendingBadgeShrinkTask != nil
+        let targetTotalSize = reservesBadgeMargin
+            ? NSSize(width: targetCapsuleSize.width, height: targetCapsuleSize.height + Self.screenshotBadgeTopMargin)
+            : targetCapsuleSize
         let shouldShow = feedback != nil || state != .idle
 
         if shouldShow {
@@ -119,14 +196,17 @@ final class RecordingPillPanel: NSPanel {
                 ignoresMouseEvents = !interactive
             }
 
-            if currentSize != targetSize {
-                currentSize = targetSize
-                containerView.layer?.cornerRadius = targetSize.height / 2
+            if currentCapsuleSize != targetCapsuleSize || currentTotalSize != targetTotalSize {
+                currentCapsuleSize = targetCapsuleSize
+                currentTotalSize = targetTotalSize
+                containerView.layer?.cornerRadius = targetCapsuleSize.height / 2
                 containerView.layer?.borderWidth = 0
                 updatePosition()
             }
             orderFrontRegardless()
         } else {
+            pendingBadgeShrinkTask?.cancel()
+            pendingBadgeShrinkTask = nil
             ignoresMouseEvents = true
             orderOut(nil)
             selectedVisibleFrame = nil
@@ -157,12 +237,19 @@ final class RecordingPillPanel: NSPanel {
             return
         }
         selectedVisibleFrame = visibleFrame
-        let origin = RecordingPillPanelPositioning.origin(
+        let frame = RecordingPillPanelPositioning.frame(
             for: preferences.recordingPillPosition,
             in: visibleFrame,
-            panelSize: currentSize
+            capsuleSize: currentCapsuleSize,
+            topMargin: currentTotalSize.height - currentCapsuleSize.height
         )
-        setFrame(NSRect(origin: origin, size: currentSize), display: true)
+        setFrame(frame, display: true)
+        // With transparent regions, `hasShadow` follows the drawn content
+        // rather than the full frame rect. Without an explicit invalidation
+        // AppKit can keep showing the shadow computed for the previous
+        // (differently-sized) frame, which reads as a rectangular shadow
+        // around the capsule.
+        invalidateShadow()
     }
 
     private func chooseVisibleFrame() -> CGRect? {
@@ -221,6 +308,23 @@ enum RecordingPillPanelPositioning {
             x: min(max(x, minX), maxX),
             y: min(max(y, minY), maxY)
         )
+    }
+
+    /// The panel's on-screen frame when it may need extra height above the
+    /// capsule (e.g. for the screenshot badge). The origin is always derived
+    /// from the capsule's own size — never the grown size — so the capsule's
+    /// bottom-left corner never moves: growth is purely additional height
+    /// stacked upward from that fixed point. For the top-anchored positions
+    /// this eats into `topInset` rather than pushing the capsule down.
+    static func frame(
+        for position: RecordingPillPosition,
+        in visibleFrame: CGRect,
+        capsuleSize: NSSize,
+        topMargin: CGFloat
+    ) -> CGRect {
+        let capsuleOrigin = origin(for: position, in: visibleFrame, panelSize: capsuleSize)
+        let totalSize = NSSize(width: capsuleSize.width, height: capsuleSize.height + topMargin)
+        return CGRect(origin: capsuleOrigin, size: totalSize)
     }
 }
 
@@ -338,20 +442,34 @@ private struct RecordingPillViewWrapper: View {
     @ObservedObject var activationStore: ActivationStore
 
     var body: some View {
-        RecordingPillView(
-            levelMonitor: levelMonitor,
-            recordingState: activationStore.state,
-            recoveryFeedback: activationStore.recoveryFeedback,
-            successDismissStartedAt: activationStore.successDismissStartedAt,
-            successDismissDeadline: activationStore.successDismissDeadline,
-            successNoteSaveState: activationStore.successNoteSaveState,
-            silenceWarningActive: levelMonitor.silenceWarningActive,
-            onFinish: { activationStore.finish() },
-            onCancel: { activationStore.cancelCurrentSession() },
-            onNoteAction: { activationStore.requestCurrentSessionResultAsNote() },
-            onSuccessClose: { activationStore.dismissCurrentSuccess() },
-            onSuccessCopy: { activationStore.copyCurrentSuccessResult() },
-            onSuccessAppend: { activationStore.appendFromSuccess() }
-        )
+        // The hosting view fills the whole (possibly taller) content view,
+        // with the pill itself bottom-aligned so the capsule stays put and
+        // any extra height reserved for the screenshot badge sits above it.
+        VStack(spacing: 0) {
+            Spacer(minLength: 0)
+            RecordingPillView(
+                levelMonitor: levelMonitor,
+                recordingState: activationStore.state,
+                recoveryFeedback: activationStore.recoveryFeedback,
+                successDismissStartedAt: activationStore.successDismissStartedAt,
+                successDismissDeadline: activationStore.successDismissDeadline,
+                successNoteSaveState: activationStore.successNoteSaveState,
+                silenceWarningActive: levelMonitor.silenceWarningActive,
+                screenshotCount: activationStore.sessionScreenshotCount,
+                screenshotsFull: activationStore.sessionScreenshotsFull,
+                screenshotDuplicateTick: activationStore.screenshotDuplicateTick,
+                screenshotsIncludeFiles: activationStore.sessionAttachmentsIncludeFiles,
+                screenshotsIncludeImages: activationStore.sessionAttachmentsIncludeImages,
+                onFinish: { activationStore.finish() },
+                onCancel: { activationStore.cancelCurrentSession() },
+                onNoteAction: { activationStore.requestCurrentSessionResultAsNote() },
+                onSuccessClose: { activationStore.dismissCurrentSuccess() },
+                onSuccessCopy: { activationStore.copyCurrentSuccessResult() },
+                onSuccessAppend: { activationStore.appendFromSuccess() },
+                onScreenshotRemoveLast: { activationStore.removeLastCollectedAttachment() },
+                onScreenshotClearAll: { activationStore.clearCollectedAttachments() }
+            )
+        }
+        .frame(maxHeight: .infinity, alignment: .bottom)
     }
 }

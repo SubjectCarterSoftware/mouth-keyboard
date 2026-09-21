@@ -225,6 +225,10 @@ extension SetupWindowView {
                         )
                     }
 
+                    SetupFieldRow(title: "Save copied images") {
+                        SaveScreenshotsToHistoryRow(isOn: saveScreenshotsToHistoryBinding)
+                    }
+
                     savedEntriesZone
                         .padding(.leading, SetupSectionMetrics.rowIndent)
                 }
@@ -289,6 +293,8 @@ extension SetupWindowView {
                         detail: historyVM.filteredSelectionDetail,
                         copyLabel: historyVM.copyConfirmationVisible ? "Copied" : "Copy",
                         copyAction: { historyVM.copySelectedEntry() },
+                        copyWithAttachmentsLabel: historyVM.copyWithAttachmentsConfirmationVisible ? "Copied" : "Copy with images",
+                        copyWithAttachmentsAction: { historyVM.copySelectedEntryWithAttachments() },
                         revealAction: { if let url = historyVM.selectedEntryURL { revealHistoryEntry(url) } },
                         deleteAction: { if let url = historyVM.selectedEntryURL { historyVM.deleteEntry(url) } }
                     )

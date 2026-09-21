@@ -190,12 +190,21 @@ struct RecordingPillView: View {
     let successDismissDeadline: Date?
     let successNoteSaveState: SuccessNoteSaveState?
     var silenceWarningActive: Bool = false
+    var screenshotCount: Int = 0
+    var screenshotsFull: Bool = false
+    var screenshotDuplicateTick: Int = 0
+    var screenshotsIncludeFiles: Bool = false
+    var screenshotsIncludeImages: Bool = true
     var onFinish: (() -> Void)?
     var onCancel: (() -> Void)?
     var onNoteAction: (() -> Void)?
     var onSuccessClose: (() -> Void)?
     var onSuccessCopy: (() -> Void)?
     var onSuccessAppend: (() -> Void)?
+    var onScreenshotRemoveLast: (() -> Void)?
+    var onScreenshotClearAll: (() -> Void)?
+
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     private static let pillBackground = Color(red: 0.11, green: 0.11, blue: 0.13)
     private static let noteActionPurple = Color(red: 0.55, green: 0.18, blue: 0.79)
@@ -211,12 +220,19 @@ struct RecordingPillView: View {
         successDismissDeadline: Date? = nil,
         successNoteSaveState: SuccessNoteSaveState? = nil,
         silenceWarningActive: Bool = false,
+        screenshotCount: Int = 0,
+        screenshotsFull: Bool = false,
+        screenshotDuplicateTick: Int = 0,
+        screenshotsIncludeFiles: Bool = false,
+        screenshotsIncludeImages: Bool = true,
         onFinish: (() -> Void)? = nil,
         onCancel: (() -> Void)? = nil,
         onNoteAction: (() -> Void)? = nil,
         onSuccessClose: (() -> Void)? = nil,
         onSuccessCopy: (() -> Void)? = nil,
-        onSuccessAppend: (() -> Void)? = nil
+        onSuccessAppend: (() -> Void)? = nil,
+        onScreenshotRemoveLast: (() -> Void)? = nil,
+        onScreenshotClearAll: (() -> Void)? = nil
     ) {
         self.levelMonitor = levelMonitor
         self.recordingState = recordingState
@@ -225,13 +241,128 @@ struct RecordingPillView: View {
         self.successDismissDeadline = successDismissDeadline
         self.successNoteSaveState = successNoteSaveState
         self.silenceWarningActive = silenceWarningActive
+        self.screenshotCount = screenshotCount
+        self.screenshotsFull = screenshotsFull
+        self.screenshotDuplicateTick = screenshotDuplicateTick
+        self.screenshotsIncludeFiles = screenshotsIncludeFiles
+        self.screenshotsIncludeImages = screenshotsIncludeImages
         self.onFinish = onFinish
         self.onCancel = onCancel
         self.onNoteAction = onNoteAction
         self.onSuccessClose = onSuccessClose
         self.onSuccessCopy = onSuccessCopy
         self.onSuccessAppend = onSuccessAppend
+        self.onScreenshotRemoveLast = onScreenshotRemoveLast
+        self.onScreenshotClearAll = onScreenshotClearAll
         barScales = (0..<7).map { _ in CGFloat.random(in: 0.55...1.0) }
+    }
+
+    // MARK: - Screenshot badge
+
+    /// Whether the screenshot count badge should be shown for a given state.
+    /// Shared with `RecordingPillPanel` so the panel can decide whether to
+    /// reserve extra height for the badge without duplicating this rule.
+    /// The badge only ever shows while attachments can still be edited —
+    /// i.e. before the paste has happened. Once a passthrough session lands
+    /// in `.success` there's nothing left to drop or clear, so the badge
+    /// animates away rather than following the pill into Done.
+    static func screenshotBadgeVisible(
+        state: RecordingState,
+        feedback: RecordingState.RecoveryFeedback?,
+        screenshotCount: Int
+    ) -> Bool {
+        guard feedback == nil, screenshotCount > 0 else { return false }
+        switch state {
+        case .recording, .processing:
+            return true
+        default:
+            return false
+        }
+    }
+
+    // MARK: - Screenshot badge pure helpers
+
+    /// The kind icon shown at rest, before any hover:
+    /// `photo` for images alone, `doc.fill` for files alone, and `paperclip`
+    /// once a session holds both — the count itself is always the total.
+    static func screenshotBadgeKindSymbolName(includesImages: Bool, includesFiles: Bool) -> String {
+        if includesImages && includesFiles { return "paperclip" }
+        if includesFiles { return "doc.fill" }
+        return "photo"
+    }
+
+    /// The left-button icon: the kind icon at rest, swapping to the
+    /// remove-last glyph whenever the cursor is anywhere on the badge.
+    static func screenshotBadgeLeftIconSymbolName(
+        includesImages: Bool,
+        includesFiles: Bool,
+        isHoveringBadge: Bool
+    ) -> String {
+        isHoveringBadge
+            ? "minus"
+            : screenshotBadgeKindSymbolName(includesImages: includesImages, includesFiles: includesFiles)
+    }
+
+    enum ScreenshotBadgeCloseGlyphStyle: Equatable {
+        /// Cursor is elsewhere on the pill: 62% ink, no fill.
+        case rest
+        /// Cursor is on the badge but not the ✕ itself: full ink, no fill.
+        case badgeHovered
+        /// Cursor is on the ✕: filled red with a white glyph.
+        case selfHovered
+    }
+
+    /// The ✕'s colour step depends on where the cursor is: dim at rest, full
+    /// ink anywhere on the badge, and red-filled only right on the ✕ itself.
+    static func screenshotBadgeCloseGlyphStyle(
+        isHoveringBadge: Bool,
+        isHoveringClose: Bool
+    ) -> ScreenshotBadgeCloseGlyphStyle {
+        if isHoveringClose { return .selfHovered }
+        return isHoveringBadge ? .badgeHovered : .rest
+    }
+
+    private var showsScreenshotBadge: Bool {
+        Self.screenshotBadgeVisible(state: recordingState, feedback: recoveryFeedback, screenshotCount: screenshotCount)
+    }
+
+    /// Insertion (the badge's first appearance) still pops in with a spring.
+    /// Removal (the badge leaving as the state exits processing) scales down
+    /// to 0.4 and fades over ~0.22s on an ease-out curve instead, so it reads
+    /// as "wrapping up" rather than mirroring the appear animation in reverse.
+    private var screenshotBadgeTransition: AnyTransition {
+        if reduceMotion {
+            return .opacity
+        }
+        let insertion = AnyTransition.scale(scale: 0, anchor: .center)
+            .combined(with: .opacity)
+            .animation(.spring(response: 0.32, dampingFraction: 0.62))
+        let removal = AnyTransition.scale(scale: 0.4, anchor: .center)
+            .combined(with: .opacity)
+            .animation(.timingCurve(0.4, 0, 0.7, 0.3, duration: 0.22))
+        return .asymmetric(insertion: insertion, removal: removal)
+    }
+
+    private var screenshotBadgeAppearAnimation: Animation? {
+        reduceMotion ? .easeInOut(duration: 0.15) : .spring(response: 0.32, dampingFraction: 0.62)
+    }
+
+    @ViewBuilder
+    private var screenshotBadgeOverlay: some View {
+        if showsScreenshotBadge {
+            ScreenshotBadge(
+                count: screenshotCount,
+                isFull: screenshotsFull,
+                duplicateTick: screenshotDuplicateTick,
+                includesFiles: screenshotsIncludeFiles,
+                includesImages: screenshotsIncludeImages,
+                reduceMotion: reduceMotion,
+                onRemoveLast: onScreenshotRemoveLast,
+                onClearAll: onScreenshotClearAll
+            )
+            .offset(y: -10)
+            .transition(screenshotBadgeTransition)
+        }
     }
 
     var body: some View {
@@ -300,12 +431,14 @@ struct RecordingPillView: View {
                 pillGlowBorder(color: Color(red: 0.545, green: 0.184, blue: 0.788))
             }
         }
+        .overlay(alignment: .top) { screenshotBadgeOverlay }
         .preferredColorScheme(.dark)
         .animation(.spring(response: 0.3, dampingFraction: 0.84), value: mode)
         // Only smooth the audio-level stream for the recording meter. In
         // processing/rewriting the bars are driven per-frame by TimelineView,
         // so this implicit tween would fight those values and look stuttery.
         .animation(mode == .recording ? .easeInOut(duration: 0.1) : nil, value: levelMonitor.displayLevel)
+        .animation(screenshotBadgeAppearAnimation, value: showsScreenshotBadge)
     }
 
     private func barHeight(for scale: CGFloat, index: Int) -> CGFloat {
@@ -452,11 +585,17 @@ struct RecordingPillView: View {
 
     @ViewBuilder
     private func pillGlowBorder(color: Color) -> some View {
-        Capsule(style: .continuous)
-            .stroke(color.opacity(0.30), lineWidth: 10)
-            .blur(radius: 6)
-        Capsule(style: .continuous)
-            .stroke(color.opacity(0.85), lineWidth: 1.5)
+        // Clipped to the capsule: the panel window is no longer capsule-masked
+        // (it grows upward for the screenshot badge), so an unclipped blur
+        // would spill into the transparent window area as a visible halo box.
+        ZStack {
+            Capsule(style: .continuous)
+                .stroke(color.opacity(0.30), lineWidth: 10)
+                .blur(radius: 6)
+            Capsule(style: .continuous)
+                .stroke(color.opacity(0.85), lineWidth: 1.5)
+        }
+        .clipShape(Capsule(style: .continuous))
     }
 
     private func modelDownloadingContent(model: WhisperModelChoice, progress: Double) -> some View {
@@ -582,6 +721,8 @@ struct RecordingPillView: View {
             .overlay {
                 pillGlowBorder(color: boundaryColor)
             }
+            .overlay(alignment: .top) { screenshotBadgeOverlay }
+            .animation(screenshotBadgeAppearAnimation, value: showsScreenshotBadge)
         }
         .frame(width: 220, height: 44)
         .preferredColorScheme(.dark)
@@ -886,6 +1027,181 @@ struct RecordingPillView: View {
             return "Input exceeds AI limit"
         }
     }
+
+    // MARK: - Screenshot badge view
+
+    /// The "top tab" attachment badge: a small, fixed-size capsule hanging
+    /// off the top edge of the pill, centred over the audio meter. It's the
+    /// same size in every state — nothing resizes or shifts on hover, only
+    /// colours and the left glyph change.
+    ///
+    /// Three fixed-position parts, left to right: a kind/remove-last button,
+    /// the count, and an always-visible clear-all ✕. Hovering anywhere on the
+    /// badge swaps the left icon to `minus.circle`; hovering the ✕ itself
+    /// fills it red. Pops on each increment, shakes on a duplicate, and
+    /// turns amber at the session cap.
+    private struct ScreenshotBadge: View {
+        let count: Int
+        let isFull: Bool
+        let duplicateTick: Int
+        let includesFiles: Bool
+        let includesImages: Bool
+        let reduceMotion: Bool
+        var onRemoveLast: (() -> Void)?
+        var onClearAll: (() -> Void)?
+
+        @State private var isHoveringBadge = false
+        @State private var isHoveringLeftButton = false
+        @State private var isHoveringCloseButton = false
+
+        // Dark badge on the dark pill: the same ground as the pill itself,
+        // separated by a hairline rather than by contrast, with light glyphs.
+        private static let badgeBackground = RecordingPillView.pillBackground
+        private static let badgeForeground = Color(red: 0xF2 / 255, green: 0xF2 / 255, blue: 0xF5 / 255)
+        private static let badgeBorder = Color.white.opacity(0.22)
+        private static let capBackground = Color(red: 0xFF / 255, green: 0x9F / 255, blue: 0x0A / 255)
+        // On the amber cap background the light glyphs would wash out, so that
+        // state flips back to dark ink.
+        private static let capForeground = Color(red: 0x1C / 255, green: 0x1C / 255, blue: 0x21 / 255)
+        private static let closeDanger = Color(red: 1.0, green: 0x45 / 255, blue: 0x3A / 255)
+        private static let leftChipOnDark = Color.white.opacity(0.16)
+        private static let leftChipOnFull = Color.black.opacity(0.22)
+
+        // 10% larger than the first pass, for a little more breathing room
+        // around the glyphs now that the badge shares the pill's ground.
+        private static let badgeWidth: CGFloat = 58
+        private static let badgeHeight: CGFloat = 18
+        private static let horizontalPadding: CGFloat = 5
+        private static let buttonSize: CGFloat = 16
+        private static let buttonCornerRadius: CGFloat = 5
+        private static let iconSize: CGFloat = 10
+        // The bare minus has no enclosing circle, so it can carry more weight
+        // and size than the kind glyphs without crowding the capsule.
+        private static let minusIconSize: CGFloat = 13
+        private static let closeIconSize: CGFloat = 10
+        private static let countFontSize: CGFloat = 11
+
+        /// Glyph colour for the current background: light on the dark ground,
+        /// dark on amber.
+        private var foreground: Color {
+            isFull ? Self.capForeground : Self.badgeForeground
+        }
+
+        var body: some View {
+            if reduceMotion {
+                content
+            } else {
+                content
+                    .keyframeAnimator(initialValue: CGFloat(1), trigger: count) { content, scale in
+                        content.scaleEffect(scale)
+                    } keyframes: { _ in
+                        KeyframeTrack(\.self) {
+                            LinearKeyframe(CGFloat(1.35), duration: 0.16)
+                            LinearKeyframe(CGFloat(0.92), duration: 0.14)
+                            LinearKeyframe(CGFloat(1.0), duration: 0.12)
+                        }
+                    }
+                    .keyframeAnimator(initialValue: CGFloat(0), trigger: duplicateTick) { content, offsetX in
+                        content.offset(x: offsetX)
+                    } keyframes: { _ in
+                        KeyframeTrack(\.self) {
+                            LinearKeyframe(CGFloat(-2.5), duration: 0.06)
+                            LinearKeyframe(CGFloat(2.5), duration: 0.06)
+                            LinearKeyframe(CGFloat(-1.5), duration: 0.08)
+                            LinearKeyframe(CGFloat(1.5), duration: 0.08)
+                            LinearKeyframe(CGFloat(0), duration: 0.08)
+                        }
+                    }
+            }
+        }
+
+        private var content: some View {
+            HStack(spacing: 1) {
+                removeLastButton
+                countLabel
+                clearAllButton
+            }
+            .padding(.horizontal, Self.horizontalPadding)
+            .frame(width: Self.badgeWidth, height: Self.badgeHeight)
+            .background(isFull ? Self.capBackground : Self.badgeBackground, in: Capsule(style: .continuous))
+            .overlay {
+                Capsule(style: .continuous)
+                    .strokeBorder(isFull ? Color.clear : Self.badgeBorder, lineWidth: 1)
+            }
+            .shadow(color: Color.black.opacity(0.45), radius: 1.5, x: 0, y: 1)
+            .animation(.easeInOut(duration: 0.25), value: isFull)
+            .contentShape(Rectangle())
+            .onHover { isHoveringBadge = $0 }
+            .accessibilityElement(children: .contain)
+            .accessibilityIdentifier("pill.screenshotBadge")
+        }
+
+        private var countLabel: some View {
+            Text("\(count)")
+                .font(.system(size: Self.countFontSize, weight: .bold))
+                .monospacedDigit()
+                .contentTransition(.numericText())
+                .foregroundStyle(foreground)
+                .frame(maxWidth: .infinity)
+                .accessibilityLabel(
+                    includesFiles
+                        ? "\(count) item\(count == 1 ? "" : "s") collected"
+                        : "\(count) screenshot\(count == 1 ? "" : "s") collected"
+                )
+        }
+
+        private var removeLastButton: some View {
+            let symbolName = RecordingPillView.screenshotBadgeLeftIconSymbolName(
+                includesImages: includesImages,
+                includesFiles: includesFiles,
+                isHoveringBadge: isHoveringBadge
+            )
+            let chip: Color = isHoveringLeftButton ? (isFull ? Self.leftChipOnFull : Self.leftChipOnDark) : .clear
+
+            return Button(action: { onRemoveLast?() }) {
+                Image(systemName: symbolName)
+                    .font(.system(
+                        size: isHoveringBadge ? Self.minusIconSize : Self.iconSize,
+                        weight: isHoveringBadge ? .bold : .semibold
+                    ))
+                    .foregroundStyle(foreground)
+                    .frame(width: Self.buttonSize, height: Self.buttonSize)
+                    .background(chip, in: RoundedRectangle(cornerRadius: Self.buttonCornerRadius, style: .continuous))
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .onHover { isHoveringLeftButton = $0 }
+            .accessibilityLabel("Drop the last item")
+            .accessibilityIdentifier("pill.screenshotBadge.removeLast")
+        }
+
+        private var clearAllButton: some View {
+            let style = RecordingPillView.screenshotBadgeCloseGlyphStyle(
+                isHoveringBadge: isHoveringBadge,
+                isHoveringClose: isHoveringCloseButton
+            )
+            let (glyphColor, chip): (Color, Color) = {
+                switch style {
+                case .rest: return (foreground.opacity(0.62), .clear)
+                case .badgeHovered: return (foreground, .clear)
+                case .selfHovered: return (.white, Self.closeDanger)
+                }
+            }()
+
+            return Button(action: { onClearAll?() }) {
+                Image(systemName: "xmark")
+                    .font(.system(size: Self.closeIconSize, weight: .semibold))
+                    .foregroundStyle(glyphColor)
+                    .frame(width: Self.buttonSize, height: Self.buttonSize)
+                    .background(chip, in: RoundedRectangle(cornerRadius: Self.buttonCornerRadius, style: .continuous))
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .onHover { isHoveringCloseButton = $0 }
+            .accessibilityLabel("Clear all")
+            .accessibilityIdentifier("pill.screenshotBadge.clearAll")
+        }
+    }
 }
 
 // Preview-only concept for evaluating a timer-first recording pill in Xcode.
@@ -1128,6 +1444,41 @@ private struct RecordingTimerConceptPreviewCanvas: View {
 
 #Preview("Recording - Silence Warning") {
     RecordingPillView(levelMonitor: AudioLevelMonitor(), recordingState: .recording, silenceWarningActive: true)
+}
+
+#Preview("Recording - 2 screenshots") {
+    RecordingPillView(
+        levelMonitor: AudioLevelMonitor(),
+        recordingState: .recording,
+        screenshotCount: 2
+    )
+}
+
+#Preview("Recording - 3 attachments") {
+    RecordingPillView(
+        levelMonitor: AudioLevelMonitor(),
+        recordingState: .recording,
+        screenshotCount: 3,
+        screenshotsIncludeFiles: true
+    )
+}
+
+#Preview("Processing - cap reached") {
+    RecordingPillView(
+        levelMonitor: AudioLevelMonitor(),
+        recordingState: .processing,
+        screenshotCount: 20,
+        screenshotsFull: true
+    )
+}
+
+#Preview("Recording - screenshots full") {
+    RecordingPillView(
+        levelMonitor: AudioLevelMonitor(),
+        recordingState: .recording,
+        screenshotCount: 20,
+        screenshotsFull: true
+    )
 }
 
 #Preview("Recording Timer Concept A") {
