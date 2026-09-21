@@ -2,7 +2,7 @@
 
 All notable public release changes should be documented here.
 
-## Unreleased
+## 0.1.4
 
 - Images copied while a recording is running (e.g. a Cmd+Ctrl+Shift+4
   screenshot) and files copied in Finder are now pasted together right after
