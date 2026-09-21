@@ -67,6 +67,10 @@
 		A0000001000000000000001A /* AudioLevelMonitor.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0000002000000000000001D /* AudioLevelMonitor.swift */; };
 		A0000001000000000000001B /* AudioDeviceServiceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0000002000000000000001E /* AudioDeviceServiceTests.swift */; };
 		A0000001000000000000001C /* AudioDeviceService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0000002000000000000001F /* AudioDeviceService.swift */; };
+		A00000010000000000000139 /* SystemAudioDuckingService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000020000000000000139 /* SystemAudioDuckingService.swift */; };
+		A0000001000000000000013A /* SystemAudioDuckingServiceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0000002000000000000013A /* SystemAudioDuckingServiceTests.swift */; };
+		A0000001000000000000013B /* AutoRestartService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0000002000000000000013B /* AutoRestartService.swift */; };
+		A0000001000000000000013C /* AutoRestartServiceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0000002000000000000013C /* AutoRestartServiceTests.swift */; };
 		A0000001000000000000001D /* RecordingPillView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000020000000000000020 /* RecordingPillView.swift */; };
 		A0000001000000000000001E /* RecordingPillPanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000020000000000000021 /* RecordingPillPanel.swift */; };
 		A0000001000000000000001F /* ObjCExceptionCatcher.m in Sources */ = {isa = PBXBuildFile; fileRef = A00000020000000000000023 /* ObjCExceptionCatcher.m */; };
@@ -208,6 +212,10 @@
 		A0000002000000000000001D /* AudioLevelMonitor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudioLevelMonitor.swift; sourceTree = "<group>"; };
 		A0000002000000000000001E /* AudioDeviceServiceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudioDeviceServiceTests.swift; sourceTree = "<group>"; };
 		A0000002000000000000001F /* AudioDeviceService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudioDeviceService.swift; sourceTree = "<group>"; };
+		A00000020000000000000139 /* SystemAudioDuckingService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SystemAudioDuckingService.swift; sourceTree = "<group>"; };
+		A0000002000000000000013A /* SystemAudioDuckingServiceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SystemAudioDuckingServiceTests.swift; sourceTree = "<group>"; };
+		A0000002000000000000013B /* AutoRestartService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AutoRestartService.swift; sourceTree = "<group>"; };
+		A0000002000000000000013C /* AutoRestartServiceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AutoRestartServiceTests.swift; sourceTree = "<group>"; };
 		A00000020000000000000020 /* RecordingPillView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecordingPillView.swift; sourceTree = "<group>"; };
 		A00000020000000000000021 /* RecordingPillPanel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecordingPillPanel.swift; sourceTree = "<group>"; };
 		A00000020000000000000022 /* ObjCExceptionCatcher.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = ObjCExceptionCatcher.h; sourceTree = "<group>"; };
@@ -357,6 +365,7 @@
 			children = (
 				A00000020000000000000001 /* MouthKeyboardApp.swift */,
 				A00000020000000000000002 /* AppDelegate.swift */,
+				A0000002000000000000013B /* AutoRestartService.swift */,
 				A00000020000000000000081 /* StatusMenuController.swift */,
 			);
 			path = App;
@@ -457,6 +466,8 @@
 				A00000020000000000000138 /* ExternalTextScenarioMatrixEvaluationTests.swift */,
 				A00000020000000000000112 /* HistoryCaptureServiceTests.swift */,
 				A00000020000000000000113 /* NoteCaptureServiceTests.swift */,
+				A0000002000000000000013A /* SystemAudioDuckingServiceTests.swift */,
+				A0000002000000000000013C /* AutoRestartServiceTests.swift */,
 				A00000020000000000000114 /* ReplacementPackCatalogTests.swift */,
 				A00000020000000000000115 /* ReplacementPackServiceTests.swift */,
 				A00000020000000000000133 /* RewriteModelLimitsTests.swift */,
@@ -502,6 +513,7 @@
 			children = (
 				A0000002000000000000001C /* AudioCaptureService.swift */,
 				A0000002000000000000001F /* AudioDeviceService.swift */,
+				A00000020000000000000139 /* SystemAudioDuckingService.swift */,
 				A0000002000000000000001D /* AudioLevelMonitor.swift */,
 				A00000020000000000000027 /* AudioBufferAccumulator.swift */,
 				A00000020000000000000107 /* MicProbeMonitor.swift */,
@@ -703,6 +715,8 @@
 				A00000010000000000000107 /* MicProbeMonitor.swift in Sources */,
 				A00000010000000000000019 /* AudioCaptureService.swift in Sources */,
 				A0000001000000000000001C /* AudioDeviceService.swift in Sources */,
+				A00000010000000000000139 /* SystemAudioDuckingService.swift in Sources */,
+				A0000001000000000000013B /* AutoRestartService.swift in Sources */,
 				A0000001000000000000001A /* AudioLevelMonitor.swift in Sources */,
 				A00000010000000000000023 /* ClipboardService.swift in Sources */,
 				A0000001000000000000003C /* LLMRewriteService.swift in Sources */,
@@ -806,6 +820,8 @@
 				A00000010000000000000138 /* ExternalTextScenarioMatrixEvaluationTests.swift in Sources */,
 				A00000010000000000000112 /* HistoryCaptureServiceTests.swift in Sources */,
 				A00000010000000000000113 /* NoteCaptureServiceTests.swift in Sources */,
+				A0000001000000000000013A /* SystemAudioDuckingServiceTests.swift in Sources */,
+				A0000001000000000000013C /* AutoRestartServiceTests.swift in Sources */,
 				A00000010000000000000114 /* ReplacementPackCatalogTests.swift in Sources */,
 				A00000010000000000000115 /* ReplacementPackServiceTests.swift in Sources */,
 				A00000010000000000000133 /* RewriteModelLimitsTests.swift in Sources */,

@@ -58,6 +58,14 @@ extension SetupWindowView {
                     SetupFieldRow(title: "Play sound effects") {
                         PlaySoundEffectsRow(isOn: playSoundEffectsBinding)
                     }
+
+                    SetupFieldRow(title: "Reduce system audio") {
+                        ReduceSystemAudioRow(isOn: duckSystemAudioBinding)
+                    }
+
+                    SetupFieldRow(title: "Paste copied images") {
+                        PasteCopiedAttachmentsRow(isOn: pasteCopiedAttachmentsBinding)
+                    }
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .zIndex(isMicPriorityPickerMenuOpen ? 100 : 0)
@@ -126,34 +134,46 @@ extension SetupWindowView {
 
     var notesSectionContent: some View {
         SettingsSectionCard(section: .notes, flashTrigger: flashTrigger(for: .notes)) {
-            VStack(alignment: .leading, spacing: 14) {
-                SetupFieldRow(title: "Saving mode") {
-                    NoteCaptureModeRow(mode: assistantNoteModeBinding)
-                }
+            Toggle("Save notes", isOn: noteSavingEnabledBinding)
+                .labelsHidden()
+                .toggleStyle(.switch)
+                .scaleEffect(0.8, anchor: .trailing)
+                .fixedSize()
+                .accessibilityLabel("Save notes")
+                .accessibilityIdentifier("setupWindow.notes.enabled")
+        } content: {
+            if preferences.noteSavingEnabled {
+                VStack(alignment: .leading, spacing: 14) {
+                    SetupFieldRow(title: "Saving mode") {
+                        NoteCaptureModeRow(mode: assistantNoteModeBinding)
+                    }
 
-                SetupFieldRow(title: "Destination") {
-                    if preferences.assistantNoteMode == .newFile {
-                        AssistantNoteDestinationRow(
-                            path: preferences.assistantNoteFolderPath,
-                            placeholder: "No note folder selected",
-                            destinationKind: .folder,
-                            pathAccessibilityIdentifier: "setupWindow.notes.destination.path",
-                            browseAccessibilityIdentifier: "setupWindow.notes.destination.browse",
-                            clearAccessibilityIdentifier: "setupWindow.notes.destination.clear",
-                            browseAction: chooseAssistantNoteFolder,
-                            clearAction: { preferences.assistantNoteFolderPath = "" }
-                        )
-                    } else {
-                        AssistantNoteDestinationRow(
-                            path: preferences.assistantNoteAppendFilePath,
-                            placeholder: "No append file selected",
-                            destinationKind: .file,
-                            pathAccessibilityIdentifier: "setupWindow.notes.destination.path",
-                            browseAccessibilityIdentifier: "setupWindow.notes.destination.browse",
-                            clearAccessibilityIdentifier: "setupWindow.notes.destination.clear",
-                            browseAction: chooseAssistantNoteAppendFile,
-                            clearAction: { preferences.assistantNoteAppendFilePath = "" }
-                        )
+                    SetupFieldRow(title: "Destination") {
+                        if preferences.assistantNoteMode == .newFile {
+                            AssistantNoteDestinationRow(
+                                path: preferences.assistantNoteConfiguration.resolvedFolderPath,
+                                placeholder: "No note folder selected",
+                                destinationKind: .folder,
+                                pathAccessibilityIdentifier: "setupWindow.notes.destination.path",
+                                browseAccessibilityIdentifier: "setupWindow.notes.destination.browse",
+                                clearAccessibilityIdentifier: "setupWindow.notes.destination.clear",
+                                browseAction: chooseAssistantNoteFolder,
+                                clearAction: { preferences.assistantNoteFolderPath = "" },
+                                helperText: "Defaults to ~/Documents/Mouth Keyboard Notes.",
+                                isClearDisabled: preferences.assistantNoteFolderPath.isEmpty
+                            )
+                        } else {
+                            AssistantNoteDestinationRow(
+                                path: preferences.assistantNoteAppendFilePath,
+                                placeholder: "No append file selected",
+                                destinationKind: .file,
+                                pathAccessibilityIdentifier: "setupWindow.notes.destination.path",
+                                browseAccessibilityIdentifier: "setupWindow.notes.destination.browse",
+                                clearAccessibilityIdentifier: "setupWindow.notes.destination.clear",
+                                browseAction: chooseAssistantNoteAppendFile,
+                                clearAction: { preferences.assistantNoteAppendFilePath = "" }
+                            )
+                        }
                     }
                 }
             }
@@ -165,14 +185,7 @@ extension SetupWindowView {
             section: .history,
             flashTrigger: flashTrigger(for: .history)
         ) {
-            Toggle("Save history", isOn: Binding(
-                get: { preferences.historyEnabled },
-                set: { newValue in
-                    withAnimation(.easeInOut(duration: 0.18)) {
-                        preferences.historyEnabled = newValue
-                    }
-                }
-            ))
+            Toggle("Save history", isOn: historyEnabledBinding)
             .labelsHidden()
             .toggleStyle(.switch)
             .scaleEffect(0.8, anchor: .trailing)

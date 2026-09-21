@@ -8,6 +8,7 @@ final class NoteCaptureServiceTests: XCTestCase {
         let folderURL = makeTemporaryDirectory()
         let service = makeService()
         let configuration = AssistantNoteConfiguration(
+            isEnabled: true,
             mode: .newFile,
             folderPath: folderURL.path,
             appendFilePath: ""
@@ -51,6 +52,7 @@ final class NoteCaptureServiceTests: XCTestCase {
         try "Existing".write(to: existingURL, atomically: true, encoding: .utf8)
 
         let configuration = AssistantNoteConfiguration(
+            isEnabled: true,
             mode: .newFile,
             folderPath: folderURL.path,
             appendFilePath: ""
@@ -70,6 +72,7 @@ final class NoteCaptureServiceTests: XCTestCase {
         let folderURL = makeTemporaryDirectory()
         let service = makeService()
         let configuration = AssistantNoteConfiguration(
+            isEnabled: true,
             mode: .newFile,
             folderPath: folderURL.path,
             appendFilePath: ""
@@ -125,6 +128,7 @@ final class NoteCaptureServiceTests: XCTestCase {
         let fileURL = directoryURL.appendingPathComponent("notes.md")
         let service = makeService()
         let configuration = AssistantNoteConfiguration(
+            isEnabled: true,
             mode: .appendToFile,
             folderPath: "",
             appendFilePath: fileURL.path
@@ -159,6 +163,7 @@ final class NoteCaptureServiceTests: XCTestCase {
         try "Existing entry".write(to: fileURL, atomically: true, encoding: .utf8)
         let service = makeService()
         let configuration = AssistantNoteConfiguration(
+            isEnabled: true,
             mode: .appendToFile,
             folderPath: "",
             appendFilePath: fileURL.path
@@ -192,10 +197,30 @@ final class NoteCaptureServiceTests: XCTestCase {
         )
     }
 
-    func testSaveNoteThrowsMissingDestinationWhenConfigurationIsIncomplete() {
+    func testSaveNoteThrowsMissingDestinationWhenNoteSavingIsDisabled() {
         let service = makeService()
         let configuration = AssistantNoteConfiguration(
+            isEnabled: false,
             mode: .newFile,
+            folderPath: makeTemporaryDirectory().path,
+            appendFilePath: ""
+        )
+        let content = NoteCaptureContent(
+            title: nil,
+            rawTranscription: "Captured output",
+            assistantOutput: nil
+        )
+
+        XCTAssertThrowsError(try service.saveNote(content: content, configuration: configuration)) { error in
+            XCTAssertEqual(error as? NoteCaptureError, .missingDestination)
+        }
+    }
+
+    func testSaveNoteThrowsMissingDestinationWhenAppendFileIsUnset() {
+        let service = makeService()
+        let configuration = AssistantNoteConfiguration(
+            isEnabled: true,
+            mode: .appendToFile,
             folderPath: "",
             appendFilePath: ""
         )
@@ -210,10 +235,75 @@ final class NoteCaptureServiceTests: XCTestCase {
         }
     }
 
+    func testIsConfiguredRequiresEnabledFlag() {
+        XCTAssertFalse(
+            AssistantNoteConfiguration(
+                isEnabled: false,
+                mode: .newFile,
+                folderPath: "/tmp/notes",
+                appendFilePath: ""
+            ).isConfigured
+        )
+        XCTAssertFalse(
+            AssistantNoteConfiguration(
+                isEnabled: false,
+                mode: .appendToFile,
+                folderPath: "",
+                appendFilePath: "/tmp/notes.md"
+            ).isConfigured
+        )
+        // .newFile is always configured when enabled: an empty folder resolves
+        // to the default Documents subfolder.
+        XCTAssertTrue(
+            AssistantNoteConfiguration(
+                isEnabled: true,
+                mode: .newFile,
+                folderPath: "",
+                appendFilePath: ""
+            ).isConfigured
+        )
+        XCTAssertFalse(
+            AssistantNoteConfiguration(
+                isEnabled: true,
+                mode: .appendToFile,
+                folderPath: "",
+                appendFilePath: "   "
+            ).isConfigured
+        )
+        XCTAssertTrue(
+            AssistantNoteConfiguration(
+                isEnabled: true,
+                mode: .appendToFile,
+                folderPath: "",
+                appendFilePath: "/tmp/notes.md"
+            ).isConfigured
+        )
+    }
+
+    func testResolvedFolderPathPrefersCustomPathAndFallsBackToDefault() {
+        let custom = AssistantNoteConfiguration(
+            isEnabled: true,
+            mode: .newFile,
+            folderPath: "  /tmp/custom-notes  ",
+            appendFilePath: ""
+        )
+        XCTAssertEqual(custom.resolvedFolderPath, "/tmp/custom-notes")
+
+        let fallback = AssistantNoteConfiguration(
+            isEnabled: true,
+            mode: .newFile,
+            folderPath: "",
+            appendFilePath: ""
+        )
+        XCTAssertEqual(fallback.resolvedFolderPath, AssistantNoteConfiguration.defaultFolderPath)
+        XCTAssertTrue(fallback.resolvedFolderPath.hasSuffix("Documents/Mouth Keyboard Notes"))
+    }
+
     func testAppendToFileThrowsInvalidDestinationWhenTargetIsDirectory() throws {
         let directoryURL = makeTemporaryDirectory()
         let service = makeService()
         let configuration = AssistantNoteConfiguration(
+            isEnabled: true,
             mode: .appendToFile,
             folderPath: "",
             appendFilePath: directoryURL.path

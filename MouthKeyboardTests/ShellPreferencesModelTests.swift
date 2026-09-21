@@ -68,6 +68,45 @@ final class ShellPreferencesModelTests: XCTestCase {
         XCTAssertFalse(preferences.muteSoundEffects)
     }
 
+    func testDuckSystemAudioWhileRecordingDefaultsToTrue() {
+        let (_, preferences) = makePreferences()
+        XCTAssertTrue(preferences.duckSystemAudioWhileRecording)
+    }
+
+    func testDuckSystemAudioWhileRecordingPersistsRoundTrip() {
+        let (defaults, preferences) = makePreferences()
+        preferences.duckSystemAudioWhileRecording = false
+
+        let preferences2 = ShellPreferences(userDefaults: defaults)
+        XCTAssertFalse(preferences2.duckSystemAudioWhileRecording)
+    }
+
+    func testCollectScreenshotsWhileRecordingDefaultsToTrue() {
+        let (_, preferences) = makePreferences()
+        XCTAssertTrue(preferences.collectScreenshotsWhileRecording)
+    }
+
+    func testCollectScreenshotsWhileRecordingPersistsRoundTrip() {
+        let (defaults, preferences) = makePreferences()
+        preferences.collectScreenshotsWhileRecording = false
+
+        let preferences2 = ShellPreferences(userDefaults: defaults)
+        XCTAssertFalse(preferences2.collectScreenshotsWhileRecording)
+    }
+
+    func testSaveScreenshotsToHistoryDefaultsToTrue() {
+        let (_, preferences) = makePreferences()
+        XCTAssertTrue(preferences.saveScreenshotsToHistory)
+    }
+
+    func testSaveScreenshotsToHistoryPersistsRoundTrip() {
+        let (defaults, preferences) = makePreferences()
+        preferences.saveScreenshotsToHistory = false
+
+        let preferences2 = ShellPreferences(userDefaults: defaults)
+        XCTAssertFalse(preferences2.saveScreenshotsToHistory)
+    }
+
     func testMuteSoundEffectsPersistsRoundTrip() {
         let (defaults, preferences) = makePreferences()
         preferences.muteSoundEffects = true
@@ -166,12 +205,14 @@ final class ShellPreferencesModelTests: XCTestCase {
 
     func testAssistantNoteConfigurationUsesActiveModeDestination() {
         let (_, preferences) = makePreferences()
+        preferences.noteSavingEnabled = true
         preferences.assistantNoteMode = .newFile
         preferences.assistantNoteFolderPath = "/tmp/notes-folder"
         preferences.assistantNoteAppendFilePath = "/tmp/notes.md"
         XCTAssertEqual(
             preferences.assistantNoteConfiguration,
             AssistantNoteConfiguration(
+                isEnabled: true,
                 mode: .newFile,
                 folderPath: "/tmp/notes-folder",
                 appendFilePath: "/tmp/notes.md"
@@ -182,11 +223,73 @@ final class ShellPreferencesModelTests: XCTestCase {
         XCTAssertEqual(
             preferences.assistantNoteConfiguration,
             AssistantNoteConfiguration(
+                isEnabled: true,
                 mode: .appendToFile,
                 folderPath: "/tmp/notes-folder",
                 appendFilePath: "/tmp/notes.md"
             )
         )
+    }
+
+    func testNoteSavingEnabledDefaultsToFalseOnCleanInstall() {
+        let (defaults, preferences) = makePreferences()
+
+        XCTAssertFalse(preferences.noteSavingEnabled)
+        // The derived value is written back so it stays stable across launches.
+        XCTAssertNotNil(defaults.object(forKey: ShellPreferences.Keys.noteSavingEnabled))
+    }
+
+    func testNoteSavingEnabledPersistsRoundTrip() {
+        let (defaults, preferences) = makePreferences()
+        preferences.noteSavingEnabled = true
+
+        let preferences2 = ShellPreferences(userDefaults: defaults)
+        XCTAssertTrue(preferences2.noteSavingEnabled)
+    }
+
+    func testNoteSavingEnabledMigratesFromConfiguredNewFileDestination() {
+        let (defaults, _) = makePreferences()
+        defaults.removeObject(forKey: ShellPreferences.Keys.noteSavingEnabled)
+        defaults.set(AssistantNoteMode.newFile.rawValue, forKey: ShellPreferences.Keys.assistantNoteMode)
+        defaults.set("/tmp/notes-folder", forKey: ShellPreferences.Keys.assistantNoteFolderPath)
+
+        let preferences = ShellPreferences(userDefaults: defaults)
+
+        XCTAssertTrue(preferences.noteSavingEnabled)
+        XCTAssertEqual(defaults.object(forKey: ShellPreferences.Keys.noteSavingEnabled) as? Bool, true)
+    }
+
+    func testNoteSavingEnabledMigratesFromConfiguredAppendDestination() {
+        let (defaults, _) = makePreferences()
+        defaults.removeObject(forKey: ShellPreferences.Keys.noteSavingEnabled)
+        defaults.set(AssistantNoteMode.appendToFile.rawValue, forKey: ShellPreferences.Keys.assistantNoteMode)
+        defaults.set("/tmp/notes.md", forKey: ShellPreferences.Keys.assistantNoteAppendFilePath)
+
+        let preferences = ShellPreferences(userDefaults: defaults)
+
+        XCTAssertTrue(preferences.noteSavingEnabled)
+    }
+
+    func testNoteSavingEnabledMigrationIgnoresInactiveModeDestination() {
+        let (defaults, _) = makePreferences()
+        defaults.removeObject(forKey: ShellPreferences.Keys.noteSavingEnabled)
+        defaults.set(AssistantNoteMode.newFile.rawValue, forKey: ShellPreferences.Keys.assistantNoteMode)
+        defaults.set("/tmp/notes.md", forKey: ShellPreferences.Keys.assistantNoteAppendFilePath)
+
+        let preferences = ShellPreferences(userDefaults: defaults)
+
+        XCTAssertFalse(preferences.noteSavingEnabled)
+    }
+
+    func testNoteSavingEnabledExplicitDisableWinsOverConfiguredDestination() {
+        let (defaults, _) = makePreferences()
+        defaults.set(false, forKey: ShellPreferences.Keys.noteSavingEnabled)
+        defaults.set(AssistantNoteMode.newFile.rawValue, forKey: ShellPreferences.Keys.assistantNoteMode)
+        defaults.set("/tmp/notes-folder", forKey: ShellPreferences.Keys.assistantNoteFolderPath)
+
+        let preferences = ShellPreferences(userDefaults: defaults)
+
+        XCTAssertFalse(preferences.noteSavingEnabled)
     }
 
     func testHistoryDefaultsToDisabledWithDefaultCap() {
@@ -393,6 +496,8 @@ final class ShellPreferencesModelTests: XCTestCase {
         preferences.alwaysAutoPaste = false
         preferences.restorePreviousClipboardAfterAutoPaste = false
         preferences.muteSoundEffects = true
+        preferences.duckSystemAudioWhileRecording = false
+        preferences.collectScreenshotsWhileRecording = false
         preferences.recordingPillPosition = .centerLeft
 
         preferences.restoreDefaultGeneralSettings()
@@ -401,6 +506,8 @@ final class ShellPreferencesModelTests: XCTestCase {
         XCTAssertTrue(preferences.alwaysAutoPaste)
         XCTAssertTrue(preferences.restorePreviousClipboardAfterAutoPaste)
         XCTAssertFalse(preferences.muteSoundEffects)
+        XCTAssertTrue(preferences.duckSystemAudioWhileRecording)
+        XCTAssertTrue(preferences.collectScreenshotsWhileRecording)
         XCTAssertEqual(preferences.recordingPillPosition, .bottomCenter)
     }
 

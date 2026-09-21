@@ -2638,6 +2638,7 @@ final class ActivationStoreTests: XCTestCase {
         mode: AssistantNoteMode = .newFile
     ) -> ShellPreferences {
         let preferences = makePreferencesWithTriggerStore()
+        preferences.noteSavingEnabled = true
         preferences.assistantNoteMode = mode
 
         switch mode {
@@ -4708,6 +4709,7 @@ class ActivationStoreMockClipboard: ClipboardService {
 
     override func writeTemporaryText(_ text: String) -> ClipboardWriteReceipt? {
         temporaryWriteTexts.append(text)
+        writeSequence.append("text")
         stubbedSnapshotChangeCount += 1
         return ClipboardWriteReceipt(changeCount: stubbedSnapshotChangeCount)
     }

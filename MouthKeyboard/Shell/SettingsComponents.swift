@@ -372,6 +372,81 @@ struct PlaySoundEffectsRow: View {
     }
 }
 
+struct ReduceSystemAudioRow: View {
+    @Binding var isOn: Bool
+    var helperText: String? = "Lowers your Mac's output volume by half while the microphone is recording, then restores it."
+
+    var body: some View {
+        HStack(alignment: .center, spacing: 8) {
+            Toggle("Reduce system audio while recording", isOn: $isOn)
+                .labelsHidden()
+                .toggleStyle(.switch)
+                .scaleEffect(0.8, anchor: .leading)
+                .frame(height: 22)
+                .fixedSize()
+                .accessibilityLabel("Reduce system audio while recording")
+                .accessibilityIdentifier("setupWindow.duckSystemAudio.toggle")
+
+            if let helperText {
+                ImmediateHelpIcon(text: helperText)
+                    .accessibilityIdentifier("setupWindow.duckSystemAudio.info")
+            }
+        }
+        .frame(height: 22, alignment: .leading)
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+}
+
+struct PasteCopiedAttachmentsRow: View {
+    @Binding var isOn: Bool
+    var helperText: String? = "Images and files you copy while recording are pasted right after your words. Only for plain dictation, not the assistant."
+
+    var body: some View {
+        HStack(alignment: .center, spacing: 8) {
+            Toggle("Paste copied images", isOn: $isOn)
+                .labelsHidden()
+                .toggleStyle(.switch)
+                .scaleEffect(0.8, anchor: .leading)
+                .frame(height: 22)
+                .fixedSize()
+                .accessibilityLabel("Paste copied images")
+                .accessibilityIdentifier("setupWindow.pasteCopiedAttachments.toggle")
+
+            if let helperText {
+                ImmediateHelpIcon(text: helperText)
+                    .accessibilityIdentifier("setupWindow.pasteCopiedAttachments.info")
+            }
+        }
+        .frame(height: 22, alignment: .leading)
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+}
+
+struct SaveScreenshotsToHistoryRow: View {
+    @Binding var isOn: Bool
+    var helperText: String? = "Keeps a copy of images you copied while recording. Other files are listed by location only."
+
+    var body: some View {
+        HStack(alignment: .center, spacing: 8) {
+            Toggle("Save copied images", isOn: $isOn)
+                .labelsHidden()
+                .toggleStyle(.switch)
+                .scaleEffect(0.8, anchor: .leading)
+                .frame(height: 22)
+                .fixedSize()
+                .accessibilityLabel("Save copied images")
+                .accessibilityIdentifier("setupWindow.history.saveScreenshots.toggle")
+
+            if let helperText {
+                ImmediateHelpIcon(text: helperText)
+                    .accessibilityIdentifier("setupWindow.history.saveScreenshots.info")
+            }
+        }
+        .frame(height: 22, alignment: .leading)
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+}
+
 struct NoteCaptureModeRow: View {
     @Binding var mode: AssistantNoteMode
 

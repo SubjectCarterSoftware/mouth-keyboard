@@ -132,6 +132,9 @@ final class ShellPreferences: ObservableObject {
         static let alwaysAutoPaste = "alwaysAutoPaste"
         static let restorePreviousClipboardAfterAutoPaste = "restorePreviousClipboardAfterAutoPaste"
         static let muteSoundEffects = "muteSoundEffects"
+        static let duckSystemAudioWhileRecording = "duckSystemAudioWhileRecording"
+        static let collectScreenshotsWhileRecording = "collectScreenshotsWhileRecording"
+        static let saveScreenshotsToHistory = "saveScreenshotsToHistory"
         static let holdShortcutKeyCode = "holdShortcutKeyCode"
         static let holdShortcutModifiers = "holdShortcutModifiers"
         static let holdShortcutKeyCodeAlt = "holdShortcutKeyCodeAlt"
@@ -148,6 +151,7 @@ final class ShellPreferences: ObservableObject {
         static let legacyAllowClipboardAccess = "allowClipboardAccess"
         static let rewriteSystemPromptPrefix = "rewriteSystemPromptPrefix"
         static let recordingPillPosition = "recordingPillPosition"
+        static let noteSavingEnabled = "noteSavingEnabled"
         static let assistantNoteMode = "assistantNoteMode"
         static let assistantNoteFolderPath = "assistantNoteFolderPath"
         static let assistantNoteAppendFilePath = "assistantNoteAppendFilePath"
@@ -291,10 +295,51 @@ final class ShellPreferences: ObservableObject {
         }
     }
 
+    @Published var duckSystemAudioWhileRecording: Bool {
+        didSet {
+            persistIfNeeded {
+                defaults.set(
+                    duckSystemAudioWhileRecording,
+                    forKey: Keys.duckSystemAudioWhileRecording
+                )
+            }
+        }
+    }
+
+    @Published var collectScreenshotsWhileRecording: Bool {
+        didSet {
+            persistIfNeeded {
+                defaults.set(
+                    collectScreenshotsWhileRecording,
+                    forKey: Keys.collectScreenshotsWhileRecording
+                )
+            }
+        }
+    }
+
+    @Published var saveScreenshotsToHistory: Bool {
+        didSet {
+            persistIfNeeded {
+                defaults.set(
+                    saveScreenshotsToHistory,
+                    forKey: Keys.saveScreenshotsToHistory
+                )
+            }
+        }
+    }
+
     @Published var recordingPillPosition: RecordingPillPosition {
         didSet {
             persistIfNeeded {
                 defaults.set(recordingPillPosition.rawValue, forKey: Keys.recordingPillPosition)
+            }
+        }
+    }
+
+    @Published var noteSavingEnabled: Bool {
+        didSet {
+            persistIfNeeded {
+                defaults.set(noteSavingEnabled, forKey: Keys.noteSavingEnabled)
             }
         }
     }
@@ -570,6 +615,30 @@ final class ShellPreferences: ObservableObject {
             muteSoundEffects = userDefaults.bool(forKey: Keys.muteSoundEffects)
         }
 
+        if userDefaults.object(forKey: Keys.duckSystemAudioWhileRecording) == nil {
+            duckSystemAudioWhileRecording = true
+        } else {
+            duckSystemAudioWhileRecording = userDefaults.bool(
+                forKey: Keys.duckSystemAudioWhileRecording
+            )
+        }
+
+        if userDefaults.object(forKey: Keys.collectScreenshotsWhileRecording) == nil {
+            collectScreenshotsWhileRecording = true
+        } else {
+            collectScreenshotsWhileRecording = userDefaults.bool(
+                forKey: Keys.collectScreenshotsWhileRecording
+            )
+        }
+
+        if userDefaults.object(forKey: Keys.saveScreenshotsToHistory) == nil {
+            saveScreenshotsToHistory = true
+        } else {
+            saveScreenshotsToHistory = userDefaults.bool(
+                forKey: Keys.saveScreenshotsToHistory
+            )
+        }
+
         if let storedPillPosition = userDefaults.string(forKey: Keys.recordingPillPosition),
            let pillPosition = RecordingPillPosition(rawValue: storedPillPosition) {
             recordingPillPosition = pillPosition
@@ -590,6 +659,29 @@ final class ShellPreferences: ObservableObject {
         assistantNoteAppendFilePath = Self.normalizedOptionalPath(
             userDefaults.string(forKey: Keys.assistantNoteAppendFilePath) ?? ""
         )
+
+        if userDefaults.object(forKey: Keys.noteSavingEnabled) == nil {
+            // One-time migration: note saving used to be implicitly enabled by a
+            // configured destination. Write the derived value back so a later
+            // explicit disable sticks across launches.
+            let storedNoteMode = userDefaults.string(forKey: Keys.assistantNoteMode)
+                .flatMap(AssistantNoteMode.init(rawValue:)) ?? .newFile
+            let migratedNoteSavingEnabled: Bool
+            switch storedNoteMode {
+            case .newFile:
+                migratedNoteSavingEnabled = !Self.normalizedOptionalPath(
+                    userDefaults.string(forKey: Keys.assistantNoteFolderPath) ?? ""
+                ).isEmpty
+            case .appendToFile:
+                migratedNoteSavingEnabled = !Self.normalizedOptionalPath(
+                    userDefaults.string(forKey: Keys.assistantNoteAppendFilePath) ?? ""
+                ).isEmpty
+            }
+            noteSavingEnabled = migratedNoteSavingEnabled
+            userDefaults.set(migratedNoteSavingEnabled, forKey: Keys.noteSavingEnabled)
+        } else {
+            noteSavingEnabled = userDefaults.bool(forKey: Keys.noteSavingEnabled)
+        }
 
         if userDefaults.object(forKey: Keys.historyEnabled) == nil {
             historyEnabled = false
@@ -769,6 +861,8 @@ final class ShellPreferences: ObservableObject {
         alwaysAutoPaste = true
         restorePreviousClipboardAfterAutoPaste = true
         muteSoundEffects = false
+        duckSystemAudioWhileRecording = true
+        collectScreenshotsWhileRecording = true
         recordingPillPosition = .default
     }
 
@@ -975,6 +1069,7 @@ final class ShellPreferences: ObservableObject {
 
     var assistantNoteConfiguration: AssistantNoteConfiguration {
         AssistantNoteConfiguration(
+            isEnabled: noteSavingEnabled,
             mode: assistantNoteMode,
             folderPath: assistantNoteFolderPath,
             appendFilePath: assistantNoteAppendFilePath

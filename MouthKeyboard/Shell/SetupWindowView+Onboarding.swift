@@ -25,7 +25,7 @@ extension SetupWindowView {
         switch step {
         case .microphone:
             return isMicrophoneAuthorized
-        case .pillPosition, .vocabularyPacks:
+        case .pillPosition, .vocabularyPacks, .saving:
             return true
         case .accessibility:
             return isAccessibilityAuthorized
@@ -104,7 +104,7 @@ extension SetupWindowView {
         switch onboardingStep {
         case .microphone:
             return isMicrophoneAuthorized
-        case .pillPosition, .vocabularyPacks:
+        case .pillPosition, .vocabularyPacks, .saving:
             return true
         case .accessibility:
             return isAccessibilityAuthorized
@@ -126,6 +126,8 @@ extension SetupWindowView {
             onboardingAccessibilityStep
         case .vocabularyPacks:
             onboardingVocabularyPacksStep
+        case .saving:
+            onboardingSavingStep
         case .speechEngine:
             onboardingSpeechEngineStep
         }
@@ -146,6 +148,72 @@ extension SetupWindowView {
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    var onboardingSavingStep: some View {
+        HStack(alignment: .top, spacing: 18) {
+            OnboardingFeatureCard(
+                systemImage: "clock.arrow.circlepath",
+                title: "Historical Transcripts",
+                badgeTitle: preferences.historyEnabled ? "On" : "Off",
+                badgeTone: preferences.historyEnabled ? .success : .neutral
+            ) {
+                VStack(alignment: .leading, spacing: 14) {
+                    Text("Keep a browsable record of everything you dictate, so you can revisit or copy past transcripts.")
+                        .font(.callout)
+                        .foregroundStyle(.secondary)
+
+                    Toggle("Save transcript history", isOn: historyEnabledBinding)
+                        .toggleStyle(.switch)
+                        .accessibilityIdentifier("onboarding.saving.historyToggle")
+
+                    Text("Stored only on this Mac, capped at 500 MB by default. Browse or adjust it any time in Settings.")
+                        .font(.caption)
+                        .foregroundStyle(.tertiary)
+                }
+            }
+
+            OnboardingFeatureCard(
+                systemImage: "note.text",
+                title: "Note Saving",
+                badgeTitle: preferences.noteSavingEnabled ? "On" : "Off",
+                badgeTone: preferences.noteSavingEnabled ? .success : .neutral
+            ) {
+                VStack(alignment: .leading, spacing: 14) {
+                    Text("Ask the assistant to take a note and it lands as a Markdown file you can open anywhere.")
+                        .font(.callout)
+                        .foregroundStyle(.secondary)
+
+                    Toggle("Save notes as Markdown files", isOn: noteSavingEnabledBinding)
+                        .toggleStyle(.switch)
+                        .accessibilityIdentifier("onboarding.saving.notesToggle")
+
+                    if preferences.noteSavingEnabled {
+                        HStack(alignment: .center, spacing: 8) {
+                            Image(systemName: "folder.fill")
+                                .font(.system(size: 12, weight: .semibold))
+                                .foregroundStyle(Color.accentColor)
+
+                            Text(
+                                (preferences.assistantNoteConfiguration.resolvedFolderPath as NSString)
+                                    .abbreviatingWithTildeInPath
+                            )
+                            .font(.callout)
+                            .lineLimit(1)
+                            .truncationMode(.middle)
+                            .accessibilityIdentifier("onboarding.saving.notesFolderPath")
+
+                            Spacer(minLength: 8)
+
+                            Button("Browse…", action: chooseAssistantNoteFolder)
+                                .buttonStyle(.bordered)
+                                .controlSize(.small)
+                                .accessibilityIdentifier("onboarding.saving.notesBrowse")
+                        }
+                    }
+                }
+            }
+        }
     }
 
     var onboardingMicrophoneStep: some View {

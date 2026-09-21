@@ -15,12 +15,28 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     private let microphoneService = MicrophonePermissionService.live
     private let activationStore = ActivationStore.shared
     private let audioCaptureService = AudioCaptureService.shared
+    private let systemAudioDuckingService = SystemAudioDuckingService.shared
     private let levelMonitor = AudioLevelMonitor()
     private let forcePresentSetupOnLaunch = ProcessInfo.processInfo.arguments.contains("-open-setup-window")
 
     private var pillPanel: RecordingPillPanel?
     private var pillPreviewPanel: RecordingPillPreviewPanel?
     private var stateObservation: AnyCancellable?
+    private lazy var autoRestartService = AutoRestartService(
+        isActivationIdle: { [weak self] in
+            self?.activationStore.state == .idle
+        },
+        isModelWorkInFlight: {
+            WhisperModelLoadState.shared.phase.isTransferInFlight
+                || RewriteModelLoadState.shared.phase.isTransferInFlight
+        },
+        hasBlockingWindows: { [weak self] in
+            guard let self else {
+                return true
+            }
+            return self.setupWindow != nil || self.guideWindow != nil
+        }
+    )
     private var permissionStartupTask: Task<Void, Never>?
     private var hasRequestedAccessibilityPromptThisRun = false
     private lazy var statusMenuController = StatusMenuController(
@@ -44,6 +60,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         if !isUITesting {
             NSApp.setActivationPolicy(.accessory)
         }
+
+        // Repair any system-volume duck left behind by a crash while recording.
+        systemAudioDuckingService.restoreStaleSnapshotIfNeeded()
 
         readinessStore.refresh()
         statusMenuController.install()
@@ -136,12 +155,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             }
 
         applyUITestingOverrides()
+
+        if !isUITesting {
+            autoRestartService.start()
+        }
     }
 
     func applicationWillTerminate(_ notification: Notification) {
         permissionStartupTask?.cancel()
         hotkeyService.stop()
         stateObservation?.cancel()
+        systemAudioDuckingService.restore()
     }
 
     private var suppressesAutomaticPermissionPrompts: Bool {
@@ -267,6 +291,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             self?.activationStore.handleSilenceTimeout()
         }
 
+        if preferences.duckSystemAudioWhileRecording {
+            systemAudioDuckingService.duck()
+        }
+
         // Pill panel visibility is managed by RecordingPillPanel's own state observer.
         updateMenuBarIcon(state: .recording)
     }
@@ -298,6 +326,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     private func onReturnedToIdle() {
         audioCaptureService.stop()
         levelMonitor.onSilenceTimeout = nil
+        // Backstop for cancel/failure paths that skip finalization (idempotent).
+        systemAudioDuckingService.restore()
         // Pill panel hides itself (RecordingPillPanel handles this).
         updateMenuBarIcon(state: .idle)
     }
@@ -305,6 +335,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     private func finalizeAudioCaptureBeforeTranscription() async {
         levelMonitor.onSilenceTimeout = nil
         await audioCaptureService.stopForFinalization()
+        // The mic has stopped; bring system audio back before transcription runs.
+        systemAudioDuckingService.restore()
     }
 
 

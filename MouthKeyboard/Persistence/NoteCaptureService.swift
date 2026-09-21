@@ -15,14 +15,33 @@ enum AssistantNoteMode: String, CaseIterable, Codable {
 }
 
 struct AssistantNoteConfiguration: Equatable {
+    let isEnabled: Bool
     let mode: AssistantNoteMode
     let folderPath: String
     let appendFilePath: String
 
+    /// Fallback destination for `.newFile` mode when no folder has been chosen.
+    /// Notes are user-facing Markdown, so they default to a visible Documents
+    /// subfolder rather than Application Support.
+    static var defaultFolderPath: String {
+        let documents = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first
+            ?? FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Documents", isDirectory: true)
+        return documents.appendingPathComponent("Mouth Keyboard Notes", isDirectory: true).path
+    }
+
+    var resolvedFolderPath: String {
+        let trimmed = folderPath.trimmingCharacters(in: .whitespacesAndNewlines)
+        if trimmed.isEmpty {
+            return Self.defaultFolderPath
+        }
+        return trimmed
+    }
+
     var isConfigured: Bool {
+        guard isEnabled else { return false }
         switch mode {
         case .newFile:
-            return !folderPath.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            return true
         case .appendToFile:
             return !appendFilePath.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
         }
@@ -145,7 +164,7 @@ final class NoteCaptureService: NoteCapturing {
 
         switch configuration.mode {
         case .newFile:
-            return try saveNewFile(content: content, folderPath: configuration.folderPath)
+            return try saveNewFile(content: content, folderPath: configuration.resolvedFolderPath)
         case .appendToFile:
             return try appendToFile(content: content, filePath: configuration.appendFilePath)
         }

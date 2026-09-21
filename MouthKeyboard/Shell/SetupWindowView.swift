@@ -88,13 +88,15 @@ enum SetupWindowMode: Equatable {
 
 enum OnboardingStep: String, CaseIterable, Identifiable {
     // Order drives the onboarding flow (via CaseIterable): permissions first
-    // (microphone → accessibility), then preferences, then shortcuts —
-    // second-to-last so the keybind quick-test can gate on model readiness —
-    // then the Try It Out payoff.
+    // (microphone → accessibility), then preferences (pill position,
+    // vocabulary, transcripts & notes), then shortcuts — second-to-last so
+    // the keybind quick-test can gate on model readiness — then the
+    // Try It Out payoff.
     case microphone
     case accessibility
     case pillPosition
     case vocabularyPacks
+    case saving
     case shortcuts
     case speechEngine
 
@@ -114,6 +116,8 @@ enum OnboardingStep: String, CaseIterable, Identifiable {
             return "Accessibility Permission"
         case .vocabularyPacks:
             return "Tailor Your Vocabulary"
+        case .saving:
+            return "Transcripts & Notes"
         case .speechEngine:
             return "Try It Out"
         }
@@ -131,6 +135,8 @@ enum OnboardingStep: String, CaseIterable, Identifiable {
             return "Accessibility is required for full cross-app control and unlocks auto-paste when you want it. Global keyboard and mouse triggers may also depend on macOS input event access."
         case .vocabularyPacks:
             return "Pick the roles that fit you. We'll auto-correct the jargon, tools, and brand names you say most — like \"TypeScript\" or \"Figma\"."
+        case .saving:
+            return "Decide whether Mouth Keyboard keeps a local history of your transcripts and can save spoken notes as Markdown files."
         case .speechEngine:
             return "Take Mouth Keyboard for a quick spin — just hold your key and speak."
         }
@@ -157,6 +163,8 @@ enum OnboardingStep: String, CaseIterable, Identifiable {
             return "figure.wave"
         case .vocabularyPacks:
             return "text.book.closed"
+        case .saving:
+            return "tray.full.fill"
         case .speechEngine:
             return "mic.fill"
         }
@@ -174,6 +182,8 @@ enum OnboardingStep: String, CaseIterable, Identifiable {
             return "Accessibility is required for the full control flow and underpins auto-paste when you want it. Global keyboard and mouse triggers may also depend on macOS input event access."
         case .vocabularyPacks:
             return "Optional — you can change these any time in Word Replacements."
+        case .saving:
+            return "Optional — both stay on this Mac, and you can change them any time in Settings."
         case .speechEngine:
             return "Optional — try it now, or finish and explore on your own once the models are ready."
         }
@@ -309,6 +319,8 @@ struct SetupWindowView: View {
             || !preferences.alwaysAutoPaste
             || !preferences.restorePreviousClipboardAfterAutoPaste
             || preferences.muteSoundEffects
+            || !preferences.duckSystemAudioWhileRecording
+            || !preferences.collectScreenshotsWhileRecording
             || preferences.recordingPillPosition != .default
     }
 
@@ -378,6 +390,39 @@ struct SetupWindowView: View {
         )
     }
 
+    var duckSystemAudioBinding: Binding<Bool> {
+        Binding(
+            get: {
+                preferences.duckSystemAudioWhileRecording
+            },
+            set: { newValue in
+                preferences.duckSystemAudioWhileRecording = newValue
+            }
+        )
+    }
+
+    var pasteCopiedAttachmentsBinding: Binding<Bool> {
+        Binding(
+            get: {
+                preferences.collectScreenshotsWhileRecording
+            },
+            set: { newValue in
+                preferences.collectScreenshotsWhileRecording = newValue
+            }
+        )
+    }
+
+    var saveScreenshotsToHistoryBinding: Binding<Bool> {
+        Binding(
+            get: {
+                preferences.saveScreenshotsToHistory
+            },
+            set: { newValue in
+                preferences.saveScreenshotsToHistory = newValue
+            }
+        )
+    }
+
     var assistantNoteModeBinding: Binding<AssistantNoteMode> {
         Binding(
             get: {
@@ -385,6 +430,32 @@ struct SetupWindowView: View {
             },
             set: { newValue in
                 preferences.assistantNoteMode = newValue
+            }
+        )
+    }
+
+    var noteSavingEnabledBinding: Binding<Bool> {
+        Binding(
+            get: {
+                preferences.noteSavingEnabled
+            },
+            set: { newValue in
+                withAnimation(.easeInOut(duration: 0.18)) {
+                    preferences.noteSavingEnabled = newValue
+                }
+            }
+        )
+    }
+
+    var historyEnabledBinding: Binding<Bool> {
+        Binding(
+            get: {
+                preferences.historyEnabled
+            },
+            set: { newValue in
+                withAnimation(.easeInOut(duration: 0.18)) {
+                    preferences.historyEnabled = newValue
+                }
             }
         )
     }
@@ -552,9 +623,10 @@ struct SetupWindowView: View {
         panel.canChooseDirectories = true
         panel.canCreateDirectories = true
         panel.allowsMultipleSelection = false
-        if !preferences.assistantNoteFolderPath.isEmpty {
-            panel.directoryURL = URL(fileURLWithPath: preferences.assistantNoteFolderPath, isDirectory: true)
-        }
+        panel.directoryURL = URL(
+            fileURLWithPath: preferences.assistantNoteConfiguration.resolvedFolderPath,
+            isDirectory: true
+        )
 
         guard panel.runModal() == .OK, let url = panel.url else {
             return
